@@ -4,22 +4,18 @@ import daviderocca.CAPSTONE_BACKEND.DTO.BookingResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.NewBookingDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
-import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.services.BookingService;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.validation.BindingResult;
-import org.springframework.validation.annotation.Validated;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/bookings")
@@ -31,98 +27,76 @@ public class BookingController {
 
     // ---------------------------------- GET ----------------------------------
 
-    @GetMapping("/getAll")
-    @ResponseStatus(HttpStatus.OK)
+    @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public Page<BookingResponseDTO> getAllBookings(
+    public ResponseEntity<Page<BookingResponseDTO>> getAllBookings(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "startTime") String sort
     ) {
-        log.info("Richiesta elenco prenotazioni - pagina: {}, size: {}, sort: {}", page, size, sort);
-        return bookingService.findAllBookings(page, size, sort);
+        log.info("Richiesta elenco prenotazioni [page={}, size={}, sort={}]", page, size, sort);
+        return ResponseEntity.ok(bookingService.findAllBookings(page, size, sort));
     }
 
     @GetMapping("/{bookingId}")
-    @ResponseStatus(HttpStatus.OK)
-    public BookingResponseDTO getBookingById(@PathVariable UUID bookingId) {
+    public ResponseEntity<BookingResponseDTO> getBookingById(@PathVariable UUID bookingId) {
         log.info("Richiesta dettaglio prenotazione {}", bookingId);
-        return bookingService.findBookingByIdAndConvert(bookingId);
+        return ResponseEntity.ok(bookingService.findBookingByIdAndConvert(bookingId));
     }
 
     @GetMapping("/email/{email}")
-    @ResponseStatus(HttpStatus.OK)
-    public List<BookingResponseDTO> getBookingsByEmail(@PathVariable String email) {
-        log.info("Richiesta prenotazione per email {}", email);
-        return bookingService.findBookingByEmailAndConvert(email);
+    public ResponseEntity<List<BookingResponseDTO>> getBookingsByEmail(@PathVariable String email) {
+        log.info("Richiesta elenco prenotazioni per email {}", email);
+        return ResponseEntity.ok(bookingService.findBookingByEmailAndConvert(email));
     }
 
     // ---------------------------------- POST ----------------------------------
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public BookingResponseDTO createBooking(@Validated @RequestBody NewBookingDTO payload,
-                                            Authentication authentication,
-                                            BindingResult bindingResult) {
-
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-
-        User currentUser = authentication != null ? (User) authentication.getPrincipal() : null;
-
-        log.info("Richiesta creazione prenotazione {}", payload.customerEmail());
-        return bookingService.saveBooking(payload, currentUser);
+    public ResponseEntity<BookingResponseDTO> createBooking(
+            @Valid @RequestBody NewBookingDTO payload,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        log.info("Richiesta creazione prenotazione per {}", payload.customerEmail());
+        BookingResponseDTO created = bookingService.saveBooking(payload, currentUser);
+        return ResponseEntity.status(201).body(created);
     }
 
     // ---------------------------------- PUT ----------------------------------
 
     @PutMapping("/{bookingId}")
-    @ResponseStatus(HttpStatus.OK)
-    public BookingResponseDTO updateBooking(
+    public ResponseEntity<BookingResponseDTO> updateBooking(
             @PathVariable UUID bookingId,
-            @Validated @RequestBody NewBookingDTO payload,
-            Authentication authentication,
-            BindingResult bindingResult
+            @Valid @RequestBody NewBookingDTO payload,
+            @AuthenticationPrincipal User currentUser
     ) {
-
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-
-        User currentUser = authentication != null ? (User) authentication.getPrincipal() : null;
-
         log.info("Richiesta aggiornamento prenotazione {}", bookingId);
-        return bookingService.findBookingByIdAndUpdate(bookingId, payload, currentUser);
+        BookingResponseDTO updated = bookingService.updateBooking(bookingId, payload, currentUser);
+        return ResponseEntity.ok(updated);
     }
 
     // ---------------------------------- PATCH ----------------------------------
 
-
     @PatchMapping("/{bookingId}/status")
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('ADMIN')")
-    public BookingResponseDTO updateBookingStatus(
+    public ResponseEntity<BookingResponseDTO> updateBookingStatus(
             @PathVariable UUID bookingId,
-            @RequestParam @NotBlank BookingStatus status
+            @RequestParam BookingStatus status
     ) {
-        log.info("Richiesta aggiornamento status prenotazione {} -> {}", bookingId, status);
-        return bookingService.updateBookingStatus(bookingId, status);
+        log.info("Richiesta aggiornamento stato prenotazione {} -> {}", bookingId, status);
+        BookingResponseDTO updated = bookingService.updateBookingStatus(bookingId, status);
+        return ResponseEntity.ok(updated);
     }
 
     // ---------------------------------- DELETE ----------------------------------
 
     @DeleteMapping("/{bookingId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteBooking(@PathVariable UUID bookingId, Authentication authentication) {
-
-        User currentUser = authentication != null ? (User) authentication.getPrincipal() : null;
-
+    public ResponseEntity<Void> deleteBooking(
+            @PathVariable UUID bookingId,
+            @AuthenticationPrincipal User currentUser
+    ) {
         log.info("Richiesta eliminazione prenotazione {}", bookingId);
-        bookingService.findBookingByIdAndDelete(bookingId, currentUser);
+        bookingService.deleteBooking(bookingId, currentUser);
+        return ResponseEntity.noContent().build();
     }
 }

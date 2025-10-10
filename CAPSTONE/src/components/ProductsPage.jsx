@@ -118,7 +118,7 @@ function ProductsPage() {
   }
 
   return (
-    <Container fluid className="py-5 d-flex flex-column align-items-center" style={{ marginTop: "7rem" }}>
+    <Container fluid className="py-5 container-base flex-column">
       <h1 className="text-center mb-3">La mia selezione di prodotti</h1>
 
       <div className="d-flex flex-wrap justify-content-center gap-2 mb-4">

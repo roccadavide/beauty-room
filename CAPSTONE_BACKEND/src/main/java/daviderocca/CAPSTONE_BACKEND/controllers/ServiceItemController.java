@@ -1,24 +1,21 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.ServiceItemResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.NewServiceItemDTO;
-import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
+import daviderocca.CAPSTONE_BACKEND.DTO.ServiceItemResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.services.ServiceItemService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.BindingResult;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.validation.Valid;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/serviceItems")
+@RequestMapping("/service-items")
 @Slf4j
 public class ServiceItemController {
 
@@ -28,73 +25,56 @@ public class ServiceItemController {
     // ---------------------------------- GET ----------------------------------
 
     @GetMapping
-    @ResponseStatus(HttpStatus.OK)
-    public Page<ServiceItemResponseDTO> getAllServiceItems(
+    public ResponseEntity<Page<ServiceItemResponseDTO>> getAllServiceItems(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "40") int size,
             @RequestParam(defaultValue = "title") String sort
     ) {
-        log.info("Richiesta elenco servizi - pagina: {}, size: {}, sort: {}", page, size, sort);
-        return serviceItemService.findAllServiceItems(page, size, sort);
+        log.info("Richiesta elenco servizi [page={}, size={}, sort={}]", page, size, sort);
+        Page<ServiceItemResponseDTO> services = serviceItemService.findAllServiceItems(page, size, sort);
+        return ResponseEntity.ok(services);
     }
 
     @GetMapping("/{serviceItemId}")
-    @ResponseStatus(HttpStatus.OK)
-    public ServiceItemResponseDTO getServiceItemById(@PathVariable UUID serviceItemId) {
+    public ResponseEntity<ServiceItemResponseDTO> getServiceItemById(@PathVariable UUID serviceItemId) {
         log.info("Richiesta dettaglio servizio {}", serviceItemId);
-        return serviceItemService.findServiceItemByIdAndConvert(serviceItemId);
+        return ResponseEntity.ok(serviceItemService.findServiceItemByIdAndConvert(serviceItemId));
     }
 
     // ---------------------------------- POST ----------------------------------
 
-    @PostMapping("/postService")
-    @ResponseStatus(HttpStatus.CREATED)
+    @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ServiceItemResponseDTO createServiceItem(
-            @RequestPart("data") @Validated NewServiceItemDTO payload,
-            @RequestPart(value = "image", required = false) MultipartFile image,
-            BindingResult bindingResult) {
-
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-
-        log.info("Richiesta creazione servizio {}", payload.title());
-        return serviceItemService.saveServiceItem(payload, image);
+    public ResponseEntity<ServiceItemResponseDTO> createServiceItem(
+            @Valid @RequestPart("data") NewServiceItemDTO payload,
+            @RequestPart(value = "image", required = false) MultipartFile image
+    ) {
+        log.info("Richiesta creazione servizio '{}'", payload.title());
+        ServiceItemResponseDTO created = serviceItemService.saveServiceItem(payload, image);
+        return ResponseEntity.status(201).body(created);
     }
 
     // ---------------------------------- PUT ----------------------------------
 
     @PutMapping("/{serviceItemId}")
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('ADMIN')")
-    public ServiceItemResponseDTO updateServiceItem(
+    public ResponseEntity<ServiceItemResponseDTO> updateServiceItem(
             @PathVariable UUID serviceItemId,
-            @RequestPart("data") @Validated NewServiceItemDTO payload,
-            @RequestPart(value = "image", required = false) MultipartFile image,
-            BindingResult bindingResult
+            @Valid @RequestPart("data") NewServiceItemDTO payload,
+            @RequestPart(value = "image", required = false) MultipartFile image
     ) {
-
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-
         log.info("Richiesta aggiornamento servizio {}", serviceItemId);
-        return serviceItemService.findServiceItemByIdAndUpdate(serviceItemId, payload, image);
+        ServiceItemResponseDTO updated = serviceItemService.updateServiceItem(serviceItemId, payload, image);
+        return ResponseEntity.ok(updated);
     }
 
     // ---------------------------------- DELETE ----------------------------------
 
     @DeleteMapping("/{serviceItemId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('ADMIN')")
-    public void deleteServiceItem(@PathVariable UUID serviceItemId) {
+    public ResponseEntity<Void> deleteServiceItem(@PathVariable UUID serviceItemId) {
         log.info("Richiesta eliminazione servizio {}", serviceItemId);
-        serviceItemService.findServiceItemByIdAndDelete(serviceItemId);
+        serviceItemService.deleteServiceItem(serviceItemId);
+        return ResponseEntity.noContent().build();
     }
-
 }

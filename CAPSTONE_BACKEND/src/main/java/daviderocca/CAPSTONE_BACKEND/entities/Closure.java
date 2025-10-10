@@ -2,21 +2,26 @@ package daviderocca.CAPSTONE_BACKEND.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "closures")
+@NoArgsConstructor
+@AllArgsConstructor
 @Getter
 @Setter
-@NoArgsConstructor
+@Builder
+@ToString
 public class Closure {
 
     @Id
     @GeneratedValue
-    @Column(name = "closure_id")
+    @Setter(AccessLevel.NONE)
+    @Column(name = "closure_id", nullable = false, updatable = false)
     private UUID id;
 
     @Column(name = "date", nullable = false)
@@ -28,10 +33,10 @@ public class Closure {
     @Column(name = "end_time")
     private LocalTime endTime;
 
-    @Column(name = "reason")
+    @Column(name = "reason", nullable = false, length = 150)
     private String reason;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public boolean isFullDay() {
@@ -43,17 +48,5 @@ public class Closure {
         this.startTime = startTime;
         this.endTime = endTime;
         this.reason = reason;
-    }
-
-    @Override
-    public String toString() {
-        return "Closure{" +
-                "id=" + id +
-                ", date=" + date +
-                ", startTime=" + startTime +
-                ", endTime=" + endTime +
-                ", reason='" + reason + '\'' +
-                ", createdAt=" + createdAt +
-                '}';
     }
 }

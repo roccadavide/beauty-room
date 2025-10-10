@@ -22,18 +22,7 @@ public record NewOrderDTO(
         @NotEmpty(message = "Il numero di telefono non può essere vuoto")
         @Pattern(regexp = "\\+?[0-9]{7,15}", message = "Numero di telefono non valido")
         String customerPhone,
-
-        @NotEmpty(message = "L'indirizzo non può essere vuoto")
-        String address,
-
-        @NotEmpty(message = "La città non può essere vuota")
-        String city,
-
-        @NotEmpty(message = "Il CAP non può essere vuoto")
-        String zipCode,
-
-        @NotEmpty(message = "Il paese non può essere vuoto")
-        String country,
+        String pickupNote,
 
         @NotEmpty(message = "L'ordine deve contenere almeno un prodotto")
         List<NewOrderItemDTO> items

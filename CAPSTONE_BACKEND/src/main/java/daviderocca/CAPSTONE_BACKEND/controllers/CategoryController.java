@@ -2,19 +2,16 @@ package daviderocca.CAPSTONE_BACKEND.controllers;
 
 import daviderocca.CAPSTONE_BACKEND.DTO.CategoryResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.NewCategoryDTO;
-import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.services.CategoryService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.BindingResult;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/categories")
@@ -24,69 +21,56 @@ public class CategoryController {
     @Autowired
     private CategoryService categoryService;
 
+    // ---------------------------------- GET ----------------------------------
+
     @GetMapping
-    @ResponseStatus(HttpStatus.OK)
-    public Page<CategoryResponseDTO> getAllCategories(
+    public ResponseEntity<Page<CategoryResponseDTO>> getAllCategories(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "label") String sort
     ) {
-        log.info("Richiesta elenco categorie - pagina: {}, size: {}, sort: {}", page, size, sort);
-        return categoryService.findAllCategories(page, size, sort);
+        log.info("Richiesta elenco categorie [page={}, size={}, sort={}]", page, size, sort);
+        return ResponseEntity.ok(categoryService.findAllCategories(page, size, sort));
     }
 
     @GetMapping("/{categoryId}")
-    @ResponseStatus(HttpStatus.OK)
-    public CategoryResponseDTO getCategoryById(@PathVariable UUID categoryId) {
+    public ResponseEntity<CategoryResponseDTO> getCategoryById(@PathVariable UUID categoryId) {
         log.info("Richiesta dettaglio categoria {}", categoryId);
-        return categoryService.findCategoryByIdAndConvert(categoryId);
+        return ResponseEntity.ok(categoryService.findCategoryByIdAndConvert(categoryId));
     }
 
     // ---------------------------------- POST ----------------------------------
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
-    public CategoryResponseDTO createCategory(@Validated @RequestBody NewCategoryDTO payload, BindingResult bindingResult) {
-
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-
-        log.info("Richiesta creazione categoria {}", payload.categoryKey());
-        return categoryService.saveCategory(payload);
+    public ResponseEntity<CategoryResponseDTO> createCategory(
+            @Valid @RequestBody NewCategoryDTO payload
+    ) {
+        log.info("Richiesta creazione categoria con chiave '{}'", payload.categoryKey());
+        CategoryResponseDTO created = categoryService.saveCategory(payload);
+        return ResponseEntity.status(201).body(created);
     }
 
     // ---------------------------------- PUT ----------------------------------
 
     @PutMapping("/{categoryId}")
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('ADMIN')")
-    public CategoryResponseDTO updateCategory(
+    public ResponseEntity<CategoryResponseDTO> updateCategory(
             @PathVariable UUID categoryId,
-            @Validated @RequestBody NewCategoryDTO payload,
-            BindingResult bindingResult
+            @Valid @RequestBody NewCategoryDTO payload
     ) {
-
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-
         log.info("Richiesta aggiornamento categoria {}", categoryId);
-        return categoryService.findCategoryByIdAndUpdate(categoryId, payload);
+        CategoryResponseDTO updated = categoryService.updateCategory(categoryId, payload);
+        return ResponseEntity.ok(updated);
     }
 
     // ---------------------------------- DELETE ----------------------------------
 
     @DeleteMapping("/{categoryId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('ADMIN')")
-    public void deleteCategory(@PathVariable UUID categoryId) {
+    public ResponseEntity<Void> deleteCategory(@PathVariable UUID categoryId) {
         log.info("Richiesta eliminazione categoria {}", categoryId);
-        categoryService.findCategoryByIdAndDelete(categoryId);
+        categoryService.deleteCategory(categoryId);
+        return ResponseEntity.noContent().build();
     }
 }

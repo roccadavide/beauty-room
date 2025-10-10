@@ -1,25 +1,18 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.NewPasswordDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewUserDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.UpdateUserDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.UserResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.*;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
-import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.services.UserService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.validation.BindingResult;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import org.springframework.http.HttpStatus;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/users")
@@ -32,118 +25,87 @@ public class UserController {
     // ---------------------------------- GET ----------------------------------
 
     @GetMapping
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('ADMIN')")
-    public Page<UserResponseDTO> getAllUsers(
+    public ResponseEntity<Page<UserResponseDTO>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "name") String sort
     ) {
-        log.info("Richiesta elenco utenti - pagina: {}, size: {}, sort: {}", page, size, sort);
-        return userService.findAllUsers(page, size, sort);
+        log.info("Richiesta elenco utenti [page={}, size={}, sort={}]", page, size, sort);
+        return ResponseEntity.ok(userService.findAllUsers(page, size, sort));
     }
 
     @GetMapping("/{userId}")
-    @ResponseStatus(HttpStatus.OK)
-    public UserResponseDTO getUserById(@PathVariable UUID userId) {
+    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable UUID userId) {
         log.info("Richiesta dettaglio utente {}", userId);
-        return userService.findUserByIdAndConvert(userId);
+        return ResponseEntity.ok(userService.findUserByIdAndConvert(userId));
     }
 
     @GetMapping("/email/{email}")
-    @ResponseStatus(HttpStatus.OK)
-    public UserResponseDTO getUserByEmail(@PathVariable String email) {
+    public ResponseEntity<UserResponseDTO> getUserByEmail(@PathVariable String email) {
         log.info("Richiesta utente per email {}", email);
-        return userService.findUserByEmailAndConvert(email);
+        return ResponseEntity.ok(userService.findUserByEmailAndConvert(email));
     }
 
     @GetMapping("/me")
-    @ResponseStatus(HttpStatus.OK)
-    public UserResponseDTO getCurrentUser(@AuthenticationPrincipal User currentUser) {
+    public ResponseEntity<UserResponseDTO> getCurrentUser(@AuthenticationPrincipal User currentUser) {
         log.info("Richiesta profilo utente autenticato: {}", currentUser.getUserId());
-        return userService.findUserByIdAndConvert(currentUser.getUserId());
+        return ResponseEntity.ok(userService.findUserByIdAndConvert(currentUser.getUserId()));
     }
 
     // ---------------------------------- POST ----------------------------------
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public UserResponseDTO createUser(@Validated @RequestBody NewUserDTO payload, BindingResult bindingResult) {
-
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-
-        log.info("Richiesta creazione utente {}", payload.email());
-        return userService.saveUser(payload);
+    public ResponseEntity<UserResponseDTO> createUser(@Valid @RequestBody NewUserDTO payload) {
+        log.info("Richiesta creazione utente con email {}", payload.email());
+        UserResponseDTO created = userService.saveUser(payload);
+        return ResponseEntity.status(201).body(created);
     }
 
     // ---------------------------------- PUT ----------------------------------
 
     @PutMapping("/{userId}")
-    @ResponseStatus(HttpStatus.OK)
-    public UserResponseDTO updateUser(
+    public ResponseEntity<UserResponseDTO> updateUser(
             @PathVariable UUID userId,
-            @Validated @RequestBody UpdateUserDTO payload,
-            BindingResult bindingResult
+            @Valid @RequestBody UpdateUserDTO payload
     ) {
-
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-
-        log.info("Richiesta aggiornamento utente {}", userId);
-        return userService.findUserByIdAndUpdateProfile(userId, payload);
+        log.info("Richiesta aggiornamento dati profilo utente {}", userId);
+        UserResponseDTO updated = userService.updateUserProfile(userId, payload);
+        return ResponseEntity.ok(updated);
     }
 
     // ---------------------------------- PATCH ----------------------------------
 
     @PatchMapping("/{userId}/password")
-    @ResponseStatus(HttpStatus.OK)
-    public UserResponseDTO patchPassword(
+    public ResponseEntity<UserResponseDTO> patchPassword(
             @PathVariable UUID userId,
-            @Validated @RequestBody NewPasswordDTO payload,
-            BindingResult bindingResult
+            @Valid @RequestBody NewPasswordDTO payload
     ) {
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(
-                    bindingResult.getAllErrors()
-                            .stream()
-                            .map(e -> e.getDefaultMessage())
-                            .collect(Collectors.joining(", "))
-            );
-        }
-
-        log.info("Richiesta aggiornamento password utente {}", userId);
-        return userService.findUserByIdAndPatchPassword(userId, payload);
+        log.info("Richiesta aggiornamento password per utente {}", userId);
+        UserResponseDTO updated = userService.updateUserPassword(userId, payload);
+        return ResponseEntity.ok(updated);
     }
 
     @PatchMapping("/{userId}/make-admin")
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('ADMIN')")
-    public UserResponseDTO promoteToAdmin(@PathVariable UUID userId) {
-        log.info("Richiesta promozione utente {} a ADMIN", userId);
-        return userService.findUserByIdAndPatchToAdmin(userId);
+    public ResponseEntity<UserResponseDTO> promoteToAdmin(@PathVariable UUID userId) {
+        log.info("Promozione utente {} a ADMIN", userId);
+        return ResponseEntity.ok(userService.promoteToAdmin(userId));
     }
 
     @PatchMapping("/{userId}/remove-admin")
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('ADMIN')")
-    public UserResponseDTO removeAdminRole(@PathVariable UUID userId) {
-        log.info("Richiesta rimozione ruolo ADMIN per utente {}", userId);
-        return userService.findUserByIdAndRemoveFromAdmin(userId);
+    public ResponseEntity<UserResponseDTO> removeAdminRole(@PathVariable UUID userId) {
+        log.info("Rimozione ruolo ADMIN per utente {}", userId);
+        return ResponseEntity.ok(userService.revokeAdmin(userId));
     }
 
     // ---------------------------------- DELETE ----------------------------------
 
     @DeleteMapping("/{userId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteUser(@PathVariable UUID userId) {
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID userId) {
         log.info("Richiesta eliminazione utente {}", userId);
-        userService.findUserByIdAndDelete(userId);
+        userService.deleteUser(userId);
+        return ResponseEntity.noContent().build();
     }
 }

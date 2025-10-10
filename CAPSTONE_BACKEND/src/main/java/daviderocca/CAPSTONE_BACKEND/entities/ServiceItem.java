@@ -1,12 +1,7 @@
 package daviderocca.CAPSTONE_BACKEND.entities;
 
-
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-
+import lombok.*;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -16,37 +11,44 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Setter
+@ToString(exclude = {"category", "bookings"})
 public class ServiceItem {
 
     @Id
     @GeneratedValue
     @Setter(AccessLevel.NONE)
-    @Column(name = "service_id")
+    @Column(name = "service_id", nullable = false, updatable = false)
     private UUID serviceId;
 
+    @Column(nullable = false, length = 100)
     private String title;
 
-    @Column(name = "duration_min")
+    @Column(name = "duration_min", nullable = false)
     private int durationMin;
 
+    @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
+    @Column(name = "short_description", length = 255)
     private String shortDescription;
 
-    @Column(columnDefinition = "TEXT")
-    private  String description;
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String description;
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "service_images", joinColumns = @JoinColumn(name = "service_id"))
+    @Column(name = "image_url")
     private List<String> images;
 
-    @ManyToOne
-    @JoinColumn(name = "category_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    @OneToMany(mappedBy = "service")
+    @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Booking> bookings;
 
-    public ServiceItem(String title, int durationMin, BigDecimal price, String shortDescription, String description, List<String> images, Category category) {
+    public ServiceItem(String title, int durationMin, BigDecimal price, String shortDescription,
+                       String description, List<String> images, Category category) {
         this.title = title;
         this.durationMin = durationMin;
         this.price = price;
@@ -54,19 +56,5 @@ public class ServiceItem {
         this.description = description;
         this.images = images;
         this.category = category;
-    }
-
-
-    @Override
-    public String toString() {
-        return "Service{" +
-                "serviceId=" + serviceId +
-                ", title='" + title + '\'' +
-                ", durationMin=" + durationMin +
-                ", price='" + price + '\'' +
-                ", shortDescription='" + shortDescription + '\'' +
-                ", description='" + description + '\'' +
-                ", images=" + images +
-                '}';
     }
 }

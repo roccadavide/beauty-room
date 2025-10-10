@@ -9,20 +9,15 @@ import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ServiceItemRepository;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -35,59 +30,38 @@ public class ServiceItemService {
     private CategoryService categoryService;
 
     @Autowired
-    private Cloudinary imageUploader;
+    private Cloudinary cloudinary;
 
+    // ---------------------------- FIND METHODS ----------------------------
+
+    @Transactional(readOnly = true)
     public Page<ServiceItemResponseDTO> findAllServiceItems(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<ServiceItem> page = this.serviceItemRepository.findAll(pageable);
-
-        return page.map(serviceItem -> new ServiceItemResponseDTO(
-                serviceItem.getServiceId(),
-                serviceItem.getTitle(),
-                serviceItem.getDurationMin(),
-                serviceItem.getPrice(),
-                serviceItem.getShortDescription(),
-                serviceItem.getDescription(),
-                serviceItem.getImages(),
-                serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryId() : null));
+        Page<ServiceItem> page = serviceItemRepository.findAll(pageable);
+        return page.map(this::convertToDTO);
     }
 
+    @Transactional(readOnly = true)
     public ServiceItem findServiceItemById(UUID serviceItemId) {
-        return this.serviceItemRepository.findById(serviceItemId).orElseThrow(()-> new ResourceNotFoundException(serviceItemId));
+        return serviceItemRepository.findById(serviceItemId)
+                .orElseThrow(() -> new ResourceNotFoundException(serviceItemId));
     }
 
+    @Transactional(readOnly = true)
     public ServiceItemResponseDTO findServiceItemByIdAndConvert(UUID serviceItemId) {
-        ServiceItem found = this.serviceItemRepository.findById(serviceItemId).orElseThrow(()-> new ResourceNotFoundException(serviceItemId));
-
-        return new ServiceItemResponseDTO(
-                found.getServiceId(),
-                found.getTitle(),
-                found.getDurationMin(),
-                found.getPrice(),
-                found.getShortDescription(),
-                found.getDescription(),
-                found.getImages(),
-                found.getCategory() != null ? found.getCategory().getCategoryId() : null);
+        return convertToDTO(findServiceItemById(serviceItemId));
     }
 
+    // ---------------------------- CREATE ----------------------------
+
+    @Transactional
     public ServiceItemResponseDTO saveServiceItem(NewServiceItemDTO payload, MultipartFile image) {
         if (serviceItemRepository.existsByTitle(payload.title())) {
             throw new BadRequestException("Esiste già un servizio con questo titolo!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-
-        List<String> images = new ArrayList<>();
-        if (image != null && !image.isEmpty()) {
-            try {
-                String url = (String) imageUploader.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap())
-                        .get("url");
-                images.add(url);
-            } catch (IOException e) {
-                throw new BadRequestException("Errore durante l'upload dell'immagine");
-            }
-        }
+        List<String> images = uploadImageIfPresent(image);
 
         ServiceItem newServiceItem = new ServiceItem(
                 payload.title(),
@@ -99,26 +73,17 @@ public class ServiceItemService {
                 relatedCategory
         );
 
-        ServiceItem savedServiceItem = serviceItemRepository.save(newServiceItem);
+        ServiceItem saved = serviceItemRepository.save(newServiceItem);
+        log.info("Servizio '{}' (ID: {}) creato (categoria: {})",
+                saved.getTitle(), saved.getServiceId(), relatedCategory.getCategoryKey());
 
-        log.info("Servizio {} creato con immagine {}",
-                savedServiceItem.getServiceId(),
-                images.isEmpty() ? "nessuna" : images.getFirst());
-
-        return new ServiceItemResponseDTO(
-                savedServiceItem.getServiceId(),
-                savedServiceItem.getTitle(),
-                savedServiceItem.getDurationMin(),
-                savedServiceItem.getPrice(),
-                savedServiceItem.getShortDescription(),
-                savedServiceItem.getDescription(),
-                savedServiceItem.getImages(),
-                relatedCategory.getCategoryId()
-        );
+        return convertToDTO(saved);
     }
 
+    // ---------------------------- UPDATE ----------------------------
+
     @Transactional
-    public ServiceItemResponseDTO findServiceItemByIdAndUpdate(UUID serviceItemId, NewServiceItemDTO payload, MultipartFile image) {
+    public ServiceItemResponseDTO updateServiceItem(UUID serviceItemId, NewServiceItemDTO payload, MultipartFile image) {
         ServiceItem found = findServiceItemById(serviceItemId);
 
         if (serviceItemRepository.existsByTitleAndServiceIdNot(payload.title(), serviceItemId)) {
@@ -126,20 +91,11 @@ public class ServiceItemService {
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-
         List<String> images = found.getImages();
 
         if (image != null && !image.isEmpty()) {
-            try {
-                String url = (String) imageUploader.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap())
-                        .get("url");
-                images = new ArrayList<>();
-                images.add(url);
-                found.setImages(images);
-            } catch (IOException e) {
-                throw new BadRequestException("Errore durante l'upload dell'immagine");
-            }
+            images = uploadImageIfPresent(image);
+            found.setImages(images);
         }
 
         found.setTitle(payload.title());
@@ -149,31 +105,51 @@ public class ServiceItemService {
         found.setDescription(payload.description());
         found.setCategory(relatedCategory);
 
-        if (image != null && !image.isEmpty()) {
-            found.setImages(images);
-        }
+        ServiceItem updated = serviceItemRepository.save(found);
+        log.info("Servizio '{}' (ID: {}) aggiornato (categoria: {})",
+                updated.getTitle(), updated.getServiceId(), relatedCategory.getCategoryKey());
 
-        ServiceItem modifiedServiceItem = serviceItemRepository.save(found);
-
-        log.info("Servizio {} aggiornato (categoria: {})",
-                modifiedServiceItem.getServiceId(), relatedCategory.getCategoryKey());
-
-        return new ServiceItemResponseDTO(
-                modifiedServiceItem.getServiceId(),
-                modifiedServiceItem.getTitle(),
-                modifiedServiceItem.getDurationMin(),
-                modifiedServiceItem.getPrice(),
-                modifiedServiceItem.getShortDescription(),
-                modifiedServiceItem.getDescription(),
-                modifiedServiceItem.getImages(),
-                relatedCategory.getCategoryId()
-        );
+        return convertToDTO(updated);
     }
 
+    // ---------------------------- DELETE ----------------------------
+
     @Transactional
-    public void findServiceItemByIdAndDelete(UUID serviceItemId) {
+    public void deleteServiceItem(UUID serviceItemId) {
         ServiceItem found = findServiceItemById(serviceItemId);
         serviceItemRepository.delete(found);
-        log.info("Servizio {} è stato eliminato!", found.getServiceId());
+        log.info("Servizio '{}' (ID: {}) eliminato correttamente.", found.getTitle(), found.getServiceId());
+    }
+
+    // ---------------------------- CLOUDINARY ----------------------------
+    private List<String> uploadImageIfPresent(MultipartFile image) {
+        List<String> images = new ArrayList<>();
+        if (image != null && !image.isEmpty()) {
+            try {
+                Map uploadResult = cloudinary.uploader()
+                        .upload(image.getBytes(), ObjectUtils.emptyMap());
+                String url = (String) uploadResult.get("url");
+                images.add(url);
+                log.info("Immagine caricata su Cloudinary: {}", url);
+            } catch (IOException e) {
+                log.error("Errore durante l'upload dell'immagine su Cloudinary", e);
+                throw new BadRequestException("Errore durante l'upload dell'immagine");
+            }
+        }
+        return images;
+    }
+
+    // ---------------------------- CONVERTER ----------------------------
+    private ServiceItemResponseDTO convertToDTO(ServiceItem serviceItem) {
+        return new ServiceItemResponseDTO(
+                serviceItem.getServiceId(),
+                serviceItem.getTitle(),
+                serviceItem.getDurationMin(),
+                serviceItem.getPrice(),
+                serviceItem.getShortDescription(),
+                serviceItem.getDescription(),
+                serviceItem.getImages(),
+                serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryId() : null
+        );
     }
 }

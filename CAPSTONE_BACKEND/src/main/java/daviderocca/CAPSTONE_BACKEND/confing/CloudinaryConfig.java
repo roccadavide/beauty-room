@@ -16,7 +16,8 @@ public class CloudinaryConfig {
 	String cloudName;
 	@Value("${cloudinary.key}")
 	String apiKey;
-	@Value("${cloudinary.secret}") String apiSecret;
+	@Value("${cloudinary.secret}")
+	String apiSecret;
 
 	@Bean
 	public Cloudinary getImageUploader() {

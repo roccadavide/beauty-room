@@ -28,7 +28,7 @@ public class SecConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/noAuth/login", "/users/register").permitAll()
+                        .requestMatchers("/noAuth/login", "/users/register", "/checkout/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/serviceItems/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/results").permitAll()

@@ -9,11 +9,11 @@ import daviderocca.CAPSTONE_BACKEND.entities.Result;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ResultRepository;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -30,62 +30,38 @@ public class ResultService {
     private CategoryService categoryService;
 
     @Autowired
-    private Cloudinary imageUploader;
+    private Cloudinary cloudinary;
 
+    // ---------------------------- FIND METHODS ----------------------------
 
+    @Transactional(readOnly = true)
     public Page<ResultResponseDTO> findAllResults(int pageNumber, int pageSize, String sort) {
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort).descending());
-        Page<Result> page = this.resultRepository.findAll(pageable);
-
-        return page.map(result -> new ResultResponseDTO(
-                result.getResultId(),
-                result.getTitle(),
-                result.getShortDescription(),
-                result.getDescription(),
-                result.getImages(),
-                result.getCategory() != null ? result.getCategory().getCategoryId() : null,
-                result.getCreatedAt()
-        ));
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
+        Page<Result> page = resultRepository.findAll(pageable);
+        return page.map(this::convertToDTO);
     }
 
+    @Transactional(readOnly = true)
     public Result findResultById(UUID resultId) {
-        return this.resultRepository.findById(resultId)
+        return resultRepository.findById(resultId)
                 .orElseThrow(() -> new ResourceNotFoundException(resultId));
     }
 
+    @Transactional(readOnly = true)
     public ResultResponseDTO findResultByIdAndConvert(UUID resultId) {
-        Result found = findResultById(resultId);
-
-        return new ResultResponseDTO(
-                found.getResultId(),
-                found.getTitle(),
-                found.getShortDescription(),
-                found.getDescription(),
-                found.getImages(),
-                found.getCategory() != null ? found.getCategory().getCategoryId() : null,
-                found.getCreatedAt()
-        );
+        return convertToDTO(findResultById(resultId));
     }
 
+    // ---------------------------- CREATE ----------------------------
 
+    @Transactional
     public ResultResponseDTO saveResult(NewResultDTO payload, MultipartFile image) {
         if (resultRepository.existsByTitle(payload.title())) {
-            throw new IllegalArgumentException("Esiste già un risultato con questo titolo!");
+            throw new BadRequestException("Esiste già un risultato con questo titolo!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-
-        List<String> images = new ArrayList<>();
-        if (image != null && !image.isEmpty()) {
-            try {
-                String url = (String) imageUploader.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap())
-                        .get("url");
-                images.add(url);
-            } catch (IOException e) {
-                throw new BadRequestException("Errore durante l'upload dell'immagine");
-            }
-        }
+        List<String> images = uploadImageIfPresent(image);
 
         Result newResult = new Result(
                 payload.title(),
@@ -96,71 +72,79 @@ public class ResultService {
         );
 
         Result saved = resultRepository.save(newResult);
+        log.info("Risultato '{}' (ID: {}) creato con categoria '{}'",
+                saved.getTitle(), saved.getResultId(), relatedCategory.getCategoryKey());
 
-        log.info("Risultato {} ({} - categoria {}) creato", saved.getResultId(), saved.getTitle(), relatedCategory.getCategoryId());
-
-        return new ResultResponseDTO(
-                saved.getResultId(),
-                saved.getTitle(),
-                saved.getShortDescription(),
-                saved.getDescription(),
-                saved.getImages(),
-                relatedCategory.getCategoryId(),
-                saved.getCreatedAt()
-        );
+        return convertToDTO(saved);
     }
 
+    // ---------------------------- UPDATE ----------------------------
 
     @Transactional
     public ResultResponseDTO updateResult(UUID resultId, NewResultDTO payload, MultipartFile image) {
         Result found = findResultById(resultId);
 
         if (resultRepository.existsByTitleAndResultIdNot(payload.title(), resultId)) {
-            throw new IllegalArgumentException("Esiste già un risultato con questo titolo!");
+            throw new BadRequestException("Esiste già un risultato con questo titolo!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-
         List<String> images = found.getImages();
 
         if (image != null && !image.isEmpty()) {
-            try {
-                String url = (String) imageUploader.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap())
-                        .get("url");
-                images = new ArrayList<>();
-                images.add(url);
-                found.setImages(images);
-            } catch (IOException e) {
-                throw new BadRequestException("Errore durante l'upload dell'immagine");
-            }
+            images = uploadImageIfPresent(image);
         }
 
         found.setTitle(payload.title());
         found.setShortDescription(payload.shortDescription());
         found.setDescription(payload.description());
         found.setCategory(relatedCategory);
+        found.setImages(images);
 
-        Result modified = resultRepository.save(found);
+        Result updated = resultRepository.save(found);
+        log.info("Risultato '{}' (ID: {}) aggiornato (categoria: {})",
+                updated.getTitle(), updated.getResultId(), relatedCategory.getCategoryKey());
 
-        log.info("Risultato {} aggiornato (categoria: {})", modified.getResultId(), relatedCategory.getCategoryKey());
-
-        return new ResultResponseDTO(
-                modified.getResultId(),
-                modified.getTitle(),
-                modified.getShortDescription(),
-                modified.getDescription(),
-                modified.getImages(),
-                relatedCategory.getCategoryId(),
-                modified.getCreatedAt()
-        );
+        return convertToDTO(updated);
     }
 
+    // ---------------------------- DELETE ----------------------------
 
     @Transactional
     public void deleteResult(UUID resultId) {
         Result found = findResultById(resultId);
         resultRepository.delete(found);
-        log.info("Risultato {} eliminato!", found.getResultId());
+        log.info("Risultato '{}' (ID: {}) eliminato con successo.", found.getTitle(), found.getResultId());
+    }
+
+    // ---------------------------- CLOUDINARY ----------------------------
+    private List<String> uploadImageIfPresent(MultipartFile image) {
+        List<String> images = new ArrayList<>();
+        if (image != null && !image.isEmpty()) {
+            try {
+                Map uploadResult = cloudinary.uploader()
+                        .upload(image.getBytes(), ObjectUtils.emptyMap());
+                String url = (String) uploadResult.get("url");
+                images.add(url);
+                log.info("Immagine caricata su Cloudinary: {}", url);
+            } catch (IOException e) {
+                log.error("Errore durante l'upload dell'immagine su Cloudinary", e);
+                throw new BadRequestException("Errore durante l'upload dell'immagine");
+            }
+        }
+        return images;
+    }
+
+    // ---------------------------- CONVERTER ----------------------------
+    private ResultResponseDTO convertToDTO(Result result) {
+        return new ResultResponseDTO(
+                result.getResultId(),
+                result.getTitle(),
+                result.getShortDescription(),
+                result.getDescription(),
+                result.getImages(),
+                result.getCategory() != null ? result.getCategory().getCategoryId() : null,
+                result.getCreatedAt()
+        );
     }
 }

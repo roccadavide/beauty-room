@@ -1,86 +1,80 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
 import daviderocca.CAPSTONE_BACKEND.DTO.NewWorkingHoursDTO;
-import daviderocca.CAPSTONE_BACKEND.entities.WorkingHours;
-import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
+import daviderocca.CAPSTONE_BACKEND.DTO.WorkingHoursResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.services.WorkingHoursService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.DayOfWeek;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/working-hours")
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
 public class WorkingHoursController {
 
     @Autowired
     private WorkingHoursService workingHoursService;
 
     // --------------------- GET ---------------------
+
     @GetMapping
-    @ResponseStatus(HttpStatus.OK)
-    public List<WorkingHours> getAll() {
+    public ResponseEntity<List<WorkingHoursResponseDTO>> getAll() {
         log.info("Richiesta elenco orari di lavoro");
-        return workingHoursService.findAll();
+        List<WorkingHoursResponseDTO> list = workingHoursService.findAll();
+        return ResponseEntity.ok(list);
     }
 
     @GetMapping("/{id}")
-    @ResponseStatus(HttpStatus.OK)
-    public WorkingHours getById(@PathVariable UUID id) {
+    public ResponseEntity<WorkingHoursResponseDTO> getById(@PathVariable UUID id) {
         log.info("Richiesta orario di lavoro con id {}", id);
-        return workingHoursService.findById(id);
+        return ResponseEntity.ok(workingHoursService.findByIdAndConvert(id));
     }
 
     @GetMapping("/day/{day}")
-    @ResponseStatus(HttpStatus.OK)
-    public WorkingHours getByDay(@PathVariable DayOfWeek day) {
+    public ResponseEntity<WorkingHoursResponseDTO> getByDay(@PathVariable DayOfWeek day) {
         log.info("Richiesta orario di lavoro per il giorno {}", day);
-        return workingHoursService.findByDayOfWeek(day);
+        return ResponseEntity.ok(workingHoursService.findByDayOfWeek(day));
     }
 
     // --------------------- POST ---------------------
+
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public WorkingHours createWorkingHours(@Valid @RequestBody NewWorkingHoursDTO payload, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
-        log.info("Creazione nuovo orario per {}", payload.dayOfWeek());
-        return workingHoursService.createWorkingHours(payload);
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<WorkingHoursResponseDTO> createWorkingHours(
+            @Valid @RequestBody NewWorkingHoursDTO payload
+    ) {
+        log.info("🆕 Creazione nuovo orario per {}", payload.dayOfWeek());
+        WorkingHoursResponseDTO created = workingHoursService.createWorkingHours(payload);
+        return ResponseEntity.status(201).body(created);
     }
 
     // --------------------- PUT ---------------------
+
     @PutMapping("/{id}")
-    @ResponseStatus(HttpStatus.OK)
-    public WorkingHours updateWorkingHours(@PathVariable UUID id,
-                               @Valid @RequestBody NewWorkingHoursDTO payload,
-                               BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            throw new BadRequestException(bindingResult.getAllErrors().stream()
-                    .map(e -> e.getDefaultMessage())
-                    .collect(Collectors.joining(", ")));
-        }
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<WorkingHoursResponseDTO> updateWorkingHours(
+            @PathVariable UUID id,
+            @Valid @RequestBody NewWorkingHoursDTO payload
+    ) {
         log.info("Aggiornamento orario con id {}", id);
-        return workingHoursService.updateWorkingHours(id, payload);
+        WorkingHoursResponseDTO updated = workingHoursService.updateWorkingHours(id, payload);
+        return ResponseEntity.ok(updated);
     }
 
     // --------------------- DELETE ---------------------
+
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteWorkingHours(@PathVariable UUID id) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteWorkingHours(@PathVariable UUID id) {
         log.info("Eliminazione orario con id {}", id);
         workingHoursService.deleteWorkingHours(id);
+        return ResponseEntity.noContent().build();
     }
 }

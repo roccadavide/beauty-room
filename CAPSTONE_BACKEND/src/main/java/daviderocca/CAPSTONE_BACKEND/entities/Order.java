@@ -2,10 +2,7 @@ package daviderocca.CAPSTONE_BACKEND.entities;
 
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -17,42 +14,38 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Setter
+@ToString(exclude = {"user", "orderItems"})
 public class Order {
 
     @Id
     @GeneratedValue
     @Setter(AccessLevel.NONE)
-    @Column(name = "order_id")
+    @Column(name = "order_id", nullable = false, updatable = false)
     private UUID orderId;
 
-    @Column(name = "customer_name")
+    @Column(name = "customer_name", nullable = false)
     private String customerName;
 
-    @Column(name = "customer_surname")
+    @Column(name = "customer_surname", nullable = false)
     private String customerSurname;
 
-    @Column(name = "customer_email")
+    @Column(name = "customer_email", nullable = false)
     private String customerEmail;
 
-    @Column(name = "customer_phone")
+    @Column(name = "customer_phone", nullable = false)
     private String customerPhone;
 
-    private String address;
-
-    private String city;
-
-    private String zipCode;
-
-    private String country;
+    @Column(name = "pickup_note", length = 300)
+    private String pickupNote;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "order_status")
+    @Column(name = "order_status", nullable = false)
     private OrderStatus orderStatus = OrderStatus.PENDING;
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
 
@@ -60,35 +53,17 @@ public class Order {
     private List<OrderItem> orderItems = new ArrayList<>();
 
     public Order(String customerName, String customerSurname, String customerEmail,
-                 String customerPhone, String address, String city, String zipCode,
-                 String country, User user) {
+                 String customerPhone, String pickupNote, User user) {
         this.customerName = customerName;
         this.customerSurname = customerSurname;
         this.customerEmail = customerEmail;
         this.customerPhone = customerPhone;
-        this.address = address;
-        this.city = city;
-        this.zipCode = zipCode;
-        this.country = country;
+        this.pickupNote = pickupNote;
         this.user = user;
     }
 
-    @Override
-    public String toString() {
-        return "Order{" +
-                "orderId=" + orderId +
-                ", customerName='" + customerName + '\'' +
-                ", customerSurname='" + customerSurname + '\'' +
-                ", customerEmail='" + customerEmail + '\'' +
-                ", customerPhone='" + customerPhone + '\'' +
-                ", address='" + address + '\'' +
-                ", city='" + city + '\'' +
-                ", zipCode='" + zipCode + '\'' +
-                ", country='" + country + '\'' +
-                ", orderStatus=" + orderStatus +
-                ", createdAt=" + createdAt +
-                ", user=" + user +
-                ", orderItems=" + orderItems +
-                '}';
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
     }
 }

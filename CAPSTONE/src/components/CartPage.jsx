@@ -1,22 +1,59 @@
 import { useDispatch, useSelector } from "react-redux";
-import { Container, Row, Col, ListGroup, Image, Button } from "react-bootstrap";
+import { Container, Row, Col, ListGroup, Image, Button, Spinner } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 import { Dash, Plus, Trash } from "react-bootstrap-icons";
 import { removeFromCart, updateCartQuantity } from "../redux/action/cartActions";
 import { useState } from "react";
 import CheckoutModal from "./CheckoutModal";
+import { createCheckoutSession } from "../api/api";
 
 const CartPage = () => {
   const { items, totalPrice } = useSelector(state => state.cart);
   const { user } = useSelector(state => state.auth);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  // ---------- STRIPE CHECKOUT ----------
+  const handleStripeCheckout = async orderData => {
+    try {
+      setLoading(true);
+      const { url } = await createCheckoutSession(orderData);
+      window.location.href = url;
+    } catch (err) {
+      alert("Errore durante il pagamento: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---------- LOGICA DEL PULSANTE ----------
+  const handleProceed = () => {
+    if (user) {
+      const orderData = {
+        fullName: `${user.name} ${user.surname}`,
+        email: user.email,
+        phone: user.phone,
+        items: items.map(i => ({
+          productId: i.productId,
+          name: i.name,
+          price: i.price,
+          quantity: i.quantity,
+        })),
+        totalAmount: totalPrice,
+      };
+      handleStripeCheckout(orderData);
+    } else {
+      setShowCheckout(true);
+    }
+  };
+
+  // ---------- UI ----------
   if (items.length === 0) {
     return (
       <Container className="py-5 container-base flex-column">
-        <h2>🛒 Il tuo carrello è vuoto </h2>
+        <h2>🛒 Il tuo carrello è vuoto</h2>
         <Link to="/prodotti">
           <Button variant="dark" className="mt-3">
             Vai ai prodotti
@@ -29,6 +66,7 @@ const CartPage = () => {
   return (
     <Container className="py-5" style={{ marginTop: "7rem" }}>
       <h2 className="mb-4">Il tuo carrello</h2>
+
       <ListGroup variant="flush">
         {items.map(item => (
           <ListGroup.Item key={item.productId} className="py-3">
@@ -87,12 +125,19 @@ const CartPage = () => {
       </div>
 
       <div className="d-flex justify-content-end mt-3">
-        <Button variant="success" size="lg" className="cart-checkout-btn" onClick={() => setShowCheckout(true)}>
-          Procedi al checkout
+        <Button variant="success" size="lg" className="cart-checkout-btn" onClick={handleProceed} disabled={loading}>
+          {loading ? <Spinner animation="border" size="sm" /> : "Procedi al checkout"}
         </Button>
       </div>
 
-      <CheckoutModal show={showCheckout} onHide={() => setShowCheckout(false)} user={user} />
+      <CheckoutModal
+        show={showCheckout}
+        onHide={() => setShowCheckout(false)}
+        user={null}
+        onConfirm={handleStripeCheckout}
+        cartItems={items}
+        totalPrice={totalPrice}
+      />
     </Container>
   );
 };

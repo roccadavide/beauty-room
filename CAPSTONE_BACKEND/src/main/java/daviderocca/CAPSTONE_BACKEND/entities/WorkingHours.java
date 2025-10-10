@@ -9,18 +9,19 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "working_hours")
+@NoArgsConstructor
 @Getter
 @Setter
-@NoArgsConstructor
+@ToString
 public class WorkingHours {
 
     @Id
     @GeneratedValue
-    @Column(name = "working_hours_id")
+    @Column(name = "working_hours_id", nullable = false, updatable = false)
     private UUID id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "day_of_week", nullable = false)
+    @Column(name = "day_of_week", nullable = false, unique = true)
     private DayOfWeek dayOfWeek;
 
     @Column(name = "morning_start")
@@ -38,7 +39,12 @@ public class WorkingHours {
     @Column(name = "closed", nullable = false)
     private boolean closed = false;
 
-    public WorkingHours(DayOfWeek dayOfWeek, LocalTime morningStart, LocalTime morningEnd, LocalTime afternoonStart, LocalTime afternoonEnd, boolean closed) {
+    public WorkingHours(DayOfWeek dayOfWeek,
+                        LocalTime morningStart,
+                        LocalTime morningEnd,
+                        LocalTime afternoonStart,
+                        LocalTime afternoonEnd,
+                        boolean closed) {
         this.dayOfWeek = dayOfWeek;
         this.morningStart = morningStart;
         this.morningEnd = morningEnd;
@@ -47,16 +53,17 @@ public class WorkingHours {
         this.closed = closed;
     }
 
-    @Override
-    public String toString() {
-        return "WorkingHours{" +
-                "id=" + id +
-                ", dayOfWeek=" + dayOfWeek +
-                ", morningStart=" + morningStart +
-                ", morningEnd=" + morningEnd +
-                ", afternoonStart=" + afternoonStart +
-                ", afternoonEnd=" + afternoonEnd +
-                ", closed=" + closed +
-                '}';
+    // -------------------- METHODS --------------------
+
+    public boolean isMorningAvailable() {
+        return morningStart != null && morningEnd != null && !closed;
+    }
+
+    public boolean isAfternoonAvailable() {
+        return afternoonStart != null && afternoonEnd != null && !closed;
+    }
+
+    public boolean isFullDayClosed() {
+        return closed || (morningStart == null && afternoonStart == null);
     }
 }

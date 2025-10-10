@@ -9,20 +9,15 @@ import daviderocca.CAPSTONE_BACKEND.entities.Product;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ProductRepository;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -35,98 +30,72 @@ public class ProductService {
     private CategoryService categoryService;
 
     @Autowired
-    private Cloudinary imageUploader;
+    private Cloudinary cloudinary;
 
+    // ---------------------------- FIND METHODS ----------------------------
+
+    @Transactional(readOnly = true)
     public Page<ProductResponseDTO> findAllProducts(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<Product> page = this.productRepository.findAll(pageable);
-
-        return page.map(product -> new ProductResponseDTO(
-                product.getProductId(),
-                product.getName(),
-                product.getPrice(),
-                product.getShortDescription(),
-                product.getDescription(),
-                product.getImages(),
-                product.getStock(),
-                product.getCategory() != null ? product.getCategory().getCategoryId() : null
-        ));
+        Page<Product> page = productRepository.findAll(pageable);
+        return page.map(this::convertToDTO);
     }
 
+    @Transactional(readOnly = true)
     public Product findProductById(UUID productId) {
-        return this.productRepository.findById(productId).orElseThrow(()-> new ResourceNotFoundException(productId));
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException(productId));
     }
 
+    @Transactional(readOnly = true)
     public ProductResponseDTO findProductByIdAndConvert(UUID productId) {
-        Product found = this.productRepository.findById(productId).orElseThrow(()-> new ResourceNotFoundException(productId));
-
-        return new ProductResponseDTO(
-                found.getProductId(),
-                found.getName(),
-                found.getPrice(),
-                found.getShortDescription(),
-                found.getDescription(),
-                found.getImages(),
-                found.getStock(),
-                found.getCategory() != null ? found.getCategory().getCategoryId() : null
-        );
+        return convertToDTO(findProductById(productId));
     }
 
-    public ProductResponseDTO saveProduct(NewProductDTO payload, MultipartFile image) {
+    // ---------------------------- CREATE ----------------------------
 
+    @Transactional
+    public ProductResponseDTO saveProduct(NewProductDTO payload, MultipartFile image) {
         if (productRepository.existsByName(payload.name())) {
-            throw new IllegalArgumentException("Esiste già un prodotto con questo nome!");
+            throw new BadRequestException("Esiste già un prodotto con questo nome!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
+        List<String> images = uploadImageIfPresent(image);
 
-        List<String> images = new ArrayList<>();
-        if (image != null && !image.isEmpty()) {
-            try {
-                String url = (String) imageUploader.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap())
-                        .get("url");
-                images.add(url);
-            } catch (IOException e) {
-                throw new BadRequestException("Errore durante l'upload dell'immagine");
-            }
-        }
+        Product newProduct = new Product(
+                payload.name(),
+                payload.price(),
+                payload.shortDescription(),
+                payload.description(),
+                images,
+                payload.stock(),
+                relatedCategory
+        );
 
-        Product newProduct = new Product(payload.name(), payload.price(),payload.shortDescription(), payload.description(), images, payload.stock(), relatedCategory);
-        Product savedProduct = productRepository.save(newProduct);
+        Product saved = productRepository.save(newProduct);
+        log.info("Prodotto '{}' (ID: {}) creato con categoria '{}'",
+                saved.getName(), saved.getProductId(), relatedCategory.getCategoryKey());
 
-
-
-        log.info("Prodotto {} ({} - categoria {}) creato", savedProduct.getProductId(), savedProduct.getName(), relatedCategory.getCategoryId());
-
-        return new ProductResponseDTO(savedProduct.getProductId(), savedProduct.getName(),
-                savedProduct.getPrice(),savedProduct.getShortDescription(), savedProduct.getDescription(), savedProduct.getImages(),
-                savedProduct.getStock(), relatedCategory.getCategoryId());
+        return convertToDTO(saved);
     }
 
+    // ---------------------------- UPDATE ----------------------------
+
     @Transactional
-    public ProductResponseDTO findProductByIdAndUpdate(UUID productId, NewProductDTO payload, MultipartFile image) {
+    public ProductResponseDTO updateProduct(UUID productId, NewProductDTO payload, MultipartFile image) {
         Product found = findProductById(productId);
 
         if (productRepository.existsByNameAndProductIdNot(payload.name(), productId)) {
-            throw new IllegalArgumentException("Esiste già un prodotto con questo nome!");
+            throw new BadRequestException("Esiste già un prodotto con questo nome!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-
         List<String> images = found.getImages();
 
+        // Aggiorna immagine solo se presente nel payload
         if (image != null && !image.isEmpty()) {
-            try {
-                String url = (String) imageUploader.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap())
-                        .get("url");
-                images = new ArrayList<>();
-                images.add(url);
-                found.setImages(images);
-            } catch (IOException e) {
-                throw new BadRequestException("Errore durante l'upload dell'immagine");
-            }
+            images = uploadImageIfPresent(image);
         }
 
         found.setName(payload.name());
@@ -135,30 +104,57 @@ public class ProductService {
         found.setDescription(payload.description());
         found.setStock(payload.stock());
         found.setCategory(relatedCategory);
+        found.setImages(images);
 
-        if (image != null && !image.isEmpty()) {
-            found.setImages(images);
-        }
+        Product updated = productRepository.save(found);
+        log.info("🔄 Prodotto '{}' (ID: {}) aggiornato correttamente (categoria: {})",
+                updated.getName(), updated.getProductId(), relatedCategory.getCategoryKey());
 
-        Product modifiedProduct = productRepository.save(found);
-
-        log.info("Prodotto {} aggiornato (categoria: {})", modifiedProduct.getProductId(), relatedCategory.getCategoryKey());
-
-        return new ProductResponseDTO(modifiedProduct.getProductId(), modifiedProduct.getName(),
-                modifiedProduct.getPrice(), modifiedProduct.getShortDescription(), modifiedProduct.getDescription(), modifiedProduct.getImages(),
-                modifiedProduct.getStock(), relatedCategory.getCategoryId());
+        return convertToDTO(updated);
     }
 
+    // ---------------------------- DELETE ----------------------------
+
     @Transactional
-    public void findProductByIdAndDelete(UUID productId) {
+    public void deleteProduct(UUID productId) {
         Product found = findProductById(productId);
 
-        if (!found.getOrderItems().isEmpty()) {
+        if (found.getOrderItems() != null && !found.getOrderItems().isEmpty()) {
             throw new BadRequestException("Non è possibile eliminare un prodotto già ordinato.");
         }
 
         productRepository.delete(found);
-        log.info("Prodotto {} è stato eliminato!", found.getProductId());
+        log.info("🗑️ Prodotto '{}' (ID: {}) eliminato correttamente.", found.getName(), found.getProductId());
     }
 
+    // ---------------------------- CLOUDINARY ----------------------------
+    private List<String> uploadImageIfPresent(MultipartFile image) {
+        List<String> images = new ArrayList<>();
+        if (image != null && !image.isEmpty()) {
+            try {
+                Map uploadResult = cloudinary.uploader()
+                        .upload(image.getBytes(), ObjectUtils.emptyMap());
+                images.add((String) uploadResult.get("url"));
+                log.info("Immagine caricata con successo su Cloudinary: {}", uploadResult.get("url"));
+            } catch (IOException e) {
+                log.error("Errore durante l'upload dell'immagine su Cloudinary", e);
+                throw new BadRequestException("Errore durante l'upload dell'immagine");
+            }
+        }
+        return images;
+    }
+
+    // ---------------------------- CONVERTER ----------------------------
+    private ProductResponseDTO convertToDTO(Product product) {
+        return new ProductResponseDTO(
+                product.getProductId(),
+                product.getName(),
+                product.getPrice(),
+                product.getShortDescription(),
+                product.getDescription(),
+                product.getImages(),
+                product.getStock(),
+                product.getCategory() != null ? product.getCategory().getCategoryId() : null
+        );
+    }
 }

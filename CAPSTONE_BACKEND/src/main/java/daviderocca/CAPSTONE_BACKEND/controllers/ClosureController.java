@@ -1,11 +1,13 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
+import daviderocca.CAPSTONE_BACKEND.DTO.ClosureResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.NewClosureDTO;
-import daviderocca.CAPSTONE_BACKEND.entities.Closure;
 import daviderocca.CAPSTONE_BACKEND.services.ClosureService;
+import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,28 +16,44 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/closures")
 @PreAuthorize("hasRole('ADMIN')")
+@Slf4j
 public class ClosureController {
 
     @Autowired
     private ClosureService closureService;
 
+    // ---------------------------------- GET ----------------------------------
     @GetMapping
-    public List<Closure> getAllClosure() {
-        return closureService.findAllClosure();
+    public ResponseEntity<List<ClosureResponseDTO>> getAllClosures() {
+        log.info("Richiesta elenco chiusure");
+        List<ClosureResponseDTO> closures = closureService.findAllClosures();
+        return ResponseEntity.ok(closures);
     }
 
+    // ---------------------------------- POST ----------------------------------
     @PostMapping
-    public Closure createClosure(@RequestBody @Validated NewClosureDTO payload) {
-        return closureService.createClosure(payload);
+    public ResponseEntity<ClosureResponseDTO> createClosure(@Valid @RequestBody NewClosureDTO payload) {
+        log.info("Richiesta creazione chiusura per data {}", payload.date());
+        ClosureResponseDTO created = closureService.createClosure(payload);
+        return ResponseEntity.status(201).body(created);
     }
 
+    // ---------------------------------- PUT ----------------------------------
     @PutMapping("/{id}")
-    public Closure updateClosure(@PathVariable UUID id, @RequestBody @Validated NewClosureDTO payload) {
-        return closureService.updateClosure(id, payload);
+    public ResponseEntity<ClosureResponseDTO> updateClosure(
+            @PathVariable UUID id,
+            @Valid @RequestBody NewClosureDTO payload
+    ) {
+        log.info("Richiesta aggiornamento chiusura con ID {}", id);
+        ClosureResponseDTO updated = closureService.updateClosure(id, payload);
+        return ResponseEntity.ok(updated);
     }
 
+    // ---------------------------------- DELETE ----------------------------------
     @DeleteMapping("/{id}")
-    public void deleteClosure(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteClosure(@PathVariable UUID id) {
+        log.info("Richiesta eliminazione chiusura con ID {}", id);
         closureService.deleteClosure(id);
+        return ResponseEntity.noContent().build();
     }
 }
