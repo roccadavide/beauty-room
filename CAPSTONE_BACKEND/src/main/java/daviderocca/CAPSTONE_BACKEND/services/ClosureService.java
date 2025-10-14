@@ -1,13 +1,13 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.ClosureResponseDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewClosureDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.closureDTOs.ClosureResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.closureDTOs.NewClosureDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Closure;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ClosureRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,10 +17,10 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class ClosureService {
 
-    @Autowired
-    private ClosureRepository closureRepository;
+    private final ClosureRepository closureRepository;
 
     // -------------------------- FIND ALL --------------------------
     @Transactional(readOnly = true)
@@ -81,15 +81,15 @@ public class ClosureService {
     }
 
     // ---------------------------- CONVERTER ----------------------------
-    private ClosureResponseDTO convertToDTO(Closure c) {
+    private ClosureResponseDTO convertToDTO(Closure closure) {
         return new ClosureResponseDTO(
-                c.getId(),
-                c.getDate(),
-                c.getStartTime(),
-                c.getEndTime(),
-                c.getReason(),
-                c.isFullDay(),
-                c.getCreatedAt()
+                closure.getId(),
+                closure.getDate(),
+                closure.getStartTime(),
+                closure.getEndTime(),
+                closure.getReason(),
+                closure.isFullDay(),
+                closure.getCreatedAt()
         );
     }
 }

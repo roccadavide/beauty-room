@@ -1,11 +1,11 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.ClosureResponseDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewClosureDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.closureDTOs.ClosureResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.closureDTOs.NewClosureDTO;
 import daviderocca.CAPSTONE_BACKEND.services.ClosureService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -16,11 +16,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/closures")
 @PreAuthorize("hasRole('ADMIN')")
+@RequiredArgsConstructor
 @Slf4j
 public class ClosureController {
 
-    @Autowired
-    private ClosureService closureService;
+    private final ClosureService closureService;
 
     // ---------------------------------- GET ----------------------------------
     @GetMapping

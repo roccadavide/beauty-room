@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Container, Row, Col, Card, Badge, Button, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { fetchCategories, fetchServices, deleteService } from "../api/api";
+import { fetchCategories, fetchServices, deleteService } from "../api/modules/users.api";
 import { useNavigate } from "react-router-dom";
 import { Plus, PencilFill, Trash2Fill } from "react-bootstrap-icons";
 import ServiceModal from "./ServiceModal";
@@ -34,10 +34,8 @@ const ServicesPreview = () => {
       try {
         const [allServices, cats] = await Promise.all([fetchServices(), fetchCategories()]);
         setCategories(cats);
-        console.log(cats);
         const featured = allServices.filter(s => FEATURED_IDS.includes(s.serviceId));
         setServices(featured);
-        console.log(featured);
       } catch (err) {
         setError(err.message);
       } finally {

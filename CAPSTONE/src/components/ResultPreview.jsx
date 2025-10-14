@@ -3,7 +3,7 @@ import { Container, Row, Col, Card, Badge, Button, Spinner } from "react-bootstr
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { Plus, PencilFill, Trash2Fill } from "react-bootstrap-icons";
-import { fetchResults, fetchCategories, deleteResult } from "../api/api";
+import { fetchResults, fetchCategories, deleteResult } from "../api/modules/users.api";
 import ResultModal from "./ResultModal";
 import DeleteResultModal from "./DeleteResultModal";
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Modal, Button, Form, Spinner } from "react-bootstrap";
-import { updateUser } from "../api/api";
+import { updateUser } from "../api/modules/users.api";
 import { useSelector } from "react-redux";
 
 const EditProfileModal = ({ show, onHide, user, onProfileUpdated }) => {

@@ -1,8 +1,9 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.NewProductDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.ProductResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.productDTOs.NewProductDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.productDTOs.ProductResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.services.ProductService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -16,11 +17,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/products")
+@RequiredArgsConstructor
 @Slf4j
 public class ProductController {
 
-    @Autowired
-    private ProductService productService;
+    private final ProductService productService;
 
     // ---------------------------------- GET ----------------------------------
 

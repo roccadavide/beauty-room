@@ -1,6 +1,9 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.*;
+import daviderocca.CAPSTONE_BACKEND.DTO.orderDTOs.NewOrderDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.orderDTOs.OrderResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.orderItemDTOs.NewOrderItemDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.orderItemDTOs.OrderItemResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.*;
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
@@ -8,8 +11,8 @@ import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
 import daviderocca.CAPSTONE_BACKEND.repositories.OrderRepository;
 import daviderocca.CAPSTONE_BACKEND.repositories.ProductRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,19 +22,14 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class OrderService {
 
-    @Autowired
-    private OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
 
-    @Autowired
-    private ProductService productService;
+    private final ProductService productService;
 
-    @Autowired
-    private ProductRepository productRepository;
-
-    @Autowired
-    private UserService userService;
+    private final ProductRepository productRepository;
 
     // ---------------------------- FIND METHODS ----------------------------
     @Transactional(readOnly = true)
@@ -76,7 +74,7 @@ public class OrderService {
                 currentUser
         );
 
-        // 🔹 Gestione prodotti e stock
+        // Gestione prodotti e stock
         for (NewOrderItemDTO itemDTO : payload.items()) {
             Product product = productService.findProductById(itemDTO.productId());
 
@@ -92,7 +90,7 @@ public class OrderService {
         }
 
         Order saved = orderRepository.save(newOrder);
-        log.info("✅ Ordine {} creato con successo (stato: {}).", saved.getOrderId(), saved.getOrderStatus());
+        log.info("Ordine {} creato con successo (stato: {}).", saved.getOrderId(), saved.getOrderStatus());
         return convertToDTO(saved);
     }
 
@@ -108,7 +106,7 @@ public class OrderService {
         found.setOrderStatus(newStatus);
         Order updated = orderRepository.save(found);
 
-        log.info("🔄 Stato ordine {} aggiornato a {}", updated.getOrderId(), updated.getOrderStatus());
+        log.info("Stato ordine {} aggiornato a {}", updated.getOrderId(), updated.getOrderStatus());
         return convertToDTO(updated);
     }
 
@@ -128,7 +126,7 @@ public class OrderService {
             throw new BadRequestException("Non è possibile eliminare un ordine in stato: " + found.getOrderStatus());
         }
 
-        // 🔹 Ripristino stock prodotti
+        // Ripristino stock prodotti
         for (OrderItem item : found.getOrderItems()) {
             Product product = item.getProduct();
             product.setStock(product.getStock() + item.getQuantity());
@@ -136,7 +134,27 @@ public class OrderService {
         }
 
         orderRepository.delete(found);
-        log.info("🗑️ Ordine {} eliminato correttamente e stock ripristinato.", found.getOrderId());
+        log.info("Ordine {} eliminato correttamente e stock ripristinato.", found.getOrderId());
+    }
+
+    // ---------------------------- STRIPE ----------------------------
+    @Transactional
+    public void markOrderAsPaid(UUID orderId, String customerEmail) {
+        Order order = findOrderById(orderId);
+
+        if (order.getOrderStatus() == OrderStatus.COMPLETED) {
+            log.warn("Ordine {} già completato, nessun aggiornamento necessario.", orderId);
+            return;
+        }
+
+        if (order.getOrderStatus() == OrderStatus.CANCELED) {
+            throw new BadRequestException("Impossibile completare un ordine annullato.");
+        }
+
+        order.setOrderStatus(OrderStatus.COMPLETED);
+        orderRepository.save(order);
+
+        log.info("Ordine {} segnato come COMPLETED (cliente: {})", orderId, customerEmail);
     }
 
     // ---------------------------- CONVERTER ----------------------------

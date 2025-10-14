@@ -2,15 +2,15 @@ package daviderocca.CAPSTONE_BACKEND.services;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewProductDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.ProductResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.productDTOs.NewProductDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.productDTOs.ProductResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Category;
 import daviderocca.CAPSTONE_BACKEND.entities.Product;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ProductRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,16 +21,14 @@ import java.util.*;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class ProductService {
 
-    @Autowired
-    private ProductRepository productRepository;
+    private final ProductRepository productRepository;
 
-    @Autowired
-    private CategoryService categoryService;
+    private final CategoryService categoryService;
 
-    @Autowired
-    private Cloudinary cloudinary;
+    private final Cloudinary cloudinary;
 
     // ---------------------------- FIND METHODS ----------------------------
 
@@ -107,7 +105,7 @@ public class ProductService {
         found.setImages(images);
 
         Product updated = productRepository.save(found);
-        log.info("🔄 Prodotto '{}' (ID: {}) aggiornato correttamente (categoria: {})",
+        log.info("Prodotto '{}' (ID: {}) aggiornato correttamente (categoria: {})",
                 updated.getName(), updated.getProductId(), relatedCategory.getCategoryKey());
 
         return convertToDTO(updated);
@@ -124,7 +122,7 @@ public class ProductService {
         }
 
         productRepository.delete(found);
-        log.info("🗑️ Prodotto '{}' (ID: {}) eliminato correttamente.", found.getName(), found.getProductId());
+        log.info("Prodotto '{}' (ID: {}) eliminato correttamente.", found.getName(), found.getProductId());
     }
 
     // ---------------------------- CLOUDINARY ----------------------------

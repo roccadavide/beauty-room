@@ -3,7 +3,7 @@ import { Modal, Button, Form, Badge, Spinner, Alert } from "react-bootstrap";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
-import { createBooking, fetchAvailabilities } from "../api/api";
+import { createBooking, fetchAvailabilities } from "../api/modules/users.api";
 import { useNavigate } from "react-router-dom";
 
 const BookingModal = ({ show, onHide, service }) => {

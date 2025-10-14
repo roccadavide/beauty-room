@@ -3,7 +3,7 @@ import { Container, Spinner, Card, Badge, ListGroup, Row, Col, Image, Button } f
 import { useSelector } from "react-redux";
 import { Trash2Fill } from "react-bootstrap-icons";
 import DeleteOrderModal from "./DeleteOrderModal";
-import { fetchMyOrders, fetchProductById, deleteOrder } from "../api/api";
+import { fetchMyOrders, fetchProductById, deleteOrder } from "../api/modules/users.api";
 import { useNavigate } from "react-router-dom";
 
 const MyOrders = () => {

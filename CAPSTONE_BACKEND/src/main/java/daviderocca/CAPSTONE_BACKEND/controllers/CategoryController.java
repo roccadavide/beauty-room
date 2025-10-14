@@ -1,11 +1,11 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.CategoryResponseDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewCategoryDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.categoryDTOs.CategoryResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.categoryDTOs.NewCategoryDTO;
 import daviderocca.CAPSTONE_BACKEND.services.CategoryService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,11 +15,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/categories")
+@RequiredArgsConstructor
 @Slf4j
 public class CategoryController {
 
-    @Autowired
-    private CategoryService categoryService;
+    private final CategoryService categoryService;
 
     // ---------------------------------- GET ----------------------------------
 

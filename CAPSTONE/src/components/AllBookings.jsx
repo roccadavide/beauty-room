@@ -3,7 +3,7 @@ import { Container, Spinner, Card, Badge, Row, Col, Button, Image } from "react-
 import { useSelector } from "react-redux";
 import { Trash2Fill } from "react-bootstrap-icons";
 import DeleteBookingModal from "./DeleteBookingModal";
-import { fetchBookings, fetchServiceById, deleteBooking } from "../api/api";
+import { fetchBookings, fetchServiceById, deleteBooking } from "../api/modules/users.api";
 import { useNavigate } from "react-router-dom";
 
 const AllBookings = () => {
@@ -87,6 +87,8 @@ const AllBookings = () => {
   return (
     <Container className="py-5 container-base flex-column">
       <h2 className="mb-4">📅 Tutte le prenotazioni</h2>
+
+      {allBookings.length === 0 && <p>Non sono ancora state effettuate prenotazioni.</p>}
 
       {allBookings.map(booking => {
         const service = services[booking.serviceId];

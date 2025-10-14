@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Container, Row, Col, Badge, Button, Image, Spinner } from "react-bootstrap";
 import BookingModal from "./BookingModal";
-import { fetchCategories, fetchProducts } from "../api/api";
+import { fetchCategories, fetchProducts } from "../api/modules/users.api";
 import QuantitySelector from "./QuantitySelector";
 
 const ProductDetail = () => {

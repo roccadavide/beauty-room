@@ -1,11 +1,11 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.*;
+import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.*;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.services.UserService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,11 +16,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/users")
+@RequiredArgsConstructor
 @Slf4j
 public class UserController {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
 
     // ---------------------------------- GET ----------------------------------
 
@@ -36,12 +36,14 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or #userId.toString() == principal.userId.toString()")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable UUID userId) {
         log.info("Richiesta dettaglio utente {}", userId);
         return ResponseEntity.ok(userService.findUserByIdAndConvert(userId));
     }
 
     @GetMapping("/email/{email}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponseDTO> getUserByEmail(@PathVariable String email) {
         log.info("Richiesta utente per email {}", email);
         return ResponseEntity.ok(userService.findUserByEmailAndConvert(email));
@@ -49,27 +51,19 @@ public class UserController {
 
     @GetMapping("/me")
     public ResponseEntity<UserResponseDTO> getCurrentUser(@AuthenticationPrincipal User currentUser) {
-        log.info("Richiesta profilo utente autenticato: {}", currentUser.getUserId());
+        log.info("Richiesta profilo per utente autenticato {}", currentUser.getEmail());
         return ResponseEntity.ok(userService.findUserByIdAndConvert(currentUser.getUserId()));
-    }
-
-    // ---------------------------------- POST ----------------------------------
-
-    @PostMapping
-    public ResponseEntity<UserResponseDTO> createUser(@Valid @RequestBody NewUserDTO payload) {
-        log.info("Richiesta creazione utente con email {}", payload.email());
-        UserResponseDTO created = userService.saveUser(payload);
-        return ResponseEntity.status(201).body(created);
     }
 
     // ---------------------------------- PUT ----------------------------------
 
     @PutMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or #userId.toString() == principal.userId.toString()")
     public ResponseEntity<UserResponseDTO> updateUser(
             @PathVariable UUID userId,
             @Valid @RequestBody UpdateUserDTO payload
     ) {
-        log.info("Richiesta aggiornamento dati profilo utente {}", userId);
+        log.info("Aggiornamento profilo utente {}", userId);
         UserResponseDTO updated = userService.updateUserProfile(userId, payload);
         return ResponseEntity.ok(updated);
     }
@@ -77,11 +71,12 @@ public class UserController {
     // ---------------------------------- PATCH ----------------------------------
 
     @PatchMapping("/{userId}/password")
+    @PreAuthorize("hasRole('ADMIN') or #userId.toString() == principal.userId.toString()")
     public ResponseEntity<UserResponseDTO> patchPassword(
             @PathVariable UUID userId,
             @Valid @RequestBody NewPasswordDTO payload
     ) {
-        log.info("Richiesta aggiornamento password per utente {}", userId);
+        log.info("Aggiornamento password per utente {}", userId);
         UserResponseDTO updated = userService.updateUserPassword(userId, payload);
         return ResponseEntity.ok(updated);
     }
@@ -103,8 +98,9 @@ public class UserController {
     // ---------------------------------- DELETE ----------------------------------
 
     @DeleteMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or #userId.toString() == principal.userId.toString()")
     public ResponseEntity<Void> deleteUser(@PathVariable UUID userId) {
-        log.info("Richiesta eliminazione utente {}", userId);
+        log.info("Eliminazione utente {}", userId);
         userService.deleteUser(userId);
         return ResponseEntity.noContent().build();
     }

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Badge, Button, Card, Col, Container, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { PencilFill, Plus, Trash2Fill } from "react-bootstrap-icons";
-import { fetchCategories, fetchResults, deleteResult } from "../api/api";
+import { fetchCategories, fetchResults, deleteResult } from "../api/modules/users.api";
 import ResultModal from "./ResultModal";
 import DeleteResultModal from "./DeleteResultModal";
 

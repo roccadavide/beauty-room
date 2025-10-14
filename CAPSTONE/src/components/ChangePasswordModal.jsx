@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Modal, Button, Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { patchPassword } from "../api/api";
+import { patchPassword } from "../api/modules/users.api";
 
 const ChangePasswordModal = ({ show, onHide, userId }) => {
   const { token } = useSelector(state => state.auth);

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { fetchCurrentUser, loginUser } from "../api/api";
+import { fetchCurrentUser } from "../api/modules/users.api";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "../redux/action/authActions";
+import { loginUser } from "../api/modules/auth.api";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

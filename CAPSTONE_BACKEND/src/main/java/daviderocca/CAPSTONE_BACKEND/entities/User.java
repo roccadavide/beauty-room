@@ -42,7 +42,6 @@ public class User implements UserDetails {
     private String surname;
 
     @Column(name = "email", nullable = false, unique = true, length = 100)
-    @ToString.Include
     private String email;
 
     @Column(name = "password", nullable = false)

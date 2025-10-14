@@ -2,15 +2,15 @@ package daviderocca.CAPSTONE_BACKEND.services;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewServiceItemDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.ServiceItemResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.NewServiceItemDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceItemResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Category;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ServiceItemRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,16 +21,15 @@ import java.util.*;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class ServiceItemService {
 
-    @Autowired
-    private ServiceItemRepository serviceItemRepository;
 
-    @Autowired
-    private CategoryService categoryService;
+    private final ServiceItemRepository serviceItemRepository;
 
-    @Autowired
-    private Cloudinary cloudinary;
+    private final CategoryService categoryService;
+
+    private final Cloudinary cloudinary;
 
     // ---------------------------- FIND METHODS ----------------------------
 

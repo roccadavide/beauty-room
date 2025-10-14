@@ -1,5 +1,5 @@
 import { Button, Form, Modal, Spinner } from "react-bootstrap";
-import { createResult, updateResult } from "../api/api";
+import { createResult, updateResult } from "../api/modules/users.api";
 import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
 

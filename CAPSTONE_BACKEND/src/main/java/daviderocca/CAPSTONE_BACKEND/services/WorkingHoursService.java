@@ -1,13 +1,13 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.NewWorkingHoursDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.WorkingHoursResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.workingHoursDTOs.NewWorkingHoursDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.workingHoursDTOs.WorkingHoursResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.WorkingHours;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.WorkingHoursRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,10 +17,10 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class WorkingHoursService {
 
-    @Autowired
-    private WorkingHoursRepository workingHoursRepository;
+    private final WorkingHoursRepository workingHoursRepository;
 
     // ---------------------------- FIND METHODS ----------------------------
 
@@ -94,7 +94,7 @@ public class WorkingHoursService {
             throw new ResourceNotFoundException("Orario non trovato con id: " + id);
         }
         workingHoursRepository.deleteById(id);
-        log.info("🗑️ Orario {} eliminato correttamente", id);
+        log.info("Orario {} eliminato correttamente", id);
     }
 
     // ---------------------------- VALIDATION ----------------------------

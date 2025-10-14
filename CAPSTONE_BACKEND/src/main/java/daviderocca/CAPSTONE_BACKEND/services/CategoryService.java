@@ -1,13 +1,13 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.CategoryResponseDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewCategoryDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.categoryDTOs.CategoryResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.categoryDTOs.NewCategoryDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Category;
 import daviderocca.CAPSTONE_BACKEND.exceptions.DuplicateResourceException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.CategoryRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,10 +16,10 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class CategoryService {
 
-    @Autowired
-    private CategoryRepository categoryRepository;
+    private final CategoryRepository categoryRepository;
 
     // ---------------------------------- FIND METHODS ----------------------------------
     @Transactional(readOnly = true)
@@ -59,7 +59,7 @@ public class CategoryService {
         Category newCategory = new Category(payload.categoryKey(), payload.label());
         Category saved = categoryRepository.save(newCategory);
 
-        log.info("✅ Categoria '{}' (ID: {}) creata correttamente.", saved.getLabel(), saved.getCategoryId());
+        log.info("Categoria '{}' (ID: {}) creata correttamente.", saved.getLabel(), saved.getCategoryId());
         return convertToDTO(saved);
     }
 
@@ -85,7 +85,7 @@ public class CategoryService {
         found.setLabel(payload.label());
 
         Category updated = categoryRepository.save(found);
-        log.info("✏️ Categoria '{}' (ID: {}) aggiornata correttamente.", updated.getLabel(), updated.getCategoryId());
+        log.info("Categoria '{}' (ID: {}) aggiornata correttamente.", updated.getLabel(), updated.getCategoryId());
 
         return convertToDTO(updated);
     }
@@ -95,7 +95,7 @@ public class CategoryService {
     public void deleteCategory(UUID categoryId) {
         Category found = findCategoryById(categoryId);
         categoryRepository.delete(found);
-        log.info("🗑️ Categoria '{}' (ID: {}) eliminata correttamente.", found.getLabel(), found.getCategoryId());
+        log.info("Categoria '{}' (ID: {}) eliminata correttamente.", found.getLabel(), found.getCategoryId());
     }
 
     // ---------------------------------- CONVERTER ----------------------------------

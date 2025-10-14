@@ -5,7 +5,7 @@ import { Dash, Plus, Trash } from "react-bootstrap-icons";
 import { removeFromCart, updateCartQuantity } from "../redux/action/cartActions";
 import { useState } from "react";
 import CheckoutModal from "./CheckoutModal";
-import { createCheckoutSession } from "../api/api";
+import { createCheckoutSession } from "../api/modules/users.api";
 
 const CartPage = () => {
   const { items, totalPrice } = useSelector(state => state.cart);

@@ -1,24 +1,24 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.UserLoginDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.UserLoginDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
 import daviderocca.CAPSTONE_BACKEND.tools.JWTTools;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
-        @Autowired
-        private UserService userService;
 
-        @Autowired
-        private JWTTools jwtTools;
+        private final UserService userService;
 
-        @Autowired
-        private PasswordEncoder bcrypt;
+        private final JWTTools jwtTools;
+
+        private final PasswordEncoder bcrypt;
 
         public String checkAccessAndGenerateToken(UserLoginDTO body) {
             User found = this.userService.findUserByEmail(body.email());

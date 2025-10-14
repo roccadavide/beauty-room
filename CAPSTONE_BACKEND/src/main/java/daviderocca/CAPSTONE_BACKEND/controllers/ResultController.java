@@ -1,10 +1,10 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.NewResultDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.ResultResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.resultDTOs.NewResultDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.resultDTOs.ResultResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.services.ResultService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,11 +16,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/results")
+@RequiredArgsConstructor
 @Slf4j
 public class ResultController {
 
-    @Autowired
-    private ResultService resultService;
+    private final ResultService resultService;
 
     // ---------------------------------- GET ----------------------------------
 

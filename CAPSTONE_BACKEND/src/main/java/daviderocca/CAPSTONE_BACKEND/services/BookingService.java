@@ -1,7 +1,7 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.BookingResponseDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewBookingDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
@@ -10,6 +10,7 @@ import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
 import daviderocca.CAPSTONE_BACKEND.repositories.BookingRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
@@ -22,16 +23,12 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class BookingService {
 
-    @Autowired
-    private BookingRepository bookingRepository;
+    private final BookingRepository bookingRepository;
 
-    @Autowired
-    private ServiceItemService serviceItemService;
-
-    @Autowired
-    private UserService userService;
+    private final ServiceItemService serviceItemService;
 
     // ---------------------------- FIND METHODS ----------------------------
     @Transactional(readOnly = true)
@@ -65,7 +62,7 @@ public class BookingService {
     @Transactional
     public BookingResponseDTO saveBooking(NewBookingDTO payload, User currentUser) {
 
-        // 🔹 Validazioni orari
+        // Validazioni orari
         if (payload.startTime().isAfter(payload.endTime())) {
             throw new BadRequestException("L'orario di inizio non può essere successivo a quello di fine.");
         }
@@ -74,7 +71,7 @@ public class BookingService {
             throw new BadRequestException("L'orario di inizio non può essere nel passato.");
         }
 
-        // 🔹 Controllo sovrapposizioni
+        // Controllo sovrapposizioni
         if (!bookingRepository.findOverlappingBookings(payload.serviceId(), payload.startTime(), payload.endTime()).isEmpty()) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo per il servizio scelto.");
         }

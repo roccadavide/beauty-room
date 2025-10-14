@@ -1,14 +1,14 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.NewOrderDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.OrderResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.orderDTOs.NewOrderDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.orderDTOs.OrderResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
 import daviderocca.CAPSTONE_BACKEND.services.OrderService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,11 +20,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/orders")
+@RequiredArgsConstructor
 @Slf4j
 public class OrderController {
 
-    @Autowired
-    private OrderService orderService;
+    private final OrderService orderService;
 
     // ---------------------------------- GET ----------------------------------
 

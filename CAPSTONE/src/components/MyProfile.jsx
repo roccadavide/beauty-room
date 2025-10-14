@@ -58,9 +58,6 @@ const MyProfile = () => {
                         <div className="value">{email}</div>
                       </div>
                       <div className="d-flex gap-2">
-                        <a className="btn btn-outline-primary btn-sm" href={`mailto:${email}`}>
-                          Scrivi
-                        </a>
                         <Button size="sm" variant="outline-secondary" onClick={() => copy(email)}>
                           Copia
                         </Button>
@@ -73,9 +70,6 @@ const MyProfile = () => {
                         <div className="value">{phone}</div>
                       </div>
                       <div className="d-flex gap-2">
-                        <a className="btn btn-outline-primary btn-sm" href={`tel:${phone}`}>
-                          Chiama
-                        </a>
                         <Button size="sm" variant="outline-secondary" onClick={() => copy(phone)}>
                           Copia
                         </Button>
@@ -108,16 +102,18 @@ const MyProfile = () => {
                 </Col>
               </Row>
 
-              <div className="mt-4 d-flex flex-wrap gap-2">
+              <div className="mt-4 d-flex flex-wrap justify-content-between gap-2">
                 <Button variant="primary" onClick={() => setOpenModal(true)}>
                   Modifica profilo
                 </Button>
-                <Button variant="outline-danger d-flex" onClick={() => setOpenPasswordModal(true)}>
+                <Button variant="secondary" onClick={() => setOpenPasswordModal(true)}>
                   Cambia password
                 </Button>
-                <a href={`mailto:${email}?subject=Richiesta%20informazioni%20dal%20sito`} className="btn btn-outline-dark">
-                  Contatta supporto
-                </a>
+                <Button variant="danger">
+                  <a href={`mailto:rossimichela.pmu@gmail.com?subject=Richiesta%20informazioni%20dal%20sito`} className="text-decoration-none text-white">
+                    Contatta supporto
+                  </a>
+                </Button>
               </div>
             </Card.Body>
           </Card>

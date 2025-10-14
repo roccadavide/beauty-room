@@ -1,11 +1,11 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.NewWorkingHoursDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.WorkingHoursResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.workingHoursDTOs.NewWorkingHoursDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.workingHoursDTOs.WorkingHoursResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.services.WorkingHoursService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -16,11 +16,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/working-hours")
+@RequiredArgsConstructor
 @Slf4j
 public class WorkingHoursController {
 
-    @Autowired
-    private WorkingHoursService workingHoursService;
+    private final WorkingHoursService workingHoursService;
 
     // --------------------- GET ---------------------
 

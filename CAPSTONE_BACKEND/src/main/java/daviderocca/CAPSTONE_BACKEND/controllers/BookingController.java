@@ -1,11 +1,12 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.BookingResponseDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.NewBookingDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import daviderocca.CAPSTONE_BACKEND.services.BookingService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -19,11 +20,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/bookings")
+@RequiredArgsConstructor
 @Slf4j
 public class BookingController {
 
-    @Autowired
-    private BookingService bookingService;
+    private final BookingService bookingService;
 
     // ---------------------------------- GET ----------------------------------
 

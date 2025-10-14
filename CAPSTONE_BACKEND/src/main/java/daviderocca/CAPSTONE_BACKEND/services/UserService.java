@@ -1,28 +1,29 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.*;
+import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.NewPasswordDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.NewUserDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.UpdateUserDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.UserResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.enums.Role;
 import daviderocca.CAPSTONE_BACKEND.exceptions.*;
 import daviderocca.CAPSTONE_BACKEND.repositories.UserRepository;
-import org.springframework.transaction.annotation.Transactional;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class UserService {
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private PasswordEncoder bcrypt;
+    private final UserRepository userRepository;
+    private final PasswordEncoder bcrypt;
 
     // ---------------------------- FIND METHODS ----------------------------
 
@@ -76,7 +77,7 @@ public class UserService {
         );
 
         User saved = userRepository.save(newUser);
-        log.info("✅ Utente '{}' (email: {}) creato correttamente", saved.getName(), saved.getEmail());
+        log.info("Utente '{}' (email: {}) creato correttamente", saved.getName(), saved.getEmail());
         return convertToDTO(saved);
     }
 
@@ -104,7 +105,7 @@ public class UserService {
         found.setPhone(payload.phone());
 
         User updated = userRepository.save(found);
-        log.info("✏️  Profilo utente '{}' aggiornato con successo", updated.getEmail());
+        log.info("Profilo utente '{}' aggiornato con successo", updated.getEmail());
         return convertToDTO(updated);
     }
 
@@ -129,7 +130,7 @@ public class UserService {
         found.setPassword(bcrypt.encode(payload.newPassword()));
         User updated = userRepository.save(found);
 
-        log.info("🔐 Password aggiornata per l'utente '{}'", updated.getEmail());
+        log.info("Password aggiornata per l'utente '{}'", updated.getEmail());
         return convertToDTO(updated);
     }
 
@@ -145,7 +146,7 @@ public class UserService {
         found.setRole(Role.ADMIN);
         User updated = userRepository.save(found);
 
-        log.info("⬆️  Utente '{}' promosso a ADMIN", updated.getEmail());
+        log.info("Utente '{}' promosso a ADMIN", updated.getEmail());
         return convertToDTO(updated);
     }
 
@@ -159,7 +160,7 @@ public class UserService {
         found.setRole(Role.COSTUMER);
         User updated = userRepository.save(found);
 
-        log.info("⬇️  Utente '{}' retrocesso a COSTUMER", updated.getEmail());
+        log.info("Utente '{}' retrocesso a COSTUMER", updated.getEmail());
         return convertToDTO(updated);
     }
 
@@ -169,7 +170,7 @@ public class UserService {
     public void deleteUser(UUID idUser) {
         User found = findUserById(idUser);
         userRepository.delete(found);
-        log.info("🗑️  Utente '{}' eliminato correttamente", found.getEmail());
+        log.info("Utente '{}' eliminato correttamente", found.getEmail());
     }
 
     // ---------------------------- CONVERTER ----------------------------

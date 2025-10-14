@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { deleteOrder, fetchOrders, fetchProductById } from "../api/api";
+import { deleteOrder, fetchOrders, fetchProductById } from "../api/modules/users.api";
 import { Container, Spinner, Card, Badge, ListGroup, Row, Col, Image, Button } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -86,6 +86,8 @@ const AllOrders = () => {
   return (
     <Container className="py-5 container-base flex-column">
       <h2 className="mb-4">📦 Tutti gli ordini</h2>
+
+      {allOrders.length === 0 && <p>Non sono ancora stati effetuati ordini.</p>}
 
       {allOrders.map(order => (
         <Card key={order.orderId} className="mb-4 shadow-sm order-card w-100">

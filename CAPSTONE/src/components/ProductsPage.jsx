@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Badge, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
-import { deleteProduct, fetchCategories, fetchProducts } from "../api/api";
+import { deleteProduct, fetchCategories, fetchProducts } from "../api/modules/users.api";
 import { useSelector } from "react-redux";
 import { PencilFill, Plus, Trash2Fill } from "react-bootstrap-icons";
 import { Link, useNavigate } from "react-router-dom";
@@ -93,11 +93,10 @@ function ProductsPage() {
   };
 
   const badgeColors = {
-    "036f8d73-0d71-415f-b4cb-db4711c4c586": "primary", //Trucco permanente
-    "1225ed9f-c5c8-4003-97b0-50a62874de4a": "success", //Piedi
-    "89bbe501-6470-46a6-9187-1e19f9241bf4": "warning", //Mani
-    "a8a1465f-032b-4481-8f47-160504b6036b": "info", //Corpo
-    "f39e37ff-1210-4446-8968-610d2d1d6563": "danger", //Viso
+    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success", //Piedi
+    "95b6d339-a765-4569-9aee-08107d27516b": "warning", //Mani
+    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info", //Corpo
+    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger", //Viso
   };
 
   // ---------- UI ----------
@@ -127,7 +126,7 @@ function ProductsPage() {
         </Button>
 
         {categories
-          .filter(c => c.label !== "Trucco permanente")
+          .filter(c => c.label !== "Trucco Permanente")
           .map(c => (
             <Button
               key={c.categoryId}

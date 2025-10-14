@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Modal, Button, Form, Spinner } from "react-bootstrap";
-import { createService, updateService } from "../api/api";
+import { createService, updateService } from "../api/modules/users.api";
 import { useSelector } from "react-redux";
 
 const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => {

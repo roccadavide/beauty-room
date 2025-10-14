@@ -1,10 +1,10 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.NewServiceItemDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.ServiceItemResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.NewServiceItemDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceItemResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.services.ServiceItemService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,11 +16,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/service-items")
+@RequiredArgsConstructor
 @Slf4j
 public class ServiceItemController {
 
-    @Autowired
-    private ServiceItemService serviceItemService;
+    private final ServiceItemService serviceItemService;
 
     // ---------------------------------- GET ----------------------------------
 
