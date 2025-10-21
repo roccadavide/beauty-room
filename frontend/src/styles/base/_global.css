@@ -1,0 +1,46 @@
+/* ===== _global.css ===== */
+@import "./_variables.css";
+
+body {
+  font-family: var(--font-base);
+  font-size: var(--font-size-base);
+  background-color: var(--color-bg);
+  color: var(--color-dark);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--color-primary);
+}
+
+a:hover {
+  color: var(--color-secondary);
+}
+
+.container-base {
+  margin-top: 7rem;
+  min-height: 70vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  border-radius: var(--radius-base);
+  padding: 0.6rem 1.5rem;
+  color: #fff;
+  transition: all 0.3s ease;
+}
+.btn-primary:hover {
+  background-color: var(--color-secondary);
+  color: var(--color-dark);
+}

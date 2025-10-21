@@ -1,0 +1,192 @@
+/* ==== ABOUT DESCRIPTION ==== */
+
+:root {
+  --c-cream: #f6efe9;
+  --c-sand: #ead8c8;
+  --c-taupe: #c9a98c;
+  --c-cocoa: #8b6b5e;
+  --c-choco: #5d473f;
+  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --shadow-strong: 0 14px 36px rgba(0, 0, 0, 0.15);
+}
+
+/* ---------- ROOT ---------- */
+.about-root {
+  background: linear-gradient(180deg, var(--c-cream) 0%, #fff 100%);
+  overflow: hidden;
+  position: relative;
+}
+
+.about-root > .row:first-of-type {
+  margin-top: 6rem;
+}
+
+/* ---------- TITOLI ---------- */
+.about-title {
+  color: var(--c-choco);
+  font-family: var(--font-display, "Saol Display Light");
+  letter-spacing: 0.5px;
+  margin-bottom: 0.6rem;
+}
+
+.about-subtitle {
+  color: #6b5e56;
+  font-size: 1.1rem;
+  font-weight: 400;
+}
+
+.about-hr {
+  width: 120px;
+  height: 3px;
+  border: 0;
+  margin: 18px auto 0;
+  background: linear-gradient(90deg, transparent, var(--c-taupe), transparent);
+  border-radius: 2px;
+  animation: scroll-gradient 6s linear infinite;
+}
+
+@keyframes scroll-gradient {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.section-heading {
+  color: var(--c-choco);
+  font-weight: 700;
+  font-size: 1.6rem;
+  margin-bottom: 1rem;
+}
+
+/* ---------- BOX / CARD ---------- */
+.soft-card {
+  background: #fff;
+  border: 1px solid rgba(95, 70, 60, 0.08);
+  border-radius: 18px !important;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.soft-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-strong);
+}
+
+/* ---------- ABOUT IMAGE ---------- */
+.about-image-wrap {
+  display: inline-block;
+  padding: 10px;
+  background: var(--c-sand);
+  border-radius: 24px;
+  box-shadow: var(--shadow-soft);
+  position: relative;
+  overflow: hidden;
+}
+
+.about-image-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 40%, rgba(255, 255, 255, 0.3) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.7s ease;
+}
+
+.about-image-wrap:hover::after {
+  transform: translateX(100%);
+}
+
+.about-image {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 16px;
+  border: 6px solid var(--c-cream);
+  display: block;
+}
+
+/* ---------- CHIPS (COMPETENZE) ---------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.chip {
+  background: var(--c-taupe);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+
+.chip-alt {
+  background: var(--c-sand);
+  color: #3b2b24;
+}
+
+.chip:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-strong);
+  filter: brightness(1.05);
+}
+
+/* ---------- ICON VALUE CARD ---------- */
+.value-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  background: var(--c-sand);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  color: #4e3c2f;
+}
+
+/* ---------- FADE-IN ANIMATION ---------- */
+.fade-section {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.fade-section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- TEXT STYLES ---------- */
+.about-root p {
+  color: #5f4e45;
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 768px) {
+  .about-image-wrap {
+    margin-top: 1.5rem;
+  }
+
+  .section-heading {
+    font-size: 1.4rem;
+  }
+
+  .chip {
+    font-size: 0.9rem;
+    padding: 8px 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .about-title {
+    font-size: 1.8rem;
+  }
+}

@@ -1,0 +1,25 @@
+/* ALL ORDERS */
+
+.order-card {
+  border-radius: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.order-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.order-card h5 {
+  font-weight: 600;
+}
+
+.order-card .list-group-item {
+  background-color: transparent;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.order-card .list-group-item:last-child {
+  border-bottom: none;
+}

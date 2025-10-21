@@ -1,0 +1,22 @@
+/* TESTIMONIALS SECTION */
+.testimonial-card {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.7s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  background: #fffaf7;
+  border-radius: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.testimonial-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.testimonial-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}

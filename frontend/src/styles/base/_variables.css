@@ -1,0 +1,30 @@
+/* ===== _variables.css ===== */
+:root {
+  /* Palette colori principali */
+  --color-primary: #111111;
+  --color-secondary: #e0b973;
+  --color-accent: #ffb700;
+  --color-bg: #fffdf8;
+  --color-dark: #181818;
+  --color-light: #f8f8f8;
+
+  /* Tipografia */
+  --font-base: "Inter", "Arimo", sans-serif;
+  --font-display: "Saol Display Light", "Playfair Display", serif;
+  --font-size-base: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 32px;
+  --font-size-xxl: 48px;
+
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 2rem;
+  --space-xl: 4rem;
+
+  /* Ombre e radius */
+  --radius-base: 0.75rem;
+  --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-strong: 0 6px 24px rgba(0, 0, 0, 0.15);
+}

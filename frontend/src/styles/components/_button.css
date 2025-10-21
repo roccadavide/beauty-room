@@ -1,0 +1,20 @@
+/* BUTTONS */
+.prod-button {
+  width: 6rem;
+  padding: 0.6rem 1rem;
+  border: 2px solid #dda128;
+  background-color: white;
+  color: #333;
+  font-weight: 500;
+  font-size: 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+.prod-button:hover {
+  background-color: #f5f0e6;
+  color: #111;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}

@@ -1,0 +1,35 @@
+/* ===== BASE ===== */
+@import "./base/_variables.css";
+@import "./base/_reset.css";
+@import "./base/_global.css";
+
+/* ===== LAYOUTS ===== */
+@import "./layout/_navbar.css";
+
+/* ===== COMPONENTS ===== */
+@import "./components/_button.css";
+@import "./components/_card-base.css";
+@import "./components/_card-cart.css";
+@import "./components/_card-academy.css";
+@import "./components/_card-product.css";
+@import "./components/_card-result.css";
+@import "./components/_card-service.css";
+@import "./components/_card-testimonial.css";
+
+/* ===== SECTIONS ===== */
+@import "./sections/_about-hero.css";
+@import "./sections/_about-section.css";
+@import "./sections/_about-description.css";
+@import "./sections/_academy-section.css";
+@import "./sections/_testimonial-section.css";
+@import "./sections/_prenotazioni-section.css";
+@import "./sections/_products-section.css";
+@import "./sections/_services-section.css";
+
+/* ===== PAGES ===== */
+@import "./pages/_register-page.css";
+@import "./pages/_cart-page.css";
+@import "./pages/_orders-page.css";
+@import "./pages/_profile-page.css";
+@import "./pages/_results-page.css";
+@import "./pages/_promotions-page.css";

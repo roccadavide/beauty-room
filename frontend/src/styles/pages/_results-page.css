@@ -1,0 +1,193 @@
+/* ==== RESULTS PAGE ==== */
+
+:root {
+  --results-bg: #f9f5f1;
+  --results-soft: #efe3d8;
+  --results-soft-2: #e7d6c8;
+  --results-text: #3a2e26;
+  --results-accent: #b08968;
+  --results-accent-2: #d4a373;
+  --results-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --results-shadow-hover: 0 16px 36px rgba(0, 0, 0, 0.12);
+}
+
+.results-root {
+  color: var(--results-text);
+  background: var(--results-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ---------- TITOLI ---------- */
+.results-root h1 {
+  color: var(--results-text);
+  font-family: var(--font-display, "Saol Display Light");
+  letter-spacing: 0.6px;
+  margin-bottom: 0.8rem;
+}
+
+.results-root .lead {
+  color: #5c4b3f;
+  font-weight: 400;
+}
+
+/* ---------- FILTER CHIPS ---------- */
+.filter-chip,
+.results-root .btn-outline-dark,
+.results-root .btn-dark {
+  border-radius: 999px;
+  font-weight: 500;
+  padding: 0.5rem 1.2rem;
+  transition: all 0.3s ease;
+}
+
+.results-root .btn-outline-dark:hover {
+  background-color: var(--results-accent);
+  border-color: var(--results-accent);
+  color: #fff;
+}
+
+/* ---------- RESULTS CARD ---------- */
+.results-card {
+  background: #fff;
+  border-radius: 1rem;
+  overflow: hidden;
+  transform: translateY(24px);
+  opacity: 0;
+  transition: transform 0.6s ease, opacity 0.6s ease, box-shadow 0.25s ease;
+  cursor: pointer;
+  box-shadow: var(--results-shadow);
+}
+
+.results-card.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.results-card:hover {
+  box-shadow: var(--results-shadow-hover);
+  transform: translateY(-6px);
+}
+
+/* ---------- IMAGE WRAPPER ---------- */
+.results-media-wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--results-soft);
+}
+
+.results-img {
+  width: 100%;
+  height: 260px;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.5s ease;
+}
+
+.results-card:hover .results-img {
+  transform: scale(1.05);
+}
+
+/* ---------- OVERLAY ---------- */
+.results-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 10%, rgba(0, 0, 0, 0.4) 90%);
+  opacity: 0;
+  display: grid;
+  place-items: end center;
+  padding: 0.9rem;
+  transition: opacity 0.35s ease;
+}
+
+.results-card:hover .results-overlay {
+  opacity: 1;
+}
+
+.results-cta {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* ---------- BADGE ---------- */
+.badge.bg-results-badge {
+  background-color: var(--results-accent);
+}
+
+.bg-results-soft {
+  background: var(--results-soft);
+}
+
+/* ---------- CARD CONTENT ---------- */
+.results-card .card-body {
+  padding: 1rem 1.2rem 1.2rem;
+}
+
+.results-card .card-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--results-text);
+  margin-bottom: 0.5rem;
+}
+
+.results-card .card-text {
+  font-size: 0.95rem;
+  color: #5a4a40;
+  line-height: 1.45;
+}
+
+.results-card small.text-muted {
+  font-size: 0.8rem;
+}
+
+/* ---------- ADMIN BUTTONS ---------- */
+.results-card .btn {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  padding: 0;
+  transition: transform 0.2s ease;
+}
+
+.results-card .btn:hover {
+  transform: scale(1.1);
+}
+
+/* ---------- FADE-IN ANIMATION ---------- */
+.fade-section {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.fade-section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 992px) {
+  .results-img {
+    height: 220px;
+  }
+}
+
+@media (max-width: 576px) {
+  .results-root h1 {
+    font-size: 1.8rem;
+  }
+
+  .results-card .card-title {
+    font-size: 1.1rem;
+  }
+
+  .results-card .card-text {
+    font-size: 0.9rem;
+  }
+}

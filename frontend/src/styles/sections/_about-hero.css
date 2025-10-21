@@ -1,0 +1,24 @@
+/* ABOUT HERO SECTION */
+.about-hero-section {
+  height: 60vh;
+  background-image: url("/mammamichi.jpeg");
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  margin-top: 112px;
+}
+
+.hero-section {
+  min-height: 100vh;
+  background-image: url("/michi.jpeg");
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  padding-top: 7rem;
+}
+.hero-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+}

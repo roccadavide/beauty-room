@@ -1,0 +1,13 @@
+/* Cart cards */
+.card-cart {
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 12px;
+  background-color: #fff;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.card-cart:hover {
+  transform: scale(1.02);
+  border-color: #ff6b6b;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}

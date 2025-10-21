@@ -1,0 +1,46 @@
+/* ==== CARD SERVICE ==== */
+
+.card--service {
+  background: linear-gradient(180deg, #fffefc, #faf7f1);
+  border: 1.5px solid rgba(139, 117, 90, 0.4);
+  border-radius: var(--radius-base, 14px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border 0.3s ease;
+}
+
+.card--service:hover {
+  transform: translateY(-6px);
+  border-color: rgba(122, 94, 60, 0.8);
+  box-shadow: 0 10px 24px rgba(122, 94, 60, 0.15);
+}
+
+.card--service .card-title {
+  font-size: 1.6rem;
+  color: var(--color-secondary, #7a5e3c);
+}
+
+.card--service .card-text {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #4e453b;
+}
+
+.card--service .card-price {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #7a5e3c;
+  margin-top: 0.8rem;
+}
+
+.card--service::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.4) 50%, transparent 80%);
+  transform: translateX(-100%);
+  transition: transform 0.7s ease;
+}
+
+.card--service:hover::after {
+  transform: translateX(100%);
+}

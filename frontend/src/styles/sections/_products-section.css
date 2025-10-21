@@ -1,0 +1,15 @@
+/* PRODUCTS SECTION */
+.product-hero-section {
+  height: 60vh;
+  background-image: url("/img-prodotti.webp");
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  margin-top: 112px;
+}
+.product-hero-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+}
