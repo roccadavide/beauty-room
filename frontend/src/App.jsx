@@ -30,8 +30,10 @@ import MyBookings from "./features/bookings/MyBookings";
 import AllOrders from "./features/orders/AllOrders";
 import NavBar from "./components/layout/NavBar";
 import PrivateRoute from "./components/common/PrivateRoute";
+import useLenis from "./hooks/useLenis";
 
 function App() {
+  useLenis();
   const location = useLocation();
 
   return (

@@ -1,6 +1,10 @@
 /* ===== _global.css ===== */
 @import "./_variables.css";
 
+html {
+  scroll-behavior: auto;
+}
+
 body {
   font-family: var(--font-base);
   font-size: var(--font-size-base);

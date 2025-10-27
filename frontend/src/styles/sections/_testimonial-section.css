@@ -1,14 +1,16 @@
 /* TESTIMONIALS SECTION */
 .testimonial-card {
-  opacity: 0;
-  transform: translateY(40px);
-  transition: all 0.7s ease, box-shadow 0.3s ease, transform 0.3s ease;
   background: #fffaf7;
   border-radius: 20px;
-  height: 100%;
+  transition: all 0.4s ease;
+  opacity: 0;
+  transform: translateY(20px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  padding: clamp(1rem, 2vw, 2rem);
+  min-height: 220px;
+  width: 100%; /* base: prende tutto lo spazio del Col */
 }
 
 .testimonial-card.visible {
@@ -17,6 +19,133 @@
 }
 
 .testimonial-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-6px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Pulsanti frecce */
+.carousel-btn {
+  position: absolute;
+  top: 45%;
+  z-index: 5;
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  background: #fffdf7;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+.carousel-btn:hover {
+  background: #f8e6d9;
+  transform: scale(1.05);
+}
+.carousel-btn.left {
+  left: 40px;
+}
+.carousel-btn.right {
+  right: 40px;
+}
+
+@media (max-width: 992px) {
+  .carousel-btn {
+    display: none !important;
+  }
+}
+
+/* --- RESPONSIVE LARGHEZZA CARD --- */
+@media (max-width: 992px) {
+  .testimonial-card {
+    width: 45vw;
+  }
+}
+
+@media (max-width: 680px) {
+  .testimonial-card {
+    width: clamp(80%, 90vw, 95%);
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 450px) {
+  .testimonial-card {
+    width: clamp(85%, 90vw, 95%);
+  }
+}
+
+/* --- SWIPE HINT (mobile/tablet) --- */
+.swipe-hint-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  z-index: 5;
+  animation: fadeOutHint 6s ease forwards;
+}
+
+.swipe-ghost {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(50, 50, 50, 0.15);
+  box-shadow: 0 0 0 10px rgba(50, 50, 50, 0.08);
+  animation: swipeGesture 2.4s cubic-bezier(0.4, 0, 0.2, 1) 2;
+  transform-origin: center;
+}
+
+.swipe-ghost::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+}
+
+/* Effetto movimento orizzontale */
+@keyframes swipeGesture {
+  0% {
+    transform: translateX(50px) scale(0.9);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  40% {
+    transform: translateX(-50px) scale(1);
+    opacity: 0.9;
+  }
+  70% {
+    transform: translateX(0) scale(0.9);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateX(50px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* dissolvenza generale */
+@keyframes fadeOutHint {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* solo su tablet/mobile */
+@media (min-width: 992px) {
+  .swipe-hint-overlay {
+    display: none !important;
+  }
 }
