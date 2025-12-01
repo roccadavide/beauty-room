@@ -3,8 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { fetchCurrentUser } from "../../api/modules/users.api";
 import { useDispatch } from "react-redux";
 import { loginUser } from "../../api/modules/auth.api";
-import { loginSuccess } from "./slices/auth.slice";
+import { loginSuccess, loginStart, loginFailure } from "./slices/auth.slice";
 import { saveToken } from "../../utils/token";
+import SEO from "../../components/common/SEO";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -40,6 +41,9 @@ const Login = () => {
     }
 
     setLoading(true);
+
+    dispatch(loginStart());
+
     try {
       const data = await loginUser({
         email: form.email,
@@ -51,7 +55,7 @@ const Login = () => {
 
       const user = await fetchCurrentUser(token);
 
-      dispatch(loginSuccess(user, token));
+      dispatch(loginSuccess({ user, token }));
 
       setSuccessMessage("Accesso avvenuto con successo! Reindirizzamento alla homepage...");
 
@@ -60,10 +64,15 @@ const Login = () => {
       }, 3500);
     } catch (err) {
       console.error(err);
-      if (typeof err === "string") setServerError(err);
-      else if (err?.message) setServerError(err.message);
-      else if (err?.errors) setServerError(Object.values(err.errors).join(", "));
-      else setServerError("Errore durante la registrazione");
+
+      let errorMessage = "Errore durante il login";
+      if (typeof err === "string") errorMessage = err;
+      else if (err?.message) errorMessage = err.message;
+      else if (err?.errors) errorMessage = Object.values(err.errors).join(", ");
+
+      setServerError(errorMessage);
+
+      dispatch(loginFailure(errorMessage));
     } finally {
       setLoading(false);
     }
@@ -71,6 +80,8 @@ const Login = () => {
 
   return (
     <div className="register-page">
+      <SEO title="Accedi" description="Accedi alla tua area riservata per gestire le prenotazioni." />
+
       <div className="register-card">
         <div className="register-left">
           <header className="register-header">
@@ -141,7 +152,7 @@ const Login = () => {
 
         <div className="register-right" aria-hidden="true">
           <img src="/chisono-michela.jpeg" alt="Michela - estetista" className="img-register" />
-          <div className="photo-caption">Benvenuta! Qui puoi accedere al tuo account.</div>
+          <div className="photo-caption">Benvenuto/a! Qui puoi accedere al tuo account.</div>
         </div>
       </div>
     </div>

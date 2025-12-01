@@ -17,10 +17,6 @@
   position: relative;
 }
 
-.about-root > .row:first-of-type {
-  margin-top: 6rem;
-}
-
 /* ---------- TITOLI ---------- */
 .about-title {
   color: var(--c-choco);

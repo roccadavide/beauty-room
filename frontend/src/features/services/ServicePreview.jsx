@@ -8,6 +8,12 @@ import DeleteServiceModal from "./DeleteServiceModal";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices } from "../../api/modules/services.api";
 
+const FEATURED_SERVICE_IDS = [
+  "fd901469-1602-4707-b507-453f87b0ff29", // Latin brows (Mix pelo + sfumatura)
+  "a94db4fb-2997-4167-8121-e8d906099e21", // Laminazione ciglia
+  "785c6c1a-f392-4fca-92d2-9bf33752353a", // Translucent Lips, effetto sfumato
+];
+
 const ServicesPreview = () => {
   const [services, setServices] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -23,19 +29,13 @@ const ServicesPreview = () => {
   const { user, token } = useSelector(state => state.auth);
   const navigate = useNavigate();
 
-  const FEATURED_IDS = [
-    "fd901469-1602-4707-b507-453f87b0ff29", //Latin brows (Mix pelo + sfumatura)
-    "a94db4fb-2997-4167-8121-e8d906099e21", //Laminazione ciglia
-    "785c6c1a-f392-4fca-92d2-9bf33752353a", //Translucent Lips, effetto sfumato
-  ];
-
   // ---------- FETCH ----------
   useEffect(() => {
     const loadData = async () => {
       try {
         const [allServices, cats] = await Promise.all([fetchServices(), fetchCategories()]);
         setCategories(cats);
-        const featured = allServices.filter(s => FEATURED_IDS.includes(s.serviceId));
+        const featured = allServices.filter(s => FEATURED_SERVICE_IDS.includes(s.serviceId));
         setServices(featured);
       } catch (err) {
         setError(err.message);

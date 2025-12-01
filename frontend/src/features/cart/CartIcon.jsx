@@ -1,20 +1,35 @@
+import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { BagHeart } from "react-bootstrap-icons";
-import { Link } from "react-router-dom";
+import { BagHeartFill } from "react-bootstrap-icons";
 import { Badge } from "react-bootstrap";
 
 const CartIcon = () => {
   const totalQuantity = useSelector(state => state.cart?.totalQuantity ?? 0);
+  const [btnIsBumped, setBtnIsBumped] = useState(false);
+
+  useEffect(() => {
+    if (totalQuantity === 0) return;
+    setBtnIsBumped(true);
+
+    // Aumentato a 600ms per finire l'animazione dei saltelli
+    const timer = setTimeout(() => {
+      setBtnIsBumped(false);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [totalQuantity]);
+
+  const btnClasses = `cart-icon-wrapper ${btnIsBumped ? "bump" : ""}`;
 
   return (
-    <Link to="/carrello" className="position-relative d-flex align-items-center">
-      <BagHeart size={24} color="black" />
+    <div className={btnClasses}>
+      <BagHeartFill className="cart-icon-svg" size={30} />
       {totalQuantity > 0 && (
-        <Badge pill bg="danger" className="position-absolute top-0 start-100 translate-middle" style={{ fontSize: "0.7rem" }}>
+        <Badge pill className="cart-badge-luxury">
           {totalQuantity}
         </Badge>
       )}
-    </Link>
+    </div>
   );
 };
 

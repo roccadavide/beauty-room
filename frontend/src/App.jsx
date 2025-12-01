@@ -31,194 +31,249 @@ import AllOrders from "./features/orders/AllOrders";
 import NavBar from "./components/layout/NavBar";
 import PrivateRoute from "./components/common/PrivateRoute";
 import useLenis from "./hooks/useLenis";
+import { useEffect } from "react";
 
 function App() {
-  useLenis();
   const location = useLocation();
+
+  useLenis();
+
+  useEffect(() => {
+    const lenis = window.__lenis;
+    if (!lenis) return;
+
+    const refreshLenis = () => {
+      lenis.resize();
+      lenis.scrollTo(0, { immediate: true });
+    };
+
+    refreshLenis();
+    const id1 = setTimeout(refreshLenis, 400);
+    const id2 = setTimeout(refreshLenis, 1000);
+
+    return () => {
+      clearTimeout(id1);
+      clearTimeout(id2);
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const lenis = window.__lenis;
+    if (!lenis) return;
+
+    let lastScrollHeight = document.body.scrollHeight;
+
+    const interval = setInterval(() => {
+      const currentHeight = document.body.scrollHeight;
+      if (currentHeight !== lastScrollHeight) {
+        lenis.resize();
+        lastScrollHeight = currentHeight;
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const isHeroPage = location.pathname === "/";
+
+  useEffect(() => {
+    const lenis = window.__lenis;
+    if (!lenis) return;
+
+    const observer = new ResizeObserver(() => {
+      lenis.resize();
+    });
+
+    observer.observe(document.body);
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <>
       <ScrollToTop />
       <NavBar />
-      <AnimatePresence mode="wait">
-        <Routes location={location} key={location.pathname}>
-          {/* HOME */}
-          <Route
-            path="/"
-            element={
-              <PageTransition>
-                <>
-                  <HeroSection />
-                  <ServicesPreview />
-                  <Divider />
-                  <AboutSection />
-                  <Divider />
-                  <AcademySection />
-                  <Divider />
-                  <TestimonialsSection />
-                  <Divider />
-                  <ResultsPreview />
-                </>
-              </PageTransition>
-            }
-          />
-
-          {/* PUBBLICHE */}
-          <Route
-            path="/prodotti"
-            element={
-              <PageTransition>
-                <ProductsPage />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/prodotti/:productId"
-            element={
-              <PageTransition>
-                <ProductDetail />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/trattamenti"
-            element={
-              <PageTransition>
-                <ServicePage />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/trattamenti/:serviceId"
-            element={
-              <PageTransition>
-                <ServiceDetail />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/chisono"
-            element={
-              <PageTransition>
-                <AboutDescription />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/risultati"
-            element={
-              <PageTransition>
-                <ResultsPage />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/promozioni"
-            element={
-              <PageTransition>
-                <PromotionsPage />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/login"
-            element={
-              <PageTransition>
-                <Login />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <PageTransition>
-                <Register />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/carrello"
-            element={
-              <PageTransition>
-                <CartPage />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/ordine-confermato"
-            element={
-              <PageTransition>
-                <OrderConfirmation />
-              </PageTransition>
-            }
-          />
-          <Route
-            path="/prenotazione-confermata"
-            element={
-              <PageTransition>
-                <BookingSuccessPage />
-              </PageTransition>
-            }
-          />
-
-          {/* PROTETTE - UTENTE */}
-          <Route
-            path="/mioprofilo"
-            element={
-              <PrivateRoute>
-                <PageTransition>
-                  <MyProfile />
+      <main className={isHeroPage ? "has-hero" : ""}>
+        <AnimatePresence mode="wait" initial={false}>
+          <Routes location={location} key={location.pathname}>
+            {/* HOME */}
+            <Route
+              path="/"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <>
+                    <HeroSection />
+                    <ServicesPreview />
+                    <Divider />
+                    <AboutSection />
+                    <Divider />
+                    <AcademySection />
+                    <Divider />
+                    <TestimonialsSection />
+                    <Divider />
+                    <ResultsPreview />
+                  </>
                 </PageTransition>
-              </PrivateRoute>
-            }
-          />
+              }
+            />
 
-          <Route
-            path="/ordini"
-            element={
-              <PrivateRoute>
-                <PageTransition>
-                  <MyOrders />
+            {/* PUBBLICHE */}
+            <Route
+              path="/prodotti"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <ProductsPage />
                 </PageTransition>
-              </PrivateRoute>
-            }
-          />
+              }
+            />
+            <Route
+              path="/prodotti/:productId"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <ProductDetail />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/trattamenti"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <ServicePage />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/trattamenti/:serviceId"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <ServiceDetail />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/chisono"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <AboutDescription />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/risultati"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <ResultsPage />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/promozioni"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <PromotionsPage />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/login"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <Login />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <Register />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/carrello"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <CartPage />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/ordine-confermato"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <OrderConfirmation />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/prenotazione-confermata"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <BookingSuccessPage />
+                </PageTransition>
+              }
+            />
 
-          <Route
-            path="/prenotazioni"
-            element={
-              <PrivateRoute>
-                <PageTransition>
-                  <MyBookings />
-                </PageTransition>
-              </PrivateRoute>
-            }
-          />
+            {/* PROTETTE - UTENTE */}
+            <Route
+              path="/mioprofilo"
+              element={
+                <PrivateRoute>
+                  <PageTransition routeKey={location.pathname}>
+                    <MyProfile />
+                  </PageTransition>
+                </PrivateRoute>
+              }
+            />
 
-          {/* PROTETTE - ADMIN */}
-          <Route
-            path="/ordini/tutti"
-            element={
-              <PrivateRoute roles={["ADMIN"]}>
-                <PageTransition>
-                  <AllOrders />
-                </PageTransition>
-              </PrivateRoute>
-            }
-          />
+            <Route
+              path="/ordini"
+              element={
+                <PrivateRoute>
+                  <PageTransition routeKey={location.pathname}>
+                    <MyOrders />
+                  </PageTransition>
+                </PrivateRoute>
+              }
+            />
 
-          <Route
-            path="/prenotazioni/tutte"
-            element={
-              <PrivateRoute roles={["ADMIN"]}>
-                <PageTransition>
-                  <AllBookings />
-                </PageTransition>
-              </PrivateRoute>
-            }
-          />
-        </Routes>
-      </AnimatePresence>
+            <Route
+              path="/prenotazioni"
+              element={
+                <PrivateRoute>
+                  <PageTransition routeKey={location.pathname}>
+                    <MyBookings />
+                  </PageTransition>
+                </PrivateRoute>
+              }
+            />
+
+            {/* PROTETTE - ADMIN */}
+            <Route
+              path="/ordini/tutti"
+              element={
+                <PrivateRoute roles={["ADMIN"]}>
+                  <PageTransition routeKey={location.pathname}>
+                    <AllOrders />
+                  </PageTransition>
+                </PrivateRoute>
+              }
+            />
+
+            <Route
+              path="/prenotazioni/tutte"
+              element={
+                <PrivateRoute roles={["ADMIN"]}>
+                  <PageTransition routeKey={location.pathname}>
+                    <AllBookings />
+                  </PageTransition>
+                </PrivateRoute>
+              }
+            />
+          </Routes>
+        </AnimatePresence>
+      </main>
       <Footer />
     </>
   );

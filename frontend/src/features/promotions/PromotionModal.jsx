@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Col, Form, Modal, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createPromotion, updatePromotion } from "../../api/modules/promotions.api";
+import useLenisModalLock from "../../hooks/useLenisModalLock";
 
 const DISCOUNT_TYPES = [
   { v: "NONE", l: "Nessuno (nessuno sconto)" },
@@ -46,6 +47,8 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
   const [cardImage, setCardImage] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  useLenisModalLock(show);
 
   useEffect(() => {
     if (isEdit) {
@@ -165,7 +168,6 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
     };
   }, [form]);
 
-  // ✅ Submit
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
@@ -185,12 +187,19 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
   };
 
   return (
-    <Modal show={show} onHide={onHide} size="lg" backdrop="static">
+    <Modal show={show} onHide={onHide} size="lg" backdrop="static" scrollable centered>
       <Modal.Header closeButton>
         <Modal.Title>{isEdit ? "Modifica Promozione" : "Nuova Promozione"}</Modal.Title>
       </Modal.Header>
 
-      <Modal.Body>
+      <Modal.Body
+        data-lenis-prevent
+        style={{
+          maxHeight: "80vh",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+        }}
+      >
         {errors.general && <p className="text-danger fw-semibold">{errors.general}</p>}
 
         <Form>

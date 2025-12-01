@@ -77,11 +77,18 @@ const EditProfileModal = ({ show, onHide, user, onProfileUpdated }) => {
   };
 
   return (
-    <Modal show={show} onHide={onHide} centered>
+    <Modal show={show} onHide={onHide} centered scrollable>
       <Modal.Header closeButton>
         <Modal.Title>Modifica profilo</Modal.Title>
       </Modal.Header>
-      <Modal.Body>
+      <Modal.Body
+        data-lenis-prevent
+        style={{
+          maxHeight: "80vh",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+        }}
+      >
         {errors.general && <p className="text-danger">{errors.general}</p>}
 
         <Form>

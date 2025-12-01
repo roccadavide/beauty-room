@@ -33,7 +33,7 @@ public class SecConfig {
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/stripe/webhook").permitAll()
                         .requestMatchers("/checkout/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/products/**", "/service-items/**", "/results/**", "/availabilities/**", "/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/products/**", "/service-items/**", "/results/**", "/availabilities/**", "/categories/**", "/promotions/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/orders", "/bookings", "/checkout/create-session-guest").permitAll()
                         .anyRequest().authenticated()
                 )

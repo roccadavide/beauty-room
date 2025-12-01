@@ -4,14 +4,17 @@
   width: 100%;
   margin: 0 auto;
   padding: 3rem 1rem;
-  margin-top: 6rem;
 }
 
 .profile-card {
   border: 0;
   border-radius: 18px;
   overflow: hidden;
-  width: 100% !important;
+}
+
+.profile-container .card.profile-card {
+  width: 100%;
+  max-width: none;
 }
 
 .profile-hero {

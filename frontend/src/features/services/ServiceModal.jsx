@@ -128,11 +128,18 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
   };
 
   return (
-    <Modal show={show} onHide={onHide}>
+    <Modal show={show} onHide={onHide} scrollable centered>
       <Modal.Header closeButton>
         <Modal.Title>{isEdit ? "Modifica Servizio" : "Aggiungi Servizio"}</Modal.Title>
       </Modal.Header>
-      <Modal.Body>
+      <Modal.Body
+        data-lenis-prevent
+        style={{
+          maxHeight: "80vh",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+        }}
+      >
         {errors.general && <p className="text-danger">{errors.general}</p>}
 
         <Form>

@@ -6,6 +6,10 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { createBooking } from "../../api/modules/bookings.api";
 import { fetchAvailabilities } from "../../api/modules/availabilities.api";
+import useLenisModalLock from "../../hooks/useLenisModalLock";
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const phoneRegex = /^\+?[0-9]{7,15}$/;
 
 const BookingModal = ({ show, onHide, service }) => {
   const { token } = useSelector(state => state.auth);
@@ -19,13 +23,17 @@ const BookingModal = ({ show, onHide, service }) => {
 
   const [slot, setSlot] = useState(null);
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "", notes: "" });
+  const [errors, setErrors] = useState({});
 
   const reset = () => {
     setStep(1);
     setSlot(null);
     setSlots([]);
     setCustomer({ name: "", email: "", phone: "", notes: "" });
+    setErrors({});
   };
+
+  useLenisModalLock(show);
 
   useEffect(() => {
     if (step === 2 && service) {
@@ -47,6 +55,28 @@ const BookingModal = ({ show, onHide, service }) => {
       loadSlots();
     }
   }, [step, service, date, token]);
+
+  const handleCustomerChange = (field, value) => {
+    setCustomer(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => ({ ...prev, [field]: null }));
+  };
+
+  const validate = () => {
+    const err = {};
+    if (!customer.name.trim()) err.name = "Il nome è obbligatorio";
+    if (!emailRegex.test(customer.email)) err.email = "Email non valida";
+    if (!phoneRegex.test(customer.phone)) err.phone = "Numero di telefono non valido";
+    return err;
+  };
+
+  const goToSummary = () => {
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors);
+      return;
+    }
+    setStep(4);
+  };
 
   const confirm = async () => {
     try {
@@ -77,6 +107,8 @@ const BookingModal = ({ show, onHide, service }) => {
         onHide();
         reset();
       }}
+      s
+      scrollable
       centered
       size="lg"
     >
@@ -89,7 +121,14 @@ const BookingModal = ({ show, onHide, service }) => {
         </Modal.Title>
       </Modal.Header>
 
-      <Modal.Body>
+      <Modal.Body
+        data-lenis-prevent
+        style={{
+          maxHeight: "80vh",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+        }}
+      >
         {step === 1 && (
           <>
             <h5 className="mb-3">1/4 — Seleziona la data</h5>
@@ -132,26 +171,29 @@ const BookingModal = ({ show, onHide, service }) => {
             <Form className="row g-3">
               <div className="col-md-6">
                 <Form.Label>Nome e Cognome</Form.Label>
-                <Form.Control value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} />
+                <Form.Control value={customer.name} onChange={e => handleCustomerChange("name", e.target.value)} isInvalid={!!errors.name} />
+                <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
               </div>
               <div className="col-md-6">
                 <Form.Label>Email</Form.Label>
-                <Form.Control type="email" value={customer.email} onChange={e => setCustomer({ ...customer, email: e.target.value })} />
+                <Form.Control type="email" value={customer.email} onChange={e => handleCustomerChange("email", e.target.value)} isInvalid={!!errors.email} />
+                <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
               </div>
               <div className="col-md-6">
                 <Form.Label>Telefono</Form.Label>
-                <Form.Control value={customer.phone} onChange={e => setCustomer({ ...customer, phone: e.target.value })} />
+                <Form.Control value={customer.phone} onChange={e => handleCustomerChange("phone", e.target.value)} isInvalid={!!errors.phone} />
+                <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
               </div>
               <div className="col-md-12">
                 <Form.Label>Note (opzionale)</Form.Label>
-                <Form.Control as="textarea" rows={3} value={customer.notes} onChange={e => setCustomer({ ...customer, notes: e.target.value })} />
+                <Form.Control as="textarea" rows={3} value={customer.notes} onChange={e => handleCustomerChange("notes", e.target.value)} />
               </div>
             </Form>
             <div className="d-flex justify-content-between mt-3">
               <Button variant="outline-dark" onClick={() => setStep(2)}>
                 Indietro
               </Button>
-              <Button variant="dark" onClick={() => setStep(4)} disabled={!customer.name || !customer.email || !customer.phone}>
+              <Button variant="dark" onClick={goToSummary}>
                 Avanti
               </Button>
             </div>

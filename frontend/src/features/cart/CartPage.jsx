@@ -80,7 +80,7 @@ const CartPage = () => {
   }
 
   return (
-    <Container className="py-5" style={{ marginTop: "7rem" }}>
+    <Container className="py-5 cotainer-base flex-column">
       <h2 className="mb-4">Il tuo carrello</h2>
 
       <ListGroup variant="flush">
@@ -100,7 +100,11 @@ const CartPage = () => {
               </Col>
 
               <Col xs={6} md={3} className="d-flex align-items-center gap-2">
-                <Button variant="outline-secondary" size="sm" onClick={() => dispatch(updateCartQuantity(item.productId, Math.max(1, item.quantity - 1)))}>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() => dispatch(updateCartQuantity({ productId: item.productId, quantity: Math.max(1, item.quantity - 1) }))}
+                >
                   <Dash size={20} />
                 </Button>
 
@@ -110,7 +114,7 @@ const CartPage = () => {
                   variant="outline-secondary"
                   size="sm"
                   disabled={item.quantity >= item.stock}
-                  onClick={() => dispatch(updateCartQuantity(item.productId, item.quantity + 1))}
+                  onClick={() => dispatch(updateCartQuantity({ productId: item.productId, quantity: item.quantity + 1 }))}
                 >
                   <Plus size={20} />
                 </Button>

@@ -17,12 +17,17 @@ const AboutDescription = () => {
       { threshold: 0.25 }
     );
 
-    sectionsRef.current.forEach(sec => sec && observer.observe(sec));
-    return () => sectionsRef.current.forEach(sec => sec && observer.unobserve(sec));
+    const targets = [...sectionsRef.current].filter(Boolean);
+    targets.forEach(sec => observer.observe(sec));
+
+    return () => {
+      targets.forEach(sec => observer.unobserve(sec));
+      observer.disconnect();
+    };
   }, []);
 
   return (
-    <Container fluid className="about-root py-5">
+    <Container fluid className="about-root pt-4">
       <Row className="justify-content-center text-center mb-5">
         <Col md={9}>
           <h1 className="fw-bold about-title">Chi Sono</h1>

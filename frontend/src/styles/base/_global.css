@@ -12,6 +12,58 @@ body {
   color: var(--color-dark);
   line-height: 1.6;
   overflow-x: hidden;
+  overflow-y: visible;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+*:focus-visible {
+  outline: 2px solid gold;
+}
+
+:root {
+  --nav-height: 115px;
+  --nav-height-scrolled: 75px;
+
+  --nav-current: var(--nav-height);
+}
+
+body.nav-scrolled {
+  --nav-current: var(--nav-height-scrolled);
+}
+
+main {
+  padding-top: var(--nav-current);
+  transition: padding-top 180ms ease;
+}
+
+main.has-hero .hero-section {
+  margin-top: calc(-1 * var(--nav-current));
+  padding-top: var(--nav-current);
+  transition: margin-top 180ms ease, padding-top 180ms ease;
+}
+
+[data-lenis-prevent] {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lenis-scolling iframe {
+  pointer-events: none;
+}
+
+.map-container {
+  position: relative;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.map-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
 }
 
 h1,
@@ -30,7 +82,6 @@ a:hover {
 }
 
 .container-base {
-  margin-top: 7rem;
   min-height: 70vh;
   display: flex;
   justify-content: center;

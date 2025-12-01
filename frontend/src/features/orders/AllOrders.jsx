@@ -85,13 +85,13 @@ const AllOrders = () => {
   }
 
   return (
-    <Container className="py-5 container-base flex-column">
+    <Container className="py-4 container-base flex-column">
       <h2 className="mb-4">📦 Tutti gli ordini</h2>
 
       {allOrders.length === 0 && <p>Non sono ancora stati effetuati ordini.</p>}
 
       {allOrders.map(order => (
-        <Card key={order.orderId} className="mb-4 shadow-sm order-card w-100">
+        <Card key={order.orderId} className="mb-4 shadow-sm order-card">
           <Card.Body>
             <Row>
               <Col md={5} className="mb-5">

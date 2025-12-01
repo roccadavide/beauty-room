@@ -2,6 +2,7 @@ import { Button, Form, Modal, Spinner } from "react-bootstrap";
 import { createProduct, updateProduct } from "../../api/modules/products.api";
 import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
+import useLenisModalLock from "../../hooks/useLenisModalLock";
 
 const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => {
   const { token } = useSelector(state => state.auth);
@@ -32,6 +33,8 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
     setFile(null);
     setErrors({});
   };
+
+  useLenisModalLock(show);
 
   useEffect(() => {
     if (isEdit) {
@@ -128,11 +131,18 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
   };
 
   return (
-    <Modal show={show} onHide={onHide}>
+    <Modal show={show} onHide={onHide} scrollable centered>
       <Modal.Header closeButton>
         <Modal.Title>{isEdit ? "Modifica Prodotto" : "Aggiungi Prodotto"}</Modal.Title>
       </Modal.Header>
-      <Modal.Body>
+      <Modal.Body
+        data-lenis-prevent
+        style={{
+          maxHeight: "80vh",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+        }}
+      >
         {errors.general && <p className="text-danger">{errors.general}</p>}
 
         <Form>

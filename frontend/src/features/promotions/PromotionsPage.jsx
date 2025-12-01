@@ -68,8 +68,12 @@ function PromotionsPage() {
       },
       { threshold: 0.25 }
     );
-    cardsRef.current.forEach(el => el && obs.observe(el));
-    return () => cardsRef.current.forEach(el => el && obs.unobserve(el));
+    const targets = [...cardsRef.current].filter(Boolean);
+    targets.forEach(el => obs.observe(el));
+    return () => {
+      targets.forEach(el => obs.unobserve(el));
+      obs.disconnect();
+    };
   }, [allPromos, scope, q]);
 
   const filtered = useMemo(() => {
@@ -129,7 +133,7 @@ function PromotionsPage() {
   }
 
   return (
-    <Container fluid className="py-5 container-base flex-column">
+    <Container fluid className="py-4 container-base flex-column">
       <h1 className="text-center mb-2 fw-bold display-5">Promozioni</h1>
       <p className="text-center lead mb-4">Scopri le offerte speciali su prodotti e trattamenti.</p>
 

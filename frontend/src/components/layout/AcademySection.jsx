@@ -17,10 +17,12 @@ const AcademySection = () => {
       { threshold: 0.2 }
     );
 
-    cardsRef.current.forEach(el => el && obs.observe(el));
+    const targets = [...cardsRef.current].filter(Boolean);
+    targets.forEach(el => obs.observe(el));
 
     return () => {
-      cardsRef.current.forEach(el => el && obs.unobserve(el));
+      targets.forEach(el => obs.unobserve(el));
+      obs.disconnect();
     };
   }, []);
 

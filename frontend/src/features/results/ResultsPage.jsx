@@ -53,8 +53,12 @@ function ResultsPage() {
       },
       { threshold: 0.25 }
     );
-    cardsRef.current.forEach(el => el && obs.observe(el));
-    return () => cardsRef.current.forEach(el => el && obs.unobserve(el));
+    const targets = [...cardsRef.current].filter(Boolean);
+    targets.forEach(el => obs.observe(el));
+    return () => {
+      targets.forEach(el => obs.unobserve(el));
+      obs.disconnect();
+    };
   }, [cat, allResults]);
 
   // ---------- CATEGORIES MAP ----------
@@ -130,7 +134,7 @@ function ResultsPage() {
   }
 
   return (
-    <Container fluid className="py-5 results-root" style={{ marginTop: "7rem" }}>
+    <Container fluid className="py-5 results-root conatiner-base flex-column">
       <h1 className="text-center mb-3">I miei risultati</h1>
       <p className="text-center lead mb-5">Una raccolta di esempi reali dei miei trattamenti: viso, mani, make-up e altro.</p>
 

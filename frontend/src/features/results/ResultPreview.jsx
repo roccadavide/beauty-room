@@ -8,6 +8,12 @@ import DeleteResultModal from "./DeleteResultModal";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteResult, fetchResults } from "../../api/modules/results.api";
 
+const FEATURED_RESULT_IDS = [
+  "b01da695-f333-49dd-a337-907ccd2f01c9",
+  "result-id-2",
+  "result-id-3",
+];
+
 const ResultsPreview = () => {
   const [results, setResults] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -23,15 +29,13 @@ const ResultsPreview = () => {
   const { user, token } = useSelector(state => state.auth);
   const navigate = useNavigate();
 
-  const FEATURED_RESULTS = ["b01da695-f333-49dd-a337-907ccd2f01c9", "result-id-2", "result-id-3"];
-
   // ---------- FETCH ----------
   useEffect(() => {
     const loadData = async () => {
       try {
         const [allResults, cats] = await Promise.all([fetchResults(), fetchCategories()]);
         setCategories(cats);
-        const featured = allResults.filter(r => FEATURED_RESULTS.includes(r.resultId));
+        const featured = allResults.filter(r => FEATURED_RESULT_IDS.includes(r.resultId));
         setResults(featured);
       } catch (err) {
         setError(err.message);

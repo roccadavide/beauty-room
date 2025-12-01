@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal, Button, Form, Row, Col, Spinner, Alert } from "react-bootstrap";
+import useLenisModalLock from "../../hooks/useLenisModalLock";
 
 const CheckoutModal = ({ show, onHide, cartItems, totalPrice, onConfirm }) => {
   const [form, setForm] = useState({
@@ -34,6 +35,8 @@ const CheckoutModal = ({ show, onHide, cartItems, totalPrice, onConfirm }) => {
     }
     return null;
   };
+
+  useLenisModalLock(show);
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -87,13 +90,20 @@ const CheckoutModal = ({ show, onHide, cartItems, totalPrice, onConfirm }) => {
 
   // ---------- UI ----------
   return (
-    <Modal show={show} onHide={onHide} centered size="lg" backdrop="static">
+    <Modal show={show} onHide={onHide} size="lg" backdrop="static" scrollable centered>
       <Form onSubmit={handleSubmit}>
         <Modal.Header closeButton>
           <Modal.Title>Completa i tuoi dati per il pagamento</Modal.Title>
         </Modal.Header>
 
-        <Modal.Body>
+        <Modal.Body
+          data-lenis-prevent
+          style={{
+            maxHeight: "80vh",
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+          }}
+        >
           {serverError && (
             <Alert variant="danger" onClose={() => setServerError(null)} dismissible>
               {serverError}
