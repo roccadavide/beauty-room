@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 
 import AboutSection from "./features/about/AboutSection";
@@ -31,12 +31,23 @@ import AllOrders from "./features/orders/AllOrders";
 import NavBar from "./components/layout/NavBar";
 import PrivateRoute from "./components/common/PrivateRoute";
 import useLenis from "./hooks/useLenis";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import AdminAgendaSettingsPage from "./components/admin/AdminAgendaSettingsPage";
 import AdminAgendaPage from "./components/admin/AdminAgendaPage";
+import { useDispatch } from "react-redux";
+import { logout } from "./features/auth/slices/auth.slice";
+import Toaster from "./components/feedback/Toaster";
 
 function App() {
   const location = useLocation();
+  const nav = useNavigate();
+  const dispatch = useDispatch();
+
+  const [toast, setToast] = useState({
+    show: false,
+    text: "",
+    variant: "success",
+  });
 
   useLenis();
 
@@ -76,6 +87,25 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // GLOBAL AUTH UNAUTHORIZED HANDLER
+  useEffect(() => {
+    const onUnauthorized = () => {
+      dispatch(logout());
+
+      setToast({
+        show: true,
+        variant: "warning",
+        text: "Sessione scaduta. Effettua di nuovo l’accesso.",
+      });
+
+      const currentPath = location.pathname + location.search;
+      nav("/login", { replace: true, state: { from: currentPath } });
+    };
+
+    window.addEventListener("auth:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", onUnauthorized);
+  }, [dispatch, nav, location.pathname, location.search]);
+
   const isHeroPage = location.pathname === "/";
 
   useEffect(() => {
@@ -93,6 +123,16 @@ function App() {
 
   return (
     <>
+      {/* Toast globale */}
+      <Toaster
+        show={toast.show}
+        variant={toast.variant}
+        text={toast.text}
+        delay={3500}
+        position="top-end"
+        onClose={() => setToast(t => ({ ...t, show: false }))}
+      />
+
       <ScrollToTop />
       <NavBar />
       <main className={isHeroPage ? "has-hero" : ""}>

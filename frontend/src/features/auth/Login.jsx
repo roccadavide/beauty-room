@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { fetchCurrentUser } from "../../api/modules/users.api";
 import { useDispatch } from "react-redux";
 import { loginUser } from "../../api/modules/auth.api";
@@ -11,6 +11,8 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const Login = () => {
   const nav = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from || "/";
   const dispatch = useDispatch();
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -60,7 +62,7 @@ const Login = () => {
       setSuccessMessage("Accesso avvenuto con successo! Reindirizzamento alla homepage...");
 
       setTimeout(() => {
-        nav("/", { replace: true });
+        nav(redirectTo, { replace: true });
       }, 3500);
     } catch (err) {
       console.error(err);
