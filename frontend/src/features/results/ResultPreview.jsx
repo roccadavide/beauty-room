@@ -8,11 +8,7 @@ import DeleteResultModal from "./DeleteResultModal";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteResult, fetchResults } from "../../api/modules/results.api";
 
-const FEATURED_RESULT_IDS = [
-  "b01da695-f333-49dd-a337-907ccd2f01c9",
-  "result-id-2",
-  "result-id-3",
-];
+const FEATURED_RESULT_IDS = ["b01da695-f333-49dd-a337-907ccd2f01c9", "result-id-2", "result-id-3"];
 
 const ResultsPreview = () => {
   const [results, setResults] = useState([]);
@@ -91,11 +87,11 @@ const ResultsPreview = () => {
   };
 
   const badgeColors = {
-    "036f8d73-0d71-415f-b4cb-db4711c4c586": "primary", //Trucco permanente
-    "1225ed9f-c5c8-4003-97b0-50a62874de4a": "success", //Piedi
-    "89bbe501-6470-46a6-9187-1e19f9241bf4": "warning", //Mani
-    "a8a1465f-032b-4481-8f47-160504b6036b": "info", //Corpo
-    "f39e37ff-1210-4446-8968-610d2d1d6563": "danger", //Viso
+    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary", //Trucco permanente
+    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success", //Piedi
+    "95b6d339-a765-4569-9aee-08107d27516b": "warning", //Mani
+    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info", //Corpo
+    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger", //Viso
   };
 
   // ---------- UI ----------

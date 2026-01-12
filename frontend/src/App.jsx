@@ -32,6 +32,8 @@ import NavBar from "./components/layout/NavBar";
 import PrivateRoute from "./components/common/PrivateRoute";
 import useLenis from "./hooks/useLenis";
 import { useEffect } from "react";
+import AdminAgendaSettingsPage from "./components/admin/AdminAgendaSettingsPage";
+import AdminAgendaPage from "./components/admin/AdminAgendaPage";
 
 function App() {
   const location = useLocation();
@@ -105,13 +107,13 @@ function App() {
                     <HeroSection />
                     <ServicesPreview />
                     <Divider />
-                    <AboutSection />
-                    <Divider />
-                    <AcademySection />
+                    <ResultsPreview />
                     <Divider />
                     <TestimonialsSection />
                     <Divider />
-                    <ResultsPreview />
+                    <AboutSection />
+                    <Divider />
+                    <AcademySection />
                   </>
                 </PageTransition>
               }
@@ -217,12 +219,30 @@ function App() {
 
             {/* PROTETTE - UTENTE */}
             <Route
-              path="/mioprofilo"
+              path="/profilo"
               element={
                 <PrivateRoute>
                   <PageTransition routeKey={location.pathname}>
                     <MyProfile />
                   </PageTransition>
+                </PrivateRoute>
+              }
+            />
+
+            <Route
+              path="/profilo/admin/agenda"
+              element={
+                <PrivateRoute roles={["ADMIN"]}>
+                  <AdminAgendaPage />
+                </PrivateRoute>
+              }
+            />
+
+            <Route
+              path="/profilo/admin/agenda-settings"
+              element={
+                <PrivateRoute roles={["ADMIN"]}>
+                  <AdminAgendaSettingsPage />
                 </PrivateRoute>
               }
             />

@@ -9,7 +9,12 @@ import java.time.LocalTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "closures")
+@Table(
+        name="closures",
+        indexes = {
+                @Index(name="idx_closure_date", columnList="date")
+        }
+)
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
@@ -37,16 +42,21 @@ public class Closure {
     private String reason;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    public boolean isFullDay() {
-        return startTime == null && endTime == null;
-    }
+    private LocalDateTime createdAt;
 
     public Closure(LocalDate date, LocalTime startTime, LocalTime endTime, String reason) {
         this.date = date;
         this.startTime = startTime;
         this.endTime = endTime;
         this.reason = reason;
+    }
+
+    @PrePersist
+    void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public boolean isFullDay() {
+        return startTime == null && endTime == null;
     }
 }

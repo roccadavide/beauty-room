@@ -9,6 +9,7 @@ public record NewClosureDTO(
         LocalDate date,
         LocalTime startTime,
         LocalTime endTime,
-        @Size(max = 255)
+        @NotBlank(message = "La motivazione è obbligatoria")
+        @Size(max = 150, message = "La motivazione può essere lunga al massimo 150 caratteri")
         String reason
 ) {}

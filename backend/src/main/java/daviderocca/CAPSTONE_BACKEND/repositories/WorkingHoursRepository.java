@@ -8,4 +8,6 @@ import java.util.UUID;
 
 public interface WorkingHoursRepository extends JpaRepository<WorkingHours, UUID> {
     Optional<WorkingHours> findByDayOfWeek(DayOfWeek dayOfWeek);
+
+    boolean existsByDayOfWeek(DayOfWeek dayOfWeek);
 }

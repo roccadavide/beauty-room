@@ -189,7 +189,7 @@ export default function NavBar() {
               {user ? (
                 <>
                   <div className="dropdown-header-custom">Ciao, {user.name}</div>
-                  <NavDropdown.Item as={Link} to="/mioprofilo">
+                  <NavDropdown.Item as={Link} to="/profilo">
                     Il mio profilo
                   </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/prenotazioni/tutte" : "/prenotazioni"}>
@@ -197,6 +197,9 @@ export default function NavBar() {
                   </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"}>
                     {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
+                  </NavDropdown.Item>
+                  <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
+                    {user.role === "ADMIN" ? "Agenda" : ""}
                   </NavDropdown.Item>
                   <NavDropdown.Divider />
                   <NavDropdown.Item onClick={handleLogoutClick} className="text-danger">

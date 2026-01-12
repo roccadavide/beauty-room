@@ -2,14 +2,17 @@ package daviderocca.CAPSTONE_BACKEND.controllers;
 
 import daviderocca.CAPSTONE_BACKEND.DTO.closureDTOs.ClosureResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.closureDTOs.NewClosureDTO;
+import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.services.ClosureService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,12 +25,22 @@ public class ClosureController {
 
     private final ClosureService closureService;
 
-    // ---------------------------------- GET ----------------------------------
+    // ---------------------------------- GET (ALL or RANGE) ----------------------------------
     @GetMapping
-    public ResponseEntity<List<ClosureResponseDTO>> getAllClosures() {
-        log.info("Richiesta elenco chiusure");
-        List<ClosureResponseDTO> closures = closureService.findAllClosures();
-        return ResponseEntity.ok(closures);
+    public ResponseEntity<List<ClosureResponseDTO>> getClosures(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        if (from != null || to != null) {
+            if (from == null || to == null) {
+                throw new BadRequestException("Devi specificare sia 'from' che 'to'.");
+            }
+            log.info("Richiesta chiusure range: from={} to(exclusive)={}", from, to);
+            return ResponseEntity.ok(closureService.findClosuresInRange(from, to));
+        }
+
+        log.info("Richiesta elenco chiusure (ALL)");
+        return ResponseEntity.ok(closureService.findAllClosures());
     }
 
     // ---------------------------------- POST ----------------------------------

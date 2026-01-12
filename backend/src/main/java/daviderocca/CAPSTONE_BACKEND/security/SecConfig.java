@@ -1,5 +1,7 @@
 package daviderocca.CAPSTONE_BACKEND.security;
 
+import daviderocca.CAPSTONE_BACKEND.DTO.ApiError;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +17,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.access.AccessDeniedHandler;
 
+import java.time.Instant;
 import java.util.List;
 
 @Configuration
@@ -25,16 +31,65 @@ import java.util.List;
 public class SecConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JWTFilter jwtFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JWTFilter jwtFilter, ObjectMapper om) throws Exception {
+
+        AuthenticationEntryPoint entryPoint = (request, response, authException) -> {
+            ApiError body = new ApiError(
+                    Instant.now(),
+                    401,
+                    "Unauthorized",
+                    "Authentication required",
+                    request.getRequestURI(),
+                    null
+            );
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            om.writeValue(response.getWriter(), body);
+        };
+
+        AccessDeniedHandler deniedHandler = (request, response, accessDeniedException) -> {
+            ApiError body = new ApiError(
+                    Instant.now(),
+                    403,
+                    "Forbidden",
+                    "Accesso negato",
+                    request.getRequestURI(),
+                    null
+            );
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json");
+            om.writeValue(response.getWriter(), body);
+        };
+
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(eh -> eh
+                        .authenticationEntryPoint(entryPoint)
+                        .accessDeniedHandler(deniedHandler)
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/stripe/webhook").permitAll()
                         .requestMatchers("/checkout/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/products/**", "/service-items/**", "/results/**", "/availabilities/**", "/categories/**", "/promotions/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/orders", "/bookings", "/checkout/create-session-guest").permitAll()
+
+                        // PUBLIC GET
+                        .requestMatchers(HttpMethod.GET,
+                                "/products/**",
+                                "/service-items/**",
+                                "/results/**",
+                                "/availabilities/services/**",
+                                "/categories/**",
+                                "/promotions/**"
+                        ).permitAll()
+
+                        // PUBLIC POST
+                        .requestMatchers(HttpMethod.POST,
+                                "/orders",
+                                "/bookings",
+                                "/checkout/create-session-guest"
+                        ).permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
@@ -50,10 +105,21 @@ public class SecConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOriginPatterns(List.of("http://localhost:5173"));
+
+        cfg.setAllowedOriginPatterns(List.of(
+                "http://localhost:5173",
+                "https://TUO-DOMINIO-PROD.it",
+                "https://www.TUO-DOMINIO-PROD.it"
+        ));
+
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("*"));
+
+        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "Stripe-Signature"));
+        cfg.setExposedHeaders(List.of("Location"));
+
         cfg.setAllowCredentials(true);
+        cfg.setMaxAge(3600L);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);
         return source;

@@ -7,7 +7,16 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "bookings")
+@Table(
+        name = "bookings",
+        indexes = {
+                @Index(name="idx_booking_start", columnList="start_time"),
+                @Index(name="idx_booking_end", columnList="end_time"),
+                @Index(name="idx_booking_status", columnList="booking_status"),
+                @Index(name="idx_booking_service", columnList="service_id"),
+                @Index(name="idx_booking_email", columnList="customer_email")
+        }
+)
 @NoArgsConstructor
 @Getter
 @Setter
@@ -42,8 +51,8 @@ public class Booking {
     @Column(name = "notes", length = 500)
     private String notes;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name="created_at", nullable=false, updatable=false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_id", nullable = false)
@@ -53,9 +62,13 @@ public class Booking {
     @JoinColumn(name = "user_id")
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_option_id")
+    private ServiceOption serviceOption;
+
     public Booking(String customerName, String customerEmail, String customerPhone,
             LocalDateTime startTime, LocalDateTime endTime, String notes,
-            ServiceItem service, User user) {
+            ServiceItem service, ServiceOption serviceOption, User user) {
         this.customerName = customerName;
         this.customerEmail = customerEmail;
         this.customerPhone = customerPhone;
@@ -63,6 +76,7 @@ public class Booking {
         this.endTime = endTime;
         this.notes = notes;
         this.service = service;
+        this.serviceOption = serviceOption;
         this.user = user;
     }
 

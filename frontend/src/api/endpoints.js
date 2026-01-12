@@ -92,3 +92,19 @@ export const PROMOTION_ENDPOINTS = {
   BY_ID: id => `/promotions/${id}`,
   ACTIVE: "/promotions/active",
 };
+
+// ---- AGENDA ----
+
+export const AGENDA_ENDPOINTS = {
+  TIMELINE_DAY: "/availabilities/admin/timeline/day",
+  BOOKINGS_DAY: "/admin/bookings/day",
+  BOOKINGS_RANGE: "/admin/bookings/range",
+
+  BOOKINGS_BASE: "/admin/bookings",
+  BOOKING_BY_ID: id => `/admin/bookings/${id}`,
+  BOOKING_STATUS: id => `/admin/bookings/${id}/status`,
+};
+
+export const AVAIL_ENDPOINTS = {
+  SERVICE_SLOTS: serviceId => `/availabilities/services/${serviceId}`, // ?date=YYYY-MM-DD
+};

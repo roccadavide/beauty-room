@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -55,13 +56,13 @@ public class WorkingHoursService {
     public WorkingHoursResponseDTO createWorkingHours(NewWorkingHoursDTO payload) {
         validatePayload(payload);
 
+        // evita record doppi (unique = true lato DB, ma meglio errore pulito)
+        workingHoursRepository.findByDayOfWeek(payload.dayOfWeek()).ifPresent(existing -> {
+            throw new BadRequestException("Orari già presenti per " + payload.dayOfWeek() + ". Usa PUT per modificarli.");
+        });
+
         WorkingHours workingHours = new WorkingHours();
-        workingHours.setDayOfWeek(payload.dayOfWeek());
-        workingHours.setClosed(payload.closed());
-        workingHours.setMorningStart(payload.morningStart());
-        workingHours.setMorningEnd(payload.morningEnd());
-        workingHours.setAfternoonStart(payload.afternoonStart());
-        workingHours.setAfternoonEnd(payload.afternoonEnd());
+        applyPayload(workingHours, payload);
 
         WorkingHours saved = workingHoursRepository.save(workingHours);
         log.info("Orario creato per il giorno {}", saved.getDayOfWeek());
@@ -75,47 +76,115 @@ public class WorkingHoursService {
         validatePayload(payload);
 
         WorkingHours workingHours = findById(id);
-        workingHours.setDayOfWeek(payload.dayOfWeek());
-        workingHours.setClosed(payload.closed());
-        workingHours.setMorningStart(payload.morningStart());
-        workingHours.setMorningEnd(payload.morningEnd());
-        workingHours.setAfternoonStart(payload.afternoonStart());
-        workingHours.setAfternoonEnd(payload.afternoonEnd());
+
+        // opzionale ma consigliato: impedisci di “spostare” un record su un day già occupato
+        workingHoursRepository.findByDayOfWeek(payload.dayOfWeek()).ifPresent(existing -> {
+            if (!existing.getId().equals(id)) {
+                throw new BadRequestException("Esistono già orari per " + payload.dayOfWeek() + ". Non puoi duplicare il giorno.");
+            }
+        });
+
+        applyPayload(workingHours, payload);
 
         WorkingHours updated = workingHoursRepository.save(workingHours);
         log.info("Orario aggiornato per il giorno {}", updated.getDayOfWeek());
         return convertToDTO(updated);
     }
 
-    // ---------------------------- DELETE ----------------------------
-    @Transactional
-    public void deleteWorkingHours(UUID id) {
-        if (!workingHoursRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Orario non trovato con id: " + id);
+    // ---------------------------- APPLY / VALIDATION ----------------------------
+
+    private void applyPayload(WorkingHours entity, NewWorkingHoursDTO payload) {
+        entity.setDayOfWeek(payload.dayOfWeek());
+        entity.setClosed(payload.closed());
+
+        if (payload.closed()) {
+            entity.setMorningStart(null);
+            entity.setMorningEnd(null);
+            entity.setAfternoonStart(null);
+            entity.setAfternoonEnd(null);
+        } else {
+            entity.setMorningStart(payload.morningStart());
+            entity.setMorningEnd(payload.morningEnd());
+            entity.setAfternoonStart(payload.afternoonStart());
+            entity.setAfternoonEnd(payload.afternoonEnd());
         }
-        workingHoursRepository.deleteById(id);
-        log.info("Orario {} eliminato correttamente", id);
     }
 
-    // ---------------------------- VALIDATION ----------------------------
-
     private void validatePayload(NewWorkingHoursDTO payload) {
-        if (!payload.closed()) {
-            if (payload.morningStart() == null && payload.afternoonStart() == null) {
-                throw new BadRequestException("Se il giorno non è chiuso, specifica almeno una fascia oraria.");
+        if (payload.dayOfWeek() == null) {
+            throw new BadRequestException("Il giorno della settimana è obbligatorio.");
+        }
+
+        if (payload.closed()) {
+            if (payload.morningStart() != null || payload.morningEnd() != null
+                    || payload.afternoonStart() != null || payload.afternoonEnd() != null) {
+                throw new BadRequestException("Se closed=true non devi inserire fasce orarie (verranno annullate).");
             }
-            if (payload.morningStart() != null && payload.morningEnd() != null &&
-                    !payload.morningStart().isBefore(payload.morningEnd())) {
-                throw new BadRequestException("L'orario di fine mattina deve essere dopo quello di inizio.");
-            }
-            if (payload.afternoonStart() != null && payload.afternoonEnd() != null &&
-                    !payload.afternoonStart().isBefore(payload.afternoonEnd())) {
-                throw new BadRequestException("L'orario di fine pomeriggio deve essere dopo quello di inizio.");
+            return;
+        }
+
+        boolean hasMorning = payload.morningStart() != null || payload.morningEnd() != null;
+        boolean hasAfternoon = payload.afternoonStart() != null || payload.afternoonEnd() != null;
+
+        if (!hasMorning && !hasAfternoon) {
+            throw new BadRequestException("Se il giorno non è chiuso, specifica almeno una fascia oraria.");
+        }
+
+        validateRange(payload.morningStart(), payload.morningEnd(), "mattina");
+        validateRange(payload.afternoonStart(), payload.afternoonEnd(), "pomeriggio");
+
+        if (payload.morningStart() != null && payload.morningEnd() != null
+                && payload.afternoonStart() != null && payload.afternoonEnd() != null) {
+            if (!payload.morningEnd().isBefore(payload.afternoonStart())) {
+                throw new BadRequestException("La fascia mattina deve finire prima dell’inizio del pomeriggio.");
             }
         }
+    }
+
+    private void validateRange(LocalTime start, LocalTime end, String label) {
+        if (start == null && end == null) return;
+        if (start == null || end == null) {
+            throw new BadRequestException("Per la fascia " + label + " devi inserire sia start che end.");
+        }
+        if (!start.isBefore(end)) {
+            throw new BadRequestException("La fascia " + label + " non è valida: l’orario di fine deve essere dopo l’inizio.");
+        }
+    }
+
+    @Transactional
+    public List<WorkingHoursResponseDTO> initDefaultWeekIfMissing() {
+
+        LocalTime morningStart = LocalTime.of(9, 0);
+        LocalTime morningEnd   = LocalTime.of(12, 30);
+        LocalTime aftStart     = LocalTime.of(14, 0);
+        LocalTime aftEnd       = LocalTime.of(19, 0);
+
+        for (DayOfWeek day : DayOfWeek.values()) {
+
+            if (workingHoursRepository.existsByDayOfWeek(day)) continue;
+
+            boolean weekend = (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY);
+
+            WorkingHours wh = new WorkingHours();
+            wh.setDayOfWeek(day);
+            wh.setClosed(weekend);
+
+            if (!weekend) {
+                wh.setMorningStart(morningStart);
+                wh.setMorningEnd(morningEnd);
+                wh.setAfternoonStart(aftStart);
+                wh.setAfternoonEnd(aftEnd);
+            }
+
+            workingHoursRepository.save(wh);
+            log.info("Seed working hours created for {}", day);
+        }
+
+        return findAll();
     }
 
     // ---------------------------- CONVERTER ----------------------------
+
     private WorkingHoursResponseDTO convertToDTO(WorkingHours entity) {
         return new WorkingHoursResponseDTO(
                 entity.getId(),

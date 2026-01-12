@@ -64,6 +64,5 @@ public class WorkingHours {
     }
 
     public boolean isFullDayClosed() {
-        return closed || (morningStart == null && afternoonStart == null);
-    }
-}
+        return closed;
+    }}

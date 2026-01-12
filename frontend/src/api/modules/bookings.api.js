@@ -31,8 +31,7 @@ export const createBooking = async payload => {
     const { data } = await http.post(BOOKING_ENDPOINTS.BASE, payload);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || "Errore durante la creazione della prenotazione.";
-    throw new Error(message);
+    throw new Error(error?.normalized?.message || "Errore durante la creazione della prenotazione.");
   }
 };
 

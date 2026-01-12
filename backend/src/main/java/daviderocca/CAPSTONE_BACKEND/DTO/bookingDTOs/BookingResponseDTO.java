@@ -17,5 +17,6 @@ public record BookingResponseDTO(
         String notes,
         LocalDateTime createdAt,
         UUID serviceId,
+        UUID serviceOptionId,
         UUID userId // opzionale se è un utente registrato
 ) {}

@@ -4,8 +4,10 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.NewServiceItemDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceItemResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceOptionResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Category;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
+import daviderocca.CAPSTONE_BACKEND.entities.ServiceOption;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ServiceItemRepository;
@@ -140,6 +142,18 @@ public class ServiceItemService {
 
     // ---------------------------- CONVERTER ----------------------------
     private ServiceItemResponseDTO convertToDTO(ServiceItem serviceItem) {
+        List<ServiceOptionResponseDTO> optionDTOs = serviceItem.getOptions().stream()
+                .filter(ServiceOption::isActive)
+                .map(o -> new ServiceOptionResponseDTO(
+                        o.getOptionId(),
+                        o.getName(),
+                        o.getPrice(),
+                        o.getSessions(),
+                        o.getGender(),
+                        o.isActive()
+                ))
+                .toList();
+
         return new ServiceItemResponseDTO(
                 serviceItem.getServiceId(),
                 serviceItem.getTitle(),
@@ -148,7 +162,8 @@ public class ServiceItemService {
                 serviceItem.getShortDescription(),
                 serviceItem.getDescription(),
                 serviceItem.getImages(),
-                serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryId() : null
+                serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryId() : null,
+                optionDTOs
         );
     }
 }

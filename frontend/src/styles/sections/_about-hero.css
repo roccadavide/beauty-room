@@ -1,15 +1,17 @@
+@import url("https://fonts.googleapis.com/css2?family=Petrona:ital,wght@0,100..900;1,100..900&display=swap");
+@import url(https://db.onlinewebfonts.com/c/7b9ef47e477d7db975da9dda4b155d02?family=SaolDisplay-Light);
+
 /* ===== HERO SECTION ===== */
 
 .hero-section {
   position: relative;
-  min-height: clamp(80vh, 96vh, 95vh);
+  min-height: 92vh;
   display: grid;
   place-items: stretch;
   overflow: clip;
   isolation: isolate;
 }
 
-/* immagine di sfondo con parallax + leggera correzione colore */
 .hero-media {
   position: absolute;
   inset: 0;
@@ -17,54 +19,57 @@
   height: 110%;
   object-fit: cover;
   object-position: center;
-  will-change: transform;
-  /* più luminosa ma senza esagerare */
-  filter: brightness(1.12) contrast(1.04) saturate(1.06);
+  padding: 0;
+  filter: contrast(1.03) saturate(1.04);
 }
 
-/* overlay con centro più luminoso e bordi più scuri */
 .hero-overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, rgba(255, 245, 233, 0.2) 0%, rgba(0, 0, 0, 0.3) 55%, rgba(0, 0, 0, 0.45) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.35) 100%);
+  background: radial-gradient(circle at 25% 20%, rgba(255, 248, 236, 0.148), transparent 55%);
   z-index: 1;
-}
-
-/* wrapper del contenuto */
-.hero-inner {
-  position: absolute;
-  top: 110px; /* se vuoi, puoi sostituire con var(--nav-height) */
-  left: -60px;
-  z-index: 2;
-  display: grid;
-  align-content: center;
-  padding: 30px;
-  width: fit-content;
   pointer-events: none;
 }
 
-/* --- pannello vetro --- */
+.hero-inner {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: clamp(16px, 3vh, 32px);
+  pointer-events: none;
+}
+
+/* --- pannello vetro centrale --- */
 .hero-glass {
   position: relative;
   pointer-events: auto;
   color: #fff;
-  max-width: min(760px, 94vw);
-  margin-inline: clamp(12px, 4vw, 48px);
-  background: linear-gradient(180deg, rgba(20, 16, 10, 0.28) 0%, rgba(20, 16, 10, 0.22) 60%, rgba(20, 16, 10, 0.18) 100%);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+
+  max-width: min(620px, 100%);
+  margin-inline: auto;
+  margin-bottom: clamp(10px, 2vh, 45px);
+
+  background: linear-gradient(180deg, rgba(20, 16, 10, 0.32) 0%, rgba(20, 16, 10, 0.24) 60%, rgba(20, 16, 10, 0.2) 100%);
   -webkit-backdrop-filter: blur(10px) saturate(115%);
   backdrop-filter: blur(10px) saturate(115%);
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-  padding: clamp(18px, 2.4vw, 36px) clamp(18px, 3vw, 42px);
+  padding: clamp(20px, 2.4vw, 32px) clamp(26px, 3.2vw, 40px);
   overflow: hidden;
   transform-style: preserve-3d;
   transition: transform 0.5s ease, border-color 0.35s ease, box-shadow 0.35s ease;
   will-change: transform;
 }
 
-/* fasce luminose */
 .hero-glass::before,
 .hero-glass::after {
   content: "";
@@ -101,51 +106,112 @@
   }
 }
 
-/* testo e bottoni */
+/* ===== TESTO E BOTTONI ===== */
+
 .hero-title {
-  font-size: 2.5rem;
-  line-height: 1.05;
+  color: #fff7ee;
+  font-size: 2.3rem;
+  line-height: 1.06;
   letter-spacing: -0.02em;
-  font-weight: 800;
-  margin: 0 0 10px 0;
+  font-family: "SaolDisplay-Light";
+  font-weight: 700;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .hero-subtitle {
-  font-size: clamp(16px, 1.6vw, 20px);
-  opacity: 0.9;
+  font-size: clamp(0.98rem, 1.7vw, 1.08rem);
+  font-family: "Petrona", serif;
+  font-weight: 500;
+  color: rgba(255, 238, 224, 0.95);
   max-width: 60ch;
-  margin: 0 0 8px 0;
+  margin: 0 0 3px 0;
+}
+
+.hero-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.hero-cta-primary,
+.hero-cta-secondary {
+  min-width: 220px;
+  max-width: 260px;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.98rem;
 }
 
 .hero-cta-primary {
-  font-weight: 700;
-  padding-inline: 22px;
-  border-radius: 999px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  background: #fff3e3;
+  color: #5a3d2a;
+  border: none;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
 }
+
+.hero-cta-primary:hover,
+.hero-cta-primary:focus-visible {
+  background: #ffe0c4;
+  color: #4a3122;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+}
+
 .hero-cta-secondary {
-  border-radius: 999px;
+  background: transparent;
+  color: #fff4e6;
+  border: 1px solid rgba(255, 225, 201, 0.95);
   backdrop-filter: blur(4px);
 }
-.hero-hint {
-  font-size: 0.95rem;
-  opacity: 0.85;
+
+.hero-cta-secondary:hover,
+.hero-cta-secondary:focus-visible {
+  background: rgba(255, 236, 214, 0.15);
+  color: #fff9f1;
+  border-color: rgba(255, 236, 214, 1);
 }
 
-/* responsive */
+.hero-hint {
+  font-size: 0.9rem;
+  color: rgba(255, 242, 229, 0.9);
+  margin-top: 10px;
+}
+
+/* ===== RESPONSIVE ===== */
+
 @media (max-width: 768px) {
   .hero-inner {
-    top: 25rem;
-    left: 0;
-    padding: clamp(32px, 6vh, 64px) 0;
+    align-items: flex-start;
+    padding-top: calc(var(--nav-height, 90px) + 280px);
+    padding-inline: clamp(16px, 4vw, 24px);
   }
+
+  .hero-media {
+    object-position: 46% center;
+  }
+
   .hero-glass {
-    margin-inline: clamp(12px, 4vw, 20px);
+    max-width: 100%;
+    margin-inline: 0;
+    margin-bottom: 32px;
     border-radius: 16px;
+  }
+
+  .hero-cta-row {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .hero-cta-primary,
+  .hero-cta-secondary {
+    max-width: 100%;
+    width: 100%;
   }
 }
 
-/* preferenze utente */
 @media (prefers-reduced-motion: reduce) {
   .hero-media {
     transform: none !important;

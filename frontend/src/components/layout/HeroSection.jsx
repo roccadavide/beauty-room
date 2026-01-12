@@ -1,7 +1,8 @@
 import { Container, Button } from "react-bootstrap";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { Link } from "react-router-dom";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { animate, splitText, stagger } from "animejs";
 
 const MotionDiv = motion.div;
 const MotionH1 = motion.h1;
@@ -9,7 +10,7 @@ const MotionP = motion.p;
 const MotionImg = motion.img;
 
 export default function HeroSection({
-  title = "Laser & Permanent Make-Up",
+  title = "LASER & PERMANENT MAKE-UP",
   subtitle = "Risultati visibili e sicuri, con protocolli professionali.",
   primaryCtaLabel = "Prenota",
   primaryCtaTo = "/trattamenti",
@@ -25,22 +26,23 @@ export default function HeroSection({
 
   const heroRef = useRef(null);
 
-  // scroll locale sulla sezione hero
+  // 👉 ref per titolo e sottotitolo (per anime.js)
+  const titleRef = useRef(null);
+  const subtitleRef = useRef(null);
+
+  // Scroll locale sulla hero
   const { scrollYProgress } = useScroll({
     target: heroRef,
-    offset: ["start start", "end start"], // da quando l'hero entra finché esce
+    offset: ["start start", "end start"],
   });
 
-  // parallax immagine (più evidente)
-  const bgY = useTransform(scrollYProgress, [0, 1], [0, 140]); // prima era [0, 80]
+  // Parallax immagine
+  const bgY = useTransform(scrollYProgress, [0, 1], [0, 170]);
+  const bgScale = useTransform(scrollYProgress, [0, 1], [1.0, 1.05]);
+  const bgX = reduce ? 0 : 0;
 
-  // leggero zoom dinamico per dare più profondità
-  const bgScale = useTransform(scrollYProgress, [0, 1], [1.02, 1.1]);
-
-  // parallax contenuto (movimento un filo più contenuto)
-  const glassY = useTransform(scrollYProgress, [0, 1], [0, -50]); // prima -40
-
-  const bgParallaxStyles = reduce ? {} : { y: bgY, scale: bgScale };
+  const bgParallaxStyles = reduce ? {} : { y: bgY, scale: bgScale, x: bgX };
+  const glassY = useTransform(scrollYProgress, [0, 1], [0, -50]);
   const glassParallaxStyles = reduce ? {} : { y: glassY };
 
   const textMotion = {
@@ -73,12 +75,38 @@ export default function HeroSection({
 
   const resetTilt = () => setTilt({ rotateX: 0, rotateY: 0 });
 
+  const hasAnimated = useRef(false);
+
+  useEffect(() => {
+    if (reduce) return;
+    if (hasAnimated.current) return;
+    hasAnimated.current = true;
+
+    const titleSplit = splitText(titleRef.current, {
+      chars: { wrap: "clip" },
+    });
+
+    const subtitleSplit = splitText(subtitleRef.current, {
+      chars: { wrap: "clip" },
+    });
+
+    const chars = [...titleSplit.chars, ...subtitleSplit.chars];
+
+    animate(chars, {
+      y: [{ to: ["100%", "0%"] }],
+      duration: 1300,
+      ease: "out(4)",
+      delay: stagger(35),
+      loop: false,
+    });
+  }, [reduce]);
+
   return (
     <section ref={heroRef} className="hero-section position-relative">
       <picture>
         <source srcSet={imgAvif} type="image/avif" />
         <source srcSet={imgWebp} type="image/webp" />
-        <MotionImg src={imgJpg} alt={imgAlt} className="hero-media" decoding="async" fetchpriority="high" style={bgParallaxStyles} />
+        <MotionImg src={imgJpg} alt={imgAlt} className="hero-media" decoding="async" fetchPriority="high" style={bgParallaxStyles} />
       </picture>
 
       <div className="hero-overlay" aria-hidden="true" />
@@ -102,24 +130,25 @@ export default function HeroSection({
             transition: { duration: 0.5, ease: [0.22, 0.61, 0.36, 1] },
           }}
         >
-          <MotionH1 className="hero-title" variants={textMotion} initial="hidden" animate="visible" custom={0}>
+          <MotionH1 ref={titleRef} className="hero-title" variants={textMotion} initial="hidden" animate="visible" custom={0}>
             {title}
           </MotionH1>
 
-          <MotionP className="hero-subtitle" variants={textMotion} initial="hidden" animate="visible" custom={1}>
+          <MotionP ref={subtitleRef} className="hero-subtitle" variants={textMotion} initial="hidden" animate="visible" custom={1}>
             {subtitle}
           </MotionP>
 
-          <MotionDiv className="d-flex flex-wrap gap-3 mt-3" variants={textMotion} initial="hidden" animate="visible" custom={2}>
+          <MotionDiv className="hero-cta-row" variants={textMotion} initial="hidden" animate="visible" custom={2}>
             <Button as={Link} to={primaryCtaTo} size="lg" variant="light" className="hero-cta-primary">
               {primaryCtaLabel}
             </Button>
+
             <Button as={Link} to={secondaryCtaTo} size="lg" variant="outline-light" className="hero-cta-secondary">
               {secondaryCtaLabel}
             </Button>
           </MotionDiv>
 
-          <MotionDiv className="hero-hint mt-3" variants={textMotion} initial="hidden" animate="visible" custom={3}>
+          <MotionDiv className="hero-hint" variants={textMotion} initial="hidden" animate="visible" custom={3}>
             ★★★★★ 4.9/5 da recensioni reali
           </MotionDiv>
         </MotionDiv>

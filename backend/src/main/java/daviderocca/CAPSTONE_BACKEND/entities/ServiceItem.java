@@ -49,7 +49,10 @@ public class ServiceItem {
     private Category category;
 
     @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Booking> bookings;
+    private List<Booking> bookings = new ArrayList<>();
+
+    @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ServiceOption> options = new ArrayList<>();
 
     public ServiceItem(String title, int durationMin, BigDecimal price, String shortDescription,
                        String description, List<String> images, Category category) {
