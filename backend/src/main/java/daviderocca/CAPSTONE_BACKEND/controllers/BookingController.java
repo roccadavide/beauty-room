@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -24,13 +25,25 @@ public class BookingController {
     private final BookingService bookingService;
 
     // PUBBLICO
+
+    // MY BOOKINGS (AUTH) - GET /bookings/me
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<BookingResponseDTO>> getMyBookings(
+            @AuthenticationPrincipal User currentUser
+    ) {
+        log.info("AUTH | my bookings | user={}", currentUser.getUserId());
+        return ResponseEntity.ok(bookingService.findBookingsForCurrentUser(currentUser));
+    }
+
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<BookingResponseDTO> createBooking(
             @Valid @RequestBody NewBookingDTO payload,
             @AuthenticationPrincipal User currentUser
     ) {
-        log.info("PUBLIC | create booking | email={}", payload.customerEmail());
-        BookingResponseDTO created = bookingService.saveBooking(payload, currentUser);
+        log.info("AUTH | create booking | userId={}", currentUser.getUserId());
+        BookingResponseDTO created = bookingService.saveBookingAsUser(payload, currentUser);
 
         URI location = URI.create("/bookings/" + created.bookingId());
         return ResponseEntity.created(location).body(created);

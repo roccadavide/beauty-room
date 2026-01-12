@@ -4,7 +4,7 @@ import { useSelector } from "react-redux";
 import { Trash2Fill } from "react-bootstrap-icons";
 import DeleteBookingModal from "./DeleteBookingModal";
 import { useNavigate } from "react-router-dom";
-import { deleteBooking, fetchBookings } from "../../api/modules/bookings.api";
+import { deleteBooking, fetchAdminBookings } from "../../api/modules/bookings.api";
 import { fetchServiceById } from "../../api/modules/services.api";
 
 const AllBookings = () => {
@@ -23,7 +23,7 @@ const AllBookings = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const res = await fetchBookings(token);
+        const res = await fetchAdminBookings(token);
         setAllBookings(res.content || []);
       } catch (err) {
         setError(err.message);

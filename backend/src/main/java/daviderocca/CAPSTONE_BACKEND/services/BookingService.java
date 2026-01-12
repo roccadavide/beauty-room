@@ -52,6 +52,18 @@ public class BookingService {
     }
 
     @Transactional(readOnly = true)
+    public List<BookingResponseDTO> findBookingsForCurrentUser(User currentUser) {
+        if (currentUser == null || currentUser.getUserId() == null) {
+            throw new UnauthorizedException("Utente non autenticato.");
+        }
+
+        return bookingRepository.findByUserIdOrderByStartTimeDesc(currentUser.getUserId())
+                .stream()
+                .map(this::convertToDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public BookingResponseDTO findBookingByIdAndConvert(UUID bookingId) {
         return convertToDTO(findBookingById(bookingId));
     }
@@ -66,9 +78,13 @@ public class BookingService {
                 .toList();
     }
 
-    // ---------------------------------- CREATE (ATOMICA) ----------------------------------
+    // ---------------------------------- CREATE ----------------------------------
     @Transactional
-    public BookingResponseDTO saveBooking(NewBookingDTO payload, User currentUser) {
+    public BookingResponseDTO saveBookingAsUser(NewBookingDTO payload, User currentUser) {
+
+        if (currentUser == null || currentUser.getUserId() == null) {
+            throw new UnauthorizedException("Devi essere autenticato per prenotare.");
+        }
 
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
 
@@ -77,15 +93,14 @@ public class BookingService {
 
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
 
-        // LOCK atomico (online-safe)
         if (!bookingRepository.lockOverlappingBookingsByStatuses(start, end, BLOCKING).isEmpty()) {
-            log.warn("Tentativo doppia prenotazione (CREATE): range {} - {}", start, end);
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
 
         String name = safeTrim(payload.customerName(), "Nome cliente obbligatorio");
-        String email = safeTrim(payload.customerEmail(), "Email cliente obbligatoria").toLowerCase();
         String phone = safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio");
+
+        String email = safeTrim(currentUser.getEmail(), "Email utente non valida").toLowerCase();
 
         Booking newBooking = new Booking(
                 name,
@@ -100,21 +115,49 @@ public class BookingService {
         );
 
         Booking saved = bookingRepository.save(newBooking);
-
-        log.info("Prenotazione creata: id={} start={} end={} serviceId={} optionId={} status={} userId={}",
-                saved.getBookingId(),
-                saved.getStartTime(),
-                saved.getEndTime(),
-                saved.getService().getServiceId(),
-                saved.getServiceOption() != null ? saved.getServiceOption().getOptionId() : null,
-                saved.getBookingStatus(),
-                saved.getUser() != null ? saved.getUser().getUserId() : null
-        );
-
         return convertToDTO(saved);
     }
 
-    // ---------------------------------- UPDATE (ATOMICA) ----------------------------------
+    @Transactional
+    public BookingResponseDTO saveBookingAsAdmin(NewBookingDTO payload, User currentUser) {
+
+        if (!isAdmin(currentUser)) {
+            throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni da admin.");
+        }
+
+        ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
+
+        LocalDateTime start = normalizeStart(payload.startTime());
+        LocalDateTime end = start.plusMinutes(serviceItem.getDurationMin());
+
+        ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
+
+        if (!bookingRepository.lockOverlappingBookingsByStatuses(start, end, BLOCKING).isEmpty()) {
+            throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
+        }
+
+        String name = safeTrim(payload.customerName(), "Nome cliente obbligatorio");
+        String phone = safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio");
+
+        String email = safeTrim(payload.customerEmail(), "Email cliente obbligatoria").toLowerCase();
+
+        Booking newBooking = new Booking(
+                name,
+                email,
+                phone,
+                start,
+                end,
+                payload.notes(),
+                serviceItem,
+                option,
+                null
+        );
+
+        Booking saved = bookingRepository.save(newBooking);
+        return convertToDTO(saved);
+    }
+
+    // ---------------------------------- UPDATE  ----------------------------------
     @Transactional
     public BookingResponseDTO updateBooking(UUID bookingId, NewBookingDTO payload, User currentUser) {
 

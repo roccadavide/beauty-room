@@ -81,4 +81,13 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
+
+    // -------------------- FETCH BY USER --------------------
+    @Query("""
+        select b
+        from Booking b
+        where b.user.userId = :userId
+        order by b.startTime desc
+    """)
+    List<Booking> findByUserIdOrderByStartTimeDesc(@Param("userId") UUID userId);
 }

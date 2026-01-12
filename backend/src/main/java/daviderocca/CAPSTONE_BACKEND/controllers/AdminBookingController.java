@@ -73,6 +73,21 @@ public class AdminBookingController {
         return ResponseEntity.ok(bookingService.getAgendaRange(from, to));
     }
 
+    // CREATE BOOKING (ADMIN) - POST /admin/bookings
+    @PostMapping
+    public ResponseEntity<BookingResponseDTO> createAdminBooking(
+            @Valid @RequestBody NewBookingDTO payload,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        log.info("ADMIN | create booking | email={}", payload.customerEmail());
+        BookingResponseDTO created = bookingService.saveBookingAsAdmin(payload, currentUser);
+
+        return ResponseEntity
+                .created(java.net.URI.create("/admin/bookings/" + created.bookingId()))
+                .body(created);
+    }
+
+
     // PATCH STATUS
     @PatchMapping("/{id}/status")
     public ResponseEntity<BookingResponseDTO> updateStatus(

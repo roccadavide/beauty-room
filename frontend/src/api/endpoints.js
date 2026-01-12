@@ -27,12 +27,21 @@ export const SERVICE_ENDPOINTS = {
   BY_ID: id => `/service-items/${id}`,
 };
 
-// ---- BOOKINGS ----
+// ---- BOOKINGS (PUBLIC) ----
 export const BOOKING_ENDPOINTS = {
   BASE: "/bookings",
+  ME: "/bookings/me",
   BY_ID: id => `/bookings/${id}`,
-  BY_EMAIL: email => `/bookings/email/${email}`,
-  STATUS: id => `/bookings/${id}/status`,
+};
+
+// ---- BOOKINGS (ADMIN) ----
+export const BOOKING_ENDPOINTS_ADMIN = {
+  BASE: "/admin/bookings",
+  BY_ID: id => `/admin/bookings/${id}`,
+  BY_EMAIL: "/admin/bookings/by-email", // params: { email }
+  DAY: "/admin/bookings/day", // params: { date }
+  RANGE: "/admin/bookings/range", // params: { from, to }
+  STATUS: id => `/admin/bookings/${id}/status`, // params: { status }
 };
 
 // ---- ORDERS ----
