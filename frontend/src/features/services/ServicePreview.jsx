@@ -142,8 +142,8 @@ const ServicesPreview = () => {
               <Card.Body className="d-flex flex-column">
                 <Card.Title>{s.title}</Card.Title>
                 <div className="mb-2 d-flex align-items-center gap-2">
-                  <Badge bg={badgeColors[s.categoryName] || "secondary"} className="text-uppercase">
-                    {categoriesMap[s.categoryName] || "Senza categoria"}
+                  <Badge bg={badgeColors[s.categoryId] || "secondary"} className="text-uppercase">
+                    {categoriesMap[s.categoryId] || "Senza categoria"}
                   </Badge>
                   <small className="text-muted">{s.durationMin} min</small>
                 </div>

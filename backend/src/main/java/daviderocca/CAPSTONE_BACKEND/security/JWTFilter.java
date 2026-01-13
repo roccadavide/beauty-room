@@ -77,10 +77,16 @@ public class JWTFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
+        String method = request.getMethod();
 
-        if (path.startsWith("/auth") || path.startsWith("/stripe") || path.startsWith("/checkout")) return true;
+        if (path.startsWith("/auth")) return true;
+        if (path.startsWith("/stripe")) return true;
 
-        if (request.getMethod().equals("GET") && (
+        if (path.equals("/checkout/create-session-guest")) return true;
+        if (method.equals("GET") && path.equals("/checkout/order-summary")) return true;
+
+        // PUBLIC GET
+        if (method.equals("GET") && (
                 path.startsWith("/products") ||
                         path.startsWith("/service-items") ||
                         path.startsWith("/results") ||

@@ -6,6 +6,7 @@ import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import CartIcon from "../../features/cart/CartIcon";
 import { persistor } from "../../app/store";
 import { logout } from "../../features/auth/slices/auth.slice";
+import { clearToken } from "../../utils/token";
 
 const LINKS = [
   { to: "/prodotti", label: "Prodotti" },
@@ -128,6 +129,7 @@ export default function NavBar() {
 
   // Logout
   const confirmLogout = () => {
+    clearToken();
     dispatch(logout());
     persistor.purge();
     navigate("/");
@@ -198,9 +200,13 @@ export default function NavBar() {
                   <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"}>
                     {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
                   </NavDropdown.Item>
-                  <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
-                    {user.role === "ADMIN" ? "Agenda" : ""}
-                  </NavDropdown.Item>
+                  {user.role === "ADMIN" ? (
+                    <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
+                      Agenda
+                    </NavDropdown.Item>
+                  ) : (
+                    ""
+                  )}
                   <NavDropdown.Divider />
                   <NavDropdown.Item onClick={handleLogoutClick} className="text-danger">
                     Logout

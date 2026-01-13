@@ -54,7 +54,7 @@ const ServicePage = () => {
   // ---------- FILTER ----------
   const filtered = useMemo(() => {
     return allServices
-      .filter(s => (cat === "all" ? true : s.categoryName === cat))
+      .filter(s => (cat === "all" ? true : s.categoryId === cat))
       .filter(s => s.title.toLowerCase().includes(q.toLowerCase()) || s.shortDescription.toLowerCase().includes(q.toLowerCase()));
   }, [allServices, cat, q]);
 
@@ -167,8 +167,8 @@ const ServicePage = () => {
                 <Card.Body className="d-flex flex-column">
                   <Card.Title className="mb-1">{s.title}</Card.Title>
                   <div className="mb-2 d-flex align-items-center gap-2">
-                    <Badge bg={badgeColors[s.categoryName] || "secondary"} className="text-uppercase">
-                      {categoriesMap[s.categoryName] || "Senza categoria"}
+                    <Badge bg={badgeColors[s.categoryId] || "secondary"} className="text-uppercase">
+                      {categoriesMap[s.categoryId] || "Senza categoria"}
                     </Badge>
                     <small className="text-muted">{s.durationMin} min</small>
                   </div>

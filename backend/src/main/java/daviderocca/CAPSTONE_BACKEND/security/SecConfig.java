@@ -71,7 +71,11 @@ public class SecConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/stripe/webhook").permitAll()
-                        .requestMatchers("/checkout/**").permitAll()
+
+                        // CHECKOUT
+                        .requestMatchers(HttpMethod.POST, "/checkout/create-session-guest").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/checkout/order-summary").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/checkout/create-session").authenticated()
 
                         // PUBLIC GET
                         .requestMatchers(HttpMethod.GET,
@@ -86,8 +90,7 @@ public class SecConfig {
                         // PUBLIC POST
                         .requestMatchers(HttpMethod.POST,
                                 "/orders",
-                                "/bookings",
-                                "/checkout/create-session-guest"
+                                "/bookings"
                         ).permitAll()
 
                         .anyRequest().authenticated()

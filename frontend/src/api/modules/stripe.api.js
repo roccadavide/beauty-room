@@ -6,9 +6,7 @@ import { STRIPE_ENDPOINTS } from "../endpoints";
 // --------------------------- CHECKOUT USERS ---------------------------
 export const createCheckoutSession = async orderData => {
   try {
-    const { data } = await http.post(STRIPE_ENDPOINTS.CHECKOUT, orderData, {
-      headers: { "Content-Type": "application/json" },
-    });
+    const { data } = await http.post(STRIPE_ENDPOINTS.CHECKOUT, orderData);
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore durante la creazione della sessione di pagamento.";
@@ -19,9 +17,7 @@ export const createCheckoutSession = async orderData => {
 // --------------------------- CHECKOUT GUESTS ---------------------------
 export const createCheckoutSessionGuest = async orderData => {
   try {
-    const { data } = await http.post(STRIPE_ENDPOINTS.CHECKOUT_GUEST, orderData, {
-      headers: { "Content-Type": "application/json" },
-    });
+    const { data } = await http.post(STRIPE_ENDPOINTS.CHECKOUT_GUEST, orderData);
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore durante la creazione della sessione di pagamento.";

@@ -5,6 +5,7 @@ import daviderocca.CAPSTONE_BACKEND.DTO.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -27,6 +28,11 @@ public class GlobalExceptionHandler {
 
     /* =================== CUSTOM =================== */
 
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ResponseEntity<ApiError> handleDuplicate(DuplicateResourceException ex, HttpServletRequest req) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), req, null, false);
+    }
+
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiError> handleBadRequest(BadRequestException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, null, false);
@@ -40,6 +46,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex, HttpServletRequest req) {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req, null, false);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, null, false);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, null, false);
     }
 
     /* =================== VALIDATION =================== */
@@ -58,6 +74,29 @@ public class GlobalExceptionHandler {
         Map<String, Object> details = new HashMap<>();
         ex.getConstraintViolations().forEach(v -> details.put(v.getPropertyPath().toString(), v.getMessage()));
         return build(HttpStatus.BAD_REQUEST, "Validation failed", req, details, false);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest req) {
+
+        String raw = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+
+        String msg = "Dati già presenti.";
+
+        if (raw != null) {
+            String low = raw.toLowerCase();
+
+            if (low.contains("key (email)") || low.contains("(email)=")) {
+                msg = "Email già registrata.";
+            } else if (low.contains("key (phone)") || low.contains("(phone)=") || low.contains("key (telefono)") ) {
+                msg = "Telefono già registrato.";
+            }
+        }
+
+
+        return build(HttpStatus.CONFLICT, msg, req, null, false);
     }
 
     /* =================== SPRING WEB =================== */

@@ -3,7 +3,7 @@ import { Facebook, Instagram, Whatsapp } from "react-bootstrap-icons";
 
 const Footer = () => {
   return (
-    <footer className="footer mt-5">
+    <footer className="footer">
       <div
         className="map-container"
         style={{ height: "350px" }}

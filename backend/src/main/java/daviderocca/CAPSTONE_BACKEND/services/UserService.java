@@ -61,11 +61,11 @@ public class UserService {
     @Transactional
     public UserResponseDTO saveUser(NewUserDTO payload) {
         userRepository.findByEmail(payload.email()).ifPresent(u -> {
-            throw new DuplicateResourceException("L'email " + u.getEmail() + " appartiene già ad un altro utente");
+            throw new DuplicateResourceException("L'email appartiene già ad un altro utente");
         });
 
         userRepository.findByPhone(payload.phone()).ifPresent(u -> {
-            throw new DuplicateResourceException("Il numero di telefono " + u.getPhone() + " appartiene già ad un altro utente");
+            throw new DuplicateResourceException("Il numero di telefono appartiene già ad un altro utente");
         });
 
         User newUser = new User(

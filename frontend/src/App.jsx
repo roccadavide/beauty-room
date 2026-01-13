@@ -37,6 +37,7 @@ import AdminAgendaPage from "./components/admin/AdminAgendaPage";
 import { useDispatch } from "react-redux";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
+import { clearToken } from "./utils/token";
 
 function App() {
   const location = useLocation();
@@ -90,6 +91,7 @@ function App() {
   // GLOBAL AUTH UNAUTHORIZED HANDLER
   useEffect(() => {
     const onUnauthorized = () => {
+      clearToken();
       dispatch(logout());
 
       setToast({

@@ -9,7 +9,7 @@ import { removeFromCart, updateCartQuantity } from "./slices/cart.slice";
 
 const CartPage = () => {
   const { items, totalPrice } = useSelector(state => state.cart);
-  const { user } = useSelector(state => state.auth);
+  const { token } = useSelector(state => state.auth);
   const [showCheckout, setShowCheckout] = useState(false);
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
@@ -50,7 +50,9 @@ const CartPage = () => {
           quantity: i.quantity,
         })),
       };
-      const { url } = await createCheckoutSessionGuest(orderData);
+      const res = await createCheckoutSessionGuest(orderData);
+      console.log("GUEST CHECKOUT RES:", res);
+      const { url } = res;
       window.location.href = url;
     } catch (err) {
       alert("Errore durante il pagamento: " + err.message);
@@ -61,7 +63,7 @@ const CartPage = () => {
 
   // ---------- LOGICA DEL PULSANTE ----------
   const handleProceed = () => {
-    if (user) handleStripeCheckoutAuth();
+    if (token) handleStripeCheckoutAuth();
     else setShowCheckout(true);
   };
 

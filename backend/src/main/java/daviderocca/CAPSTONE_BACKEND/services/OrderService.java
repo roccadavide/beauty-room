@@ -62,7 +62,7 @@ public class OrderService {
     @Transactional
     public OrderResponseDTO saveOrder(NewOrderDTO payload, User currentUser) {
         if (payload.items() == null || payload.items().isEmpty()) {
-            throw new IllegalArgumentException("L'ordine deve contenere almeno un prodotto.");
+            throw new BadRequestException("L'ordine deve contenere almeno un prodotto.");
         }
 
         Order newOrder = new Order(
@@ -79,7 +79,7 @@ public class OrderService {
             Product product = productService.findProductById(itemDTO.productId());
 
             if (product.getStock() < itemDTO.quantity()) {
-                throw new IllegalStateException("Stock insufficiente per il prodotto: " + product.getName());
+                throw new BadRequestException("Stock insufficiente per il prodotto: " + product.getName());
             }
 
             product.setStock(product.getStock() - itemDTO.quantity());

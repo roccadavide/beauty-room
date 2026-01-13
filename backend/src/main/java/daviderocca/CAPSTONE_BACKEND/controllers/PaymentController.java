@@ -9,12 +9,15 @@ import daviderocca.CAPSTONE_BACKEND.DTO.orderDTOs.OrderResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.orderDTOs.OrderSummaryDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.orderItemDTOs.OrderItemResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
+import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
+import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
 import daviderocca.CAPSTONE_BACKEND.services.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -33,12 +36,10 @@ public class PaymentController {
     // ========== AUTHENTICATED ==========
     @PostMapping("/create-session")
     public Map<String, Object> createCheckoutSession(@RequestBody NewOrderDTO orderDTO,
-                                                     Authentication authentication) throws StripeException {
+                                                     @AuthenticationPrincipal User currentUser) throws StripeException {
         Stripe.apiKey = stripeSecretKey;
 
-        if (authentication == null || !(authentication.getPrincipal() instanceof User currentUser)) {
-            throw new IllegalStateException("Utente non autenticato.");
-        }
+        if (currentUser == null) throw new UnauthorizedException("Utente non autenticato.");
 
         // Forziamo i dati cliente dal profilo, ignorando quelli del payload
         NewOrderDTO dtoForUser = new NewOrderDTO(
@@ -72,7 +73,8 @@ public class PaymentController {
                 || isBlank(orderDTO.customerSurname())
                 || isBlank(orderDTO.customerEmail())
                 || isBlank(orderDTO.customerPhone())) {
-            throw new IllegalArgumentException("Dati cliente mancanti per checkout guest.");
+
+            throw new BadRequestException("Dati cliente mancanti per checkout guest.");
         }
         if (orderDTO.items() == null || orderDTO.items().isEmpty()) {
             throw new IllegalArgumentException("L'ordine deve contenere almeno un prodotto.");
