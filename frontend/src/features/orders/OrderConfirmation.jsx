@@ -137,7 +137,7 @@ export default function OrderConfirmation() {
   }
 
   return (
-    <Container className="py-5" style={{ marginTop: "7rem" }}>
+    <Container className="py-5">
       <Card className="order-hero reveal">
         <Card.Body className="d-flex flex-column align-items-center text-center">
           <div className={`status-badge ${paid ? "paid" : "pending"}`}>{paid ? "Pagamento confermato" : "Pagamento in elaborazione"}</div>

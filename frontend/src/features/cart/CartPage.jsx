@@ -36,24 +36,11 @@ const CartPage = () => {
   };
 
   // ---------- CHECKOUT GUEST ----------
-  const handleStripeCheckoutGuest = async guestData => {
+  const handleStripeCheckoutGuest = async orderData => {
     try {
       setLoading(true);
-      const orderData = {
-        customerName: guestData.name,
-        customerSurname: guestData.surname,
-        customerEmail: guestData.email,
-        customerPhone: guestData.phone,
-        pickupNote: guestData.note || "",
-        items: items.map(i => ({
-          productId: i.productId,
-          quantity: i.quantity,
-        })),
-      };
       const res = await createCheckoutSessionGuest(orderData);
-      console.log("GUEST CHECKOUT RES:", res);
-      const { url } = res;
-      window.location.href = url;
+      window.location.href = res.url;
     } catch (err) {
       alert("Errore durante il pagamento: " + err.message);
     } finally {
@@ -146,7 +133,13 @@ const CartPage = () => {
         </Button>
       </div>
 
-      <CheckoutModal show={showCheckout} onHide={() => setShowCheckout(false)} onConfirm={handleStripeCheckoutGuest} totalPrice={totalPrice} />
+      <CheckoutModal
+        show={showCheckout}
+        onHide={() => setShowCheckout(false)}
+        onConfirm={handleStripeCheckoutGuest}
+        totalPrice={totalPrice}
+        cartItems={items}
+      />
     </Container>
   );
 };

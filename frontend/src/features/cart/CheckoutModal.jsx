@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Modal, Button, Form, Row, Col, Spinner, Alert } from "react-bootstrap";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
 
-const CheckoutModal = ({ show, onHide, cartItems, totalPrice, onConfirm }) => {
+const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) => {
   const [form, setForm] = useState({
     name: "",
     surname: "",
@@ -60,6 +60,12 @@ const CheckoutModal = ({ show, onHide, cartItems, totalPrice, onConfirm }) => {
     setServerError(null);
 
     if (!validateForm()) return;
+
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      setServerError("Il carrello è vuoto o non disponibile. Riprova dalla pagina carrello.");
+      return;
+    }
+
     setLoading(true);
 
     const orderData = {
@@ -67,14 +73,11 @@ const CheckoutModal = ({ show, onHide, cartItems, totalPrice, onConfirm }) => {
       customerSurname: form.surname,
       customerEmail: form.email,
       customerPhone: form.phone,
-      pickupNote: form.pickupNote || null,
-      items: cartItems.map(i => ({
+      pickupNote: form.pickupNote || "",
+      items: (cartItems ?? []).map(i => ({
         productId: i.productId,
-        name: i.name,
-        price: i.price,
         quantity: i.quantity,
       })),
-      totalAmount: totalPrice,
     };
 
     try {

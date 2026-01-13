@@ -38,6 +38,7 @@ import { useDispatch } from "react-redux";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
 import { clearToken } from "./utils/token";
+import Map from "./components/layout/Map";
 
 function App() {
   const location = useLocation();
@@ -137,6 +138,7 @@ function App() {
 
       <ScrollToTop />
       <NavBar />
+
       <main className={isHeroPage ? "has-hero" : ""}>
         <AnimatePresence mode="wait" initial={false}>
           <Routes location={location} key={location.pathname}>
@@ -156,6 +158,8 @@ function App() {
                     <AboutSection />
                     <Divider />
                     <AcademySection />
+                    <Divider />
+                    <Map />
                   </>
                 </PageTransition>
               }
@@ -194,14 +198,21 @@ function App() {
                 </PageTransition>
               }
             />
+
+            {/* CHI SONO */}
             <Route
               path="/chisono"
               element={
                 <PageTransition routeKey={location.pathname}>
-                  <AboutDescription />
+                  <>
+                    <AboutDescription />
+                    <Divider />
+                    <Map />
+                  </>
                 </PageTransition>
               }
             />
+
             <Route
               path="/risultati"
               element={
