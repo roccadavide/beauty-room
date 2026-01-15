@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Container, Spinner, Card, Badge, ListGroup, Row, Col, Image, Button } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { Trash2Fill } from "react-bootstrap-icons";
@@ -16,52 +16,76 @@ const MyOrders = () => {
   const [deleteModal, setDeleteModal] = useState(false);
 
   const navigate = useNavigate();
-  const { token, user } = useSelector(state => state.auth);
+  const { token } = useSelector(state => state.auth);
 
   // ---------- FETCH ORDINI UTENTE ----------
   useEffect(() => {
-    console.log("Token:", token);
+    let cancelled = false;
+
     const loadData = async () => {
+      setLoading(true);
+      setError(null);
+
       try {
-        const res = await fetchMyOrders(token, user.email);
-        setMyOrders(res || []);
+        const res = await fetchMyOrders();
+        if (!cancelled) setMyOrders(res || []);
       } catch (err) {
-        setError(err.message);
+        if (!cancelled) setError(err.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    if (user?.email) loadData();
-  }, [token, user]);
+
+    if (!token) {
+      setLoading(false);
+      setMyOrders([]);
+      return;
+    }
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   // ---------- FETCH PRODOTTI LEGATI ----------
-  const getProduct = async id => {
-    if (products[id]) return products[id];
-    try {
-      const prod = await fetchProductById(id);
-      setProducts(prev => ({ ...prev, [id]: prod }));
-      return prod;
-    } catch (err) {
-      console.error("Errore caricamento prodotto", err);
-      return null;
-    }
-  };
+  const requestedRef = useRef(new Set());
+
+  const getProduct = useCallback(
+    async id => {
+      if (products[id]) return products[id];
+
+      if (requestedRef.current.has(id)) return null;
+      requestedRef.current.add(id);
+
+      try {
+        const prod = await fetchProductById(id);
+        setProducts(prev => ({ ...prev, [id]: prod }));
+        return prod;
+      } catch (err) {
+        console.error("Errore caricamento prodotto", err);
+        requestedRef.current.delete(id);
+        return null;
+      }
+    },
+    [products]
+  );
 
   useEffect(() => {
-    console.log(myOrders);
-    if (myOrders.length > 0) {
-      myOrders.forEach(order => {
-        order.orderItems.forEach(item => {
-          getProduct(item.productId);
-        });
+    if (!myOrders?.length) return;
+
+    myOrders.forEach(order => {
+      order.orderItems?.forEach(item => {
+        if (item?.productId) getProduct(item.productId);
       });
-    }
-  });
+    });
+  }, [myOrders, getProduct]);
 
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteOrder(id, token);
+      await deleteOrder(id);
       setMyOrders(prev => prev.filter(o => o.orderId !== id));
       setDeleteModal(false);
       setSelectedOrder(null);

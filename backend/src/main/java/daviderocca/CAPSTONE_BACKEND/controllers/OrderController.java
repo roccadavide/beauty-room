@@ -40,25 +40,36 @@ public class OrderController {
     }
 
     @GetMapping("/{orderId}")
-    public ResponseEntity<OrderResponseDTO> getOrderById(@PathVariable UUID orderId) {
+    public ResponseEntity<OrderResponseDTO> getOrderById(
+            @PathVariable UUID orderId,
+            @AuthenticationPrincipal User currentUser
+    ) {
         log.info("Richiesta dettaglio ordine {}", orderId);
-        return ResponseEntity.ok(orderService.findOrderByIdAndConvert(orderId));
+        return ResponseEntity.ok(orderService.findOrderByIdAndConvertSecure(orderId, currentUser));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<List<OrderResponseDTO>> getMyOrders(
+            @AuthenticationPrincipal User currentUser
+    ) {
+        log.info("Richiesta ordini utente loggato: {}", currentUser.getEmail());
+        return ResponseEntity.ok(orderService.findMyOrdersAndConvert(currentUser));
     }
 
     @GetMapping("/email/{email}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<OrderResponseDTO>> getOrdersByEmail(@PathVariable String email) {
         log.info("Richiesta ordini per email {}", email);
         return ResponseEntity.ok(orderService.findOrdersByEmailAndConvert(email));
     }
 
     // ---------------------------------- POST ----------------------------------
-
     @PostMapping
     public ResponseEntity<OrderResponseDTO> createOrder(
             @Valid @RequestBody NewOrderDTO payload,
             @AuthenticationPrincipal User currentUser
     ) {
-        log.info("🛒 Creazione nuovo ordine per {}", payload.customerEmail());
+        log.info("Creazione nuovo ordine per {}", payload.customerEmail());
         OrderResponseDTO createdOrder = orderService.saveOrder(payload, currentUser);
         return ResponseEntity.status(201).body(createdOrder);
     }

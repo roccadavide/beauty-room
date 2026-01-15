@@ -51,6 +51,28 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    public OrderResponseDTO findOrderByIdAndConvertSecure(UUID orderId, User currentUser) {
+        Order found = findOrderById(orderId);
+
+        boolean isAdmin = currentUser.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && (found.getUser() == null || !found.getUser().getUserId().equals(currentUser.getUserId()))) {
+            throw new UnauthorizedException("Non puoi visualizzare un ordine che non ti appartiene.");
+        }
+
+        return convertToDTO(found);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderResponseDTO> findMyOrdersAndConvert(User currentUser) {
+        return orderRepository.findByUser_UserId(currentUser.getUserId())
+                .stream()
+                .map(this::convertToDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<OrderResponseDTO> findOrdersByEmailAndConvert(String customerEmail) {
         return orderRepository.findByCustomerEmail(customerEmail)
                 .stream()
