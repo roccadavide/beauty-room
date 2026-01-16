@@ -1,10 +1,10 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
 import com.stripe.exception.SignatureVerificationException;
+import com.stripe.model.Charge;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.PaymentIntent;
-import com.stripe.model.Refund;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
@@ -35,9 +35,8 @@ public class StripeWebhookController {
             @RequestBody String payload,
             @RequestHeader("Stripe-Signature") String sigHeader) {
 
-        Event event;
+        final Event event;
 
-        // 1. Verifica autenticità dell’evento ricevuto da Stripe
         try {
             event = Webhook.constructEvent(payload, sigHeader, endpointSecret);
         } catch (SignatureVerificationException e) {
@@ -45,40 +44,29 @@ public class StripeWebhookController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid signature");
         }
 
-        log.info("Ricevuto evento Stripe: {}", event.getType());
+        log.info("Stripe event: {}", event.getType());
 
         try {
             switch (event.getType()) {
-
-                // 2. Pagamento completato
                 case "checkout.session.completed" -> handleCheckoutCompleted(event);
-
-                // 3. Pagamento fallito
                 case "payment_intent.payment_failed" -> handlePaymentFailed(event);
-
-                // 4. Rimborso completato
-                case "charge.refunded" -> handleRefund(event);
-
-                // 5. Eventi non gestiti
+                case "charge.refunded" -> handleChargeRefunded(event);
                 default -> log.info("Evento non gestito: {}", event.getType());
             }
         } catch (Exception e) {
-            log.error("Errore nella gestione evento Stripe {}: {}", event.getType(), e.getMessage());
+            log.error("Errore gestione Stripe {}: {}", event.getType(), e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing event");
         }
 
         return ResponseEntity.ok("success");
     }
 
-    // ----------------------------------------------------
-    // HANDLE CHECKOUT SUCCESS
-    // ----------------------------------------------------
     private void handleCheckoutCompleted(Event event) {
         EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
         Session session = (Session) deserializer.getObject().orElse(null);
 
         if (session == null) {
-            log.warn("Nessuna sessione trovata nell’evento checkout.session.completed");
+            log.warn("checkout.session.completed senza Session");
             return;
         }
 
@@ -86,7 +74,7 @@ public class StripeWebhookController {
         String orderIdStr = metadata != null ? metadata.get("orderId") : null;
 
         if (orderIdStr == null) {
-            log.warn("Nessun orderId trovato nei metadata della sessione Stripe");
+            log.warn("checkout.session.completed senza orderId in metadata");
             return;
         }
 
@@ -99,22 +87,19 @@ public class StripeWebhookController {
         log.info("Pagamento completato per ordine {} (cliente: {})", orderId, customerEmail);
     }
 
-    // ----------------------------------------------------
-    // HANDLE PAYMENT FAILED
-    // ----------------------------------------------------
     private void handlePaymentFailed(Event event) {
         EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
         PaymentIntent intent = (PaymentIntent) deserializer.getObject().orElse(null);
 
         if (intent == null) {
-            log.warn("Nessun PaymentIntent trovato per evento payment_intent.payment_failed");
+            log.warn("payment_intent.payment_failed senza PaymentIntent");
             return;
         }
 
         String orderIdStr = intent.getMetadata() != null ? intent.getMetadata().get("orderId") : null;
 
         if (orderIdStr == null) {
-            log.warn("Nessun orderId nei metadata del PaymentIntent fallito");
+            log.warn("payment_intent.payment_failed senza orderId in metadata");
             return;
         }
 
@@ -123,22 +108,19 @@ public class StripeWebhookController {
         log.warn("Pagamento fallito per ordine {}", orderId);
     }
 
-    // ----------------------------------------------------
-    // HANDLE REFUND
-    // ----------------------------------------------------
-    private void handleRefund(Event event) {
+    private void handleChargeRefunded(Event event) {
         EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
-        Refund refund = (Refund) deserializer.getObject().orElse(null);
+        Charge charge = (Charge) deserializer.getObject().orElse(null);
 
-        if (refund == null) {
-            log.warn("Nessun Refund trovato per evento charge.refunded");
+        if (charge == null) {
+            log.warn("charge.refunded senza Charge");
             return;
         }
 
-        String orderIdStr = refund.getMetadata() != null ? refund.getMetadata().get("orderId") : null;
+        String orderIdStr = charge.getMetadata() != null ? charge.getMetadata().get("orderId") : null;
 
         if (orderIdStr == null) {
-            log.warn("Nessun orderId trovato nei metadata del rimborso");
+            log.warn("charge.refunded senza orderId in metadata");
             return;
         }
 

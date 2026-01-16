@@ -181,20 +181,22 @@ public class BookingService {
 
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
 
-        // LOCK atomico update
         if (!bookingRepository.lockOverlappingBookingsByStatusesExcluding(found.getBookingId(), start, end, BLOCKING).isEmpty()) {
             log.warn("Tentativo overlap (UPDATE): bookingId={} range {} - {}", bookingId, start, end);
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
 
-        found.setCustomerName(safeTrim(payload.customerName(), "Nome cliente obbligatorio"));
-        found.setCustomerEmail(safeTrim(payload.customerEmail(), "Email cliente obbligatoria").toLowerCase());
-        found.setCustomerPhone(safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio"));
-        found.setStartTime(start);
-        found.setEndTime(end);
-        found.setNotes(payload.notes());
-        found.setService(serviceItem);
-        found.setServiceOption(option);
+        boolean admin = isAdmin(currentUser);
+
+        if (admin) {
+            found.setCustomerName(safeTrim(payload.customerName(), "Nome cliente obbligatorio"));
+            found.setCustomerEmail(safeTrim(payload.customerEmail(), "Email cliente obbligatoria").toLowerCase());
+            found.setCustomerPhone(safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio"));
+        } else {
+            found.setCustomerEmail(currentUser.getEmail().trim().toLowerCase());
+            found.setCustomerName(safeTrim(payload.customerName(), "Nome cliente obbligatorio"));
+            found.setCustomerPhone(safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio"));
+        }
 
         Booking updated = bookingRepository.save(found);
 

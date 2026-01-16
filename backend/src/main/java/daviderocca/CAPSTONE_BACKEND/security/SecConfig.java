@@ -1,5 +1,6 @@
 package daviderocca.CAPSTONE_BACKEND.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import daviderocca.CAPSTONE_BACKEND.DTO.ApiError;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -12,14 +13,13 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.security.web.AuthenticationEntryPoint;
-import org.springframework.security.web.access.AccessDeniedHandler;
 
 import java.time.Instant;
 import java.util.List;
@@ -69,8 +69,14 @@ public class SecConfig {
                         .accessDeniedHandler(deniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // CORS preflight
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // AUTH
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/stripe/webhook").permitAll()
+
+                        // STRIPE WEBHOOK
+                        .requestMatchers(HttpMethod.POST, "/stripe/webhook").permitAll()
 
                         // CHECKOUT
                         .requestMatchers(HttpMethod.POST, "/checkout/create-session-guest").permitAll()
@@ -87,12 +93,6 @@ public class SecConfig {
                                 "/promotions/**"
                         ).permitAll()
 
-                        // PUBLIC POST
-                        .requestMatchers(HttpMethod.POST,
-                                "/orders",
-                                "/bookings"
-                        ).permitAll()
-
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
@@ -103,7 +103,9 @@ public class SecConfig {
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(12); }
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(12);
+    }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
