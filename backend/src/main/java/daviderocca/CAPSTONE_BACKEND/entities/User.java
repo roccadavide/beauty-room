@@ -53,7 +53,7 @@ public class User implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 30)
-    private Role role = Role.COSTUMER;
+    private Role role = Role.CUSTOMER;
 
     // Relazioni
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)

@@ -34,7 +34,7 @@ public class AvailabilityService {
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
 
     private static final List<BookingStatus> BLOCKING_STATUSES =
-            List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED);
+            List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
 
     // =========================
     // 1) DISPONIBILITÀ CLIENTE (per servizio)

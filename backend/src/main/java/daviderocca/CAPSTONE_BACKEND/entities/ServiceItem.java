@@ -12,7 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Setter
-@ToString(exclude = {"category", "bookings"})
+@ToString(exclude = {"category", "bookings", "options", "promotions"})
 public class ServiceItem {
 
     @Id
@@ -48,10 +48,10 @@ public class ServiceItem {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "service", fetch = FetchType.LAZY)
     private List<Booking> bookings = new ArrayList<>();
 
-    @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "service", fetch = FetchType.LAZY)
     private List<ServiceOption> options = new ArrayList<>();
 
     public ServiceItem(String title, int durationMin, BigDecimal price, String shortDescription,

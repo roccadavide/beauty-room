@@ -17,7 +17,7 @@ public record NewBookingDTO(
         String customerEmail,
 
         @NotEmpty(message = "Il numero di telefono non può essere vuoto")
-        @Pattern(regexp = "\\+?[0-9]{7,15}", message = "Numero di telefono non valido")
+        @Pattern(regexp = "^[+0-9\\s-]{7,20}$", message = "Numero di telefono non valido")
         String customerPhone,
 
         @NotNull(message = "La data e ora di inizio non può essere nulla")

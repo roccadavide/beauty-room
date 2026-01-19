@@ -73,14 +73,14 @@ public class AdminBookingController {
         return ResponseEntity.ok(bookingService.getAgendaRange(from, to));
     }
 
-    // CREATE BOOKING (ADMIN) - POST /admin/bookings
-    @PostMapping
-    public ResponseEntity<BookingResponseDTO> createAdminBooking(
+
+    @PostMapping("/manual")
+    public ResponseEntity<BookingResponseDTO> createManualBooking(
             @Valid @RequestBody NewBookingDTO payload,
             @AuthenticationPrincipal User currentUser
     ) {
-        log.info("ADMIN | create booking | email={}", payload.customerEmail());
-        BookingResponseDTO created = bookingService.saveBookingAsAdmin(payload, currentUser);
+        log.info("ADMIN | manual create booking | email={}", payload.customerEmail());
+        BookingResponseDTO created = bookingService.createManualConfirmedBookingAsAdmin(payload, currentUser);
 
         return ResponseEntity
                 .created(java.net.URI.create("/admin/bookings/" + created.bookingId()))
@@ -110,14 +110,14 @@ public class AdminBookingController {
         return ResponseEntity.ok(bookingService.updateBooking(id, payload, currentUser));
     }
 
-    // DELETE BOOKING
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteBooking(
+    public ResponseEntity<Void> cancelAsAdmin(
             @PathVariable UUID id,
+            @RequestParam(required = false) String reason,
             @AuthenticationPrincipal User currentUser
     ) {
-        log.info("ADMIN | delete bookingId={}", id);
-        bookingService.deleteBooking(id, currentUser);
+        log.info("ADMIN | cancel bookingId={} reason={}", id, reason);
+        bookingService.cancelBooking(id, currentUser, reason);
         return ResponseEntity.noContent().build();
     }
 }

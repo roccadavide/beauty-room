@@ -7,8 +7,13 @@ import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
+import daviderocca.CAPSTONE_BACKEND.entities.Booking;
+import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
+import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
+import daviderocca.CAPSTONE_BACKEND.services.BookingService;
 import daviderocca.CAPSTONE_BACKEND.services.OrderService;
+import daviderocca.CAPSTONE_BACKEND.services.PackageCreditService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -29,12 +35,14 @@ public class StripeWebhookController {
     private String endpointSecret;
 
     private final OrderService orderService;
+    private final BookingService bookingService;
+    private final PackageCreditService packageCreditService;
 
     @PostMapping("/webhook")
     public ResponseEntity<String> handleStripeEvent(
             @RequestBody String payload,
-            @RequestHeader("Stripe-Signature") String sigHeader) {
-
+            @RequestHeader("Stripe-Signature") String sigHeader
+    ) {
         final Event event;
 
         try {
@@ -64,7 +72,6 @@ public class StripeWebhookController {
     private void handleCheckoutCompleted(Event event) {
         EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
         Session session = (Session) deserializer.getObject().orElse(null);
-
         if (session == null) {
             log.warn("checkout.session.completed senza Session");
             return;
@@ -72,19 +79,107 @@ public class StripeWebhookController {
 
         Map<String, String> metadata = session.getMetadata();
         String orderIdStr = metadata != null ? metadata.get("orderId") : null;
+        String bookingIdStr = metadata != null ? metadata.get("bookingId") : null;
 
-        if (orderIdStr == null) {
-            log.warn("checkout.session.completed senza orderId in metadata");
-            return;
-        }
-
-        UUID orderId = UUID.fromString(orderIdStr);
         String customerEmail = session.getCustomerDetails() != null
                 ? session.getCustomerDetails().getEmail()
                 : "unknown";
 
-        orderService.markOrderAsPaid(orderId, customerEmail);
-        log.info("Pagamento completato per ordine {} (cliente: {})", orderId, customerEmail);
+        // ===== ORDER =====
+        if (orderIdStr != null) {
+            UUID orderId = UUID.fromString(orderIdStr);
+            orderService.markOrderAsPaid(orderId, customerEmail);
+            log.info("Pagamento completato per ordine {} (cliente: {})", orderId, customerEmail);
+            return;
+        }
+
+        // ===== BOOKING =====
+        if (bookingIdStr != null) {
+            UUID bookingId = UUID.fromString(bookingIdStr);
+
+            // 0) safety: accetta solo se Stripe la considera pagata
+            String paymentStatus = session.getPaymentStatus(); // "paid", "unpaid", ...
+            if (!"paid".equalsIgnoreCase(paymentStatus)) {
+                log.warn("checkout.session.completed ma paymentStatus={} (skip) sessionId={}", paymentStatus, session.getId());
+                return;
+            }
+
+            Booking b = bookingService.findBookingById(bookingId);
+
+            // 1) idempotenza
+            if (b.getBookingStatus() == BookingStatus.CONFIRMED || b.getBookingStatus() == BookingStatus.COMPLETED) {
+                log.info("Booking già confermato: bookingId={} status={}", bookingId, b.getBookingStatus());
+            } else {
+
+                boolean expiredOrCancelled =
+                        b.getBookingStatus() == BookingStatus.CANCELLED ||
+                                (b.getExpiresAt() != null && b.getExpiresAt().isBefore(java.time.LocalDateTime.now()));
+
+                if (expiredOrCancelled) {
+
+                    boolean conflict = bookingService.hasBlockingConflictExcluding(b);
+
+                    if (conflict) {
+                        b.setBookingStatus(BookingStatus.CANCELLED);
+                        b.setCanceledAt(java.time.LocalDateTime.now());
+                        b.setCancelReason("PAID_CONFLICT");
+                        b.setExpiresAt(null);
+                        bookingService.save(b);
+
+                        log.error("PAID_CONFLICT: bookingId={} sessionId={} slot già occupato. Necessario intervento (refund/manual).",
+                                bookingId, session.getId());
+                        return;
+                    }
+
+                    // 3) slot libero: conferma anche se era scaduto
+                    bookingService.confirmPaidBookingFromWebhook(b, customerEmail);
+
+                    log.warn("Booking pagato dopo scadenza/cancel: riconfermato bookingId={} sessionId={}",
+                            bookingId, session.getId());
+
+                } else {
+                    // caso normale: ancora valido => conferma standard
+                    bookingService.confirmPaidBookingFromWebhook(b, customerEmail);
+                }
+            }
+
+            // 4) PACCHETTI (come già fai, ok)
+            int sessionsTotal = 1;
+            if (b.getServiceOption() != null && b.getServiceOption().getSessions() != null) {
+                sessionsTotal = b.getServiceOption().getSessions();
+            }
+
+            if (sessionsTotal > 1) {
+                boolean alreadyCreated = packageCreditService.findByStripeSessionId(session.getId()).isPresent();
+                boolean alreadyLinked = (b.getPackageCredit() != null);
+
+                if (alreadyCreated || alreadyLinked) {
+                    log.warn("Skip pacchetto: alreadyCreated={} alreadyLinked={} bookingId={} stripeSessionId={}",
+                            alreadyCreated, alreadyLinked, b.getBookingId(), session.getId());
+                } else {
+                    PackageCredit pc = packageCreditService.createPackageCredit(
+                            b.getCustomerEmail(),
+                            sessionsTotal,
+                            b.getService(),
+                            b.getServiceOption(),
+                            b.getUser(),
+                            session.getId(),
+                            true
+                    );
+
+                    b.setPackageCredit(pc);
+                    bookingService.save(b);
+
+                    log.info("Pacchetto creato e collegato: bookingId={} packageCreditId={} total={} remaining={}",
+                            b.getBookingId(), pc.getPackageCreditId(), pc.getSessionsTotal(), pc.getSessionsRemaining());
+                }
+            }
+
+            log.info("Pagamento completato per booking {} (cliente: {})", bookingId, customerEmail);
+            return;
+        }
+
+        log.warn("checkout.session.completed senza orderId/bookingId in metadata");
     }
 
     private void handlePaymentFailed(Event event) {
@@ -97,9 +192,8 @@ public class StripeWebhookController {
         }
 
         String orderIdStr = intent.getMetadata() != null ? intent.getMetadata().get("orderId") : null;
-
         if (orderIdStr == null) {
-            log.warn("payment_intent.payment_failed senza orderId in metadata");
+            log.info("payment_intent.payment_failed: non è ordine (ok ignorare)");
             return;
         }
 
@@ -118,9 +212,8 @@ public class StripeWebhookController {
         }
 
         String orderIdStr = charge.getMetadata() != null ? charge.getMetadata().get("orderId") : null;
-
         if (orderIdStr == null) {
-            log.warn("charge.refunded senza orderId in metadata");
+            log.info("charge.refunded: non è ordine (se vuoi, gestire refund booking in futuro)");
             return;
         }
 

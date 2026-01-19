@@ -11,15 +11,23 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
-    // -------------------- BASIC --------------------
     List<Booking> findByCustomerEmailIgnoreCase(String customerEmail);
 
-    // -------------------- OVERLAP (CREATE) - LOCK (STATUS BLOCCANTI) --------------------
+    @Query("""
+        select b
+        from Booking b
+        where b.user.userId = :userId
+        order by b.startTime desc
+    """)
+    List<Booking> findByUserIdOrderByStartTimeDesc(@Param("userId") UUID userId);
+
+    // ===== Overlap LOCK (create) =====
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
         SELECT b
@@ -27,14 +35,14 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         WHERE b.bookingStatus IN :blockingStatuses
           AND b.startTime < :endTime
           AND b.endTime   > :startTime
-        """)
+    """)
     List<Booking> lockOverlappingBookingsByStatuses(
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime,
             @Param("blockingStatuses") List<BookingStatus> blockingStatuses
     );
 
-    // -------------------- OVERLAP (UPDATE) - LOCK (STATUS BLOCCANTI) --------------------
+    // ===== Overlap LOCK (update) =====
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
         SELECT b
@@ -43,7 +51,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
           AND b.bookingStatus IN :blockingStatuses
           AND b.startTime < :endTime
           AND b.endTime   > :startTime
-        """)
+    """)
     List<Booking> lockOverlappingBookingsByStatusesExcluding(
             @Param("bookingId") UUID bookingId,
             @Param("startTime") LocalDateTime startTime,
@@ -51,7 +59,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("blockingStatuses") List<BookingStatus> blockingStatuses
     );
 
-    // -------------------- AVAILABILITY (RANGE) - STATUS BLOCCANTI --------------------
+    // ===== Availability (range) =====
     @Query("""
         SELECT b
         FROM Booking b
@@ -59,14 +67,14 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
           AND b.startTime < :to
           AND b.endTime   > :from
         ORDER BY b.startTime ASC
-        """)
+    """)
     List<Booking> findBookingsByStatusesIntersectingRange(
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to,
             @Param("blockingStatuses") List<BookingStatus> blockingStatuses
     );
 
-    // -------------------- AGENDA ADMIN (FETCH JOIN PER PERFORMANCE) --------------------
+    // ===== Admin agenda (fetch join) =====
     @Query("""
         SELECT b
         FROM Booking b
@@ -76,18 +84,15 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
           AND b.startTime < :to
           AND b.endTime   > :from
         ORDER BY b.startTime ASC
-        """)
+    """)
     List<Booking> findAgendaRangeWithDetails(
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
 
-    // -------------------- FETCH BY USER --------------------
-    @Query("""
-        select b
-        from Booking b
-        where b.user.userId = :userId
-        order by b.startTime desc
-    """)
-    List<Booking> findByUserIdOrderByStartTimeDesc(@Param("userId") UUID userId);
+    // ===== Stripe =====
+    Optional<Booking> findByStripeSessionId(String stripeSessionId);
+
+    // ===== Expire HOLD =====
+    List<Booking> findByBookingStatusAndExpiresAtBefore(BookingStatus status, LocalDateTime time);
 }

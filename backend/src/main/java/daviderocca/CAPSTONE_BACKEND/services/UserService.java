@@ -154,13 +154,13 @@ public class UserService {
     public UserResponseDTO revokeAdmin(UUID idUser) {
         User found = findUserById(idUser);
 
-        if (found.getRole() == Role.COSTUMER)
-            throw new UnauthorizedOperationException("L'utente è già COSTUMER.");
+        if (found.getRole() == Role.CUSTOMER)
+            throw new UnauthorizedOperationException("L'utente è già CUSTOMER.");
 
-        found.setRole(Role.COSTUMER);
+        found.setRole(Role.CUSTOMER);
         User updated = userRepository.save(found);
 
-        log.info("Utente '{}' retrocesso a COSTUMER", updated.getEmail());
+        log.info("Utente '{}' retrocesso a CUSTOMER", updated.getEmail());
         return convertToDTO(updated);
     }
 

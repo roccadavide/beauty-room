@@ -3,6 +3,7 @@ package daviderocca.CAPSTONE_BACKEND.entities;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -14,13 +15,16 @@ import java.util.UUID;
                 @Index(name="idx_booking_end", columnList="end_time"),
                 @Index(name="idx_booking_status", columnList="booking_status"),
                 @Index(name="idx_booking_service", columnList="service_id"),
-                @Index(name="idx_booking_email", columnList="customer_email")
+                @Index(name="idx_booking_email", columnList="customer_email"),
+                @Index(name="idx_booking_expires", columnList="expires_at"),
+                @Index(name="idx_booking_stripe_session", columnList="stripe_session_id"),
+                @Index(name="idx_booking_pkg_credit", columnList="package_credit_id")
         }
 )
 @NoArgsConstructor
 @Getter
 @Setter
-@ToString(exclude = {"user", "service"})
+@ToString(exclude = {"user", "service", "serviceOption", "packageCredit"})
 public class Booking {
 
     @Id
@@ -46,13 +50,34 @@ public class Booking {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "booking_status", nullable = false, length = 20)
-    private BookingStatus bookingStatus = BookingStatus.PENDING;
+    private BookingStatus bookingStatus = BookingStatus.PENDING_PAYMENT;
 
     @Column(name = "notes", length = 500)
     private String notes;
 
+    @Column(name="stripe_session_id", length = 120)
+    private String stripeSessionId;
+
+    @Column(name="expires_at")
+    private LocalDateTime expiresAt;
+
+    @Column(name="paid_at")
+    private LocalDateTime paidAt;
+
     @Column(name="created_at", nullable=false, updatable=false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt;
+
+    @Column(name="updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name="canceled_at")
+    private LocalDateTime canceledAt;
+
+    @Column(name="cancel_reason", length = 80)
+    private String cancelReason;
+
+    @Column(name="completed_at")
+    private LocalDateTime completedAt;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_id", nullable = false)
@@ -66,9 +91,13 @@ public class Booking {
     @JoinColumn(name = "service_option_id")
     private ServiceOption serviceOption;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name="package_credit_id", unique = true)
+    private PackageCredit packageCredit;
+
     public Booking(String customerName, String customerEmail, String customerPhone,
-            LocalDateTime startTime, LocalDateTime endTime, String notes,
-            ServiceItem service, ServiceOption serviceOption, User user) {
+                   LocalDateTime startTime, LocalDateTime endTime, String notes,
+                   ServiceItem service, ServiceOption serviceOption, User user) {
         this.customerName = customerName;
         this.customerEmail = customerEmail;
         this.customerPhone = customerPhone;
@@ -83,5 +112,11 @@ public class Booking {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

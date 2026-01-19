@@ -80,8 +80,12 @@ public class SecConfig {
 
                         // CHECKOUT
                         .requestMatchers(HttpMethod.POST, "/checkout/create-session-guest").permitAll()
-                        .requestMatchers(HttpMethod.GET,  "/checkout/order-summary").permitAll()
                         .requestMatchers(HttpMethod.POST, "/checkout/create-session").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session-guest").permitAll()
+                                .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session").authenticated()
+// CHECKOUT (public + auth)
+                                .requestMatchers(HttpMethod.GET, "/checkout/bookings/booking-summary").permitAll()
+                                .requestMatchers(HttpMethod.GET,  "/checkout/order-summary").permitAll()
 
                         // PUBLIC GET
                         .requestMatchers(HttpMethod.GET,
