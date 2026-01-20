@@ -22,7 +22,7 @@ const MyBookings = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const res = await fetchMyBookings(token, user.email);
+        const res = await fetchMyBookings();
         setMyBookings(res || []);
       } catch (err) {
         setError(err.message);
@@ -110,7 +110,7 @@ const MyBookings = () => {
                       <strong>Note:</strong> {booking.notes}
                     </p>
                   )}
-                  <strong>STATUS:</strong> <Badge bg="secondary">{booking.bookingStatus}</Badge>
+                  <strong>STATUS:</strong> <Badge bg="success">{booking.bookingStatus}</Badge>
                 </Col>
 
                 <Col md={7}>

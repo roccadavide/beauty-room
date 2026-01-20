@@ -1,11 +1,9 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
 import com.stripe.exception.SignatureVerificationException;
-import com.stripe.model.Charge;
-import com.stripe.model.Event;
-import com.stripe.model.EventDataObjectDeserializer;
-import com.stripe.model.PaymentIntent;
+import com.stripe.model.*;
 import com.stripe.model.checkout.Session;
+import com.stripe.net.ApiResource;
 import com.stripe.net.Webhook;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
@@ -21,7 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -62,7 +60,7 @@ public class StripeWebhookController {
                 default -> log.info("Evento non gestito: {}", event.getType());
             }
         } catch (Exception e) {
-            log.error("Errore gestione Stripe {}: {}", event.getType(), e.getMessage());
+            log.error("Errore gestione Stripe {}: {}", event.getType(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing event");
         }
 
@@ -71,11 +69,29 @@ public class StripeWebhookController {
 
     private void handleCheckoutCompleted(Event event) {
         EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
-        Session session = (Session) deserializer.getObject().orElse(null);
+
+        Session session = null;
+
+        StripeObject obj = deserializer.getObject().orElse(null);
+        if (obj instanceof Session) {
+            session = (Session) obj;
+        }
+
         if (session == null) {
-            log.warn("checkout.session.completed senza Session");
+            String rawJson = deserializer.getRawJson();
+            if (rawJson != null && !rawJson.isBlank()) {
+                session = ApiResource.GSON.fromJson(rawJson, Session.class);
+            }
+        }
+
+        if (session == null) {
+            log.warn("checkout.session.completed senza Session (deserialization failed). eventId={} apiVersion={}",
+                    event.getId(), event.getApiVersion());
             return;
         }
+
+        log.info("checkout.session.completed OK: sessionId={} paymentStatus={}",
+                session.getId(), session.getPaymentStatus());
 
         Map<String, String> metadata = session.getMetadata();
         String orderIdStr = metadata != null ? metadata.get("orderId") : null;
@@ -97,31 +113,32 @@ public class StripeWebhookController {
         if (bookingIdStr != null) {
             UUID bookingId = UUID.fromString(bookingIdStr);
 
-            // 0) safety: accetta solo se Stripe la considera pagata
+            // safety: accetta solo se Stripe la considera pagata
             String paymentStatus = session.getPaymentStatus(); // "paid", "unpaid", ...
             if (!"paid".equalsIgnoreCase(paymentStatus)) {
-                log.warn("checkout.session.completed ma paymentStatus={} (skip) sessionId={}", paymentStatus, session.getId());
+                log.warn("checkout.session.completed ma paymentStatus={} (skip) sessionId={}",
+                        paymentStatus, session.getId());
                 return;
             }
 
             Booking b = bookingService.findBookingById(bookingId);
+            log.info("BEFORE confirm: bookingId={} status={} expiresAt={}",
+                    b.getBookingId(), b.getBookingStatus(), b.getExpiresAt());
 
-            // 1) idempotenza
+            // idempotenza
             if (b.getBookingStatus() == BookingStatus.CONFIRMED || b.getBookingStatus() == BookingStatus.COMPLETED) {
                 log.info("Booking già confermato: bookingId={} status={}", bookingId, b.getBookingStatus());
             } else {
-
                 boolean expiredOrCancelled =
                         b.getBookingStatus() == BookingStatus.CANCELLED ||
-                                (b.getExpiresAt() != null && b.getExpiresAt().isBefore(java.time.LocalDateTime.now()));
+                                (b.getExpiresAt() != null && b.getExpiresAt().isBefore(LocalDateTime.now()));
 
                 if (expiredOrCancelled) {
-
                     boolean conflict = bookingService.hasBlockingConflictExcluding(b);
 
                     if (conflict) {
                         b.setBookingStatus(BookingStatus.CANCELLED);
-                        b.setCanceledAt(java.time.LocalDateTime.now());
+                        b.setCanceledAt(LocalDateTime.now());
                         b.setCancelReason("PAID_CONFLICT");
                         b.setExpiresAt(null);
                         bookingService.save(b);
@@ -131,19 +148,21 @@ public class StripeWebhookController {
                         return;
                     }
 
-                    // 3) slot libero: conferma anche se era scaduto
                     bookingService.confirmPaidBookingFromWebhook(b, customerEmail);
 
                     log.warn("Booking pagato dopo scadenza/cancel: riconfermato bookingId={} sessionId={}",
                             bookingId, session.getId());
-
                 } else {
-                    // caso normale: ancora valido => conferma standard
                     bookingService.confirmPaidBookingFromWebhook(b, customerEmail);
                 }
             }
 
-            // 4) PACCHETTI (come già fai, ok)
+            // IMPORTANTISSIMO: ricarica dal DB dopo la confirm, così non risalvi uno snapshot vecchio dopo
+            b = bookingService.findBookingById(bookingId);
+            log.info("AFTER confirm (fresh): bookingId={} status={} paidAt={}",
+                    b.getBookingId(), b.getBookingStatus(), b.getPaidAt());
+
+            // ===== PACCHETTI =====
             int sessionsTotal = 1;
             if (b.getServiceOption() != null && b.getServiceOption().getSessions() != null) {
                 sessionsTotal = b.getServiceOption().getSessions();
@@ -167,6 +186,8 @@ public class StripeWebhookController {
                             true
                     );
 
+                    // ricarica ancora per essere super-safe prima del save finale
+                    b = bookingService.findBookingById(bookingId);
                     b.setPackageCredit(pc);
                     bookingService.save(b);
 

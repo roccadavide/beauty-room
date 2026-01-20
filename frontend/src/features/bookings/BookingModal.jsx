@@ -3,17 +3,15 @@ import { Modal, Button, Form, Badge, Spinner, Alert } from "react-bootstrap";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
-import { createBooking } from "../../api/modules/bookings.api";
 import { fetchAvailabilities } from "../../api/modules/availabilities.api";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
+import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest } from "../../api/modules/stripe.api";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
 
 const BookingModal = ({ show, onHide, service }) => {
   const { token } = useSelector(state => state.auth);
-  const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
   const [date, setDate] = useState(new Date());
@@ -42,7 +40,8 @@ const BookingModal = ({ show, onHide, service }) => {
           setLoadingSlots(true);
           setError(null);
 
-          const data = await fetchAvailabilities(service.serviceId, date.toISOString().split("T")[0]);
+          const day = date.toISOString().split("T")[0];
+          const data = await fetchAvailabilities(service.serviceId, day);
 
           setSlots(data.slots || []);
         } catch (err) {
@@ -54,7 +53,7 @@ const BookingModal = ({ show, onHide, service }) => {
 
       loadSlots();
     }
-  }, [step, service, date, token]);
+  }, [step, service, date]);
 
   const handleCustomerChange = (field, value) => {
     setCustomer(prev => ({ ...prev, [field]: value }));
@@ -80,21 +79,27 @@ const BookingModal = ({ show, onHide, service }) => {
 
   const confirm = async () => {
     try {
+      if (!service?.serviceId) throw new Error("Servizio non valido.");
+      if (!slot?.start) throw new Error("Seleziona uno slot.");
+
+      const day = date.toISOString().split("T")[0];
+
       const payload = {
         customerName: customer.name,
         customerEmail: customer.email,
         customerPhone: customer.phone,
         notes: customer.notes,
-        startTime: `${date.toISOString().split("T")[0]}T${slot.start}:00`,
-        endTime: `${date.toISOString().split("T")[0]}T${slot.end}:00`,
+        startTime: `${day}T${slot.start}:00`,
         serviceId: service.serviceId,
+        serviceOptionId: null, // per ora (quando aggiungi opzioni lo colleghi)
       };
 
-      token ? await createBooking(payload, token) : await createBooking(payload);
+      // NIENTE token param: ci pensa httpClient/interceptor
+      const res = token ? await createBookingCheckoutSessionAuth(payload) : await createBookingCheckoutSessionGuest(payload);
 
       onHide();
       reset();
-      navigate("/prenotazione-confermata");
+      window.location.href = res.url;
     } catch (err) {
       alert(err.message);
     }
@@ -107,7 +112,6 @@ const BookingModal = ({ show, onHide, service }) => {
         onHide();
         reset();
       }}
-      s
       scrollable
       centered
       size="lg"
@@ -236,7 +240,7 @@ const BookingModal = ({ show, onHide, service }) => {
                 Indietro
               </Button>
               <Button variant="dark" onClick={confirm}>
-                Conferma prenotazione
+                Vai al pagamento
               </Button>
             </div>
           </>

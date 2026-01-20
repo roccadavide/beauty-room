@@ -98,7 +98,7 @@ public class BookingCheckoutController {
         SessionCreateParams.Builder builder = SessionCreateParams.builder()
                 .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                 .setMode(SessionCreateParams.Mode.PAYMENT)
-                .setSuccessUrl(frontUrl + "/booking-confermato?session_id={CHECKOUT_SESSION_ID}")
+                .setSuccessUrl(frontUrl + "/prenotazione-confermata?session_id={CHECKOUT_SESSION_ID}")
                 .setCancelUrl(frontUrl + "/prenota?cancel=1")
                 .putMetadata("bookingId", bookingId)
                 .putMetadata("serviceId", service.getServiceId().toString())

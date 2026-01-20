@@ -68,7 +68,10 @@ export const AVAILABILITY_ENDPOINTS = {
 export const STRIPE_ENDPOINTS = {
   CHECKOUT: "/checkout/create-session",
   CHECKOUT_GUEST: "/checkout/create-session-guest",
+  CHECKOUT_BOOKING: "/checkout/bookings/create-session",
+  CHECKOUT_BOOKING_GUEST: "/checkout/bookings/create-session-guest",
   ORDER_SUMMARY: "/checkout/order-summary",
+  BOOKING_SUMMARY: "/checkout/bookings/booking-summary",
   WEBHOOK: "/stripe/webhook",
 };
 

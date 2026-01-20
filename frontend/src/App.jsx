@@ -39,6 +39,7 @@ import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
 import { clearToken } from "./utils/token";
 import Map from "./components/layout/Map";
+import BookingConfirmation from "./features/bookings/BookingConfirmation";
 
 function App() {
   const location = useLocation();
@@ -265,7 +266,7 @@ function App() {
               path="/prenotazione-confermata"
               element={
                 <PageTransition routeKey={location.pathname}>
-                  <BookingSuccessPage />
+                  <BookingConfirmation />
                 </PageTransition>
               }
             />
