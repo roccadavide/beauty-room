@@ -28,7 +28,6 @@ import java.util.UUID;
 })
 public class User implements UserDetails {
 
-    // Primary Key
     @Id
     @GeneratedValue
     @Setter(AccessLevel.NONE)

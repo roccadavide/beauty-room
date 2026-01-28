@@ -3,6 +3,7 @@ package daviderocca.CAPSTONE_BACKEND.email.outbox;
 import daviderocca.CAPSTONE_BACKEND.email.events.EmailAggregateType;
 import daviderocca.CAPSTONE_BACKEND.email.events.EmailEventType;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
+import daviderocca.CAPSTONE_BACKEND.entities.Order;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -31,14 +32,16 @@ public class EmailOutboxService {
 
     public void enqueueBookingReminder24h(Booking booking) {
         if (booking == null || booking.getBookingId() == null) return;
+        if (booking.getStartTime() == null) return;
 
-        LocalDateTime sched = booking.getStartTime() != null
-                ? booking.getStartTime().minusHours(24)
-                : null;
+        LocalDateTime now = LocalDateTime.now();
 
-        if (sched == null) return;
-        LocalDateTime min = LocalDateTime.now().plusMinutes(1);
-        if (sched.isBefore(min)) sched = min;
+        LocalDateTime sched = booking.getStartTime().minusHours(24);
+
+        LocalDateTime minSched = now.plusHours(1);
+        if (sched.isBefore(minSched)) {
+            return;
+        }
 
         enqueueSafe(
                 EmailEventType.BOOKING_REMINDER_24H,
@@ -46,6 +49,18 @@ public class EmailOutboxService {
                 booking.getBookingId(),
                 normalizeEmail(booking.getCustomerEmail()),
                 sched
+        );
+    }
+
+    public void enqueueOrderPaid(Order order) {
+        if (order == null || order.getOrderId() == null) return;
+
+        enqueueSafe(
+                EmailEventType.ORDER_PAID,
+                EmailAggregateType.ORDER,
+                order.getOrderId(),
+                normalizeEmail(order.getCustomerEmail()),
+                LocalDateTime.now()
         );
     }
 

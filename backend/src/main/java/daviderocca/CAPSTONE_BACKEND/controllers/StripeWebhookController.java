@@ -5,7 +5,9 @@ import com.stripe.model.*;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.ApiResource;
 import com.stripe.net.Webhook;
+import daviderocca.CAPSTONE_BACKEND.email.outbox.EmailOutboxService;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
+import daviderocca.CAPSTONE_BACKEND.entities.Order;
 import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
@@ -35,6 +37,7 @@ public class StripeWebhookController {
     private final OrderService orderService;
     private final BookingService bookingService;
     private final PackageCreditService packageCreditService;
+    private final EmailOutboxService emailOutboxService;
 
     @PostMapping("/webhook")
     public ResponseEntity<String> handleStripeEvent(
@@ -101,10 +104,23 @@ public class StripeWebhookController {
                 ? session.getCustomerDetails().getEmail()
                 : "unknown";
 
+        // accetta solo se Stripe la considera pagata
+        String paymentStatus = session.getPaymentStatus();
+        if (!"paid".equalsIgnoreCase(paymentStatus)) {
+            log.warn("checkout.session.completed ma paymentStatus={} (skip) sessionId={}",
+                    paymentStatus, session.getId());
+            return;
+        }
+
         // ===== ORDER =====
         if (orderIdStr != null) {
             UUID orderId = UUID.fromString(orderIdStr);
+
+            // segna pagato
             orderService.markOrderAsPaid(orderId, customerEmail);
+            Order o = orderService.findOrderById(orderId);
+            emailOutboxService.enqueueOrderPaid(o);
+
             log.info("Pagamento completato per ordine {} (cliente: {})", orderId, customerEmail);
             return;
         }
@@ -112,14 +128,6 @@ public class StripeWebhookController {
         // ===== BOOKING =====
         if (bookingIdStr != null) {
             UUID bookingId = UUID.fromString(bookingIdStr);
-
-            // safety: accetta solo se Stripe la considera pagata
-            String paymentStatus = session.getPaymentStatus(); // "paid", "unpaid", ...
-            if (!"paid".equalsIgnoreCase(paymentStatus)) {
-                log.warn("checkout.session.completed ma paymentStatus={} (skip) sessionId={}",
-                        paymentStatus, session.getId());
-                return;
-            }
 
             Booking b = bookingService.findBookingById(bookingId);
             log.info("BEFORE confirm: bookingId={} status={} expiresAt={}",
@@ -149,7 +157,6 @@ public class StripeWebhookController {
                     }
 
                     bookingService.confirmPaidBookingFromWebhook(b, customerEmail);
-
                     log.warn("Booking pagato dopo scadenza/cancel: riconfermato bookingId={} sessionId={}",
                             bookingId, session.getId());
                 } else {
@@ -157,10 +164,11 @@ public class StripeWebhookController {
                 }
             }
 
-            // IMPORTANTISSIMO: ricarica dal DB dopo la confirm, così non risalvi uno snapshot vecchio dopo
             b = bookingService.findBookingById(bookingId);
             log.info("AFTER confirm (fresh): bookingId={} status={} paidAt={}",
                     b.getBookingId(), b.getBookingStatus(), b.getPaidAt());
+
+            emailOutboxService.enqueueBookingConfirmed(b);
 
             // ===== PACCHETTI =====
             int sessionsTotal = 1;
@@ -186,7 +194,6 @@ public class StripeWebhookController {
                             true
                     );
 
-                    // ricarica ancora per essere super-safe prima del save finale
                     b = bookingService.findBookingById(bookingId);
                     b.setPackageCredit(pc);
                     bookingService.save(b);
@@ -234,7 +241,7 @@ public class StripeWebhookController {
 
         String orderIdStr = charge.getMetadata() != null ? charge.getMetadata().get("orderId") : null;
         if (orderIdStr == null) {
-            log.info("charge.refunded: non è ordine (se vuoi, gestire refund booking in futuro)");
+            log.info("charge.refunded");
             return;
         }
 

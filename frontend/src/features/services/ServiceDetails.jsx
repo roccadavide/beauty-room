@@ -54,11 +54,11 @@ const ServiceDetail = () => {
   }, [categories]);
 
   const badgeColors = {
-    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary", // Trucco permanente
-    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success", // Piedi
-    "95b6d339-a765-4569-9aee-08107d27516b": "warning", // Mani
-    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info", // Corpo
-    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger", // Viso
+    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary", //Trucco permanente
+    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success", //Piedi
+    "95b6d339-a765-4569-9aee-08107d27516b": "warning", //Mani
+    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info", //Corpo
+    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger", //Viso
   };
 
   const related = useMemo(() => {
@@ -106,8 +106,8 @@ const ServiceDetail = () => {
           <h1 className="service-title">{service.title}</h1>
 
           <div className="d-flex align-items-center gap-2 mb-3">
-            <Badge bg={badgeColors[service.categoryName] || "secondary"} className="text-uppercase">
-              {categoriesMap[service.categoryName] || "Senza categoria"}
+            <Badge bg={badgeColors[service.categoryId] || "secondary"} className="text-uppercase">
+              {categoriesMap[service.categoryId] || "Senza categoria"}
             </Badge>
             <small className="text-muted">{service.durationMin} min</small>
           </div>

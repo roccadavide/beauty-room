@@ -11,7 +11,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
 
 const BookingModal = ({ show, onHide, service }) => {
-  const { token } = useSelector(state => state.auth);
+  const { token, user } = useSelector(state => state.auth);
 
   const [step, setStep] = useState(1);
   const [date, setDate] = useState(new Date());
@@ -104,6 +104,20 @@ const BookingModal = ({ show, onHide, service }) => {
       alert(err.message);
     }
   };
+
+  useEffect(() => {
+    if (!show || step !== 3) return;
+    if (!token || !user) return;
+
+    const fullName = user.name && user.surname ? `${user.name} ${user.surname}`.trim() : (user.name || user.fullName || "").trim();
+
+    setCustomer(prev => ({
+      ...prev,
+      name: prev.name.trim() ? prev.name : fullName,
+      email: prev.email.trim() ? prev.email : (user.email || "").trim(),
+      phone: prev.phone.trim() ? prev.phone : (user.phone || user.telefono || "").trim(),
+    }));
+  }, [show, step, token, user]);
 
   return (
     <Modal
