@@ -1,5 +1,5 @@
 import { Container, Button } from "react-bootstrap";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useTransform, useMotionTemplate } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import { animate, splitText, stagger } from "animejs";
@@ -26,7 +26,6 @@ export default function HeroSection({
 
   const heroRef = useRef(null);
 
-  // 👉 ref per titolo e sottotitolo (per anime.js)
   const titleRef = useRef(null);
   const subtitleRef = useRef(null);
 
@@ -36,7 +35,6 @@ export default function HeroSection({
     offset: ["start start", "end start"],
   });
 
-  // Parallax immagine
   const bgY = useTransform(scrollYProgress, [0, 1], [0, 170]);
   const bgScale = useTransform(scrollYProgress, [0, 1], [1.0, 1.05]);
   const bgX = reduce ? 0 : 0;
@@ -44,6 +42,10 @@ export default function HeroSection({
   const bgParallaxStyles = reduce ? {} : { y: bgY, scale: bgScale, x: bgX };
   const glassY = useTransform(scrollYProgress, [0, 1], [0, -50]);
   const glassParallaxStyles = reduce ? {} : { y: glassY };
+
+  const heroFade = useTransform(scrollYProgress, [0, 0.65, 1], [1, 0.35, 0]);
+  const heroBlur = useTransform(scrollYProgress, [0, 1], reduce ? [0, 0] : [0, 6]);
+  const heroBlurFilter = useMotionTemplate`blur(${heroBlur}px)`;
 
   const textMotion = {
     hidden: { opacity: 0, y: reduce ? 0 : 14 },
@@ -118,6 +120,8 @@ export default function HeroSection({
           initial="hidden"
           animate="visible"
           style={{
+            opacity: heroFade,
+            filter: reduce ? "none" : heroBlurFilter,
             transformPerspective: 800,
             rotateX: tilt.rotateX,
             rotateY: tilt.rotateY,

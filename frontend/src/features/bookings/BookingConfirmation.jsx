@@ -13,22 +13,16 @@ export default function BookingConfirmation() {
   const [summary, setSummary] = useState(null);
   const [service, setService] = useState(null);
 
-  // ---------------------------
-  // Helpers: date formatting
-  // ---------------------------
   const formatDateTime = isoLike => {
     if (!isoLike) return "-";
-    // prova parsing diretto
     let d = new Date(isoLike);
 
-    // fallback: se ti arriva "2026-01-20T14:40:39.833492" senza timezone
     if (Number.isNaN(d.getTime())) {
-      // aggiungo "Z" solo se non c'è timezone e non c'è Z
       const fixed = /Z$|[+-]\d{2}:\d{2}$/.test(isoLike) ? isoLike : `${isoLike}Z`;
       d = new Date(fixed);
     }
 
-    if (Number.isNaN(d.getTime())) return isoLike; // ultima spiaggia: stampo la stringa
+    if (Number.isNaN(d.getTime())) return isoLike;
 
     return new Intl.DateTimeFormat("it-IT", {
       weekday: "short",
@@ -40,9 +34,6 @@ export default function BookingConfirmation() {
     }).format(d);
   };
 
-  // ---------------------------
-  // Single effect: booking summary polling
-  // ---------------------------
   useEffect(() => {
     if (!sessionId) {
       setError("Session ID mancante.");

@@ -125,7 +125,6 @@
   transform: rotate(-135deg);
 }
 
-/* --- STILE LINK DESKTOP "SILK & LINE" --- */
 @keyframes silkShine {
   0% {
     background-position: -150%;
@@ -606,7 +605,6 @@
   }
 }
 
-/* User Skeleton Loader */
 .user-skeleton-loader {
   width: 30px;
   height: 30px;

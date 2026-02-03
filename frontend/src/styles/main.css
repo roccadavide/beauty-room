@@ -5,6 +5,7 @@
 
 /* ===== LAYOUTS ===== */
 @import "./layout/_navbar.css";
+@import "./layout/_footer.css";
 
 /* ===== COMPONENTS ===== */
 @import "./components/_button.css";
@@ -15,6 +16,7 @@
 @import "./components/_card-result.css";
 @import "./components/_card-service.css";
 @import "./components/_card-testimonial.css";
+@import "./components/_laser.css";
 
 /* ===== SECTIONS ===== */
 @import "./sections/_about-hero.css";
@@ -25,6 +27,7 @@
 @import "./sections/_prenotazioni-section.css";
 @import "./sections/_products-section.css";
 @import "./sections/_services-section.css";
+@import "./sections/_legal.css";
 
 /* ===== PAGES ===== */
 @import "./pages/_register-page.css";

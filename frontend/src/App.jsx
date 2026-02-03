@@ -40,6 +40,10 @@ import Toaster from "./components/feedback/Toaster";
 import { clearToken } from "./utils/token";
 import Map from "./components/layout/Map";
 import BookingConfirmation from "./features/bookings/BookingConfirmation";
+import PrivacyPolicy from "./components/legal/PrivacyPolicy";
+import CookiePolicy from "./components/legal/CookiePolicy";
+import TermsAndConditions from "./components/legal/TermsAndConditions";
+import LaserSection from "./components/laser/LaserSection";
 
 function App() {
   const location = useLocation();
@@ -150,6 +154,7 @@ function App() {
                 <PageTransition routeKey={location.pathname}>
                   <>
                     <HeroSection />
+                    <LaserSection />
                     <ServicesPreview />
                     <Divider />
                     <ResultsPreview />
@@ -267,6 +272,30 @@ function App() {
               element={
                 <PageTransition routeKey={location.pathname}>
                   <BookingConfirmation />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/privacy"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <PrivacyPolicy />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/cookie"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <CookiePolicy />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/termini"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <TermsAndConditions />
                 </PageTransition>
               }
             />

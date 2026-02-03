@@ -5,7 +5,8 @@
 
 .hero-section {
   position: relative;
-  min-height: 92vh;
+  min-height: 90svh;
+  min-height: 90vh;
   display: grid;
   place-items: stretch;
   overflow: clip;

@@ -47,7 +47,6 @@ public class EmailTemplateService {
     private static final DateTimeFormatter IT_DT =
             DateTimeFormatter.ofPattern("EEE dd MMM yyyy, HH:mm", Locale.ITALY);
 
-    // Palette “sabbia / beige / oro soft”
     private static final String BG = "#F6F1EA";
     private static final String CARD = "#FFFFFF";
     private static final String TEXT = "#3B2F2A";   // marrone caldo
@@ -64,7 +63,6 @@ public class EmailTemplateService {
         String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
         String customerName = safe(b.getCustomerName());
 
-        //Visualizza prenotazione
         String viewUrl = frontUrl + "/prenotazioni";
 
         String body = """
