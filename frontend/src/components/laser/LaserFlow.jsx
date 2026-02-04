@@ -222,7 +222,7 @@ float sc = 512.0 / minRes * 0.4;
   float bBias=mix(1.0,1.0-sPix,FOG_BOTTOM_BIAS);
 
   float browserFogIntensity = uFogIntensity * 1.8;
-  float radialFade = 1.0 - smoothstep(0.0, 0.7, length(uvc) / 120.0);
+  float radialFade = 1.0 - smoothstep(0.0, 1.05, length(uvc) / 170.0);
   fog = n * browserFogIntensity * bBias * bm * hW * radialFade;
 #endif
 
@@ -235,6 +235,7 @@ float sc = 512.0 / minRes * 0.4;
   float nxE=abs((frag.x-C.x)*invW),xF=pow(clamp(1.0-smoothstep(EDGE_X0,EDGE_X1,nxE),0.0,1.0),EDGE_X_GAMMA);
   float scene=LF+max(0.0,w)*0.5,hi=smoothstep(EDGE_LUMA_T0,EDGE_LUMA_T1,scene);
   float eM=mix(xF,1.0,hi);
+  eM = mix(1.0, eM, 0.12);   
   col*=eM; alpha*=eM;
 
   col*=uFade; alpha*=uFade;
@@ -284,7 +285,7 @@ export default function LaserFlow({
   falloffStart = 1.2,
   fogFallSpeed = 0.6,
 
-  color = "#8A76D6",
+  color = "#FF0000",
   background = "#F6F1EA",
 }) {
   const mountRef = useRef(null);
