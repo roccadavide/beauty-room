@@ -6,7 +6,7 @@
 .hero-section {
   position: relative;
   min-height: 90svh;
-  min-height: 90vh;
+  min-height: 93vh;
   display: grid;
   place-items: stretch;
   overflow: clip;
@@ -17,7 +17,7 @@
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 110%;
+  height: 115%;
   object-fit: cover;
   object-position: center;
   padding: 0;
@@ -186,7 +186,7 @@
 @media (max-width: 768px) {
   .hero-inner {
     align-items: flex-start;
-    padding-top: calc(var(--nav-height, 90px) + 280px);
+    padding-top: calc(var(--nav-height, 90px) + 180px);
     padding-inline: clamp(16px, 4vw, 24px);
   }
 

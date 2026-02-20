@@ -44,3 +44,37 @@
 .card--service:hover::after {
   transform: translateX(100%);
 }
+
+.br-card--service .card-img-container {
+  aspect-ratio: 4 / 3;
+  background: #f3e7dc;
+  overflow: hidden;
+}
+
+.br-card--service .card-img-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.02);
+  transition: transform 250ms ease;
+}
+
+.br-card--service:hover .card-img-container img {
+  transform: scale(1.06);
+}
+
+.br-card--service .card-body {
+  padding: 14px 14px 16px;
+}
+
+.br-card--service .card-title {
+  font-weight: 900;
+  color: #3b2f2a;
+  margin-bottom: 8px;
+}
+
+.br-card--service .card-text {
+  color: #7a6a61;
+  font-size: 14px;
+  line-height: 1.6;
+}

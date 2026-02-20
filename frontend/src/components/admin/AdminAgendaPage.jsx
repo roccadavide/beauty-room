@@ -51,7 +51,7 @@ function TimelineDay({ dateISO, data }) {
     return { startMin, endMin };
   }, [data]);
 
-  const toPct = m => ((m - viewWindow.startMin) / (viewWindow.endMin - viewWindow.startMin)) * 100;
+  const toPct = useCallback(m => ((m - viewWindow.startMin) / (viewWindow.endMin - viewWindow.startMin)) * 100, [viewWindow.endMin, viewWindow.startMin]);
 
   const renderBlock = (slot, kind, idx) => {
     const start = minutes(slot.start);
@@ -76,7 +76,7 @@ function TimelineDay({ dateISO, data }) {
       marks.push({ h, pct });
     }
     return marks;
-  }, [viewWindow, dateISO]);
+  }, [toPct, viewWindow.endMin, viewWindow.startMin]);
 
   if (!data) {
     return (

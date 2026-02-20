@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Badge, Button, Card, Col, Container, Form, Modal, Row, Tab, Tabs, Table } from "react-bootstrap";
+import * as adminAgendaApi from "../../api/modules/adminAgenda.api";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -185,7 +186,7 @@ export default function AdminAgendaSettingsPage() {
   const [whModalOpen, setWhModalOpen] = useState(false);
   const [editingWh, setEditingWh] = useState(null);
 
-  const refreshClosures = async () => {
+  const refreshClosures = useCallback(async () => {
     setErr("");
     try {
       const list = await adminAgendaApi.getClosuresRange(from, to);
@@ -193,9 +194,9 @@ export default function AdminAgendaSettingsPage() {
     } catch (e) {
       setErr(e?.normalized?.message || "Errore closures.");
     }
-  };
+  }, [from, to]);
 
-  const refreshWH = async () => {
+  const refreshWH = useCallback(async () => {
     setErr("");
     try {
       const list = await adminAgendaApi.getWorkingHoursAll();
@@ -206,14 +207,14 @@ export default function AdminAgendaSettingsPage() {
     } catch (e) {
       setErr(e?.normalized?.message || "Errore working hours.");
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshClosures();
-  }, [from, to]);
+  }, [refreshClosures]);
   useEffect(() => {
     refreshWH();
-  }, []);
+  }, [refreshWH]);
 
   const saveClosure = async payload => {
     setErr("");

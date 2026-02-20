@@ -116,87 +116,104 @@ const ServicesPreview = () => {
   }
 
   return (
-    <Container className="py-5">
-      <h2 className="text-center mb-4">Trattamenti in evidenza</h2>
+    <section className="services-preview">
+      <Container>
+        <div className="services-preview__head">
+          <div className="services-preview__titles">
+            <h2 className="services-preview__title">Ti consigliamo anche</h2>
+            <p className="services-preview__subtitle">Selezione di trattamenti scelti da Michela per risultati visibili e look curato.</p>
+          </div>
 
-      {user?.role === "ADMIN" && (
-        <div className="mb-4 d-flex align-items-center justify-content-center">
-          <Button
-            variant="success"
-            className="rounded-circle d-flex align-items-center justify-content-center"
-            style={{ width: "3rem", height: "3rem" }}
-            onClick={handleCreate}
-          >
-            <Plus />
-          </Button>
+          <div className="services-preview__actions">
+            <button type="button" className="services-preview__link" onClick={() => navigate("/trattamenti")}>
+              Tutti i trattamenti →
+            </button>
+
+            {user?.role === "ADMIN" && (
+              <Button variant="light" className="services-preview__add" onClick={handleCreate} title="Aggiungi trattamento">
+                <Plus />
+              </Button>
+            )}
+          </div>
         </div>
-      )}
 
-      <Row className="g-4 justify-content-evenly">
-        {services.map(s => (
-          <Col key={s.serviceId} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
-            <Card className="h-100 shadow-sm" onClick={() => navigate(`/trattamenti/${s.serviceId}`)}>
-              <div className="card-img-container">
-                <Card.Img src={s.images?.[0]} alt={s.title} />
-              </div>
-              <Card.Body className="d-flex flex-column">
-                <Card.Title>{s.title}</Card.Title>
-                <div className="mb-2 d-flex align-items-center gap-2">
-                  <Badge bg={badgeColors[s.categoryId] || "secondary"} className="text-uppercase">
-                    {categoriesMap[s.categoryId] || "Senza categoria"}
-                  </Badge>
-                  <small className="text-muted">{s.durationMin} min</small>
+        <Row className="g-4 justify-content-evenly">
+          {services.map(s => (
+            <Col key={s.serviceId} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
+              <Card
+                className="br-card br-card--service h-100"
+                onClick={() => navigate(`/trattamenti/${s.serviceId}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === "Enter" && navigate(`/trattamenti/${s.serviceId}`)}
+              >
+                <div className="card-img-container">
+                  <Card.Img src={s.images?.[0]} alt={s.title} />
                 </div>
-                <Card.Text className="flex-grow-1">{s.shortDescription}</Card.Text>
-                <strong>{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
 
-                {user?.role === "ADMIN" && (
-                  <div className="d-flex gap-2 mt-3">
-                    <Button
-                      variant="secondary"
-                      className="rounded-circle d-flex justify-content-center align-items-center"
-                      onClick={e => {
-                        e.stopPropagation();
-                        handleEdit(s);
-                      }}
-                    >
-                      <PencilFill />
-                    </Button>
-                    <Button
-                      variant="danger"
-                      className="rounded-circle d-flex justify-content-center align-items-center"
-                      onClick={e => {
-                        e.stopPropagation();
-                        setSelectedService(s);
-                        setDeleteModal(true);
-                      }}
-                    >
-                      <Trash2Fill />
-                    </Button>
+                <Card.Body className="d-flex flex-column">
+                  <Card.Title>{s.title}</Card.Title>
+
+                  <div className="mb-2 d-flex align-items-center gap-2">
+                    <Badge bg={badgeColors[s.categoryId] || "secondary"} className="text-uppercase">
+                      {categoriesMap[s.categoryId] || "Senza categoria"}
+                    </Badge>
+                    <small className="text-muted">{s.durationMin} min</small>
                   </div>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
-        ))}
-      </Row>
 
-      {user?.role === "ADMIN" && (
-        <>
-          <ServiceModal
-            show={open}
-            onHide={() => {
-              setOpen(false);
-              setEditingService(null);
-            }}
-            categories={categories}
-            service={editingService}
-            onServiceSaved={handleServiceSaved}
-          />
-          <DeleteServiceModal show={deleteModal} onHide={() => setDeleteModal(false)} service={selectedService} onConfirm={handleDeleteConfirm} />
-        </>
-      )}
-    </Container>
+                  <Card.Text className="flex-grow-1">{s.shortDescription}</Card.Text>
+
+                  <strong>{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+
+                  {user?.role === "ADMIN" && (
+                    <div className="d-flex gap-2 mt-3">
+                      <Button
+                        variant="secondary"
+                        className="rounded-circle d-flex justify-content-center align-items-center"
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleEdit(s);
+                        }}
+                      >
+                        <PencilFill />
+                      </Button>
+
+                      <Button
+                        variant="danger"
+                        className="rounded-circle d-flex justify-content-center align-items-center"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setSelectedService(s);
+                          setDeleteModal(true);
+                        }}
+                      >
+                        <Trash2Fill />
+                      </Button>
+                    </div>
+                  )}
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
+        {user?.role === "ADMIN" && (
+          <>
+            <ServiceModal
+              show={open}
+              onHide={() => {
+                setOpen(false);
+                setEditingService(null);
+              }}
+              categories={categories}
+              service={editingService}
+              onServiceSaved={handleServiceSaved}
+            />
+            <DeleteServiceModal show={deleteModal} onHide={() => setDeleteModal(false)} service={selectedService} onConfirm={handleDeleteConfirm} />
+          </>
+        )}
+      </Container>
+    </section>
   );
 };
 

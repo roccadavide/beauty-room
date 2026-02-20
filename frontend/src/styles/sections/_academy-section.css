@@ -4,6 +4,7 @@
   opacity: 0;
   transform: translateY(40px);
   transition: all 0.7s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  cursor: pointer;
 }
 
 .academy-card .card-body {

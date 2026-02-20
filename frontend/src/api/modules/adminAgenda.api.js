@@ -1,4 +1,4 @@
-import { AGENDA_ENDPOINTS, AVAIL_ENDPOINTS, BOOKING_ENDPOINTS } from "../endpoints";
+import { AGENDA_ENDPOINTS, AVAIL_ENDPOINTS, CLOSURE_ENDPOINTS, WORKING_HOURS_ENDPOINTS } from "../endpoints";
 import http from "../httpClient";
 
 /* ================= TIMELINE ================= */
@@ -60,6 +60,78 @@ export const getAvailSlotsForServiceDay = async (serviceId, date) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Non riesco a caricare gli slot disponibili.";
+    throw new Error(message);
+  }
+};
+
+/* ================= CLOSURES (ADMIN) ================= */
+export const getClosuresRange = async (from, to) => {
+  try {
+    const { data } = await http.get(CLOSURE_ENDPOINTS.BASE, { params: { from, to } });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile recuperare le chiusure.";
+    throw new Error(message);
+  }
+};
+
+export const createClosure = async payload => {
+  try {
+    const { data } = await http.post(CLOSURE_ENDPOINTS.BASE, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore creazione chiusura.";
+    throw new Error(message);
+  }
+};
+
+export const updateClosure = async (id, payload) => {
+  try {
+    const { data } = await http.put(CLOSURE_ENDPOINTS.BY_ID(id), payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore aggiornamento chiusura.";
+    throw new Error(message);
+  }
+};
+
+export const deleteClosure = async id => {
+  try {
+    await http.delete(CLOSURE_ENDPOINTS.BY_ID(id));
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore eliminazione chiusura.";
+    throw new Error(message);
+  }
+};
+
+/* ================= WORKING HOURS (ADMIN) ================= */
+export const getWorkingHoursAll = async () => {
+  try {
+    const { data } = await http.get(WORKING_HOURS_ENDPOINTS.BASE);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile recuperare gli orari di lavoro.";
+    throw new Error(message);
+  }
+};
+
+export const initDefaultWeek = async () => {
+  try {
+    const { data } = await http.post(`${WORKING_HOURS_ENDPOINTS.BASE}/init-default-week`);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore inizializzazione settimana di default.";
+    throw new Error(message);
+  }
+};
+
+export const updateWorkingHours = async (id, payload) => {
+  try {
+    const { data } = await http.put(`${WORKING_HOURS_ENDPOINTS.BASE}/${id}`, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore aggiornamento orari di lavoro.";
     throw new Error(message);
   }
 };

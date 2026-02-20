@@ -10,9 +10,6 @@ void main(){
 `;
 
 const FRAG = `
-#ifdef GL_ES
-#extension GL_OES_standard_derivatives : enable
-#endif
 precision highp float;
 precision mediump int;
 
@@ -207,11 +204,7 @@ float sc = 512.0 / minRes * 0.4;
   n=pow(clamp(n,0.0,1.0),FOG_CONTRAST);
 
   float pixW = 1.0 / max(iResolution.y, 1.0);
-#ifdef GL_OES_standard_derivatives
-  float wL = max(fwidth(L), pixW);
-#else
   float wL = pixW;
-#endif
   float m0=pow(smoothstep(FOG_BEAM_MIN - wL, FOG_BEAM_MAX + wL, L),FOG_MASK_GAMMA);
   float bm=1.0-pow(1.0-m0,FOG_EXPAND_SHAPE); bm=mix(bm*m0,bm,FOG_EDGE_MIX);
 
@@ -311,7 +304,7 @@ export default function LaserFlow({
 
     const renderer = new THREE.WebGLRenderer({
       antialias: false,
-      alpha: false,
+      alpha: true,
       depth: false,
       stencil: false,
       powerPreference: "high-performance",
@@ -327,8 +320,8 @@ export default function LaserFlow({
 
     renderer.setPixelRatio(currentDprRef.current);
     renderer.shadowMap.enabled = false;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setClearColor(new THREE.Color(background), 1);
+    renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+    renderer.setClearColor(0x000000, 0);
 
     const canvas = renderer.domElement;
     canvas.style.width = "100%";
@@ -390,6 +383,7 @@ export default function LaserFlow({
     const mouseTarget = new THREE.Vector2(0, 0);
     const mouseSmooth = new THREE.Vector2(0, 0);
 
+    let shaderChecked = false;
     const setSizeNow = () => {
       const w = mount.clientWidth || 1;
       const h = mount.clientHeight || 1;
@@ -407,6 +401,19 @@ export default function LaserFlow({
 
       rectRef.current = canvas.getBoundingClientRect();
       if (!pausedRef.current) renderer.render(scene, camera);
+
+      if (!shaderChecked) {
+        shaderChecked = true;
+        try {
+          const gl = renderer.getContext();
+          const pgm = gl.getParameter(gl.CURRENT_PROGRAM);
+          if (pgm && !gl.getProgramParameter(pgm, gl.LINK_STATUS)) {
+            console.error("[LaserFlow] shader link error:", gl.getProgramInfoLog(pgm));
+          } else if (import.meta.env?.DEV) {
+            console.debug("[LaserFlow] shader OK — canvas %d×%d", w, h);
+          }
+        } catch { /* noop */ }
+      }
     };
 
     let resizeRaf = 0;
@@ -499,7 +506,7 @@ export default function LaserFlow({
     let raf = 0;
     const animate = () => {
       raf = requestAnimationFrame(animate);
-      if (pausedRef.current || !inViewRef.current) return;
+      if (pausedRef.current || (!inViewRef.current && hasFadedRef.current)) return;
 
       const t = clock.getElapsedTime();
       const dt = Math.max(0, t - prevTime);
@@ -598,5 +605,5 @@ export default function LaserFlow({
     color,
   ]);
 
-  return <div ref={mountRef} className={`laser-flow-container ${className || ""}`} style={{ background, ...style }} aria-hidden="true" />;
+  return <div ref={mountRef} className={`laser-flow-container ${className || ""}`} style={{ background: background || "transparent", ...style }} aria-hidden="true" />;
 }

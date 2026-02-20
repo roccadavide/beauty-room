@@ -1,37 +1,42 @@
 .laser-section {
   background: #fffdf8;
   padding-top: 0;
-  padding-bottom: 50px;
+  padding-bottom: 28px;
   position: relative;
   z-index: 3;
 }
 
-.laser-section::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 80px;
-  background: linear-gradient(to bottom, rgba(255, 253, 248, 0), #fffdf8);
-  pointer-events: none;
-}
-
-/* Card base */
 .laser-card {
-  display: flex;
   margin-top: 30px;
   position: relative;
   overflow: hidden;
   border-radius: 24px;
   min-height: 520px;
-  width: min(1240px, 100%);
+  width: min(1140px, 100%);
   box-shadow: 0 18px 40px rgba(59, 47, 42, 0.12);
+
+  /* ====== DESKTOP BASE  ====== */
+  --fx-x: 257px;
+  --fx-y: 170px;
+  --fx-s: 1.5;
+
+  --pad-y: 26px;
+  --pad-x: 0px;
+  --gap: 0px;
+
+  --machine-w: 370px;
+  --copy-w: 490px;
+  --copy-tx: 0px;
+
+  --hand-w: 290px;
+  --hand-right: -10px;
+  --hand-top: -100px;
+  --hand-tx: -6px;
+  --hand-ty: 18px;
 }
 
-/* Variante scura “warm” */
 .laser-card--dark {
-  background: #2f2723; /* espresso caldo */
+  background: #2f2723;
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -41,10 +46,22 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  transform: translate(-20px, 50px) scale(1.5);
+  overflow: hidden;
 }
 
-/* Overlay: rende il blocco più “premium”, meno piatto */
+.laser-fx-inner {
+  position: absolute;
+  inset: 0;
+  transform: translate(var(--fx-x), var(--fx-y)) scale(var(--fx-s));
+  transform-origin: right bottom;
+}
+
+.laser-fx-inner > * {
+  width: 100%;
+  height: 100%;
+}
+
+/* Overlay */
 .laser-overlay {
   position: absolute;
   inset: 0;
@@ -60,40 +77,53 @@
 .laser-handpiece {
   position: absolute;
   z-index: 4;
-  right: -10px;
-  top: -100px;
-  width: 290px;
+  right: var(--hand-right);
+  top: var(--hand-top);
+  width: var(--hand-w);
   height: auto;
   pointer-events: none;
   user-select: none;
-  transform: translate(-10px, 18px);
+  transform: translate(var(--hand-tx), var(--hand-ty));
   filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.28));
 }
 
-/* Layout contenuti */
+/* Content layout */
 .laser-content {
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: var(--gap);
   position: relative;
   z-index: 5;
-  padding: 26px 34px;
+  padding: var(--pad-y) var(--pad-x);
   width: 100%;
-  transform: translate(-30px, -20px);
+}
+
+.laser-top {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  width: 100%;
 }
 
 .laser-machine {
-  width: 380px;
+  width: var(--machine-w);
   height: auto;
   flex: 0 0 auto;
 }
 
 .laser-copy {
-  max-width: 560px;
-  transform: translateX(-50px);
+  max-width: var(--copy-w);
+  transform: translateX(var(--copy-tx));
 }
 
-/* Tipografia dark */
+/* ✅ nuova colonna “tablet” (di default OFF, così desktop resta uguale) */
+.laser-side {
+  display: none;
+  width: var(--machine-w);
+  flex: 0 0 auto;
+}
+
+/* Typography */
 .laser-kicker {
   color: rgba(255, 255, 255, 0.72);
   letter-spacing: 0.6px;
@@ -106,11 +136,12 @@
   font-weight: 850;
   line-height: 1.12;
   margin-bottom: 12px;
+  font-size: clamp(22px, 2.1vw, 34px);
 }
 
 .laser-text {
   color: rgba(255, 255, 255, 0.74);
-  font-size: 15px;
+  font-size: clamp(13px, 1.05vw, 15px);
   line-height: 1.7;
   margin-bottom: 18px;
 }
@@ -150,30 +181,311 @@
   font-size: 12px;
 }
 
-/* Mobile: qui va ripensato layout (stack), ma intanto non deve rompersi */
+.laser-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: var(--machine-w);
+  flex: 0 0 auto;
+}
+
+.laser-left .laser-machine {
+  display: block;
+  margin: 0 auto;
+}
+
+.laser-ctas-mobile {
+  display: none;
+}
+
+.laser-machine-mobile {
+  display: none;
+}
+
+/* ====== BREAKPOINTS ====== */
+@media (max-width: 1399px) {
+  .laser-card {
+    --fx-x: 248px;
+    --fx-y: 170px;
+    --fx-s: 1.5;
+  }
+}
+
+@media (max-width: 1199px) {
+  .laser-card {
+    --fx-x: 205px;
+    --fx-y: 162px;
+    --fx-s: 1.55;
+
+    --gap: 22px;
+    --copy-tx: -50px;
+
+    --machine-w: 320px;
+    --copy-w: 420px;
+
+    --hand-w: 270px;
+    --hand-top: -90px;
+  }
+}
+
+/* ✅ SOLO QUI cambiamo layout CTA: <= 991 */
+@media (max-width: 991px) {
+  .laser-card {
+    --fx-x: 110px;
+    --fx-y: 132px;
+    --fx-s: 1.25;
+
+    --pad-y: 75px;
+    --pad-x: 0px;
+    --gap: 0px;
+
+    --machine-w: 255px;
+    --copy-w: 310px;
+    --copy-tx: -25px;
+
+    --hand-w: 180px;
+    --hand-top: -20px;
+    --hand-right: -8px;
+  }
+}
+
 @media (max-width: 768px) {
   .laser-card {
     min-height: auto;
+
+    --fx-x: 110px;
+    --fx-y: 125px;
+    --fx-s: 1.25;
+
+    --pad-y: 75px;
+    --pad-x: 0px;
+
+    --gap: 12px;
+    --machine-w: 220px;
+    --copy-w: 350px;
+    --copy-tx: -28px;
   }
 
   .laser-content {
     flex-direction: column;
+    align-items: stretch;
+    padding: var(--pad-y) var(--pad-x);
+  }
+
+  .laser-top {
     align-items: flex-start;
-    padding: 20px 18px;
   }
 
-  .laser-machine {
-    width: min(320px, 100%);
+  .laser-side {
+    display: none;
   }
 
-  .laser-handpiece {
-    width: 150px;
-    right: 14px;
-    top: -10px;
-    opacity: 0.95;
+  .laser-ctas--main,
+  .laser-meta--main {
+    display: block !important;
   }
 
-  .laser-fx {
-    transform: translate(-18px, 10px) scale(1.25);
+  .laser-ctas .btn {
+    margin-bottom: 10px;
+  }
+
+  .laser-kicker {
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+  .laser-title {
+    font-size: 20px;
+    line-height: 1.12;
+    margin-bottom: 8px;
+  }
+  .laser-text {
+    font-size: 13px;
+    line-height: 1.55;
+    margin-bottom: 12px;
+  }
+  .laser-meta {
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .laser-info,
+  .laser-pay {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .laser-section .container {
+    max-width: 720px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+@media (max-width: 720px) {
+  .laser-card {
+    --fx-x: calc(110px + (100vw - 720px) * 0.31);
+  }
+}
+
+@media (max-width: 695px) {
+  .laser-ctas--main,
+  .laser-meta--main {
+    display: none !important;
+  }
+
+  .laser-card {
+    --copy-w: 160px;
+    --copy-tx: -15px;
+
+    --fx-y: 115px;
+  }
+
+  .laser-side {
+    display: block;
+    text-align: center;
+    width: var(--machine-w);
+    flex: 0 0 auto;
+    margin-top: 10px;
+  }
+
+  .laser-top {
+    align-items: center;
+    justify-content: start;
+    gap: 48px;
+  }
+
+  .laser-left .laser-side {
+    justify-content: center;
+  }
+
+  .laser-side .laser-ctas .btn {
+    padding: 5px;
+    font-size: 13px;
+  }
+
+  .laser-side .laser-meta {
+    margin-top: 10px;
+    gap: 5px;
+  }
+
+  .laser-side .laser-info,
+  .laser-side .laser-pay {
+    font-size: 11px;
+  }
+
+  .laser-content {
+    padding-top: 0px;
+    padding-bottom: 10px;
+    margin-top: -20px;
+  }
+}
+
+@media (max-width: 570px) {
+  .laser-card {
+    min-height: auto;
+
+    --fx-x: calc(110px + (100vw - 720px) * 0.31);
+    --fx-y: 110px;
+    --fx-s: 1.25;
+
+    --pad-y: 200px;
+    --pad-x: 50px;
+
+    --gap: 12px;
+    --machine-w: 200px;
+    --copy-w: 150px;
+    --copy-tx: -108px;
+  }
+
+  .laser-content {
+    padding-top: 50px;
+    padding-bottom: 20px;
+  }
+
+  .laser-side .laser-ctas {
+    display: none !important;
+  }
+
+  .laser-left {
+    transform: translateX(-60px);
+  }
+
+  .laser-ctas-mobile {
+    display: block;
+  }
+
+  .laser-ctas-mobile .btn {
+    padding: 5px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 500px) {
+  .laser-card {
+    min-height: auto;
+
+    --fx-x: calc(130px + (100vw - 720px) * 0.31);
+    --fx-y: 115px;
+    --fx-s: 1.25;
+
+    --pad-y: 200px;
+    --pad-x: 50px;
+
+    --gap: 12px;
+    --machine-w: 150px;
+    --copy-w: 235px;
+    --copy-tx: -28px;
+
+    --hand-w: 150px;
+    --hand-right: -10px;
+    --hand-top: 40px;
+    --hand-tx: -6px;
+    --hand-ty: 18px;
+  }
+
+  .laser-left {
+    display: none;
+  }
+
+  .laser-wrapper-mobile {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .laser-machine-mobile {
+    display: block;
+    transform: translate(-80px, -10px);
+  }
+
+  .laser-content {
+    margin-bottom: -30px;
+  }
+}
+
+@media (max-width: 385px) {
+  .laser-card {
+    --copy-w: 180px;
+    --copy-tx: -15px;
+
+    --hand-top: 10px;
+
+    --fx-y: 100px;
+  }
+
+  .laser-copy {
+    transform: scale(0.95) translateX(-39px);
+  }
+
+  .laser-content {
+    margin-top: -35px;
+    padding-bottom: 70px;
+  }
+
+  .laser-machine-mobile {
+    display: none;
   }
 }
