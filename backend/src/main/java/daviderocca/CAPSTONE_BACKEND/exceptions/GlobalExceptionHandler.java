@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -97,6 +98,12 @@ public class GlobalExceptionHandler {
 
 
         return build(HttpStatus.CONFLICT, msg, req, null, false);
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleOptimisticLock(OptimisticLockingFailureException ex, HttpServletRequest req) {
+        log.warn("Optimistic lock conflict: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, "Concorrenza rilevata: stock aggiornato da un altro utente, riprova.", req, null, false);
     }
 
     /* =================== SPRING WEB =================== */

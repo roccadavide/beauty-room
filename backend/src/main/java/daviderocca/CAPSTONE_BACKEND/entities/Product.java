@@ -38,6 +38,9 @@ public class Product {
     @Column(name = "image_url")
     private List<String> images;
 
+    @Version
+    private Long version;
+
     @Column(nullable = false)
     private int stock;
 
