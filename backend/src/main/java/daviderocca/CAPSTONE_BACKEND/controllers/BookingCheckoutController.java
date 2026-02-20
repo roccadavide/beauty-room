@@ -21,6 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
+
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +47,7 @@ public class BookingCheckoutController {
 
     @PostMapping("/create-session")
     public Map<String, Object> createSessionAuth(
-            @RequestBody NewBookingDTO payload,
+            @Valid @RequestBody NewBookingDTO payload,
             @AuthenticationPrincipal User currentUser
     ) throws StripeException {
 
@@ -69,7 +71,7 @@ public class BookingCheckoutController {
 
     // PUBLIC (guest)
     @PostMapping("/create-session-guest")
-    public Map<String, Object> createSessionGuest(@RequestBody NewBookingDTO payload) throws StripeException {
+    public Map<String, Object> createSessionGuest(@Valid @RequestBody NewBookingDTO payload) throws StripeException {
         Stripe.apiKey = stripeSecretKey;
         return createStripeSessionForBooking(payload, null);
     }

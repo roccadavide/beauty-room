@@ -19,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -40,7 +42,7 @@ public class PaymentController {
     // ========== AUTHENTICATED ==========
     @PostMapping("/create-session")
     public Map<String, Object> createCheckoutSession(
-            @RequestBody NewOrderDTO orderDTO,
+            @Valid @RequestBody NewOrderDTO orderDTO,
             @AuthenticationPrincipal User currentUser
     ) throws StripeException {
 
@@ -48,7 +50,6 @@ public class PaymentController {
 
         if (currentUser == null) throw new UnauthorizedException("Utente non autenticato.");
 
-        // Forziamo i dati cliente dal profilo, ignorando quelli del payload
         NewOrderDTO dtoForUser = new NewOrderDTO(
                 currentUser.getName(),
                 currentUser.getSurname(),
@@ -74,10 +75,9 @@ public class PaymentController {
 
     // ========== GUEST (PUBLIC) ==========
     @PostMapping("/create-session-guest")
-    public Map<String, Object> createCheckoutSessionGuest(@RequestBody NewOrderDTO orderDTO) throws StripeException {
+    public Map<String, Object> createCheckoutSessionGuest(@Valid @RequestBody NewOrderDTO orderDTO) throws StripeException {
         Stripe.apiKey = stripeSecretKey;
 
-        // Validazione minima lato server per i guest
         if (isBlank(orderDTO.customerName())
                 || isBlank(orderDTO.customerSurname())
                 || isBlank(orderDTO.customerEmail())
@@ -94,7 +94,6 @@ public class PaymentController {
         SessionCreateParams.Builder paramsBuilder = buildStripeParams(pendingOrder);
         Session session = Session.create(paramsBuilder.build());
 
-        // salva sessionId nel DB (fondamentale)
         orderService.attachStripeSession(pendingOrder.orderId(), session.getId());
 
         Map<String, Object> response = new HashMap<>();

@@ -21,6 +21,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -29,6 +31,9 @@ import java.util.List;
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecConfig {
+
+    @Value("${app.cors.origins}")
+    private List<String> corsOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JWTFilter jwtFilter, ObjectMapper om) throws Exception {
@@ -115,11 +120,7 @@ public class SecConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
-        cfg.setAllowedOriginPatterns(List.of(
-                "http://localhost:5173",
-                "https://TUO-DOMINIO-PROD.it",
-                "https://www.TUO-DOMINIO-PROD.it"
-        ));
+        cfg.setAllowedOriginPatterns(corsOrigins);
 
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
