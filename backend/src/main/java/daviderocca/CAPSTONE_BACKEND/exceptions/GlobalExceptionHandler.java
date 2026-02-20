@@ -89,7 +89,9 @@ public class GlobalExceptionHandler {
         if (raw != null) {
             String low = raw.toLowerCase();
 
-            if (low.contains("key (email)") || low.contains("(email)=")) {
+            if (low.contains("uq_booking_slot")) {
+                msg = "Questo slot è stato appena prenotato da un altro utente.";
+            } else if (low.contains("key (email)") || low.contains("(email)=")) {
                 msg = "Email già registrata.";
             } else if (low.contains("key (phone)") || low.contains("(phone)=") || low.contains("key (telefono)") ) {
                 msg = "Telefono già registrato.";
