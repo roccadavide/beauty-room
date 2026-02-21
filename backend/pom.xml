@@ -26,6 +26,7 @@
 		<opencsv.version>5.7.1</opencsv.version>
 		<unirest.version>4.5.0</unirest.version>
 		<stripe.version>31.2.0</stripe.version>
+		<flyway.version>11.7.2</flyway.version>
 	</properties>
 
 	<dependencies>
@@ -133,6 +134,13 @@
 			<artifactId>stripe-java</artifactId>
 			<version>${stripe.version}</version>
 		</dependency>
+
+		<!-- Flyway -->
+  <dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-database-postgresql</artifactId>
+    <version>${flyway.version}</version>
+  </dependency>
 	</dependencies>
 
 	<build>

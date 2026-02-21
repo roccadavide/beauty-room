@@ -9,6 +9,8 @@ import daviderocca.CAPSTONE_BACKEND.email.outbox.EmailOutboxService;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.Order;
 import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
+import daviderocca.CAPSTONE_BACKEND.entities.ProcessedStripeEvent;
+import daviderocca.CAPSTONE_BACKEND.repositories.ProcessedStripeEventRepository;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
 import daviderocca.CAPSTONE_BACKEND.services.BookingService;
@@ -38,6 +40,7 @@ public class StripeWebhookController {
     private final BookingService bookingService;
     private final PackageCreditService packageCreditService;
     private final EmailOutboxService emailOutboxService;
+    private final ProcessedStripeEventRepository processedEventRepo;
 
     @PostMapping("/webhook")
     public ResponseEntity<String> handleStripeEvent(
@@ -54,6 +57,12 @@ public class StripeWebhookController {
         }
 
         log.info("Stripe event: {}", event.getType());
+
+        if (processedEventRepo.existsById(event.getId())) {
+            log.info("Stripe event già processato, skip: {}", event.getId());
+            return ResponseEntity.ok("duplicate");
+        }
+        processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
 
         try {
             switch (event.getType()) {

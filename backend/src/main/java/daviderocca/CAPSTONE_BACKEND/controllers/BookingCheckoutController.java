@@ -37,7 +37,6 @@ public class BookingCheckoutController {
     @Value("${stripe.secret}")
     private String stripeSecretKey;
 
-    // mettiti una env/config FRONT_URL così non hardcodi localhost in prod
     @Value("${app.front.url:http://localhost:5173}")
     private String frontUrl;
 
@@ -55,7 +54,6 @@ public class BookingCheckoutController {
 
         if (currentUser == null) throw new BadRequestException("Utente non autenticato.");
 
-        // Forzo email dal profilo, ma lascio nome/telefono dal payload (se vuoi puoi forzare anche quelli)
         NewBookingDTO dto = new NewBookingDTO(
                 payload.customerName(),
                 currentUser.getEmail(),
