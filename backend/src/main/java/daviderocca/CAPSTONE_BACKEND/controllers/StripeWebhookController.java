@@ -67,6 +67,7 @@ public class StripeWebhookController {
         try {
             switch (event.getType()) {
                 case "checkout.session.completed" -> handleCheckoutCompleted(event);
+                case "checkout.session.expired" -> handleCheckoutExpired(event);
                 case "payment_intent.payment_failed" -> handlePaymentFailed(event);
                 case "charge.refunded" -> handleChargeRefunded(event);
                 default -> log.info("Evento non gestito: {}", event.getType());
@@ -80,22 +81,7 @@ public class StripeWebhookController {
     }
 
     private void handleCheckoutCompleted(Event event) {
-        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
-
-        Session session = null;
-
-        StripeObject obj = deserializer.getObject().orElse(null);
-        if (obj instanceof Session) {
-            session = (Session) obj;
-        }
-
-        if (session == null) {
-            String rawJson = deserializer.getRawJson();
-            if (rawJson != null && !rawJson.isBlank()) {
-                session = ApiResource.GSON.fromJson(rawJson, Session.class);
-            }
-        }
-
+        Session session = deserializeSession(event);
         if (session == null) {
             log.warn("checkout.session.completed senza Session (deserialization failed). eventId={} apiVersion={}",
                     event.getId(), event.getApiVersion());
@@ -217,6 +203,61 @@ public class StripeWebhookController {
         }
 
         log.warn("checkout.session.completed senza orderId/bookingId in metadata");
+    }
+
+    private void handleCheckoutExpired(Event event) {
+        Session session = deserializeSession(event);
+        if (session == null) {
+            log.warn("checkout.session.expired: impossibile deserializzare Session. eventId={}", event.getId());
+            return;
+        }
+
+        Map<String, String> metadata = session.getMetadata();
+        String orderIdStr = metadata != null ? metadata.get("orderId") : null;
+        String bookingIdStr = metadata != null ? metadata.get("bookingId") : null;
+
+        if (orderIdStr != null) {
+            UUID orderId = UUID.fromString(orderIdStr);
+            boolean canceled = orderService.cancelIfPending(orderId, "STRIPE_SESSION_EXPIRED");
+            if (canceled) {
+                log.info("Webhook expired session -> canceled order {}", orderId);
+            } else {
+                log.info("checkout.session.expired: ordine {} non più PENDING_PAYMENT, skip", orderId);
+            }
+        }
+
+        if (bookingIdStr != null) {
+            UUID bookingId = UUID.fromString(bookingIdStr);
+            Booking b = bookingService.findBookingById(bookingId);
+
+            if (b.getBookingStatus() == BookingStatus.PENDING_PAYMENT) {
+                b.setBookingStatus(BookingStatus.CANCELLED);
+                b.setCanceledAt(LocalDateTime.now());
+                b.setCancelReason("STRIPE_SESSION_EXPIRED");
+                b.setExpiresAt(null);
+                bookingService.save(b);
+                log.info("Webhook expired session -> canceled booking {}", bookingId);
+            } else {
+                log.info("checkout.session.expired: booking {} già in stato {}, skip", bookingId, b.getBookingStatus());
+            }
+        }
+
+        if (orderIdStr == null && bookingIdStr == null) {
+            log.warn("checkout.session.expired senza orderId/bookingId in metadata. sessionId={}", session.getId());
+        }
+    }
+
+    private Session deserializeSession(Event event) {
+        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
+
+        StripeObject obj = deserializer.getObject().orElse(null);
+        if (obj instanceof Session s) return s;
+
+        String rawJson = deserializer.getRawJson();
+        if (rawJson != null && !rawJson.isBlank()) {
+            return ApiResource.GSON.fromJson(rawJson, Session.class);
+        }
+        return null;
     }
 
     private void handlePaymentFailed(Event event) {

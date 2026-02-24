@@ -9,7 +9,7 @@ import { removeFromCart, updateCartQuantity } from "./slices/cart.slice";
 
 const CartPage = () => {
   const { items, totalPrice } = useSelector(state => state.cart);
-  const { token } = useSelector(state => state.auth);
+  const { token, user } = useSelector(state => state.auth);
   const [showCheckout, setShowCheckout] = useState(false);
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
@@ -20,12 +20,21 @@ const CartPage = () => {
     try {
       setLoading(true);
       const orderData = {
+        customerName: user?.name || "",
+        customerSurname: user?.surname || "",
+        customerEmail: user?.email || "",
+        customerPhone: user?.phone || "",
         pickupNote: "",
         items: items.map(i => ({
           productId: i.productId,
           quantity: i.quantity,
         })),
       };
+
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[checkout] endpoint: /checkout/create-session (auth)", { ...orderData, items: `[${orderData.items.length} items]` });
+      }
+
       const { url } = await createCheckoutSession(orderData);
       window.location.href = url;
     } catch (err) {

@@ -274,6 +274,21 @@ public class OrderService {
         log.info("Order paid: id={} email={}", orderId, customerEmail);
     }
 
+    // ---------------------------- Cancel from Stripe expired session ----------------------------
+    @Transactional
+    public boolean cancelIfPending(UUID orderId, String cancelReason) {
+        Order order = findOrderById(orderId);
+        if (order.getOrderStatus() != OrderStatus.PENDING_PAYMENT) return false;
+
+        releaseStock(order);
+        order.setOrderStatus(OrderStatus.CANCELED);
+        order.setCanceledAt(LocalDateTime.now());
+        order.setCancelReason(cancelReason);
+        order.setExpiresAt(null);
+        orderRepository.save(order);
+        return true;
+    }
+
     // ---------------------------- Expire pending (ready for scheduler) ----------------------------
     @Transactional
     public int expirePendingOrders() {

@@ -89,7 +89,9 @@ public class GlobalExceptionHandler {
         if (raw != null) {
             String low = raw.toLowerCase();
 
-            if (low.contains("uq_booking_slot")) {
+            if (low.contains("orders_order_status_check")) {
+                msg = "Stato ordine non valido: il database non accetta questo valore. Contatta il supporto.";
+            } else if (low.contains("uq_booking_slot")) {
                 msg = "Questo slot è stato appena prenotato da un altro utente.";
             } else if (low.contains("key (email)") || low.contains("(email)=")) {
                 msg = "Email già registrata.";
