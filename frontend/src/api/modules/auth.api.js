@@ -22,3 +22,12 @@ export const registerUser = async payload => {
     throw new Error(message);
   }
 };
+
+// -------------------------- LOGOUT --------------------------
+export const logoutUser = async () => {
+  try {
+    await http.post(AUTH_ENDPOINTS.LOGOUT);
+  } catch {
+    // best-effort: cookie cleared by backend, we clear client-side anyway
+  }
+};

@@ -7,6 +7,7 @@ import CartIcon from "../../features/cart/CartIcon";
 import { persistor } from "../../app/store";
 import { logout } from "../../features/auth/slices/auth.slice";
 import { clearToken } from "../../utils/token";
+import { logoutUser } from "../../api/modules/auth.api";
 
 const LINKS = [
   { to: "/prodotti", label: "Prodotti" },
@@ -128,7 +129,8 @@ export default function NavBar() {
   };
 
   // Logout
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
+    await logoutUser();
     clearToken();
     dispatch(logout());
     persistor.purge();

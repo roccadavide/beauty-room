@@ -5,7 +5,6 @@ import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
 import daviderocca.CAPSTONE_BACKEND.tools.JWTTools;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -13,19 +12,21 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuthService {
 
+    private final UserService userService;
+    private final JWTTools jwtTools;
+    private final PasswordEncoder bcrypt;
 
-        private final UserService userService;
-
-        private final JWTTools jwtTools;
-
-        private final PasswordEncoder bcrypt;
-
-        public String checkAccessAndGenerateToken(UserLoginDTO body) {
-            User found = this.userService.findUserByEmail(body.email());
-            if (bcrypt.matches(body.password(), found.getPassword())) {
-                return jwtTools.createTokenUser(found);
-            } else {
-                throw new UnauthorizedException("Password errata");
-            }
+    public User checkAccessAndGetUser(UserLoginDTO body) {
+        User found = userService.findUserByEmail(body.email());
+        if (bcrypt.matches(body.password(), found.getPassword())) {
+            return found;
+        } else {
+            throw new UnauthorizedException("Password errata");
         }
+    }
+
+    public String checkAccessAndGenerateToken(UserLoginDTO body) {
+        User found = checkAccessAndGetUser(body);
+        return jwtTools.createTokenUser(found);
+    }
 }

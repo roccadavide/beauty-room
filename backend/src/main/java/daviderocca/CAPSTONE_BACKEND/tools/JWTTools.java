@@ -1,6 +1,5 @@
 package daviderocca.CAPSTONE_BACKEND.tools;
 
-
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
 import io.jsonwebtoken.Jwts;
@@ -16,11 +15,13 @@ public class JWTTools {
     @Value("${JWT.SECRET}")
     private String secret;
 
-    public String createTokenUser(User user) {
+    @Value("${app.jwt.access-expiration-ms:900000}")
+    private long accessExpirationMs;
 
+    public String createTokenUser(User user) {
         return Jwts.builder()
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24 * 7))
+                .expiration(new Date(System.currentTimeMillis() + accessExpirationMs))
                 .subject(user.getEmail())
                 .claim("id", user.getUserId().toString())
                 .signWith(Keys.hmacShaKeyFor(secret.getBytes()))
@@ -41,6 +42,11 @@ public class JWTTools {
     }
 
     public String extractSubject(String accessToken) {
-        return Jwts.parser().verifyWith(Keys.hmacShaKeyFor(secret.getBytes())).build().parseSignedClaims(accessToken).getPayload().getSubject();
+        return Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(secret.getBytes()))
+                .build()
+                .parseSignedClaims(accessToken)
+                .getPayload()
+                .getSubject();
     }
 }
