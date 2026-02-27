@@ -29,6 +29,7 @@ const BookingModal = ({ show, onHide, service }) => {
     setSlots([]);
     setCustomer({ name: "", email: "", phone: "", notes: "" });
     setErrors({});
+    setError(null);
   };
 
   useLenisModalLock(show);
@@ -79,6 +80,8 @@ const BookingModal = ({ show, onHide, service }) => {
 
   const confirm = async () => {
     try {
+      setError(null);
+
       if (!service?.serviceId) throw new Error("Servizio non valido.");
       if (!slot?.start) throw new Error("Seleziona uno slot.");
 
@@ -101,7 +104,7 @@ const BookingModal = ({ show, onHide, service }) => {
       reset();
       window.location.href = res.url;
     } catch (err) {
-      alert(err.message);
+      setError(err.message || "Si è verificato un errore durante la prenotazione. Riprova più tardi.");
     }
   };
 
@@ -147,6 +150,12 @@ const BookingModal = ({ show, onHide, service }) => {
           overscrollBehavior: "contain",
         }}
       >
+        {error && (
+          <Alert variant="danger" className="mb-3">
+            {error}
+          </Alert>
+        )}
+
         {step === 1 && (
           <>
             <h5 className="mb-3">1/4 — Seleziona la data</h5>
