@@ -1,24 +1,21 @@
-const TOKEN_KEY = "auth_token";
+let accessToken = null;
 
-// -------------------------- SAVE --------------------------
-export const saveToken = token => {
-  if (!token) return;
-  localStorage.setItem(TOKEN_KEY, token);
+// -------------------------- IN-MEMORY ACCESS TOKEN --------------------------
+
+export const setAccessToken = token => {
+  accessToken = token || null;
 };
 
-// -------------------------- GET --------------------------
-export const getToken = () => {
-  return localStorage.getItem(TOKEN_KEY);
-};
+export const getAccessToken = () => accessToken;
 
-// -------------------------- CLEAR --------------------------
-export const clearToken = () => {
-  localStorage.removeItem(TOKEN_KEY);
+export const clearAccessToken = () => {
+  accessToken = null;
 };
 
 // -------------------------- CHECK --------------------------
+
 export const hasValidToken = () => {
-  const token = getToken();
+  const token = accessToken;
   if (!token) return false;
 
   try {
@@ -31,9 +28,10 @@ export const hasValidToken = () => {
   }
 };
 
-// -------------------------- DECODE (opzionale) --------------------------
+// -------------------------- DECODE (optional) --------------------------
+
 export const decodeToken = () => {
-  const token = getToken();
+  const token = accessToken;
   if (!token) return null;
   try {
     return JSON.parse(atob(token.split(".")[1]));

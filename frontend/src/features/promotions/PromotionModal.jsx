@@ -39,7 +39,7 @@ const initialForm = {
 };
 
 const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }) => {
-  const { token } = useSelector(s => s.auth);
+  const { accessToken } = useSelector(s => s.auth);
   const isEdit = Boolean(promotion);
 
   const [form, setForm] = useState(initialForm);
@@ -174,7 +174,7 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
     try {
       setLoading(true);
       const files = { bannerImage, cardImage };
-      const saved = isEdit ? await updatePromotion(promotion.promotionId, payload, files, token) : await createPromotion(payload, files, token);
+      const saved = isEdit ? await updatePromotion(promotion.promotionId, payload, files, accessToken) : await createPromotion(payload, files, accessToken);
       onSaved(saved);
       onHide();
     } catch (err) {

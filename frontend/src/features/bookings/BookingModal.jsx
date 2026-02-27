@@ -11,7 +11,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
 
 const BookingModal = ({ show, onHide, service }) => {
-  const { token, user } = useSelector(state => state.auth);
+  const { accessToken, user } = useSelector(state => state.auth);
 
   const [step, setStep] = useState(1);
   const [date, setDate] = useState(new Date());
@@ -95,7 +95,7 @@ const BookingModal = ({ show, onHide, service }) => {
       };
 
       // NIENTE token param: ci pensa httpClient/interceptor
-      const res = token ? await createBookingCheckoutSessionAuth(payload) : await createBookingCheckoutSessionGuest(payload);
+      const res = accessToken ? await createBookingCheckoutSessionAuth(payload) : await createBookingCheckoutSessionGuest(payload);
 
       onHide();
       reset();
@@ -107,7 +107,7 @@ const BookingModal = ({ show, onHide, service }) => {
 
   useEffect(() => {
     if (!show || step !== 3) return;
-    if (!token || !user) return;
+    if (!accessToken || !user) return;
 
     const fullName = user.name && user.surname ? `${user.name} ${user.surname}`.trim() : (user.name || user.fullName || "").trim();
 
@@ -117,7 +117,7 @@ const BookingModal = ({ show, onHide, service }) => {
       email: prev.email.trim() ? prev.email : (user.email || "").trim(),
       phone: prev.phone.trim() ? prev.phone : (user.phone || user.telefono || "").trim(),
     }));
-  }, [show, step, token, user]);
+  }, [show, step, accessToken, user]);
 
   return (
     <Modal

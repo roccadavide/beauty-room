@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
 
 const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => {
-  const { token } = useSelector(state => state.auth);
+  const { accessToken } = useSelector(state => state.auth);
 
   const isEdit = Boolean(product);
 
@@ -115,9 +115,9 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
 
       let savedProduct;
       if (isEdit) {
-        savedProduct = await updateProduct(product.productId, payload, file, token);
+        savedProduct = await updateProduct(product.productId, payload, file, accessToken);
       } else {
-        savedProduct = await createProduct(payload, file, token);
+        savedProduct = await createProduct(payload, file, accessToken);
         resetForm();
       }
 

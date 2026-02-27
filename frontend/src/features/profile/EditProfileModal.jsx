@@ -4,7 +4,7 @@ import { useSelector } from "react-redux";
 import { updateUser } from "../../api/modules/users.api";
 
 const EditProfileModal = ({ show, onHide, user, onProfileUpdated }) => {
-  const { token } = useSelector(state => state.auth);
+  const { accessToken } = useSelector(state => state.auth);
   const [form, setForm] = useState({
     name: "",
     surname: "",
@@ -65,7 +65,7 @@ const EditProfileModal = ({ show, onHide, user, onProfileUpdated }) => {
 
     try {
       setLoading(true);
-      const updated = await updateUser(form, user.id, token);
+      const updated = await updateUser(form, user.id, accessToken);
       onProfileUpdated(updated);
 
       onHide();

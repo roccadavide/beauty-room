@@ -4,7 +4,7 @@ import { fetchCurrentUser } from "../../api/modules/users.api";
 import { useDispatch } from "react-redux";
 import { loginUser } from "../../api/modules/auth.api";
 import { loginSuccess, loginStart, loginFailure } from "./slices/auth.slice";
-import { saveToken } from "../../utils/token";
+import { setAccessToken } from "../../utils/token";
 import SEO from "../../components/common/SEO";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,11 +53,11 @@ const Login = () => {
       });
 
       const token = data.accessToken;
-      saveToken(token);
+      setAccessToken(token);
 
-      const user = await fetchCurrentUser(token);
+      const user = await fetchCurrentUser();
 
-      dispatch(loginSuccess({ user, token }));
+      dispatch(loginSuccess({ user, accessToken: token }));
 
       setSuccessMessage("Accesso avvenuto con successo! Reindirizzamento alla homepage...");
 

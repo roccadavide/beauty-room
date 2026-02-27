@@ -16,7 +16,7 @@ const MyOrders = () => {
   const [deleteModal, setDeleteModal] = useState(false);
 
   const navigate = useNavigate();
-  const { token } = useSelector(state => state.auth);
+  const { accessToken } = useSelector(state => state.auth);
 
   // ---------- FETCH ORDINI UTENTE ----------
   useEffect(() => {
@@ -36,7 +36,7 @@ const MyOrders = () => {
       }
     };
 
-    if (!token) {
+    if (!accessToken) {
       setLoading(false);
       setMyOrders([]);
       return;
@@ -47,7 +47,7 @@ const MyOrders = () => {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [accessToken]);
 
   // ---------- FETCH PRODOTTI LEGATI ----------
   const requestedRef = useRef(new Set());

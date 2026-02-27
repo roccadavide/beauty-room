@@ -22,7 +22,7 @@ const ResultsPreview = () => {
   const [selectedResult, setSelectedResult] = useState(null);
   const [editingResult, setEditingResult] = useState(null);
 
-  const { user, token } = useSelector(state => state.auth);
+  const { user, accessToken } = useSelector(state => state.auth);
   const navigate = useNavigate();
 
   // ---------- FETCH ----------
@@ -54,7 +54,7 @@ const ResultsPreview = () => {
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteResult(id, token);
+      await deleteResult(id, accessToken);
       setResults(prev => prev.filter(r => r.resultId !== id));
       setDeleteModal(false);
       setSelectedResult(null);

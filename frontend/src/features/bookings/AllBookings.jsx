@@ -17,13 +17,13 @@ const AllBookings = () => {
 
   const navigate = useNavigate();
 
-  const { token } = useSelector(state => state.auth);
+  const { accessToken } = useSelector(state => state.auth);
 
   // ---------- FETCH PRENOTAZIONI ----------
   useEffect(() => {
     const loadData = async () => {
       try {
-        const res = await fetchAdminBookings(token);
+        const res = await fetchAdminBookings(accessToken);
         setAllBookings(res.content || []);
       } catch (err) {
         setError(err.message);
@@ -32,7 +32,7 @@ const AllBookings = () => {
       }
     };
     loadData();
-  }, [token]);
+  }, [accessToken]);
 
   // ---------- FETCH SERVIZIO LEGATO ----------
   const getService = async id => {
@@ -59,7 +59,7 @@ const AllBookings = () => {
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteBooking(id, token);
+      await deleteBooking(id, accessToken);
       setAllBookings(prev => prev.filter(b => b.bookingId !== id));
       setDeleteModal(false);
       setSelectedBooking(null);

@@ -20,7 +20,7 @@ function ResultsPage() {
   const [selectedResult, setSelectedResult] = useState(null);
   const [editingResult, setEditingResult] = useState(null);
 
-  const { user, token } = useSelector(state => state.auth);
+  const { user, accessToken } = useSelector(state => state.auth);
 
   const cardsRef = useRef([]);
   const [visibleMap, setVisibleMap] = useState({});
@@ -76,7 +76,7 @@ function ResultsPage() {
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteResult(id, token);
+      await deleteResult(id, accessToken);
       setAllResults(prev => prev.filter(r => r.resultId !== id));
       setDeleteModal(false);
       setSelectedResult(null);

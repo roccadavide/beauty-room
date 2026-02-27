@@ -1,5 +1,8 @@
 import axios from "axios";
-import { clearToken, getToken, saveToken } from "../utils/token";
+import { clearAccessToken, getAccessToken, setAccessToken } from "../utils/token";
+import store from "../app/store";
+import { loginSuccess, logout } from "../features/auth/slices/auth.slice";
+import { USER_ENDPOINTS } from "./endpoints";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -13,7 +16,7 @@ const http = axios.create({
 /* REQUEST INTERCEPTOR */
 http.interceptors.request.use(
   config => {
-    const token = getToken();
+    const token = getAccessToken();
     if (token) config.headers.Authorization = `Bearer ${token}`;
 
     if (config.isMultipart && config.data && !(config.data instanceof FormData)) {
@@ -53,7 +56,8 @@ http.interceptors.response.use(
       try {
         if (!refreshPromise) {
           refreshPromise = axios.post(
-            `${API_BASE}/auth/refresh`, null,
+            `${API_BASE}/auth/refresh`,
+            null,
             { withCredentials: true, timeout: 10000 }
           );
         }
@@ -62,7 +66,17 @@ http.interceptors.response.use(
 
         const newAccessToken = res.data?.accessToken;
         if (newAccessToken) {
-          saveToken(newAccessToken);
+          setAccessToken(newAccessToken);
+          try {
+            const meRes = await axios.get(`${API_BASE}${USER_ENDPOINTS.ME}`, {
+              withCredentials: true,
+              headers: { Authorization: `Bearer ${newAccessToken}` },
+              timeout: 10000,
+            });
+            store.dispatch(loginSuccess({ user: meRes.data, accessToken: newAccessToken }));
+          } catch {
+            // se /users/me fallisce, lasceremo che la prossima chiamata gestisca l'errore
+          }
           original.headers.Authorization = `Bearer ${newAccessToken}`;
           return http(original);
         }
@@ -70,13 +84,15 @@ http.interceptors.response.use(
         refreshPromise = null;
       }
 
-      clearToken();
+      clearAccessToken();
+      store.dispatch(logout());
       window.dispatchEvent(new CustomEvent("auth:unauthorized"));
       return Promise.reject(error);
     }
 
     if (status === 403) {
-      clearToken();
+      clearAccessToken();
+      store.dispatch(logout());
       window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }
 

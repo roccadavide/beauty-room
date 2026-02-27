@@ -4,7 +4,7 @@ import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
 
 const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
-  const { token } = useSelector(state => state.auth);
+  const { accessToken } = useSelector(state => state.auth);
 
   const isEdit = Boolean(result);
 
@@ -103,9 +103,9 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
 
       let savedResult;
       if (isEdit) {
-        savedResult = await updateResult(result.resultId, payload, file, token);
+        savedResult = await updateResult(result.resultId, payload, file, accessToken);
       } else {
-        savedResult = await createResult(payload, file, token);
+        savedResult = await createResult(payload, file, accessToken);
         resetForm();
       }
 

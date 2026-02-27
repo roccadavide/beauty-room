@@ -16,7 +16,7 @@ const MyBookings = () => {
   const [deleteModal, setDeleteModal] = useState(false);
 
   const navigate = useNavigate();
-  const { token, user } = useSelector(state => state.auth);
+  const { accessToken, user } = useSelector(state => state.auth);
 
   // ---------- FETCH PRENOTAZIONI UTENTE ----------
   useEffect(() => {
@@ -31,7 +31,7 @@ const MyBookings = () => {
       }
     };
     if (user?.email) loadData();
-  }, [token, user]);
+  }, [accessToken, user]);
 
   // ---------- FETCH SERVIZIO LEGATO ----------
   const getService = async id => {
@@ -57,7 +57,7 @@ const MyBookings = () => {
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteBooking(id, token);
+      await deleteBooking(id, accessToken);
       setMyBookings(prev => prev.filter(b => b.bookingId !== id));
       setDeleteModal(false);
       setSelectedBooking(null);

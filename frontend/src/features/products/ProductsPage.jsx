@@ -22,7 +22,7 @@ function ProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  const { user, token } = useSelector(state => state.auth);
+  const { user, accessToken } = useSelector(state => state.auth);
 
   const navigate = useNavigate();
 
@@ -61,7 +61,7 @@ function ProductsPage() {
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteProduct(id, token);
+      await deleteProduct(id, accessToken);
       setAllProducts(prev => prev.filter(p => p.productId !== id));
       setDeleteModal(false);
       setSelectedProduct(null);

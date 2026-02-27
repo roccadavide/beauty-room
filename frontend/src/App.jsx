@@ -37,7 +37,7 @@ import AdminAgendaPage from "./components/admin/AdminAgendaPage";
 import { useDispatch } from "react-redux";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
-import { clearToken } from "./utils/token";
+import { clearAccessToken } from "./utils/token";
 import { logoutUser } from "./api/modules/auth.api";
 import Map from "./components/layout/Map";
 import BookingConfirmation from "./features/bookings/BookingConfirmation";
@@ -99,7 +99,7 @@ function App() {
   useEffect(() => {
     const onUnauthorized = () => {
       logoutUser().catch(() => {});
-      clearToken();
+      clearAccessToken();
       dispatch(logout());
 
       setToast({

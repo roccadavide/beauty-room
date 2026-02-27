@@ -4,7 +4,7 @@ import { useSelector } from "react-redux";
 import { createService, updateService } from "../../api/modules/services.api";
 
 const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => {
-  const { token } = useSelector(state => state.auth);
+  const { accessToken } = useSelector(state => state.auth);
 
   const isEdit = Boolean(service);
 
@@ -112,9 +112,9 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
 
       let savedService;
       if (isEdit) {
-        savedService = await updateService(service.serviceId, payload, file, token);
+        savedService = await updateService(service.serviceId, payload, file, accessToken);
       } else {
-        savedService = await createService(payload, file, token);
+        savedService = await createService(payload, file, accessToken);
         resetForm();
       }
 

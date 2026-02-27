@@ -22,7 +22,7 @@ const ServicePage = () => {
   const [selectedService, setSelectedService] = useState(null);
   const [editingService, setEditingService] = useState(null);
 
-  const { user, token } = useSelector(state => state.auth);
+  const { user, accessToken } = useSelector(state => state.auth);
 
   const navigate = useNavigate();
 
@@ -61,7 +61,7 @@ const ServicePage = () => {
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteService(id, token);
+      await deleteService(id, accessToken);
       setAllServices(prev => prev.filter(s => s.serviceId !== id));
       setDeleteModal(false);
       setSelectedService(null);

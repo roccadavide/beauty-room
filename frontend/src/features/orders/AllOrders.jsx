@@ -16,13 +16,13 @@ const AllOrders = () => {
   const [deleteModal, setDeleteModal] = useState(null);
   const navigate = useNavigate();
 
-  const { token } = useSelector(state => state.auth);
+  const { accessToken } = useSelector(state => state.auth);
 
   // ---------- FETCH ORDINI ----------
   useEffect(() => {
     const loadData = async () => {
       try {
-        const orders = await fetchOrders(token);
+        const orders = await fetchOrders(accessToken);
         setAllOrders(orders.content);
       } catch (err) {
         setError(err.message);
@@ -31,7 +31,7 @@ const AllOrders = () => {
       }
     };
     loadData();
-  }, [token]);
+  }, [accessToken]);
 
   const getProduct = async id => {
     if (products[id]) return products[id];
@@ -58,7 +58,7 @@ const AllOrders = () => {
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteOrder(id, token);
+      await deleteOrder(id, accessToken);
       setAllOrders(prev => prev.filter(o => o.orderId !== id));
       setDeleteModal(false);
       setSelectedOrder(null);

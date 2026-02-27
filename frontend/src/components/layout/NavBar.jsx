@@ -6,7 +6,7 @@ import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import CartIcon from "../../features/cart/CartIcon";
 import { persistor } from "../../app/store";
 import { logout } from "../../features/auth/slices/auth.slice";
-import { clearToken } from "../../utils/token";
+import { clearAccessToken } from "../../utils/token";
 import { logoutUser } from "../../api/modules/auth.api";
 
 const LINKS = [
@@ -131,7 +131,7 @@ export default function NavBar() {
   // Logout
   const confirmLogout = async () => {
     await logoutUser();
-    clearToken();
+    clearAccessToken();
     dispatch(logout());
     persistor.purge();
     navigate("/");

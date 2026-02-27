@@ -4,7 +4,7 @@ import { useSelector } from "react-redux";
 import { patchPassword } from "../../api/modules/users.api";
 
 const ChangePasswordModal = ({ show, onHide, userId }) => {
-  const { token } = useSelector(state => state.auth);
+  const { accessToken } = useSelector(state => state.auth);
 
   const [form, setForm] = useState({
     oldPassword: "",
@@ -37,7 +37,7 @@ const ChangePasswordModal = ({ show, onHide, userId }) => {
 
     try {
       setLoading(true);
-      await patchPassword(form, userId, token);
+      await patchPassword(form, userId, accessToken);
       onHide();
       setForm({ oldPassword: "", newPassword: "", confirmNewPassword: "" });
     } catch (err) {

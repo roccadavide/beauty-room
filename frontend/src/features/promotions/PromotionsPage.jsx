@@ -26,7 +26,7 @@ const getTotalOriginalPrice = (promotion, products, services) => {
 };
 
 function PromotionsPage() {
-  const { user, token } = useSelector(state => state.auth);
+  const { user, accessToken } = useSelector(state => state.auth);
 
   const [allPromos, setAllPromos] = useState([]);
   const [q, setQ] = useState("");
@@ -107,7 +107,7 @@ function PromotionsPage() {
 
   const handleDeleteConfirm = async id => {
     try {
-      await deletePromotion(id, token);
+      await deletePromotion(id, accessToken);
       setAllPromos(prev => prev.filter(p => p.promotionId !== id));
       setDeleteModal(false);
       setSelectedPromotion(null);

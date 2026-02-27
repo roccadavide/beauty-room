@@ -9,7 +9,7 @@ import { removeFromCart, updateCartQuantity } from "./slices/cart.slice";
 
 const CartPage = () => {
   const { items, totalPrice } = useSelector(state => state.cart);
-  const { token, user } = useSelector(state => state.auth);
+  const { accessToken, user } = useSelector(state => state.auth);
   const [showCheckout, setShowCheckout] = useState(false);
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
@@ -59,7 +59,7 @@ const CartPage = () => {
 
   // ---------- LOGICA DEL PULSANTE ----------
   const handleProceed = () => {
-    if (token) handleStripeCheckoutAuth();
+    if (accessToken) handleStripeCheckoutAuth();
     else setShowCheckout(true);
   };
 
