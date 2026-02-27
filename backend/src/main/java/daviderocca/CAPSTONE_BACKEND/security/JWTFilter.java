@@ -18,12 +18,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class JWTFilter extends OncePerRequestFilter {
+
+    private static final String UNAUTHORIZED_MESSAGE = "Invalid or expired token";
 
     private final JWTTools jwtTools;
     private final UserDetailsService userDetailsService;
@@ -61,9 +62,9 @@ public class JWTFilter extends OncePerRequestFilter {
                     Instant.now(),
                     401,
                     "Unauthorized",
-                    "Invalid or expired token",
+                    UNAUTHORIZED_MESSAGE,
                     request.getRequestURI(),
-                    Map.of("cause", ex.getClass().getSimpleName())
+                    null
             );
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
