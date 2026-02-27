@@ -2,6 +2,7 @@ package daviderocca.CAPSTONE_BACKEND.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import daviderocca.CAPSTONE_BACKEND.DTO.ApiError;
+import daviderocca.CAPSTONE_BACKEND.security.ratelimit.RateLimitFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -36,7 +37,7 @@ public class SecConfig {
     private List<String> corsOrigins;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JWTFilter jwtFilter, ObjectMapper om) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JWTFilter jwtFilter, RateLimitFilter rateLimitFilter, ObjectMapper om) throws Exception {
 
         AuthenticationEntryPoint entryPoint = (request, response, authException) -> {
             ApiError body = new ApiError(
@@ -104,6 +105,7 @@ public class SecConfig {
 
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .formLogin(f -> f.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()));
