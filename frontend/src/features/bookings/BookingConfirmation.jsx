@@ -4,6 +4,10 @@ import { Container, Row, Col, Card, ListGroup, Badge, Button, Spinner, Alert, Im
 import { fetchBookingSummary } from "../../api/modules/stripe.api";
 import { fetchServiceById } from "../../api/modules/services.api";
 
+const MAX_POLL_ATTEMPTS = 90;
+const POLL_TIMEOUT_MESSAGE =
+  "La verifica sta richiedendo più tempo del previsto. Controlla lo stato della tua prenotazione nel profilo tra qualche minuto o contatta l'assistenza.";
+
 export default function BookingConfirmation() {
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
@@ -44,8 +48,21 @@ export default function BookingConfirmation() {
     let alive = true;
     let stopped = false;
     let iv = null;
+    let attempts = 0;
 
     const tick = async () => {
+      if (!alive || stopped) return;
+
+      if (attempts >= MAX_POLL_ATTEMPTS) {
+        stopped = true;
+        if (iv) clearInterval(iv);
+        setError(POLL_TIMEOUT_MESSAGE);
+        setLoading(false);
+        return;
+      }
+
+      attempts += 1;
+
       try {
         const data = await fetchBookingSummary(sessionId);
         if (!alive || stopped) return;
@@ -62,6 +79,16 @@ export default function BookingConfirmation() {
         setLoading(false);
 
         const bs = data?.booking?.bookingStatus;
+
+        const isFailed = bs === "FAILED" || data?.status === "FAILED";
+        if (isFailed) {
+          setError("Il pagamento non è andato a buon fine. Controlla lo stato della tua prenotazione nel profilo o prova a ripetere la prenotazione.");
+          setLoading(false);
+          stopped = true;
+          if (iv) clearInterval(iv);
+          return;
+        }
+
         const isPaid = data?.status === "PAID" || bs === "CONFIRMED" || bs === "COMPLETED" || Boolean(data?.booking?.paidAt);
 
         if (isPaid) {
