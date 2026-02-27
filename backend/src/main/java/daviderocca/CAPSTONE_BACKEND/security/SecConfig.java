@@ -5,6 +5,7 @@ import daviderocca.CAPSTONE_BACKEND.DTO.ApiError;
 import daviderocca.CAPSTONE_BACKEND.security.ratelimit.RateLimitFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,8 +23,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import org.springframework.beans.factory.annotation.Value;
-
 import java.time.Instant;
 import java.util.List;
 
@@ -35,6 +34,9 @@ public class SecConfig {
 
     @Value("${app.cors.origins}")
     private List<String> corsOrigins;
+
+    @Value("${app.security.hsts.enabled:false}")
+    private boolean hstsEnabled;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JWTFilter jwtFilter, RateLimitFilter rateLimitFilter, ObjectMapper om) throws Exception {
@@ -106,9 +108,18 @@ public class SecConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(jwtFilter, RateLimitFilter.class)
                 .formLogin(f -> f.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()));
+
+        if (hstsEnabled) {
+            http.headers(headers -> headers
+                    .httpStrictTransportSecurity(hsts -> hsts
+                            .includeSubDomains(true)
+                            .maxAgeInSeconds(31536000)
+                    )
+            );
+        }
 
         return http.build();
     }
