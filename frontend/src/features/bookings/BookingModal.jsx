@@ -41,7 +41,11 @@ const BookingModal = ({ show, onHide, service }) => {
           setLoadingSlots(true);
           setError(null);
 
-          const day = date.toISOString().split("T")[0];
+          if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+            throw new Error("Data non valida selezionata.");
+          }
+
+          const day = date.toLocaleDateString("sv-SE");
           const data = await fetchAvailabilities(service.serviceId, day);
 
           setSlots(data.slots || []);
@@ -85,7 +89,11 @@ const BookingModal = ({ show, onHide, service }) => {
       if (!service?.serviceId) throw new Error("Servizio non valido.");
       if (!slot?.start) throw new Error("Seleziona uno slot.");
 
-      const day = date.toISOString().split("T")[0];
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        throw new Error("Data non valida selezionata.");
+      }
+
+      const day = date.toLocaleDateString("sv-SE");
 
       const payload = {
         customerName: customer.name,
