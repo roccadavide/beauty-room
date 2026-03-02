@@ -4,6 +4,7 @@ import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.*;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.InternalServerErrorException;
+import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
 import daviderocca.CAPSTONE_BACKEND.services.AuthService;
 import daviderocca.CAPSTONE_BACKEND.services.RefreshTokenService;
@@ -71,6 +72,9 @@ public class AuthController {
             log.info("Login riuscito per {}", credentials.email());
             return ResponseEntity.ok(new LoginUserRespDTO(accessToken));
 
+        } catch (ResourceNotFoundException e) {
+            log.warn("Tentativo di login con email inesistente {}: {}", credentials.email(), e.getMessage());
+            throw new BadRequestException("Email o password non corretta.");
         } catch (BadRequestException e) {
             log.warn("Credenziali non valide per {}: {}", credentials.email(), e.getMessage());
             throw e;
