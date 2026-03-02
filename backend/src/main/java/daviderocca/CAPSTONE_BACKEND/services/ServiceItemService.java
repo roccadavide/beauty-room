@@ -38,8 +38,9 @@ public class ServiceItemService {
     @Transactional(readOnly = true)
     public Page<ServiceItemResponseDTO> findAllServiceItems(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<ServiceItem> page = serviceItemRepository.findAll(pageable);
-        return page.map(this::convertToDTO);
+        Page<ServiceItem> page = serviceItemRepository.findAllWithDetails(pageable);
+        List<ServiceItemResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
+        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -50,7 +51,9 @@ public class ServiceItemService {
 
     @Transactional(readOnly = true)
     public ServiceItemResponseDTO findServiceItemByIdAndConvert(UUID serviceItemId) {
-        return convertToDTO(findServiceItemById(serviceItemId));
+        ServiceItem serviceItem = serviceItemRepository.findByIdWithDetails(serviceItemId)
+                .orElseThrow(() -> new ResourceNotFoundException(serviceItemId));
+        return convertToDTO(serviceItem);
     }
 
     // ---------------------------- CREATE ----------------------------
@@ -92,11 +95,10 @@ public class ServiceItemService {
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-        List<String> images = found.getImages();
 
         if (image != null && !image.isEmpty()) {
-            images = uploadImageIfPresent(image);
-            found.setImages(images);
+            List<String> images = uploadImageIfPresent(image);
+            found.setImages(new java.util.LinkedHashSet<>(images));
         }
 
         found.setTitle(payload.title());
@@ -161,7 +163,7 @@ public class ServiceItemService {
                 serviceItem.getPrice(),
                 serviceItem.getShortDescription(),
                 serviceItem.getDescription(),
-                serviceItem.getImages(),
+                new java.util.ArrayList<>(serviceItem.getImages()),
                 serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryId() : null,
                 optionDTOs
         );

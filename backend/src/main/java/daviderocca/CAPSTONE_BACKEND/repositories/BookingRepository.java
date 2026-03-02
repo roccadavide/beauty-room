@@ -3,6 +3,8 @@ package daviderocca.CAPSTONE_BACKEND.repositories;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -97,7 +99,11 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     // ===== Expire HOLD =====
     List<Booking> findByBookingStatusAndExpiresAtBefore(BookingStatus status, LocalDateTime time);
 
-    @EntityGraph(attributePaths = {"service", "serviceOption"})
+    @EntityGraph(attributePaths = {"service", "serviceOption", "user"})
     @Query("select b from Booking b where b.bookingId = :id")
     Optional<Booking> findByIdWithDetails(@Param("id") UUID id);
+
+    @EntityGraph(attributePaths = {"service", "serviceOption", "user"})
+    @Query("select b from Booking b")
+    Page<Booking> findAllWithDetails(Pageable pageable);
 }

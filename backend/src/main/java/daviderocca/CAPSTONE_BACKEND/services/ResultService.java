@@ -35,8 +35,9 @@ public class ResultService {
     @Transactional(readOnly = true)
     public Page<ResultResponseDTO> findAllResults(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<Result> page = resultRepository.findAll(pageable);
-        return page.map(this::convertToDTO);
+        Page<Result> page = resultRepository.findAllWithDetails(pageable);
+        List<ResultResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
+        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -47,7 +48,9 @@ public class ResultService {
 
     @Transactional(readOnly = true)
     public ResultResponseDTO findResultByIdAndConvert(UUID resultId) {
-        return convertToDTO(findResultById(resultId));
+        Result result = resultRepository.findByIdWithDetails(resultId)
+                .orElseThrow(() -> new ResourceNotFoundException(resultId));
+        return convertToDTO(result);
     }
 
     // ---------------------------- CREATE ----------------------------
@@ -80,7 +83,8 @@ public class ResultService {
 
     @Transactional
     public ResultResponseDTO updateResult(UUID resultId, NewResultDTO payload, MultipartFile image) {
-        Result found = findResultById(resultId);
+        Result found = resultRepository.findByIdWithDetails(resultId)
+                .orElseThrow(() -> new ResourceNotFoundException(resultId));
 
         if (resultRepository.existsByTitleAndResultIdNot(payload.title(), resultId)) {
             throw new BadRequestException("Esiste già un risultato con questo titolo!");

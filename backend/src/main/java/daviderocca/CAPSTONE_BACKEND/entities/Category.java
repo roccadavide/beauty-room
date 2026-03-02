@@ -5,6 +5,8 @@ import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -30,7 +32,7 @@ public class Category {
     private String label;
 
     @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
-    private List<Promotion> promotions = new ArrayList<>();
+    private Set<Promotion> promotions = new HashSet<>();
 
     @OneToMany(mappedBy = "category", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = false)
     private List<Product> products;

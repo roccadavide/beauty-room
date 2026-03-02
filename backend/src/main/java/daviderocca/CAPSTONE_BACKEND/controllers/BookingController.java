@@ -1,8 +1,10 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.services.BookingService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +23,7 @@ public class BookingController {
 
     private final BookingService bookingService;
 
+    // ---------------------------------- AUTH GET ----------------------------------
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<BookingResponseDTO>> getMyBookings(@AuthenticationPrincipal User currentUser) {
@@ -28,6 +31,20 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.findBookingsForCurrentUser(currentUser));
     }
 
+    // ---------------------------------- ADMIN POST (agenda manual create) ----------------------------------
+    // Usato dall'agenda admin: POST /bookings
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BookingResponseDTO> createBookingFromAdmin(
+            @Valid @RequestBody NewBookingDTO payload,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        log.info("ADMIN | agenda create booking for {} ({})", payload.customerEmail(), payload.customerName());
+        BookingResponseDTO created = bookingService.createManualConfirmedBookingAsAdmin(payload, currentUser);
+        return ResponseEntity.status(201).body(created);
+    }
+
+    // ---------------------------------- AUTH DELETE (cancel) ----------------------------------
     @DeleteMapping("/{bookingId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> cancelBooking(

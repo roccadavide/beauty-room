@@ -39,7 +39,9 @@ public class OrderService {
     @Transactional(readOnly = true)
     public Page<OrderResponseDTO> findAllOrders(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort).descending());
-        return orderRepository.findAll(pageable).map(this::convertToDTO);
+        Page<Order> page = orderRepository.findAllWithDetails(pageable);
+        List<OrderResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
+        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -50,7 +52,9 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public OrderResponseDTO findOrderByIdAndConvert(UUID orderId) {
-        return convertToDTO(findOrderById(orderId));
+        Order order = orderRepository.findByIdWithItems(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException(orderId));
+        return convertToDTO(order);
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +63,8 @@ public class OrderService {
             throw new UnauthorizedException("Utente non autenticato.");
         }
 
-        Order found = findOrderById(orderId);
+        Order found = orderRepository.findByIdWithItems(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException(orderId));
 
         boolean isAdmin = isAdmin(currentUser);
         if (!isAdmin && (found.getUser() == null || !found.getUser().getUserId().equals(currentUser.getUserId()))) {
@@ -75,7 +80,7 @@ public class OrderService {
             throw new UnauthorizedException("Utente non autenticato.");
         }
 
-        return orderRepository.findByUser_UserId(currentUser.getUserId())
+        return orderRepository.findByUser_UserIdWithDetails(currentUser.getUserId())
                 .stream()
                 .map(this::convertToDTO)
                 .toList();

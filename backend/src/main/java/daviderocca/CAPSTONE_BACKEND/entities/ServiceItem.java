@@ -2,9 +2,11 @@ package daviderocca.CAPSTONE_BACKEND.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -39,29 +41,31 @@ public class ServiceItem {
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "service_images", joinColumns = @JoinColumn(name = "service_id"))
     @Column(name = "image_url")
-    private List<String> images;
+    private Set<String> images = new LinkedHashSet<>();
 
     @ManyToMany(mappedBy = "services", fetch = FetchType.LAZY)
-    private List<Promotion> promotions = new ArrayList<>();
+    private Set<Promotion> promotions = new HashSet<>();
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
     @OneToMany(mappedBy = "service", fetch = FetchType.LAZY)
-    private List<Booking> bookings = new ArrayList<>();
+    private Set<Booking> bookings = new HashSet<>();
 
     @OneToMany(mappedBy = "service", fetch = FetchType.LAZY)
-    private List<ServiceOption> options = new ArrayList<>();
+    private Set<ServiceOption> options = new HashSet<>();
 
     public ServiceItem(String title, int durationMin, BigDecimal price, String shortDescription,
-                       String description, List<String> images, Category category) {
+                       String description, java.util.Collection<String> images, Category category) {
         this.title = title;
         this.durationMin = durationMin;
         this.price = price;
         this.shortDescription = shortDescription;
         this.description = description;
-        this.images = images;
+        if (images != null) {
+            this.images = new LinkedHashSet<>(images);
+        }
         this.category = category;
     }
 }

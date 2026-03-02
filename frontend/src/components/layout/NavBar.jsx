@@ -294,6 +294,13 @@ export default function NavBar() {
                   <Link to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"} onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                     {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
                   </Link>
+                  {user.role === "ADMIN" ? (
+                    <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
+                      Agenda
+                    </NavDropdown.Item>
+                  ) : (
+                    ""
+                  )}
                   <button type="button" onClick={handleLogoutClick} className="logout-btn-mobile" tabIndex={mobileProfileExpanded ? 0 : -1}>
                     Esci
                   </button>

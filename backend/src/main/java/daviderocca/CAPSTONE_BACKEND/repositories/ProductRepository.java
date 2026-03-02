@@ -1,7 +1,12 @@
 package daviderocca.CAPSTONE_BACKEND.repositories;
 
 import daviderocca.CAPSTONE_BACKEND.entities.Product;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -14,4 +19,15 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     boolean existsByNameAndProductIdNot(String name, UUID productId);
 
+    @EntityGraph(attributePaths = {"images", "category"})
+    @Query("select p from Product p where p.productId = :id")
+    Optional<Product> findByIdWithDetails(@Param("id") UUID id);
+
+    @EntityGraph(attributePaths = {"images", "category", "orderItems"})
+    @Query("select p from Product p where p.productId = :id")
+    Optional<Product> findByIdWithDetailsAndOrderItems(@Param("id") UUID id);
+
+    @EntityGraph(attributePaths = {"images", "category"})
+    @Query("select p from Product p")
+    Page<Product> findAllWithDetails(Pageable pageable);
 }

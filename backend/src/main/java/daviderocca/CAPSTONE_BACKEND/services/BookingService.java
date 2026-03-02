@@ -42,7 +42,9 @@ public class BookingService {
     @Transactional(readOnly = true)
     public Page<BookingResponseDTO> findAllBookings(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort).descending());
-        return bookingRepository.findAll(pageable).map(this::convertToDTO);
+        Page<Booking> page = bookingRepository.findAllWithDetails(pageable);
+        List<BookingResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
+        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
 
     // ============================ CORE FIND ============================
@@ -54,7 +56,9 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public BookingResponseDTO findBookingByIdAndConvert(UUID bookingId) {
-        return convertToDTO(findBookingById(bookingId));
+        Booking booking = bookingRepository.findByIdWithDetails(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(bookingId));
+        return convertToDTO(booking);
     }
 
     @Transactional(readOnly = true)
@@ -123,7 +127,9 @@ public class BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Booking HOLD created: id={} status={} expiresAt={}", saved.getBookingId(), saved.getBookingStatus(), saved.getExpiresAt());
 
-        return convertToDTO(saved);
+        Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
+                .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
+        return convertToDTO(hydrated);
     }
 
     @Transactional
@@ -166,7 +172,9 @@ public class BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Manual booking created by admin: id={} start={} end={}", saved.getBookingId(), saved.getStartTime(), saved.getEndTime());
 
-        return convertToDTO(saved);
+        Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
+                .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
+        return convertToDTO(hydrated);
     }
 
     @Transactional

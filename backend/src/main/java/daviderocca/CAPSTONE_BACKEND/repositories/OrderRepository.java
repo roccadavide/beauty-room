@@ -2,6 +2,9 @@ package daviderocca.CAPSTONE_BACKEND.repositories;
 
 import daviderocca.CAPSTONE_BACKEND.entities.Order;
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,4 +32,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     WHERE o.orderId = :id
 """)
     Optional<Order> findByIdWithItems(@Param("id") UUID id);
+
+    @EntityGraph(attributePaths = {"orderItems", "user"})
+    @Query("select o from Order o")
+    Page<Order> findAllWithDetails(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"orderItems", "user"})
+    @Query("select o from Order o where o.user.userId = :userId")
+    List<Order> findByUser_UserIdWithDetails(@Param("userId") UUID userId);
 }

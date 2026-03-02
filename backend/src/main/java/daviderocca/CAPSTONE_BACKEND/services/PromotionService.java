@@ -38,7 +38,9 @@ public class PromotionService {
     @Transactional(readOnly = true)
     public Page<PromotionResponseDTO> findAllPromotions(int pageNumber, int pageSize, String sortBy) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, sortBy));
-        return promotionRepository.findAll(pageable).map(this::convertToDTO);
+        Page<Promotion> page = promotionRepository.findAllWithDetails(pageable);
+        List<PromotionResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
+        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -49,18 +51,20 @@ public class PromotionService {
 
     @Transactional(readOnly = true)
     public PromotionResponseDTO findByIdAndConvert(UUID promotionId) {
-        return convertToDTO(findById(promotionId));
+        Promotion promotion = promotionRepository.findByIdWithDetails(promotionId)
+                .orElseThrow(() -> new ResourceNotFoundException(promotionId));
+        return convertToDTO(promotion);
     }
 
     @Transactional(readOnly = true)
     public List<PromotionResponseDTO> findActivePromotions() {
-        List<Promotion> active = promotionRepository.findActive(LocalDate.now());
+        List<Promotion> active = promotionRepository.findActiveWithDetails(LocalDate.now());
         return active.stream().map(this::convertToDTO).toList();
     }
 
     @Transactional(readOnly = true)
     public List<PromotionResponseDTO> findByScope(PromotionScope scope) {
-        return promotionRepository.findAll().stream()
+        return promotionRepository.findAllWithDetails(Pageable.unpaged()).getContent().stream()
                 .filter(p -> p.getScope() == scope && p.isCurrentlyActive())
                 .sorted(Comparator.comparingInt(Promotion::getPriority).reversed())
                 .map(this::convertToDTO)
@@ -102,7 +106,8 @@ public class PromotionService {
                                                 MultipartFile bannerImage,
                                                 MultipartFile cardImage) {
 
-        Promotion found = findById(promotionId);
+        Promotion found = promotionRepository.findByIdWithDetails(promotionId)
+                .orElseThrow(() -> new ResourceNotFoundException(promotionId));
         validatePromotionPayload(payload);
         mapCommonFields(found, payload);
 
@@ -157,11 +162,11 @@ public class PromotionService {
         promo.getCategories().clear();
 
         if (dto.productIds() != null)
-            promo.setProducts(productRepository.findAllById(dto.productIds()));
+            promo.setProducts(new java.util.HashSet<>(productRepository.findAllById(dto.productIds())));
         if (dto.serviceIds() != null)
-            promo.setServices(serviceItemRepository.findAllById(dto.serviceIds()));
+            promo.setServices(new java.util.HashSet<>(serviceItemRepository.findAllById(dto.serviceIds())));
         if (dto.categoryIds() != null)
-            promo.setCategories(categoryRepository.findAllById(dto.categoryIds()));
+            promo.setCategories(new java.util.HashSet<>(categoryRepository.findAllById(dto.categoryIds())));
     }
 
     // ---------------------------- COMMON FIELDS ----------------------------

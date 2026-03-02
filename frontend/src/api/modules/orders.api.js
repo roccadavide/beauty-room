@@ -4,7 +4,7 @@ import { ORDER_ENDPOINTS } from "../endpoints";
 // ---------------------------------- ORDERS ----------------------------------
 
 // -------------------------- GET ALL (ADMIN) --------------------------
-export const fetchOrders = async (params = { page: 0, size: 10, sort: "customerName" }) => {
+export const fetchOrders = async (params = { page: 0, size: 10, sort: "createdAt" }) => {
   try {
     const { data } = await http.get(ORDER_ENDPOINTS.BASE, { params });
     return data;

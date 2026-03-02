@@ -22,7 +22,7 @@ const AllOrders = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const orders = await fetchOrders(accessToken);
+        const orders = await fetchOrders();
         setAllOrders(orders.content);
       } catch (err) {
         setError(err.message);
@@ -58,7 +58,7 @@ const AllOrders = () => {
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteOrder(id, accessToken);
+      await deleteOrder(id);
       setAllOrders(prev => prev.filter(o => o.orderId !== id));
       setDeleteModal(false);
       setSelectedOrder(null);
@@ -105,9 +105,11 @@ const AllOrders = () => {
                 <p className="mb-1">
                   <strong>Telefono:</strong> {order.customerPhone}
                 </p>
-                <p className="mb-1">
-                  <strong>Indirizzo:</strong> {order.shippingAddress}, {order.shippingCity} ({order.shippingZip}), {order.shippingCountry}
-                </p>
+                {order.pickupNote && (
+                  <p className="mb-1">
+                    <strong>Note ritiro:</strong> {order.pickupNote}
+                  </p>
+                )}
                 <strong>STATUS:</strong> <Badge bg="secondary">{order.orderStatus}</Badge>
               </Col>
 
@@ -136,7 +138,7 @@ const AllOrders = () => {
                           <Row className="align-items-center border rounded card-cart">
                             <Col xs={3} md={2}>
                               {product ? (
-                                <Image src={product.images} alt={product.name} fluid rounded />
+                                <Image src={product.images?.[0]} alt={product.name} fluid rounded />
                               ) : (
                                 <div className="bg-light" style={{ height: "60px" }} />
                               )}

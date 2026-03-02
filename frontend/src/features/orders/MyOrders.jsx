@@ -132,9 +132,11 @@ const MyOrders = () => {
                 <p className="mb-1">
                   <strong>Telefono:</strong> {order.customerPhone}
                 </p>
-                <p className="mb-1">
-                  <strong>Indirizzo:</strong> {order.shippingAddress}, {order.shippingCity} ({order.shippingZip}), {order.shippingCountry}
-                </p>
+                {order.pickupNote && (
+                  <p className="mb-1">
+                    <strong>Note ritiro:</strong> {order.pickupNote}
+                  </p>
+                )}
                 <strong>STATUS:</strong> <Badge bg="secondary">{order.orderStatus}</Badge>
               </Col>
 
@@ -162,7 +164,7 @@ const MyOrders = () => {
                           <Row className="align-items-center border rounded card-cart">
                             <Col xs={3} md={2}>
                               {product ? (
-                                <Image src={product.images} alt={product.name} fluid rounded />
+                                <Image src={product.images?.[0]} alt={product.name} fluid rounded />
                               ) : (
                                 <div className="bg-light" style={{ height: "60px" }} />
                               )}

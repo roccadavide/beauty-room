@@ -2,9 +2,12 @@ package daviderocca.CAPSTONE_BACKEND.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -36,7 +39,7 @@ public class Product {
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "product_images", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "image_url")
-    private List<String> images;
+    private Set<String> images = new LinkedHashSet<>();
 
     @Version
     private Long version;
@@ -45,7 +48,7 @@ public class Product {
     private int stock;
 
     @ManyToMany(mappedBy = "products", fetch = FetchType.LAZY)
-    private List<Promotion> promotions = new ArrayList<>();
+    private Set<Promotion> promotions = new HashSet<>();
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
@@ -59,7 +62,9 @@ public class Product {
         this.price = price;
         this.shortDescription = shortDescription;
         this.description = description;
-        this.images = images;
+        if (images != null) {
+            this.images = new LinkedHashSet<>(images);
+        }
         this.stock = stock;
         this.category = category;
     }

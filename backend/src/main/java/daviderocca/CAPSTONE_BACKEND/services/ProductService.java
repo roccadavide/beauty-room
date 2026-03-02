@@ -17,6 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.*;
 
 @Service
@@ -35,8 +38,9 @@ public class ProductService {
     @Transactional(readOnly = true)
     public Page<ProductResponseDTO> findAllProducts(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<Product> page = productRepository.findAll(pageable);
-        return page.map(this::convertToDTO);
+        Page<Product> page = productRepository.findAllWithDetails(pageable);
+        List<ProductResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
+        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -47,7 +51,9 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public ProductResponseDTO findProductByIdAndConvert(UUID productId) {
-        return convertToDTO(findProductById(productId));
+        Product product = productRepository.findByIdWithDetails(productId)
+                .orElseThrow(() -> new ResourceNotFoundException(productId));
+        return convertToDTO(product);
     }
 
     // ---------------------------- CREATE ----------------------------
@@ -82,18 +88,19 @@ public class ProductService {
 
     @Transactional
     public ProductResponseDTO updateProduct(UUID productId, NewProductDTO payload, MultipartFile image) {
-        Product found = findProductById(productId);
+        Product found = productRepository.findByIdWithDetails(productId)
+                .orElseThrow(() -> new ResourceNotFoundException(productId));
 
         if (productRepository.existsByNameAndProductIdNot(payload.name(), productId)) {
             throw new BadRequestException("Esiste già un prodotto con questo nome!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-        List<String> images = found.getImages();
 
         // Aggiorna immagine solo se presente nel payload
         if (image != null && !image.isEmpty()) {
-            images = uploadImageIfPresent(image);
+            List<String> images = uploadImageIfPresent(image);
+            found.setImages(new java.util.LinkedHashSet<>(images));
         }
 
         found.setName(payload.name());
@@ -102,7 +109,6 @@ public class ProductService {
         found.setDescription(payload.description());
         found.setStock(payload.stock());
         found.setCategory(relatedCategory);
-        found.setImages(images);
 
         Product updated = productRepository.save(found);
         log.info("Prodotto '{}' (ID: {}) aggiornato correttamente (categoria: {})",
@@ -115,7 +121,8 @@ public class ProductService {
 
     @Transactional
     public void deleteProduct(UUID productId) {
-        Product found = findProductById(productId);
+        Product found = productRepository.findByIdWithDetailsAndOrderItems(productId)
+                .orElseThrow(() -> new ResourceNotFoundException(productId));
 
         if (found.getOrderItems() != null && !found.getOrderItems().isEmpty()) {
             throw new BadRequestException("Non è possibile eliminare un prodotto già ordinato.");
@@ -150,7 +157,7 @@ public class ProductService {
                 product.getPrice(),
                 product.getShortDescription(),
                 product.getDescription(),
-                product.getImages(),
+                new java.util.ArrayList<>(product.getImages()),
                 product.getStock(),
                 product.getCategory() != null ? product.getCategory().getCategoryId() : null
         );
