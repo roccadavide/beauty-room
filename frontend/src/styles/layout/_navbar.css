@@ -24,6 +24,10 @@
   font-family: var(--font-text);
   border-bottom: 1px solid transparent;
   z-index: 1030;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .nav-transparent {
@@ -146,8 +150,10 @@
   align-items: center;
   justify-content: center;
   gap: clamp(2rem, 5vw, 6rem);
-  transform: translateX(-15px);
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .beauty-link {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
 import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking } from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
@@ -37,6 +37,13 @@ function StatusPill({ status }) {
 
 /** ---------- Timeline ---------- */
 function TimelineDay({ dateISO, data }) {
+  // Ref to the whole timeline area (used to measure height and auto-scroll)
+  const timelineRef = useRef(null);
+  // Ref to the "current time" horizontal line element
+  const nowLineRef = useRef(null);
+  // Prevent multiple auto-scrolls when the component re-renders for the same day
+  const hasAutoScrolledRef = useRef(false);
+
   const viewWindow = useMemo(() => {
     const fallback = { startMin: 8 * 60, endMin: 20 * 60 };
     if (!data?.openRanges?.length) return fallback;
@@ -78,6 +85,96 @@ function TimelineDay({ dateISO, data }) {
     return marks;
   }, [toPct, viewWindow.endMin, viewWindow.startMin]);
 
+  // Lightweight, DOM-based updater for the current-time indicator.
+  // It:
+  // - Only runs when the selected date is today
+  // - Positions the red line using transform based on current time vs. view window
+  // - Uses setInterval (1/min) + requestAnimationFrame to avoid triggering React re-renders
+  // - Performs a single smooth auto-scroll on first render for "today"
+  useEffect(() => {
+    const timelineEl = timelineRef.current;
+    const lineEl = nowLineRef.current;
+
+    if (!timelineEl || !lineEl || !data) {
+      return;
+    }
+
+    // Check if the current timeline day is "today" in local time
+    const todayISO = toISODate(new Date());
+    const isToday = dateISO === todayISO;
+
+    if (!isToday) {
+      // Hide the indicator entirely for non-today days
+      lineEl.style.opacity = "0";
+      hasAutoScrolledRef.current = false;
+      return;
+    }
+
+    // Function that computes the vertical position of the red line
+    const updatePosition = () => {
+      const rect = timelineEl.getBoundingClientRect();
+      const containerHeight = rect.height;
+      if (!containerHeight) return;
+
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const start = viewWindow.startMin;
+      const end = viewWindow.endMin;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+
+      // Clamp time inside the visible window so the line never leaves the container
+      const clampedMinutes = clamp(currentMinutes, start, end);
+      const totalMinutes = end - start;
+      const ratio = (clampedMinutes - start) / totalMinutes;
+
+      const y = ratio * containerHeight;
+
+      // Use transform instead of top for smoother performance and no layout shift
+      lineEl.style.opacity = "1";
+      lineEl.style.transform = `translateY(${y}px)`;
+
+      // On first successful position for today, smoothly scroll to center the line
+      if (!hasAutoScrolledRef.current) {
+        hasAutoScrolledRef.current = true;
+
+        const lineRect = lineEl.getBoundingClientRect();
+        const lineCenter = lineRect.top + lineRect.height / 2;
+        const viewportCenter = window.innerHeight / 2;
+        const delta = lineCenter - viewportCenter;
+
+        // Avoid micro-scrolls for already-centered timelines
+        if (Math.abs(delta) > 16) {
+          window.scrollBy({
+            top: delta,
+            behavior: "smooth",
+          });
+        }
+      }
+    };
+
+    let frameId;
+    const scheduleUpdate = () => {
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(updatePosition);
+    };
+
+    // Initial computation on mount
+    scheduleUpdate();
+
+    // Recompute once per minute – lightweight interval
+    const intervalId = window.setInterval(scheduleUpdate, 60 * 1000);
+
+    // Also react to viewport resizes (timeline height changes across breakpoints)
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("resize", scheduleUpdate);
+      cancelAnimationFrame(frameId);
+    };
+  }, [dateISO, data, viewWindow.endMin, viewWindow.startMin]);
+
   if (!data) {
     return (
       <Card className="ag-card">
@@ -99,7 +196,7 @@ function TimelineDay({ dateISO, data }) {
           <div className="ag-subtitle">{dateISO}</div>
         </div>
 
-        <div className="ag-timeline">
+        <div ref={timelineRef} className="ag-timeline">
           <div className="ag-timeline__labels">
             {hourMarks.map(m => (
               <div key={m.h} className="ag-hour" style={{ top: `${m.pct}%` }}>
@@ -116,6 +213,9 @@ function TimelineDay({ dateISO, data }) {
             {data.openRanges?.map((s, i) => renderBlock(s, "open", i))}
             {data.closureRanges?.map((s, i) => renderBlock(s, "closure", i))}
             {data.bookingRanges?.map((s, i) => renderBlock(s, "booking", i))}
+
+            {/* Current-time indicator: thin red horizontal line, rendered over the grid */}
+            <div ref={nowLineRef} className="ag-nowline" aria-hidden="true" />
           </div>
         </div>
 

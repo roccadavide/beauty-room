@@ -38,7 +38,8 @@ body.modal-open {
 .ag-page {
   width: 100%;
   color: var(--ag-text);
-  background: radial-gradient(900px 380px at 20% -10%, rgba(139, 94, 60, 0.1), transparent 55%),
+  background:
+    radial-gradient(900px 380px at 20% -10%, rgba(139, 94, 60, 0.1), transparent 55%),
     radial-gradient(700px 340px at 90% 0%, rgba(231, 214, 195, 0.55), transparent 60%), linear-gradient(180deg, var(--ag-bg), var(--ag-bg2));
   min-height: 100%;
 }
@@ -63,7 +64,10 @@ body.modal-open {
   border: 1px solid var(--ag-border);
   border-radius: var(--ag-radius);
   box-shadow: var(--ag-shadow);
-  transition: transform 0.1s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
 }
 .ag-card:hover {
   transform: translateY(-1px);
@@ -124,7 +128,10 @@ body.modal-open {
   border: 1px solid rgba(111, 74, 47, 0.2) !important;
   padding: 10px 12px !important;
   line-height: 1 !important;
-  transition: transform 0.08s ease, filter 0.15s ease, background 0.15s ease;
+  transition:
+    transform 0.08s ease,
+    filter 0.15s ease,
+    background 0.15s ease;
 }
 .ag-btn:active {
   transform: translateY(1px);
@@ -176,7 +183,9 @@ body.modal-open {
   color: var(--ag-text);
   display: grid;
   place-items: center;
-  transition: background 0.15s ease, transform 0.08s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.08s ease;
 }
 .ag-iconbtn:hover {
   background: rgba(231, 214, 195, 0.55);
@@ -211,7 +220,10 @@ body.modal-open {
   padding: 8px 0;
   display: grid;
   place-items: center;
-  transition: background 0.15s ease, transform 0.08s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.08s ease,
+    border-color 0.15s ease;
 }
 .ag-daychip:hover {
   background: rgba(231, 214, 195, 0.4);
@@ -297,6 +309,20 @@ body.modal-open {
 .ag-tl-booking {
   background: var(--ag-booking);
   border: 1px solid rgba(111, 74, 47, 0.22);
+}
+
+/* Current time indicator (today only) */
+.ag-nowline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #e53935;
+  box-shadow: 0 0 0 1px rgba(229, 57, 53, 0.4);
+  pointer-events: none;
+  z-index: 5;
+  transform: translateY(0);
+  will-change: transform;
 }
 
 /* Legend */
@@ -462,6 +488,216 @@ body.modal-open {
   border-radius: 999px;
   border: 1px solid rgba(111, 74, 47, 0.14);
   background: rgba(255, 255, 255, 0.7);
+}
+
+/* Booking dialog: shared drawer / bottom-sheet shell */
+.ag-dialog-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  /* Prevent accidental horizontal scroll when overlay is active */
+  overflow-x: clip;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s linear;
+}
+
+.ag-dialog-root--active {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.ag-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 9, 5, 0.4);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.3s linear;
+}
+
+.ag-dialog-root--active .ag-dialog-backdrop {
+  opacity: 1;
+}
+
+.ag-dialog-panel {
+  position: relative;
+  background: #fff;
+  color: var(--ag-text);
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  pointer-events: auto;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ag-dialog-panel--side {
+  width: 45vw;
+  min-width: 480px;
+  max-width: 800px;
+  margin-left: auto;
+  border-radius: 16px 0 0 16px;
+  box-shadow: var(--ag-shadow-hover);
+  transform: translateX(100%);
+}
+.ag-dialog-panel--side.open {
+  transform: translateX(0);
+}
+
+/* Finestra laterale più ampia su tablet (evita spazio sprecato) */
+@media (min-width: 768px) and (max-width: 1100px) {
+  .ag-dialog-panel--side {
+    width: 70vw;
+  }
+}
+
+/* Su desktop grande manteniamo circa metà schermo occupata */
+@media (min-width: 1100px) {
+  .ag-dialog-panel--side {
+    width: 65vw;
+  }
+}
+
+.ag-dialog-panel--sheet {
+  width: 100%;
+  max-height: 85vh;
+  margin-top: auto;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -10px 24px rgba(35, 26, 20, 0.18);
+  transform: translateY(100%);
+}
+.ag-dialog-panel--sheet.open {
+  transform: translateY(0);
+}
+
+.ag-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+}
+
+.ag-dialog__body {
+  padding: 18px 22px 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.ag-dialog__body .form-group,
+.ag-dialog__body .mb-2 {
+  position: relative;
+}
+
+.ag-dialog__body select.form-select {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Assicura che eventuali dropdown bootstrap restino ancorati sotto l'input */
+.ag-dialog__body .dropdown-menu {
+  top: 100% !important;
+  bottom: auto !important;
+  left: 0 !important;
+  right: auto !important;
+  transform: none !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Evita che il menu venga tagliato da overflow nascosti */
+.ag-dialog__body .form-group,
+.ag-dialog__body .mb-2,
+.ag-section {
+  overflow: visible;
+}
+
+/* ── Custom Select ─────────────────────────────────────────── */
+.ag-custom-select__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+}
+.ag-custom-select__placeholder {
+  color: rgba(35, 26, 20, 0.45);
+}
+.ag-custom-select__arrow {
+  font-size: 0.8rem;
+  color: var(--ag-muted);
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.ag-custom-select__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 9999; /* sopra tutto, anche il panel */
+  background: #fff;
+  border: 1px solid rgba(111, 74, 47, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(35, 26, 20, 0.12);
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.ag-custom-select__option {
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--ag-text);
+  transition: background 0.1s ease;
+}
+.ag-custom-select__option:hover {
+  background: rgba(231, 214, 195, 0.55);
+}
+.ag-custom-select__option.is-selected {
+  background: rgba(139, 94, 60, 0.14);
+  font-weight: 700;
+}
+
+.ag-dialog__footer {
+  padding: 10px 18px 16px;
+  border-top: 1px solid rgba(111, 74, 47, 0.12);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ag-dialog-close {
+  border: none;
+  background: transparent;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.ag-dialog-handle {
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  margin: 8px auto 4px;
+}
+
+@media (min-width: 768px) {
+  .ag-dialog-handle {
+    display: none;
+  }
 }
 
 /* Slot */
