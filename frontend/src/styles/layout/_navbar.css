@@ -44,7 +44,9 @@
   height: 104px;
   transform: translate(-25px, -15px);
   object-fit: contain;
-  transition: height 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition:
+    height 0.4s cubic-bezier(0.25, 0.1, 0.25, 1),
+    transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 .nav-scrolled .brand-logo img {
@@ -57,7 +59,9 @@
     height: 105px;
     transform: translate(-24px, -2px);
     object-fit: contain;
-    transition: height 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+    transition:
+      height 0.4s cubic-bezier(0.25, 0.1, 0.25, 1),
+      transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
   }
 
   .nav-scrolled .brand-logo img {
@@ -84,7 +88,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  width: 30px;
+  width: 33px;
   height: 24px;
   position: relative;
   z-index: 1055;
@@ -103,10 +107,10 @@
   top: 0px;
 }
 .beauty-toggler span:nth-child(2) {
-  top: 10px;
+  top: 12px;
 }
 .beauty-toggler span:nth-child(3) {
-  top: 20px;
+  top: 23px;
 }
 
 .beauty-toggler.open span {
@@ -611,6 +615,12 @@
   border-radius: 50%;
   background-color: rgba(212, 175, 55, 0.2);
   animation: pulseSkeleton 1.5s infinite ease-in-out;
+}
+
+@media (max-width: 768px) {
+  .nav-scrolled .brand-logo img {
+    transform: translate(-29px, -15px);
+  }
 }
 
 @keyframes pulseSkeleton {

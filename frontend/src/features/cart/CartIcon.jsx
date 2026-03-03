@@ -23,7 +23,7 @@ const CartIcon = () => {
 
   return (
     <div className={btnClasses}>
-      <BagHeartFill className="cart-icon-svg" size={30} />
+      <BagHeartFill className="cart-icon-svg" size={40} />
       {totalQuantity > 0 && (
         <Badge pill className="cart-badge-luxury">
           {totalQuantity}

@@ -146,7 +146,7 @@ export default function NavBar() {
             <img src="/logo.png" alt="Beauty Room" width="150" height="104" fetchPriority="high" decoding="sync" />
           </Navbar.Brand>
 
-          <div className="toggler-cart-box d-lg-none ms-auto d-flex align-items-center gap-3">
+          <div className="toggler-cart-box d-lg-none ms-auto d-flex align-items-center gap-4">
             <Link to="/carrello" className="mobile-cart-icon-sm" aria-label="Carrello">
               <CartIcon />
             </Link>
@@ -184,7 +184,7 @@ export default function NavBar() {
 
             <NavDropdown
               align="end"
-              title={isLoading ? <div className="user-skeleton-loader"></div> : <PersonCircle size={30} />}
+              title={isLoading ? <div className="user-skeleton-loader"></div> : <PersonCircle size={34} />}
               className="beauty-dropdown"
               aria-haspopup="menu"
               aria-label="Menu utente"
@@ -285,7 +285,7 @@ export default function NavBar() {
                 </div>
 
                 <div className={`user-submenu ${mobileProfileExpanded ? "expanded" : ""}`}>
-                  <Link to="/mioprofilo" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                  <Link to="/profilo" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                     Il mio profilo
                   </Link>
                   <Link to={user.role === "ADMIN" ? "/prenotazioni/tutte" : "/prenotazioni"} onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
