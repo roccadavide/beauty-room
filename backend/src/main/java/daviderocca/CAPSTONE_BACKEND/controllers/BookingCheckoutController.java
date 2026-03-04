@@ -61,7 +61,8 @@ public class BookingCheckoutController {
                 payload.startTime(),
                 payload.notes(),
                 payload.serviceId(),
-                payload.serviceOptionId()
+                payload.serviceOptionId(),
+                null  // packageCreditId non applicabile nel flow Stripe
         );
 
         return createStripeSessionForBooking(dto, currentUser);

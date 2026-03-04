@@ -106,4 +106,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     @EntityGraph(attributePaths = {"service", "serviceOption", "user"})
     @Query("select b from Booking b")
     Page<Booking> findAllWithDetails(Pageable pageable);
+
+    // ===== Lock singolo booking per update di stato =====
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Booking b WHERE b.bookingId = :id")
+    Optional<Booking> findByIdForUpdate(@Param("id") UUID id);
 }

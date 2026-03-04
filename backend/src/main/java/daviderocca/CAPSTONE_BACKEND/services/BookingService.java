@@ -4,6 +4,7 @@ import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.AdminBookingCardDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
+import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceOption;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
@@ -33,6 +34,7 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final ServiceItemService serviceItemService;
     private final ServiceOptionRepository serviceOptionRepository;
+    private final PackageCreditService packageCreditService;
 
     private static final int HOLD_EXPIRE_MINUTES = 12;
 
@@ -164,13 +166,22 @@ public class BookingService {
                 null
         );
 
+        // collegamento pacchetto (opzionale)
+        if (payload.packageCreditId() != null) {
+            PackageCredit pc = packageCreditService.findById(payload.packageCreditId());
+            booking.setPackageCredit(pc);
+            packageCreditService.validateBookingWithPackage(booking);
+        }
+
         booking.setBookingStatus(BookingStatus.CONFIRMED);   // manuale = confermata
         booking.setPaidAt(null);                             // no Stripe
         booking.setStripeSessionId(null);
         booking.setExpiresAt(null);
 
         Booking saved = bookingRepository.save(booking);
-        log.info("Manual booking created by admin: id={} start={} end={}", saved.getBookingId(), saved.getStartTime(), saved.getEndTime());
+        log.info("Manual booking created by admin: id={} start={} end={} packageCredit={}",
+                saved.getBookingId(), saved.getStartTime(), saved.getEndTime(),
+                saved.getPackageCredit() != null ? saved.getPackageCredit().getPackageCreditId() : "none");
 
         Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
                 .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
@@ -352,22 +363,39 @@ public class BookingService {
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può aggiornare lo stato della prenotazione.");
         if (newStatus == null) throw new BadRequestException("Status non valido.");
 
-        Booking found = findBookingById(bookingId);
+        Booking found = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(bookingId));
         BookingStatus old = found.getBookingStatus();
 
-        if (old == newStatus) throw new BadRequestException("La prenotazione è già nello stato richiesto.");
+        // Idempotenza: nessuna azione se lo stato è già quello richiesto
+        if (old == newStatus) {
+            log.info("Booking status update no-op (idempotente): id={} status={}", bookingId, newStatus);
+            return convertToDTO(found);
+        }
         if (old == BookingStatus.CANCELLED) throw new BadRequestException("Prenotazione CANCELLED: non modificabile.");
 
         if (newStatus == BookingStatus.COMPLETED) {
             found.setCompletedAt(LocalDateTime.now());
         }
-        if (newStatus == BookingStatus.NO_SHOW) {
+
+        // --- gestione pacchetto: scalatura/rollback seduta ---
+        boolean wasCompleted  = (old == BookingStatus.COMPLETED);
+        boolean willBeCompleted = (newStatus == BookingStatus.COMPLETED);
+
+        if (!wasCompleted && willBeCompleted) {
+            // transizione verso COMPLETED → scala una seduta
+            packageCreditService.consumeSessionForBooking(found);
+        } else if (wasCompleted && !willBeCompleted) {
+            // rollback da COMPLETED → ripristina la seduta
+            packageCreditService.restoreSessionForBooking(found);
         }
 
         found.setBookingStatus(newStatus);
         Booking updated = bookingRepository.save(found);
 
-        log.info("Booking status updated: id={} {} -> {}", updated.getBookingId(), old, newStatus);
+        log.info("Booking status updated: id={} {} -> {} packageCredit={}",
+                updated.getBookingId(), old, newStatus,
+                updated.getPackageCredit() != null ? updated.getPackageCredit().getPackageCreditId() : "none");
         return convertToDTO(updated);
     }
 

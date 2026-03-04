@@ -28,5 +28,8 @@ public record NewBookingDTO(
         @NotNull(message = "ID del servizio obbligatorio")
         UUID serviceId,
 
-        UUID serviceOptionId
+        UUID serviceOptionId,
+
+        /** Opzionale: se presente la prenotazione viene collegata al pacchetto. */
+        UUID packageCreditId
 ) {}

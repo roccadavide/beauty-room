@@ -45,6 +45,10 @@ public class PackageCredit {
     @Column(name="purchased_at", nullable=false, updatable=false)
     private LocalDateTime purchasedAt;
 
+    /** purchasedAt + 24 mesi — impostato automaticamente in @PrePersist */
+    @Column(name="expiry_date", nullable=false)
+    private LocalDateTime expiryDate;
+
     @Column(name="stripe_session_id", length=120)
     private String stripeSessionId;
 
@@ -52,8 +56,8 @@ public class PackageCredit {
     @JoinColumn(name="service_id", nullable=false)
     private ServiceItem service;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name="service_option_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name="service_option_id", nullable=false)
     private ServiceOption serviceOption;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -63,5 +67,6 @@ public class PackageCredit {
     @PrePersist
     protected void onCreate() {
         this.purchasedAt = LocalDateTime.now();
+        this.expiryDate  = this.purchasedAt.plusMonths(24);
     }
 }
