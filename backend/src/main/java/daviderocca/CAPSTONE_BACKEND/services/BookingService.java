@@ -474,6 +474,8 @@ public class BookingService {
     }
 
     private AdminBookingCardDTO toAdminCard(Booking b) {
+        var pkg = b.getPackageCredit();
+
         return new AdminBookingCardDTO(
                 b.getBookingId(),
                 b.getStartTime(),
@@ -486,7 +488,11 @@ public class BookingService {
                 b.getService() != null ? b.getService().getServiceId() : null,
                 b.getServiceOption() != null ? b.getServiceOption().getName() : null,
                 b.getServiceOption() != null ? b.getServiceOption().getOptionId() : null,
-                b.getNotes()
+                b.getNotes(),
+                pkg != null ? pkg.getPackageCreditId() : null,
+                pkg != null ? pkg.getSessionsRemaining() : null,
+                pkg != null ? pkg.getSessionsTotal() : null,
+                pkg != null ? pkg.getStatus() : null
         );
     }
 

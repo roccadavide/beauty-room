@@ -687,6 +687,34 @@ export default function AdminAgendaPage() {
                         <span className="ag-service">{b.serviceTitle || "—"}</span>
                         {b.optionName ? <span className="ag-option"> · {b.optionName}</span> : null}
                         {b.notes ? <span className="ag-notes"> · {b.notes}</span> : null}
+                        {b.packageCreditId && (() => {
+                          const remaining = Number.isFinite(b.sessionsRemaining) ? b.sessionsRemaining : null;
+                          const total = Number.isFinite(b.sessionsTotal) ? b.sessionsTotal : null;
+                          const status = b.packageStatus || "ACTIVE";
+
+                          let variant = "active";
+                          let title = "";
+
+                          if (status === "EXPIRED") {
+                            variant = "expired";
+                          } else if (remaining === 0) {
+                            variant = "done";
+                          } else if (remaining === 1) {
+                            variant = "last";
+                            title = "Ultima seduta!";
+                          } else if (remaining > 1) {
+                            variant = "active";
+                          }
+
+                          return (
+                            <span
+                              className={`ag-pkg-indicator ag-pkg-indicator--${variant}`}
+                              title={title}
+                            >
+                              📦 {remaining ?? "?"}/{total ?? "?"}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
 
