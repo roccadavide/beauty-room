@@ -46,6 +46,15 @@ public interface PackageCreditRepository extends JpaRepository<PackageCredit, UU
             LocalDateTime cutoff
     );
 
+    /**
+     * Returns all active packages for a customer email.
+     * Used by CustomerService.getSummary to populate the packages panel.
+     */
+    List<PackageCredit> findByCustomerEmailAndStatus(
+            String customerEmail,
+            PackageCreditStatus status
+    );
+
     // ---- lookup stripe (idempotenza webhook) ----
     Optional<PackageCredit> findByStripeSessionId(String stripeSessionId);
 }

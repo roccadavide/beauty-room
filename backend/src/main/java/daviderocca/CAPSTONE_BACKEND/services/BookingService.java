@@ -4,6 +4,7 @@ import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.AdminBookingCardDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
+import daviderocca.CAPSTONE_BACKEND.entities.Customer;
 import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceOption;
@@ -35,6 +36,7 @@ public class BookingService {
     private final ServiceItemService serviceItemService;
     private final ServiceOptionRepository serviceOptionRepository;
     private final PackageCreditService packageCreditService;
+    private final CustomerService customerService;
 
     private static final int HOLD_EXPIRE_MINUTES = 12;
 
@@ -177,6 +179,19 @@ public class BookingService {
         booking.setPaidAt(null);                             // no Stripe
         booking.setStripeSessionId(null);
         booking.setExpiresAt(null);
+
+        // ── Link booking to customer registry (best-effort, never blocks booking creation) ──
+        try {
+            Customer customer = customerService.findOrCreate(
+                    booking.getCustomerName(),
+                    booking.getCustomerPhone(),
+                    booking.getCustomerEmail(),
+                    payload.notes()
+            );
+            booking.setCustomer(customer);
+        } catch (Exception e) {
+            log.warn("Could not upsert customer for booking, proceeding without link: {}", e.getMessage());
+        }
 
         Booking saved = bookingRepository.save(booking);
         log.info("Manual booking created by admin: id={} start={} end={} packageCredit={}",

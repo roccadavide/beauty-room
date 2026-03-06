@@ -1,6 +1,7 @@
 package daviderocca.CAPSTONE_BACKEND.entities;
 
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
+import daviderocca.CAPSTONE_BACKEND.entities.Customer;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -92,8 +93,19 @@ public class Booking {
     private ServiceOption serviceOption;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name="package_credit_id", unique = true)
+    @JoinColumn(name="package_credit_id")
     private PackageCredit packageCredit;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")   
+    private Customer customer;
+
+    // NOTE: Lombok should generate this via @Getter, but we keep an explicit getter
+    // because tests and services rely on it and we want to avoid any Lombok edge-cases
+    // with JPA proxy types across toolchains.
+    public Customer getCustomer() {
+        return customer;
+    }
 
     public Booking(String customerName, String customerEmail, String customerPhone,
                    LocalDateTime startTime, LocalDateTime endTime, String notes,

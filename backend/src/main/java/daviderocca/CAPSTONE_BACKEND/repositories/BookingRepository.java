@@ -107,6 +107,12 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     @Query("select b from Booking b")
     Page<Booking> findAllWithDetails(Pageable pageable);
 
+    /**
+     * Returns the 5 most recent bookings for a given customer email.
+     * Used by CustomerService.getSummary to populate the history panel.
+     */
+    List<Booking> findTop5ByCustomerEmailOrderByStartTimeDesc(String customerEmail);
+
     // ===== Lock singolo booking per update di stato =====
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Booking b WHERE b.bookingId = :id")
