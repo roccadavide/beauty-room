@@ -227,6 +227,7 @@ export default function AdminAgendaPage() {
   const [servicesErr, setServicesErr] = useState("");
 
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState(() => new Set());
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create"); // create | edit
@@ -291,13 +292,41 @@ export default function AdminAgendaPage() {
   }, [refresh]);
 
   const filtered = useMemo(() => {
+    let result = bookings;
+
     const needle = q.trim().toLowerCase();
-    if (!needle) return bookings;
-    return bookings.filter(b => {
-      const hay = [b.customerName, b.customerPhone, b.customerEmail, b.serviceTitle, b.optionName, b.status].filter(Boolean).join(" ").toLowerCase();
-      return hay.includes(needle);
+    if (needle) {
+      result = result.filter(b => {
+        const hay = [b.customerName, b.customerPhone, b.customerEmail, b.serviceTitle, b.optionName, b.status].filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(needle);
+      });
+    }
+
+    if (statusFilter.size > 0) {
+      result = result.filter(b => {
+        const s = b.status;
+        if (statusFilter.has("PENDING") && (s === "PENDING" || s === "PENDING_PAYMENT")) return true;
+        if (statusFilter.has("CONFIRMED") && s === "CONFIRMED") return true;
+        if (statusFilter.has("COMPLETED") && s === "COMPLETED") return true;
+        if (statusFilter.has("CANCELLED") && s === "CANCELLED") return true;
+        return false;
+      });
+    }
+
+    return result;
+  }, [bookings, q, statusFilter]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+    bookings.forEach(b => {
+      const s = b.status;
+      if (s === "PENDING" || s === "PENDING_PAYMENT") counts.pending += 1;
+      else if (s === "CONFIRMED") counts.confirmed += 1;
+      else if (s === "COMPLETED") counts.completed += 1;
+      else if (s === "CANCELLED") counts.cancelled += 1;
     });
-  }, [bookings, q]);
+    return counts;
+  }, [bookings]);
 
   const kpi = useMemo(() => {
     const active = bookings.filter(b => b.status !== "CANCELLED");
@@ -322,6 +351,10 @@ export default function AdminAgendaPage() {
 
     return { count, bookedMin, openMin, occ, revenue, revenueKnown };
   }, [bookings, timeline, services]);
+
+  useEffect(() => {
+    setStatusFilter(new Set());
+  }, [dateISO]);
 
   const openCreate = () => {
     setModalMode("create");
@@ -397,6 +430,21 @@ export default function AdminAgendaPage() {
     setSelected({ startTime });
     setModalOpen(true);
   };
+
+  const toggleStatus = key => {
+    setStatusFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const clearStatusFilters = () => {
+    setStatusFilter(new Set());
+  };
+
+  const hasStatusFilter = statusFilter.size > 0;
 
   return (
     <Container fluid className="ag-page py-3">
@@ -492,6 +540,18 @@ export default function AdminAgendaPage() {
                   <div className="ag-kpi__label">Incasso stimato</div>
                   <div className="ag-kpi__value">{kpi.revenueKnown ? `€${kpi.revenue.toFixed(0)}` : "—"}</div>
                 </div>
+                <div className="ag-kpi__item">
+                  <div className="ag-kpi__label">Giornata</div>
+                  <div className="ag-kpi__value">
+                    {kpi.openMin
+                      ? kpi.occ >= 85
+                        ? <span className="ag-day-full">Piena 🔴</span>
+                        : kpi.occ >= 60
+                          ? <span className="ag-day-busy">Intensa 🟡</span>
+                          : <span className="ag-day-free">Libera 🟢</span>
+                      : "—"}
+                  </div>
+                </div>
               </div>
 
               {servicesErr && (
@@ -524,7 +584,9 @@ export default function AdminAgendaPage() {
                 <div>
                   <div className="ag-title">Appuntamenti</div>
                   <div className="ag-subtitle">
-                    {viewMode === "day" ? `${dateISO} · ${filtered.length} risultati` : "Vista settimana"}
+                    {viewMode === "day"
+                      ? `${dateISO} · ${filtered.length}${hasStatusFilter ? ` di ${bookings.length}` : ""} risultati`
+                      : "Vista settimana"}
                   </div>
                 </div>
 
@@ -537,6 +599,55 @@ export default function AdminAgendaPage() {
                   </div>
                 )}
               </div>
+
+              {viewMode === "day" && (
+                <div className="ag-filters">
+                  <button
+                    type="button"
+                    className={`ag-filter-pill pill--all ${!hasStatusFilter ? "is-active" : ""}`}
+                    onClick={clearStatusFilters}
+                  >
+                    <span>Tutti</span>
+                    <span className="ag-filter-count">{bookings.length}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`ag-filter-pill pill--pending ${statusFilter.has("PENDING") ? "is-active" : ""}`}
+                    onClick={() => toggleStatus("PENDING")}
+                  >
+                    <span>In attesa</span>
+                    <span className="ag-filter-count">{statusCounts.pending}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`ag-filter-pill pill--confirmed ${statusFilter.has("CONFIRMED") ? "is-active" : ""}`}
+                    onClick={() => toggleStatus("CONFIRMED")}
+                  >
+                    <span>Confermati</span>
+                    <span className="ag-filter-count">{statusCounts.confirmed}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`ag-filter-pill pill--completed ${statusFilter.has("COMPLETED") ? "is-active" : ""}`}
+                    onClick={() => toggleStatus("COMPLETED")}
+                  >
+                    <span>Completati</span>
+                    <span className="ag-filter-count">{statusCounts.completed}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`ag-filter-pill pill--cancelled ${statusFilter.has("CANCELLED") ? "is-active" : ""}`}
+                    onClick={() => toggleStatus("CANCELLED")}
+                  >
+                    <span>Cancellati</span>
+                    <span className="ag-filter-count">{statusCounts.cancelled}</span>
+                  </button>
+                </div>
+              )}
 
               {viewMode === "week" ? (
                 <WeeklyCalendar

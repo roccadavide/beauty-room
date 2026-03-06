@@ -872,6 +872,84 @@ body.modal-open {
   margin-left: 2px;
 }
 
+/* ── Filter pills ── */
+.ag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.ag-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  border: 1px solid rgba(35, 26, 20, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ag-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.ag-filter-pill:hover {
+  border-color: rgba(111, 74, 47, 0.3);
+  color: var(--ag-text);
+}
+
+.ag-filter-pill.is-active {
+  border-color: transparent;
+  color: var(--ag-text);
+}
+
+/* active color per status */
+.ag-filter-pill.is-active.pill--pending {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+.ag-filter-pill.is-active.pill--confirmed {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+.ag-filter-pill.is-active.pill--completed {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+.ag-filter-pill.is-active.pill--cancelled {
+  background: rgba(107, 114, 128, 0.2);
+  border-color: rgba(107, 114, 128, 0.4);
+}
+.ag-filter-pill.is-active.pill--all {
+  background: rgba(231, 214, 195, 0.5);
+  border-color: rgba(111, 74, 47, 0.3);
+}
+
+.ag-filter-count {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Day full indicator ── */
+.ag-day-full {
+  color: #f87171;
+  font-weight: 700;
+}
+.ag-day-busy {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.ag-day-free {
+  color: #4ade80;
+  font-weight: 700;
+}
+
 /* ── View toggle ── */
 .ag-view-toggle {
   display: flex;
