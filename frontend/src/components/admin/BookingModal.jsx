@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Col, Form, Row, Spinner } from "react-bootstrap";
 import { getAvailSlotsForServiceDay } from "../../api/modules/adminAgenda.api";
+import { getCustomerSummary } from "../../api/modules/customer.api";
 import CustomSelect from "./CustomSelect";
+import CustomerAutocomplete from "./CustomerAutocomplete";
 
+// ── helpers ───────────────────────────────────────────────────────────────────
 const pad2 = n => String(n).padStart(2, "0");
 
 const normalizeDateTimeLocal = v => {
@@ -11,63 +14,91 @@ const normalizeDateTimeLocal = v => {
   return v;
 };
 
+const WALKIN_MARKER = "@beautyroom.local";
+const isWalkInEmail = email => !email || email.includes(WALKIN_MARKER);
+
+/** Tiny inline status pill reused inside the customer history panel. */
+const PILL_META = {
+  PENDING: { label: "In attesa", tone: "pending" },
+  PENDING_PAYMENT: { label: "Attesa pagamento", tone: "pending" },
+  CONFIRMED: { label: "Confermato", tone: "confirmed" },
+  COMPLETED: { label: "Completato", tone: "completed" },
+  CANCELLED: { label: "Cancellato", tone: "cancelled" },
+};
+function MiniPill({ status }) {
+  const m = PILL_META[status] || { label: status, tone: "neutral" };
+  return (
+    <span className={`ag-pill ag-pill--${m.tone}`} style={{ fontSize: ".68rem", padding: "1px 6px", lineHeight: 1.5 }}>
+      {m.label}
+    </span>
+  );
+}
+
+// ── default form shape ────────────────────────────────────────────────────────
+const EMPTY_FORM = {
+  customerName: "",
+  customerEmail: "",
+  customerPhone: "",
+  startTime: "",
+  notes: "",
+  serviceId: "",
+  serviceOptionId: null,
+  /**
+   * customerId is FRONTEND-ONLY state.
+   * It is NOT sent in the booking payload.
+   * It is only used to fetch the customer summary panel.
+   * The backend resolves / creates the customer via findOrCreate(name, phone, email).
+   */
+  customerId: null,
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
 export default function BookingModal({ show, onHide, mode = "create", initial, services, onSubmit }) {
   const isEdit = mode === "edit";
 
-  const [form, setForm] = useState({
-    customerName: "",
-    customerEmail: "",
-    customerPhone: "",
-    startTime: "",
-    notes: "",
-    serviceId: "",
-    serviceOptionId: null,
-  });
-
+  const [form, setForm] = useState(EMPTY_FORM);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
-
   const [walkIn, setWalkIn] = useState(true);
 
+  // customer summary panel
+  const [customerDetail, setCustomerDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailErr, setDetailErr] = useState("");
+
+  // availability slots
   const [availLoading, setAvailLoading] = useState(false);
   const [availErr, setAvailErr] = useState("");
   const [slots, setSlots] = useState([]);
 
-  // Track whether we are on a "desktop-like" viewport to decide
-  // between right-side drawer (>= 768px) and bottom sheet (< 768px)
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return window.innerWidth >= 768;
-  });
+  const [isDesktop, setIsDesktop] = useState(() => (typeof window !== "undefined" ? window.innerWidth >= 768 : true));
 
-  // Root dialog panel ref, used for focus trapping and swipe handling
   const panelRef = useRef(null);
-
-  // ── Gestione visibilità con animazione in/out ──────────────
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelActive, setPanelActive] = useState(false);
 
+  // ── Panel animation ──────────────────────────────────────────────────────
   useEffect(() => {
     if (show) {
       setPanelVisible(true);
-      // doppio rAF: il browser fa un paint "a riposo" prima di aggiungere le classi
       const id = requestAnimationFrame(() => requestAnimationFrame(() => setPanelActive(true)));
       return () => cancelAnimationFrame(id);
     } else {
       setPanelActive(false);
-      // aspetta la durata della transizione (300ms) prima di smontare
       const t = setTimeout(() => setPanelVisible(false), 320);
       return () => clearTimeout(t);
     }
   }, [show]);
 
+  // ── Reset form on open / initial change ─────────────────────────────────
   useEffect(() => {
     if (!show) return;
-
     setSubmitted(false);
     setErrors({});
     setAvailErr("");
     setSlots([]);
+    setCustomerDetail(null);
+    setDetailErr("");
 
     if (initial) {
       setForm({
@@ -78,38 +109,57 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
         notes: initial.notes ?? "",
         serviceId: initial.serviceId ?? "",
         serviceOptionId: initial.serviceOptionId ?? initial.optionId ?? null,
+        customerId: null, // pre-feature bookings have no registry link yet
       });
-      setWalkIn(false);
+      setWalkIn(initial.customerName || initial.bookingId ? false : true);
     } else {
-      setForm({
-        customerName: "",
-        customerEmail: "",
-        customerPhone: "",
-        startTime: "",
-        notes: "",
-        serviceId: "",
-        serviceOptionId: null,
-      });
+      setForm({ ...EMPTY_FORM });
       setWalkIn(true);
     }
   }, [show, initial]);
 
-  // Keep layout responsive: update breakpoint flag while dialog is open
+  // ── Fetch customer detail when customerId is set ─────────────────────────
+  useEffect(() => {
+    if (!form.customerId) {
+      setCustomerDetail(null);
+      setDetailErr("");
+      return;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    setDetailErr("");
+
+    getCustomerSummary(form.customerId)
+      .then(d => {
+        if (!cancelled) setCustomerDetail(d);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailErr("Impossibile caricare lo storico del cliente.");
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.customerId]);
+
+  // ── Responsive breakpoint ────────────────────────────────────────────────
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(min-width: 768px)");
-
-    const handleChange = e => setIsDesktop(e.matches);
+    const h = e => setIsDesktop(e.matches);
     setIsDesktop(mq.matches);
-
-    mq.addEventListener("change", handleChange);
-    return () => mq.removeEventListener("change", handleChange);
+    mq.addEventListener("change", h);
+    return () => mq.removeEventListener("change", h);
   }, []);
 
+  // ── Derived state ────────────────────────────────────────────────────────
   const selectedService = useMemo(() => services?.find(s => String(s.serviceId) === String(form.serviceId)), [services, form.serviceId]);
 
   const serviceOptions = useMemo(() => {
-    const raw = selectedService?.options || selectedService?.serviceOptions || selectedService?.serviceOptionList;
+    const raw = selectedService?.options ?? selectedService?.serviceOptions ?? selectedService?.serviceOptionList;
     if (!Array.isArray(raw)) return [];
     return raw.filter(o => o?.active !== false);
   }, [selectedService]);
@@ -126,9 +176,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     if (!form.customerPhone?.trim()) e.customerPhone = "Telefono obbligatorio";
     if (!form.startTime) e.startTime = "Data/ora obbligatoria";
     if (!form.serviceId) e.serviceId = "Seleziona un servizio";
-
     if (!walkIn && !form.customerEmail?.trim()) e.customerEmail = "Email obbligatoria";
-
     setErrors(e);
     return Object.keys(e).length === 0;
   }, [form, walkIn]);
@@ -136,11 +184,8 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
   const fetchAvailSlots = useCallback(async () => {
     setAvailErr("");
     setSlots([]);
-
     if (!form.serviceId || !form.startTime) return;
-
     const dateISO = form.startTime.slice(0, 10);
-
     try {
       setAvailLoading(true);
       const s = await getAvailSlotsForServiceDay(form.serviceId, dateISO);
@@ -152,73 +197,56 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     }
   }, [form.serviceId, form.startTime]);
 
-  // 1. Blocca overflow del body (dipende da show, come prima)
+  // ── Body scroll lock ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!show) return;
-    const { overflow } = document.body.style;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = overflow;
+      document.body.style.overflow = prev;
     };
   }, [show]);
 
-  // 2. Wheel trap — dipende da panelVisible così il DOM c'è già quando gira
+  // ── Wheel trap ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!panelVisible) return;
     const panel = panelRef.current;
     if (!panel) return;
-
     const trapWheel = e => {
       const body = panel.querySelector(".ag-dialog__body");
       if (!body) return;
-
       const { scrollTop, scrollHeight, clientHeight } = body;
       const atTop = scrollTop === 0;
       const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
-      const scrollingUp = e.deltaY < 0;
-      const scrollingDown = e.deltaY > 0;
-
-      if ((scrollingUp && !atTop) || (scrollingDown && !atBottom)) {
+      if ((e.deltaY < 0 && !atTop) || (e.deltaY > 0 && !atBottom)) {
         e.stopPropagation();
       } else {
         e.preventDefault();
         e.stopPropagation();
       }
     };
-
     panel.addEventListener("wheel", trapWheel, { passive: false });
     return () => panel.removeEventListener("wheel", trapWheel);
   }, [panelVisible]);
 
-  // Focus trap + ESC handling inside the dialog
+  // ── Focus trap + ESC ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!show) return;
     const root = panelRef.current;
     if (!root) return;
+    const sel = 'a[href],button:not([disabled]),textarea,input,select,[tabindex]:not([tabindex="-1"])';
+    const foc = Array.from(root.querySelectorAll(sel));
+    (foc[0] ?? root).focus();
 
-    const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
-
-    const focusables = Array.from(root.querySelectorAll(focusableSelector));
-    if (focusables.length) {
-      // Move focus inside the dialog when it opens
-      focusables[0].focus();
-    } else {
-      root.focus();
-    }
-
-    const handleKeyDown = e => {
+    const kd = e => {
       if (e.key === "Escape") {
         e.preventDefault();
         onHide?.();
         return;
       }
-
-      if (e.key !== "Tab") return;
-      if (!focusables.length) return;
-
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-
+      if (e.key !== "Tab" || !foc.length) return;
+      const first = foc[0],
+        last = foc[foc.length - 1];
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last.focus();
@@ -227,62 +255,82 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
         first.focus();
       }
     };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
+    document.addEventListener("keydown", kd);
+    return () => document.removeEventListener("keydown", kd);
   }, [show, onHide]);
 
-  // Simple swipe-to-close for the bottom sheet (mobile only)
+  // ── Swipe to close (mobile) ──────────────────────────────────────────────
   useEffect(() => {
     if (!show || isDesktop) return;
     const root = panelRef.current;
     if (!root) return;
-
-    let startY = null;
-    let deltaY = 0;
-
-    const onTouchStart = e => {
-      if (!e.touches.length) return;
-      startY = e.touches[0].clientY;
+    let startY = null,
+      deltaY = 0;
+    const onTS = e => {
+      startY = e.touches[0]?.clientY ?? null;
       deltaY = 0;
     };
-
-    const onTouchMove = e => {
-      if (startY == null || !e.touches.length) return;
-      const currentY = e.touches[0].clientY;
-      deltaY = currentY - startY;
+    const onTM = e => {
+      if (startY != null) deltaY = e.touches[0].clientY - startY;
     };
-
-    const onTouchEnd = () => {
-      if (startY != null && deltaY > 80) {
-        onHide?.();
-      }
+    const onTE = () => {
+      if (startY != null && deltaY > 80) onHide?.();
       startY = null;
-      deltaY = 0;
     };
-
-    root.addEventListener("touchstart", onTouchStart, { passive: true });
-    root.addEventListener("touchmove", onTouchMove, { passive: true });
-    root.addEventListener("touchend", onTouchEnd);
-
+    root.addEventListener("touchstart", onTS, { passive: true });
+    root.addEventListener("touchmove", onTM, { passive: true });
+    root.addEventListener("touchend", onTE);
     return () => {
-      root.removeEventListener("touchstart", onTouchStart);
-      root.removeEventListener("touchmove", onTouchMove);
-      root.removeEventListener("touchend", onTouchEnd);
+      root.removeEventListener("touchstart", onTS);
+      root.removeEventListener("touchmove", onTM);
+      root.removeEventListener("touchend", onTE);
     };
   }, [show, isDesktop, onHide]);
 
+  // ── Customer name handlers ────────────────────────────────────────────────
+  const handleCustomerNameChange = useCallback(
+    text => {
+      // If user is manually typing after having selected a customer,
+      // break the link so the summary panel disappears.
+      setForm(f => ({ ...f, customerName: text, customerId: null }));
+      if (submitted) setTimeout(() => validate(), 0);
+    },
+    [submitted, validate],
+  );
+
+  const handleCustomerSelect = useCallback(
+    customer => {
+      setForm(f => ({
+        ...f,
+        customerName: customer.fullName,
+        customerPhone: customer.phone ?? f.customerPhone,
+        // fill email only if it's a real address and not walk-in mode
+        customerEmail: customer.email && !isWalkInEmail(customer.email) && !walkIn ? customer.email : f.customerEmail,
+        customerId: customer.customerId,
+      }));
+      // auto-switch off walk-in when customer has a real email
+      if (customer.email && !isWalkInEmail(customer.email)) {
+        setWalkIn(false);
+      }
+    },
+    [walkIn],
+  );
+
+  // ── Submit ───────────────────────────────────────────────────────────────
   const submit = () => {
     setSubmitted(true);
     if (!validate()) return;
 
+    // customerId is intentionally excluded from the payload:
+    // the backend resolves / creates the Customer via findOrCreate(name, phone, email).
     const payload = {
-      ...form,
+      customerName: form.customerName,
+      customerEmail: form.customerEmail,
+      customerPhone: form.customerPhone,
       startTime: normalizeDateTimeLocal(form.startTime),
-      serviceOptionId: form.serviceOptionId ? String(form.serviceOptionId) : null,
+      notes: form.notes,
       serviceId: String(form.serviceId),
+      serviceOptionId: form.serviceOptionId ? String(form.serviceOptionId) : null,
     };
 
     if (walkIn && !payload.customerEmail?.trim()) {
@@ -295,14 +343,12 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
   const onChange = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
     if (!submitted) return;
-    // re-validate live dopo il primo submit
     setTimeout(() => validate(), 0);
   };
 
   if (!panelVisible) return null;
 
   const dialogTitleId = "ag-booking-dialog-title";
-
   const panelClasses = [
     "ag-dialog-panel",
     isEdit ? "ag-dialog-panel--edit" : "ag-dialog-panel--create",
@@ -312,6 +358,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     .filter(Boolean)
     .join(" ");
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className={`ag-dialog-root${panelActive ? " ag-dialog-root--active" : ""}`} aria-hidden={false}>
       <div className="ag-dialog-backdrop" onClick={onHide} />
@@ -336,25 +383,31 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
           </button>
         </header>
 
+        {/* ─────────────────────────── BODY ─────────────────────────── */}
         <div className="ag-modal__body ag-dialog__body">
           <Row className="g-3">
+            {/* ── Dettagli cliente ─────────────────────────────────── */}
             <Col md={12}>
               <div className="ag-section">
                 <div className="ag-section__title">Dettagli cliente</div>
                 <Form noValidate>
                   <Row className="g-2">
+                    {/* Nome — autocomplete */}
                     <Col md={6}>
                       <Form.Group className="mb-2">
                         <Form.Label>Nome *</Form.Label>
-                        <Form.Control
+                        <CustomerAutocomplete
                           value={form.customerName}
-                          onChange={e => onChange("customerName", e.target.value)}
+                          onChange={handleCustomerNameChange}
+                          onSelect={handleCustomerSelect}
                           isInvalid={submitted && !!errors.customerName}
-                          placeholder="Es. Cliente…"
+                          placeholder="Cerca o inserisci nome…"
                         />
-                        <Form.Control.Feedback type="invalid">{errors.customerName}</Form.Control.Feedback>
+                        {submitted && errors.customerName && <div className="invalid-feedback d-block">{errors.customerName}</div>}
                       </Form.Group>
                     </Col>
+
+                    {/* Telefono */}
                     <Col md={6}>
                       <Form.Group className="mb-2">
                         <Form.Label>Telefono *</Form.Label>
@@ -369,6 +422,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                     </Col>
                   </Row>
 
+                  {/* Email + walk-in toggle */}
                   <Form.Group className="mb-2">
                     <div className="d-flex align-items-center justify-content-between">
                       <Form.Label className="mb-0">Email {walkIn ? "" : "*"}</Form.Label>
@@ -402,6 +456,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                     {walkIn && <div className="ag-help">Per i walk-in generiamo una email tecnica (il backend spesso la richiede).</div>}
                   </Form.Group>
 
+                  {/* Note */}
                   <Form.Group>
                     <Form.Label>Note</Form.Label>
                     <Form.Control
@@ -413,14 +468,92 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                     />
                   </Form.Group>
                 </Form>
+
+                {/* ── Customer summary panel ── */}
+                {form.customerId && (
+                  <div className="ag-customer-panel mt-3">
+                    {detailLoading && (
+                      <div className="d-flex align-items-center gap-2 ag-muted">
+                        <Spinner size="sm" animation="border" />
+                        <span style={{ fontSize: ".83rem" }}>Carico storico…</span>
+                      </div>
+                    )}
+
+                    {detailErr && !detailLoading && (
+                      <div className="ag-help" style={{ color: "rgba(251,191,36,.8)" }}>
+                        {detailErr}
+                      </div>
+                    )}
+
+                    {customerDetail && !detailLoading && (
+                      <>
+                        {/* Active packages */}
+                        {customerDetail.activePackages?.length > 0 && (
+                          <div className="mb-2">
+                            <div className="ag-customer-panel__label">Pacchetti attivi</div>
+                            <div className="d-flex flex-wrap gap-1 mt-1">
+                              {customerDetail.activePackages.map(p => (
+                                <span
+                                  key={p.packageCreditId}
+                                  className={`ag-pkg-badge ${
+                                    p.sessionsRemaining > 1 ? "ag-pkg-badge--green" : p.sessionsRemaining === 1 ? "ag-pkg-badge--yellow" : "ag-pkg-badge--grey"
+                                  }`}
+                                >
+                                  {p.serviceOptionName} · {p.sessionsRemaining}/{p.sessionsTotal}
+                                  {p.expiryDate && (
+                                    <span className="ag-pkg-badge__exp">
+                                      {" "}
+                                      scade {new Date(p.expiryDate).toLocaleDateString("it-IT", { month: "short", year: "numeric" })}
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recent bookings */}
+                        {customerDetail.recentBookings?.length > 0 && (
+                          <div>
+                            <div className="ag-customer-panel__label">Ultimi appuntamenti</div>
+                            <div className="ag-customer-panel__list mt-1">
+                              {customerDetail.recentBookings.slice(0, 3).map(b => (
+                                <div key={b.bookingId} className="ag-customer-panel__item">
+                                  <span className="ag-muted" style={{ fontSize: ".78rem", minWidth: 40 }}>
+                                    {new Date(b.startTime).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+                                  </span>
+                                  <span className="ag-dotsep">·</span>
+                                  <span style={{ fontSize: ".82rem" }}>{b.serviceTitle}</span>
+                                  {b.optionName && (
+                                    <>
+                                      <span className="ag-dotsep">·</span>
+                                      <span className="ag-muted" style={{ fontSize: ".78rem" }}>
+                                        {b.optionName}
+                                      </span>
+                                    </>
+                                  )}
+                                  <MiniPill status={b.bookingStatus} />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {!customerDetail.activePackages?.length && !customerDetail.recentBookings?.length && (
+                          <div className="ag-help">Nessuno storico trovato per questo cliente.</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </Col>
 
+            {/* ── Orario & servizio ─────────────────────────────────── */}
             <Col md={12}>
               <div className="ag-section">
                 <div className="ag-section__title">Orario & servizio</div>
                 <Form noValidate>
-                  {/* ← CustomSelect qui, Form.Select RIMOSSO */}
                   <Form.Group className="mb-2">
                     <Form.Label>Servizio *</Form.Label>
                     <CustomSelect
@@ -440,7 +573,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
 
                   {serviceOptions.length > 0 ? (
                     <Form.Group className="mb-2">
-                      <Form.Label>Opzione (facoltativa)</Form.Label>
+                      <Form.Label>Opzione</Form.Label>
                       <Form.Select value={form.serviceOptionId ?? ""} onChange={e => onChange("serviceOptionId", e.target.value || null)}>
                         <option value="">Nessuna</option>
                         {serviceOptions.map(o => (
@@ -450,12 +583,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                         ))}
                       </Form.Select>
                     </Form.Group>
-                  ) : (
-                    <Form.Group className="mb-2">
-                      <Form.Label>OptionId (facoltativo)</Form.Label>
-                      <Form.Control value={form.serviceOptionId ?? ""} onChange={e => onChange("serviceOptionId", e.target.value || null)} />
-                    </Form.Group>
-                  )}
+                  ) : null}
 
                   <Form.Group className="mb-2">
                     <Form.Label>Inizio *</Form.Label>
@@ -517,6 +645,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
           </Row>
         </div>
 
+        {/* ─────────────────────────── FOOTER ─────────────────────────── */}
         <footer className="ag-modal__footer ag-dialog__footer">
           <Button className="ag-btn ag-btn--ghost" onClick={onHide} type="button">
             Annulla

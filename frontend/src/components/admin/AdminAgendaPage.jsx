@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
 import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking } from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
-import { createBooking } from "../../api/modules/bookings.api";
+import WeeklyCalendar from "./WeeklyCalendar";
+import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
 
 const pad2 = n => String(n).padStart(2, "0");
@@ -231,6 +232,9 @@ export default function AdminAgendaPage() {
   const [modalMode, setModalMode] = useState("create"); // create | edit
   const [selected, setSelected] = useState(null);
 
+  const [viewMode, setViewMode] = useState("day"); // "day" | "week"
+  const [weekRefreshKey, setWeekRefreshKey] = useState(0);
+
   const dayStrip = useMemo(() => {
     const base = fromISODateLocal(dateISO);
     const out = [];
@@ -362,16 +366,36 @@ export default function AdminAgendaPage() {
       if (modalMode === "edit" && selected?.bookingId) {
         await updateBooking(selected.bookingId, payload);
       } else {
-        await createBooking(payload);
+        await createAdminBooking(payload);
       }
 
       setModalOpen(false);
       setSelected(null);
       await refresh();
+      if (viewMode === "week") setWeekRefreshKey(k => k + 1);
     } catch (e) {
       console.error("SAVE BOOKING ERROR:", e);
       setErr(e.message || "Errore salvataggio appuntamento.");
     }
+  };
+
+  const handleWeekBookingClick = booking => {
+    setModalMode("edit");
+    setSelected(booking);
+    setModalOpen(true);
+  };
+
+  const handleWeekDayClick = dateISO => {
+    setDate(fromISODateLocal(dateISO));
+    setViewMode("day");
+  };
+
+  const handleSlotClick = (dateISO, hour) => {
+    const pad = n => String(n).padStart(2, "0");
+    const startTime = `${dateISO}T${pad(hour)}:00`;
+    setModalMode("create");
+    setSelected({ startTime });
+    setModalOpen(true);
   };
 
   return (
@@ -382,9 +406,27 @@ export default function AdminAgendaPage() {
           <Card className="ag-card">
             <Card.Body className="ag-card__body">
               <div className="d-flex align-items-center justify-content-between">
-                <div>
-                  <div className="ag-title">Agenda</div>
-                  <div className="ag-subtitle">Gestione appuntamenti</div>
+                <div className="d-flex align-items-center gap-2">
+                  <div>
+                    <div className="ag-title">Agenda</div>
+                    <div className="ag-subtitle">Gestione appuntamenti</div>
+                  </div>
+                  <div className="ag-view-toggle">
+                    <button
+                      type="button"
+                      className={`ag-view-toggle__btn ${viewMode === "day" ? "is-active" : ""}`}
+                      onClick={() => setViewMode("day")}
+                    >
+                      Giorno
+                    </button>
+                    <button
+                      type="button"
+                      className={`ag-view-toggle__btn ${viewMode === "week" ? "is-active" : ""}`}
+                      onClick={() => setViewMode("week")}
+                    >
+                      Settimana
+                    </button>
+                  </div>
                 </div>
                 <Button className="ag-btn ag-btn--primary" onClick={openCreate}>
                   + Nuovo
@@ -467,31 +509,47 @@ export default function AdminAgendaPage() {
             </Card.Body>
           </Card>
 
-          <div className="mt-3">
-            <TimelineDay dateISO={dateISO} data={timeline} />
-          </div>
+          {viewMode === "day" && (
+            <div className="mt-3">
+              <TimelineDay dateISO={dateISO} data={timeline} />
+            </div>
+          )}
         </Col>
 
         {/* RIGHT */}
-        <Col lg={8}>
+        <Col lg={viewMode === "week" ? 12 : 8}>
           <Card className="ag-card h-100">
             <Card.Body className="ag-card__body">
               <div className="d-flex align-items-center justify-content-between mb-2">
                 <div>
                   <div className="ag-title">Appuntamenti</div>
                   <div className="ag-subtitle">
-                    {dateISO} · {filtered.length} risultati
+                    {viewMode === "day" ? `${dateISO} · ${filtered.length} risultati` : "Vista settimana"}
                   </div>
                 </div>
 
-                <div className="d-flex gap-2 align-items-center">
-                  <Form.Control className="ag-search" placeholder="Cerca cliente, telefono, servizio…" value={q} onChange={e => setQ(e.target.value)} />
-                  <Button className="ag-btn ag-btn--ghost" onClick={refresh} disabled={loading}>
-                    {loading ? <Spinner size="sm" /> : "Aggiorna"}
-                  </Button>
-                </div>
+                {viewMode === "day" && (
+                  <div className="d-flex gap-2 align-items-center">
+                    <Form.Control className="ag-search" placeholder="Cerca cliente, telefono, servizio…" value={q} onChange={e => setQ(e.target.value)} />
+                    <Button className="ag-btn ag-btn--ghost" onClick={refresh} disabled={loading}>
+                      {loading ? <Spinner size="sm" /> : "Aggiorna"}
+                    </Button>
+                  </div>
+                )}
               </div>
 
+              {viewMode === "week" ? (
+                <WeeklyCalendar
+                  anchorDate={date}
+                  onDayClick={handleWeekDayClick}
+                  onBookingClick={handleWeekBookingClick}
+                  onSlotClick={handleSlotClick}
+                  onPrevWeek={() => setDate(d => addDays(d, -7))}
+                  onNextWeek={() => setDate(d => addDays(d, 7))}
+                  refreshKey={weekRefreshKey}
+                />
+              ) : (
+              <>
               <div className="ag-list">
                 {filtered.map(b => (
                   <div key={b.bookingId} className="ag-item">
@@ -563,6 +621,8 @@ export default function AdminAgendaPage() {
               </div>
 
               <div className="ag-footnote mt-2">Tip: “Modifica” apre la scheda completa. Per i walk-in puoi creare velocemente senza email.</div>
+              </>
+              )}
             </Card.Body>
           </Card>
         </Col>
@@ -572,7 +632,7 @@ export default function AdminAgendaPage() {
         show={modalOpen}
         onHide={() => setModalOpen(false)}
         mode={modalMode}
-        initial={modalMode === "edit" ? selected : null}
+        initial={modalMode === "edit" ? selected : (selected?.startTime ? selected : null)}
         services={services}
         onSubmit={submitModal}
       />

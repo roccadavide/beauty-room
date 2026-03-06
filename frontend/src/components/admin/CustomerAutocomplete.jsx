@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { searchCustomers } from "../../api/modules/customers.api";
+import { searchCustomers } from "../../api/modules/customer.api";
 
 export default function CustomerAutocomplete({ value, onChange, onSelect, isInvalid = false, placeholder = "Cerca o inserisci nome cliente…" }) {
   const [suggestions, setSuggestions] = useState([]);

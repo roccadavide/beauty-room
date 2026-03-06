@@ -23,6 +23,16 @@ export const getBookingsDay = async date => {
   }
 };
 
+export const getBookingsRange = async (from, to) => {
+  try {
+    const { data } = await http.get(AGENDA_ENDPOINTS.BOOKINGS_RANGE, { params: { from, to } });
+    return Array.isArray(data) ? data : data?.content ?? [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile recuperare le prenotazioni.";
+    throw new Error(message);
+  }
+};
+
 export const patchBookingStatus = async (id, status) => {
   try {
     const { data } = await http.patch(AGENDA_ENDPOINTS.BOOKING_STATUS(id), null, { params: { status } });
