@@ -358,7 +358,7 @@ export default function AdminAgendaPage() {
 
   const openCreate = () => {
     setModalMode("create");
-    setSelected(null);
+    setSelected({ startTime: `${dateISO}T09:00` });
     setModalOpen(true);
   };
 

@@ -111,12 +111,12 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
         serviceOptionId: initial.serviceOptionId ?? initial.optionId ?? null,
         customerId: null, // pre-feature bookings have no registry link yet
       });
-      setWalkIn(initial.customerName || initial.bookingId ? false : true);
+      setWalkIn(!isEdit);
     } else {
       setForm({ ...EMPTY_FORM });
       setWalkIn(true);
     }
-  }, [show, initial]);
+  }, [show, initial, isEdit]);
 
   // ── Fetch customer detail when customerId is set ─────────────────────────
   useEffect(() => {
