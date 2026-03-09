@@ -77,14 +77,13 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("blockingStatuses") List<BookingStatus> blockingStatuses
     );
 
-    // ===== Admin agenda (fetch join) =====
+    // ===== Admin agenda (fetch join) - include ALL statuses =====
     @Query("""
         SELECT b
         FROM Booking b
         LEFT JOIN FETCH b.service s
         LEFT JOIN FETCH b.serviceOption so
-        WHERE b.bookingStatus <> daviderocca.CAPSTONE_BACKEND.enums.BookingStatus.CANCELLED
-          AND b.startTime < :to
+        WHERE b.startTime < :to
           AND b.endTime   > :from
         ORDER BY b.startTime ASC
     """)

@@ -111,13 +111,12 @@ public class AdminBookingController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> cancelAsAdmin(
+    public ResponseEntity<Void> hardDeleteBooking(
             @PathVariable UUID id,
-            @RequestParam(required = false) String reason,
             @AuthenticationPrincipal User currentUser
     ) {
-        log.info("ADMIN | cancel bookingId={} reason={}", id, reason);
-        bookingService.cancelBooking(id, currentUser, reason);
+        log.info("ADMIN | hard delete bookingId={}", id);
+        bookingService.hardDeleteBooking(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

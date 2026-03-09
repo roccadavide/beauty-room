@@ -22,5 +22,6 @@ public record AdminBookingCardDTO(
         UUID packageCreditId,
         Integer sessionsRemaining,
         Integer sessionsTotal,
-        PackageCreditStatus packageStatus
+        PackageCreditStatus packageStatus,
+        String stripeSessionId
 ) {}

@@ -235,6 +235,7 @@ export default function AdminAgendaPage() {
 
   const [viewMode, setViewMode] = useState("day"); // "day" | "week"
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const dayStrip = useMemo(() => {
     const base = fromISODateLocal(dateISO);
@@ -380,15 +381,28 @@ export default function AdminAgendaPage() {
   };
 
   const removeBooking = async id => {
-    if (!confirm("Vuoi davvero eliminare questo appuntamento?")) return;
     setErr("");
     setErrDetails(null);
     try {
       await deleteBooking(id);
       await refresh();
     } catch (e) {
-      setErr(e.message);
+      setErr(e?.normalized?.message || e.message || "Errore durante l'eliminazione.");
+      setErrDetails(e?.normalized || null);
     }
+  };
+
+  const askDelete = b => {
+    setConfirmModal({
+      type: "delete",
+      bookingId: b.bookingId,
+      customerName: b.customerName,
+      stripeSessionId: b.stripeSessionId ?? null,
+    });
+  };
+
+  const askCancel = b => {
+    setConfirmModal({ type: "cancel", bookingId: b.bookingId, customerName: b.customerName });
   };
 
   const submitModal = async payload => {
@@ -570,7 +584,7 @@ export default function AdminAgendaPage() {
           </Card>
 
           {viewMode === "day" && (
-            <div className="mt-3">
+            <div className="mt-3 d-none d-md-block">
               <TimelineDay dateISO={dateISO} data={timeline} />
             </div>
           )}
@@ -719,29 +733,31 @@ export default function AdminAgendaPage() {
                     </div>
 
                     <div className="ag-item__actions">
-                      <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => openEdit(b)}>
-                        Modifica
-                      </Button>
+                      {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
+                        <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => openEdit(b)}>
+                          Modifica
+                        </Button>
+                      )}
 
-                      {b.status === "PENDING" && (
+                      {(b.status === "PENDING" || b.status === "PENDING_PAYMENT") && (
                         <Button className="ag-btn ag-btn--primary" size="sm" onClick={() => changeStatus(b.bookingId, "CONFIRMED")}>
                           Conferma
                         </Button>
                       )}
 
-                      {(b.status === "PENDING" || b.status === "CONFIRMED") && (
+                      {b.status === "CONFIRMED" && (
                         <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
                           Completa
                         </Button>
                       )}
 
-                      {(b.status === "PENDING" || b.status === "CONFIRMED") && (
-                        <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => changeStatus(b.bookingId, "CANCELLED")}>
+                      {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
+                        <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
                           Annulla
                         </Button>
                       )}
 
-                      <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => removeBooking(b.bookingId)}>
+                      <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
                         Elimina
                       </Button>
                     </div>
@@ -766,6 +782,52 @@ export default function AdminAgendaPage() {
           </Card>
         </Col>
       </Row>
+
+      {confirmModal && (
+        <div className="ag-confirm-overlay" onClick={() => setConfirmModal(null)}>
+          <div className="ag-confirm-box" onClick={e => e.stopPropagation()}>
+            <div className="ag-confirm-icon">{confirmModal.type === "delete" ? "🗑️" : "✕"}</div>
+            <div className="ag-confirm-title">
+              {confirmModal.type === "delete" ? "Elimina prenotazione" : "Annulla prenotazione"}
+            </div>
+            <div className="ag-confirm-body">
+              {confirmModal.type === "delete" ? (
+                <>
+                  Vuoi eliminare definitivamente l&apos;appuntamento di <b>{confirmModal.customerName}</b>? Questa azione è irreversibile.
+                </>
+              ) : (
+                <>
+                  Vuoi annullare l&apos;appuntamento di <b>{confirmModal.customerName}</b>? Rimarrà nello storico come &quot;Cancellato&quot;.
+                </>
+              )}
+            </div>
+            {confirmModal.type === "delete" && confirmModal.stripeSessionId && (
+              <div className="ag-confirm-warning">
+                ⚠️ Questa prenotazione è stata pagata online. Eliminandola non verrà
+                emesso alcun rimborso automatico — gestiscilo separatamente.
+              </div>
+            )}
+            <div className="ag-confirm-actions">
+              <button className="ag-btn ag-btn--ghost" onClick={() => setConfirmModal(null)}>
+                Indietro
+              </button>
+              <button
+                className={`ag-btn ${confirmModal.type === "delete" ? "ag-btn--danger" : "ag-btn--ghost"}`}
+                onClick={() => {
+                  if (confirmModal.type === "delete") {
+                    removeBooking(confirmModal.bookingId);
+                  } else {
+                    changeStatus(confirmModal.bookingId, "CANCELLED");
+                  }
+                  setConfirmModal(null);
+                }}
+              >
+                {confirmModal.type === "delete" ? "Elimina" : "Annulla appuntamento"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BookingModal
         show={modalOpen}

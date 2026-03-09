@@ -34,6 +34,8 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false));
+
   const weekStart = useMemo(() => getWeekStart(anchorDate), [anchorDate]);
 
   const weekDays = useMemo(() => {
@@ -47,6 +49,15 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
   }, [weekStart]);
 
   const todayISO = useMemo(() => toISODate(new Date()), []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const h = e => setIsMobile(e.matches);
+    setIsMobile(mq.matches);
+    mq.addEventListener("change", h);
+    return () => mq.removeEventListener("change", h);
+  }, []);
 
   const loadBookings = useCallback(async () => {
     setLoading(true);
@@ -87,8 +98,8 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
     const updateNowLine = () => {
       const now = new Date();
       const today = toISODate(now);
-      const dayIdx = weekDays.findIndex(d => d.iso === today);
-      if (dayIdx < 0) {
+      const day = weekDays.find(d => d.iso === today);
+      if (!day) {
         setNowLine(null);
         return;
       }
@@ -98,7 +109,7 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
         return;
       }
       const topPx = currentMin - GRID_START_MIN;
-      setNowLine({ dayIdx, topPx });
+      setNowLine({ iso: today, topPx });
     };
 
     updateNowLine();
@@ -137,6 +148,21 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
   const anchorISO = toISODate(anchorDate);
   const hours = useMemo(() => Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i), []);
 
+  const mobileVisibleDays = useMemo(() => {
+    if (!isMobile) return weekDays;
+    const idx = weekDays.findIndex(d => d.iso === anchorISO);
+    const safeIdx = idx === -1 ? 3 : idx;
+    const center = Math.max(1, Math.min(5, safeIdx));
+    return weekDays.slice(center - 1, center + 2);
+  }, [isMobile, weekDays, anchorISO]);
+
+  const visibleDays = isMobile ? mobileVisibleDays : weekDays;
+
+  const gridTemplateColumns = useMemo(
+    () => (isMobile ? "52px repeat(3, 1fr)" : "52px repeat(7, minmax(110px, 1fr))"),
+    [isMobile],
+  );
+
   if (loading) {
     return (
       <div className="d-flex align-items-center justify-content-center py-5">
@@ -157,21 +183,55 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
   return (
     <div className="ag-week-wrapper">
       <div className="d-flex align-items-center justify-content-between mb-3">
-        <div className="d-flex align-items-center gap-2">
-          <button type="button" className="ag-btn ag-btn--soft" onClick={onPrevWeek} title="Settimana precedente">
-            ‹ Prev
-          </button>
-          <span className="ag-week-label">{weekLabel}</span>
-          <button type="button" className="ag-btn ag-btn--soft" onClick={onNextWeek} title="Settimana successiva">
-            Next ›
-          </button>
-        </div>
+        {!isMobile && (
+          <div className="d-flex align-items-center gap-2">
+            <button type="button" className="ag-btn ag-btn--soft" onClick={onPrevWeek} title="Settimana precedente">
+              ‹ Prev
+            </button>
+            <span className="ag-week-label">{weekLabel}</span>
+            <button type="button" className="ag-btn ag-btn--soft" onClick={onNextWeek} title="Settimana successiva">
+              Next ›
+            </button>
+          </div>
+        )}
+
+        {isMobile && (
+          <div className="ag-week__mobile-nav">
+            <button
+              type="button"
+              className="ag-btn ag-btn--soft ag-btn--sm"
+              onClick={() => {
+                const prev = new Date(anchorDate);
+                prev.setDate(prev.getDate() - 1);
+                onDayClick?.(toISODate(prev));
+              }}
+            >
+              ‹ Giorno prec.
+            </button>
+
+            <span className="ag-week__mobile-label">
+              {visibleDays.map(d => `${d.date.getDate()} ${MONTH_IT[d.date.getMonth()].slice(0, 3)}`).join(" · ")}
+            </span>
+
+            <button
+              type="button"
+              className="ag-btn ag-btn--soft ag-btn--sm"
+              onClick={() => {
+                const next = new Date(anchorDate);
+                next.setDate(next.getDate() + 1);
+                onDayClick?.(toISODate(next));
+              }}
+            >
+              Giorno succ. ›
+            </button>
+          </div>
+        )}
       </div>
 
       <div ref={gridRef} className="ag-week">
-        <div className="ag-week__grid">
+        <div className="ag-week__grid" style={{ gridTemplateColumns }}>
           <div className="ag-week__header-cell ag-week__time-header" style={{ gridRow: 1, gridColumn: 1 }} />
-          {weekDays.map((d, idx) => (
+          {visibleDays.map((d, idx) => (
             <div
               key={d.iso}
               className={`ag-week__header-cell ${d.iso === todayISO ? "is-today" : ""} ${d.iso === anchorISO ? "is-selected" : ""}`}
@@ -186,13 +246,13 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
             </div>
           ))}
 
-          {hours.map((hour, i) => (
+              {hours.map((hour, i) => (
             <div key={`time-${hour}`} className="ag-week__time-col ag-week__hour-row" style={{ gridRow: i + 2, gridColumn: 1 }}>
               {pad2(hour)}:00
             </div>
           ))}
 
-          {weekDays.map((d, dayIdx) => (
+          {visibleDays.map((d, dayIdx) => (
             <div
               key={d.iso}
               className="ag-week__day-col"
@@ -251,7 +311,7 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                   </div>
                 );
               })}
-              {nowLine?.dayIdx === dayIdx && (
+              {nowLine?.iso === d.iso && (
                 <div className="ag-week-nowline" style={{ top: nowLine.topPx }} />
               )}
             </div>

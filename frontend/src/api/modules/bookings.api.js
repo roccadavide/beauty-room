@@ -107,7 +107,8 @@ export const fetchAdminBookingsRange = async (from, to) => {
 
 export const createAdminBooking = async payload => {
   try {
-    const { data } = await http.post(BOOKING_ENDPOINTS_ADMIN.BASE, payload);
+    // Admin manual creation uses the public /bookings controller with ADMIN guard
+    const { data } = await http.post(BOOKING_ENDPOINTS.BASE, payload);
     return data;
   } catch (error) {
     throw new Error(error?.normalized?.message || "Errore creazione appuntamento (admin).");

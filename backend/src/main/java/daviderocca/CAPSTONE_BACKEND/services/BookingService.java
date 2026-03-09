@@ -319,6 +319,25 @@ public class BookingService {
         return expired.size();
     }
 
+    @Transactional
+    public void hardDeleteBooking(UUID bookingId, User currentUser) {
+        if (!isAdmin(currentUser)) {
+            throw new UnauthorizedException("Solo un admin può eliminare una prenotazione.");
+        }
+
+        Booking found = findBookingById(bookingId);
+
+        // Block hard delete for Stripe-paid bookings — refund must be handled first
+        if (found.getStripeSessionId() != null) {
+            throw new BadRequestException(
+                    "Questa prenotazione è stata pagata online. Gestisci prima il rimborso prima di eliminarla."
+            );
+        }
+
+        bookingRepository.delete(found);
+        log.info("Booking hard-deleted by admin: id={}", bookingId);
+    }
+
     // ============================ UPDATE (ADMIN/OWNER) ============================
     @Transactional
     public BookingResponseDTO updateBooking(UUID bookingId, NewBookingDTO payload, User currentUser) {
@@ -436,8 +455,8 @@ public class BookingService {
         if (found.getBookingStatus() == BookingStatus.CANCELLED) return;
         if (found.getBookingStatus() == BookingStatus.COMPLETED) throw new BadRequestException("Non puoi cancellare una prenotazione COMPLETED.");
 
-        if (found.getBookingStatus() == BookingStatus.CONFIRMED) {
-            throw new BadRequestException("Prenotazione già pagata: per annullarla serve procedura rimborso.");
+        if (found.getBookingStatus() == BookingStatus.CONFIRMED && found.getStripeSessionId() != null) {
+            throw new BadRequestException("Questa prenotazione è stata pagata online. Gestisci prima il rimborso.");
         }
 
         found.setBookingStatus(BookingStatus.CANCELLED);
@@ -492,7 +511,8 @@ public class BookingService {
                 pkg != null ? pkg.getPackageCreditId() : null,
                 pkg != null ? pkg.getSessionsRemaining() : null,
                 pkg != null ? pkg.getSessionsTotal() : null,
-                pkg != null ? pkg.getStatus() : null
+                pkg != null ? pkg.getStatus() : null,
+                b.getStripeSessionId()
         );
     }
 
