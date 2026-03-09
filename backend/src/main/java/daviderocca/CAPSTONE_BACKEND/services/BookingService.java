@@ -3,29 +3,36 @@ package daviderocca.CAPSTONE_BACKEND.services;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.AdminBookingCardDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NextAvailableSlotDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
+import daviderocca.CAPSTONE_BACKEND.entities.Closure;
 import daviderocca.CAPSTONE_BACKEND.entities.Customer;
 import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceOption;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
+import daviderocca.CAPSTONE_BACKEND.entities.WorkingHours;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
 import daviderocca.CAPSTONE_BACKEND.repositories.BookingRepository;
+import daviderocca.CAPSTONE_BACKEND.repositories.ClosureRepository;
 import daviderocca.CAPSTONE_BACKEND.repositories.ServiceOptionRepository;
+import daviderocca.CAPSTONE_BACKEND.repositories.WorkingHoursRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.*;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -37,6 +44,8 @@ public class BookingService {
     private final ServiceOptionRepository serviceOptionRepository;
     private final PackageCreditService packageCreditService;
     private final CustomerService customerService;
+    private final WorkingHoursRepository workingHoursRepository;
+    private final ClosureRepository closureRepository;
 
     private static final int HOLD_EXPIRE_MINUTES = 12;
 
@@ -317,6 +326,113 @@ public class BookingService {
         bookingRepository.saveAll(expired);
         if (!expired.isEmpty()) log.info("Expired bookings: {}", expired.size());
         return expired.size();
+    }
+
+    @Transactional(readOnly = true)
+    public NextAvailableSlotDTO findNextAvailableSlot(int durationMin, LocalDateTime after) {
+        LocalDate startDate = after.toLocalDate();
+        LocalTime afterTime = after.toLocalTime();
+
+        for (int i = 0; i < 90; i++) {
+            LocalDate day = startDate.plusDays(i);
+            DayOfWeek dow = day.getDayOfWeek();
+
+            WorkingHours wh = workingHoursRepository.findByDayOfWeek(dow).orElse(null);
+            if (wh == null || wh.isClosed()) continue;
+
+            List<LocalTime[]> openRanges = new ArrayList<>();
+            if (wh.getMorningStart() != null && wh.getMorningEnd() != null) {
+                openRanges.add(new LocalTime[]{wh.getMorningStart(), wh.getMorningEnd()});
+            }
+            if (wh.getAfternoonStart() != null && wh.getAfternoonEnd() != null) {
+                openRanges.add(new LocalTime[]{wh.getAfternoonStart(), wh.getAfternoonEnd()});
+            }
+            if (openRanges.isEmpty()) continue;
+
+            List<Closure> closures = closureRepository.findByDate(day);
+            boolean fullDayClosed = closures.stream().anyMatch(Closure::isFullDay);
+            if (fullDayClosed) continue;
+
+            List<Booking> dayBookings = bookingRepository.findByDateAndStatusNotCancelled(day);
+            dayBookings.sort(Comparator.comparing(Booking::getStartTime));
+
+            List<LocalTime[]> closureIntervals = closures.stream()
+                    .filter(c -> !c.isFullDay() && c.getStartTime() != null && c.getEndTime() != null)
+                    .map(c -> new LocalTime[]{c.getStartTime(), c.getEndTime()})
+                    .toList();
+
+            for (LocalTime[] range : openRanges) {
+                LocalTime rangeStart = range[0];
+                LocalTime rangeEnd = range[1];
+
+                if (i == 0 && rangeEnd.isBefore(afterTime)) continue;
+                if (i == 0 && rangeStart.isBefore(afterTime)) {
+                    rangeStart = afterTime;
+                }
+
+                if (!rangeStart.isBefore(rangeEnd)) continue;
+
+                List<LocalTime[]> booked = new ArrayList<>();
+
+                for (Booking b : dayBookings) {
+                    LocalTime bs = b.getStartTime().toLocalTime();
+                    LocalTime be = b.getEndTime().toLocalTime();
+                    if (be.isAfter(rangeStart) && bs.isBefore(rangeEnd)) {
+                        booked.add(new LocalTime[]{bs, be});
+                    }
+                }
+
+                for (LocalTime[] ci : closureIntervals) {
+                    LocalTime cs = ci[0];
+                    LocalTime ce = ci[1];
+                    if (ce.isAfter(rangeStart) && cs.isBefore(rangeEnd)) {
+                        booked.add(new LocalTime[]{cs, ce});
+                    }
+                }
+
+                booked = booked.stream()
+                        .sorted(Comparator.comparing(a -> a[0]))
+                        .collect(Collectors.toList());
+
+                LocalTime cursor = rangeStart;
+                for (LocalTime[] interval : booked) {
+                    LocalTime bs = interval[0];
+                    LocalTime be = interval[1];
+                    if (be.isBefore(cursor) || !bs.isAfter(rangeStart) && !be.isAfter(cursor)) {
+                        continue;
+                    }
+                    if (bs.isAfter(cursor)) {
+                        long gapMin = Duration.between(cursor, bs).toMinutes();
+                        if (gapMin >= durationMin) {
+                            return new NextAvailableSlotDTO(
+                                    day,
+                                    cursor,
+                                    cursor.plusMinutes(durationMin),
+                                    (int) gapMin
+                            );
+                        }
+                    }
+                    if (be.isAfter(cursor)) {
+                        cursor = be;
+                        if (!cursor.isBefore(rangeEnd)) break;
+                    }
+                }
+
+                if (cursor.isBefore(rangeEnd)) {
+                    long tailGap = Duration.between(cursor, rangeEnd).toMinutes();
+                    if (tailGap >= durationMin) {
+                        return new NextAvailableSlotDTO(
+                                day,
+                                cursor,
+                                cursor.plusMinutes(durationMin),
+                                (int) tailGap
+                        );
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     @Transactional

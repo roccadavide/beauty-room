@@ -3,6 +3,7 @@ package daviderocca.CAPSTONE_BACKEND.controllers;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.AdminBookingCardDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NextAvailableSlotDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import daviderocca.CAPSTONE_BACKEND.services.BookingService;
@@ -17,6 +18,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 
@@ -71,6 +74,22 @@ public class AdminBookingController {
     ) {
         log.info("ADMIN | agenda range from={} to={}", from, to);
         return ResponseEntity.ok(bookingService.getAgendaRange(from, to));
+    }
+
+    @GetMapping("/next-available")
+    public ResponseEntity<?> nextAvailable(
+            @RequestParam int durationMin,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime after
+    ) {
+        if (durationMin < 15 || durationMin > 480) {
+            return ResponseEntity.badRequest().body("durationMin must be between 15 and 480.");
+        }
+        LocalDateTime searchAfter = (after != null) ? after : LocalDateTime.now();
+        NextAvailableSlotDTO result = bookingService.findNextAvailableSlot(durationMin, searchAfter);
+        if (result == null) {
+            return ResponseEntity.ok(Map.of("found", false));
+        }
+        return ResponseEntity.ok(Map.of("found", true, "slot", result));
     }
 
 

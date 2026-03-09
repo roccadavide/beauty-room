@@ -63,6 +63,18 @@ export const deleteBooking = async id => {
   }
 };
 
+export const getNextAvailableSlot = async (durationMin, afterISO) => {
+  const params = { durationMin };
+  if (afterISO) params.after = afterISO;
+  try {
+    const { data } = await http.get("/admin/bookings/next-available", { params });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile cercare la prossima disponibilità.";
+    throw new Error(message);
+  }
+};
+
 /* ================= AVAILABILITY ================= */
 export const getAvailSlotsForServiceDay = async (serviceId, date) => {
   try {

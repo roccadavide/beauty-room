@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
-import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking } from "../../api/modules/adminAgenda.api";
+import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot } from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
 import WeeklyCalendar from "./WeeklyCalendar";
 import { createAdminBooking } from "../../api/modules/bookings.api";
@@ -236,6 +236,12 @@ export default function AdminAgendaPage() {
   const [viewMode, setViewMode] = useState("day"); // "day" | "week"
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [nextSlotDuration, setNextSlotDuration] = useState(60);
+  const [nextSlotResult, setNextSlotResult] = useState(null);
+  const [nextSlotLoading, setNextSlotLoading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleteCountdown, setDeleteCountdown] = useState(5);
+  const deleteIntervalRef = useRef(null);
 
   const dayStrip = useMemo(() => {
     const base = fromISODateLocal(dateISO);
@@ -248,7 +254,7 @@ export default function AdminAgendaPage() {
     setServicesErr("");
     try {
       const list = await fetchServices();
-      const arr = Array.isArray(list) ? list : list?.content ?? [];
+      const arr = Array.isArray(list) ? list : (list?.content ?? []);
 
       const norm = arr
         .map(s => ({
@@ -355,6 +361,7 @@ export default function AdminAgendaPage() {
 
   useEffect(() => {
     setStatusFilter(new Set());
+    setNextSlotResult(null);
   }, [dateISO]);
 
   const openCreate = () => {
@@ -380,21 +387,76 @@ export default function AdminAgendaPage() {
     }
   };
 
-  const removeBooking = async id => {
-    setErr("");
-    setErrDetails(null);
-    try {
-      await deleteBooking(id);
-      await refresh();
-    } catch (e) {
-      setErr(e?.normalized?.message || e.message || "Errore durante l'eliminazione.");
-      setErrDetails(e?.normalized || null);
+  const removeBooking = booking => {
+    // se c'è già una delete pendente, eseguo subito quella precedente
+    if (pendingDelete) {
+      clearTimeout(pendingDelete.timer);
+      if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
+      deleteBooking(pendingDelete.booking.bookingId).catch(() => {
+        // se il delete immediato fallisce, non facciamo rollback dell'altra (era già fuori UI)
+      });
+      setPendingDelete(null);
+      setDeleteCountdown(5);
     }
+
+    // 1. rimuovo subito dalla UI
+    setBookings(prev => prev.filter(b => b.bookingId !== booking.bookingId));
+    setConfirmModal(null);
+
+    // 2. countdown visivo
+    setDeleteCountdown(5);
+    if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
+    deleteIntervalRef.current = setInterval(() => {
+      setDeleteCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(deleteIntervalRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // 3. schedulo DELETE reale dopo 5s
+    const timer = setTimeout(async () => {
+      if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
+      setPendingDelete(null);
+      setErr("");
+      setErrDetails(null);
+      try {
+        await deleteBooking(booking.bookingId);
+        await refresh();
+      } catch (e) {
+        // rollback
+        setBookings(prev => {
+          const restored = [...prev, booking];
+          return restored.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+        });
+        setErr(e?.normalized?.message || e.message || "Errore durante l'eliminazione.");
+        setErrDetails(e?.normalized || null);
+      } finally {
+        setDeleteCountdown(5);
+      }
+    }, 5000);
+
+    setPendingDelete({ booking, timer });
+  };
+
+  const undoDelete = () => {
+    if (!pendingDelete) return;
+    clearTimeout(pendingDelete.timer);
+    if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
+    setBookings(prev => {
+      const restored = [...prev, pendingDelete.booking];
+      return restored.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+    });
+    setPendingDelete(null);
+    setDeleteCountdown(5);
   };
 
   const askDelete = b => {
     setConfirmModal({
       type: "delete",
+      booking: b,
       bookingId: b.bookingId,
       customerName: b.customerName,
       stripeSessionId: b.stripeSessionId ?? null,
@@ -460,6 +522,38 @@ export default function AdminAgendaPage() {
 
   const hasStatusFilter = statusFilter.size > 0;
 
+  const searchNextSlot = async (afterISO = null) => {
+    setNextSlotLoading(true);
+    setNextSlotResult(null);
+    try {
+      const res = await getNextAvailableSlot(nextSlotDuration, afterISO);
+      setNextSlotResult(res);
+      if (res?.found && res.slot?.date) {
+        setDate(fromISODateLocal(res.slot.date));
+        setViewMode("day");
+      }
+    } catch (e) {
+      setNextSlotResult({ found: false, error: e.message });
+    } finally {
+      setNextSlotLoading(false);
+    }
+  };
+
+  const searchNextSlotAgain = () => {
+    if (!nextSlotResult?.found || !nextSlotResult.slot) return;
+    const { date, slotEnd } = nextSlotResult.slot;
+    if (!date || !slotEnd) return;
+    const afterISO = `${date}T${slotEnd.slice(0, 5)}:00`;
+    searchNextSlot(afterISO);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pendingDelete?.timer) clearTimeout(pendingDelete.timer);
+      if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
+    };
+  }, [pendingDelete]);
+
   return (
     <Container fluid className="ag-page py-3">
       <Row className="g-3 align-items-stretch">
@@ -474,18 +568,10 @@ export default function AdminAgendaPage() {
                     <div className="ag-subtitle">Gestione appuntamenti</div>
                   </div>
                   <div className="ag-view-toggle">
-                    <button
-                      type="button"
-                      className={`ag-view-toggle__btn ${viewMode === "day" ? "is-active" : ""}`}
-                      onClick={() => setViewMode("day")}
-                    >
+                    <button type="button" className={`ag-view-toggle__btn ${viewMode === "day" ? "is-active" : ""}`} onClick={() => setViewMode("day")}>
                       Giorno
                     </button>
-                    <button
-                      type="button"
-                      className={`ag-view-toggle__btn ${viewMode === "week" ? "is-active" : ""}`}
-                      onClick={() => setViewMode("week")}
-                    >
+                    <button type="button" className={`ag-view-toggle__btn ${viewMode === "week" ? "is-active" : ""}`} onClick={() => setViewMode("week")}>
                       Settimana
                     </button>
                   </div>
@@ -537,6 +623,96 @@ export default function AdminAgendaPage() {
                 </div>
               </div>
 
+              <div className="ag-nextslot mt-3">
+                <div className="ag-nextslot__row">
+                  <div className="ag-nextslot__chips">
+                    {[30, 45, 60, 90, 120].map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        className={`ag-nextslot__chip ${nextSlotDuration === m ? "is-active" : ""}`}
+                        onClick={() => {
+                          setNextSlotDuration(m);
+                          setNextSlotResult(null);
+                        }}
+                      >
+                        {m < 60 ? `${m}′` : m === 60 ? "1h" : m === 90 ? "1h30′" : "2h"}
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      className="ag-nextslot__custom"
+                      min={15}
+                      max={480}
+                      step={5}
+                      value={![30, 45, 60, 90, 120].includes(nextSlotDuration) ? nextSlotDuration : ""}
+                      placeholder="…′"
+                      onChange={e => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(v) && v >= 15 && v <= 480) {
+                          setNextSlotDuration(v);
+                          setNextSlotResult(null);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    className="ag-btn ag-btn--soft ag-nextslot__search"
+                    disabled={nextSlotLoading}
+                    onClick={() => {
+                      searchNextSlot(null);
+                    }}
+                  >
+                    {nextSlotLoading ? "…" : "🔍 Prossima"}
+                  </button>
+                </div>
+
+                {nextSlotResult && (
+                  <div className={`ag-nextslot__result ${nextSlotResult.found ? "ag-nextslot__result--found" : "ag-nextslot__result--none"}`}>
+                    {nextSlotResult.found && nextSlotResult.slot ? (
+                      <>
+                        <span className="ag-nextslot__result-text">
+                          📅{" "}
+                          <b>
+                            {new Date(nextSlotResult.slot.date).toLocaleDateString("it-IT", {
+                              weekday: "long",
+                              day: "numeric",
+                              month: "long",
+                            })}
+                          </b>
+                          {" dalle "}
+                          <b>{nextSlotResult.slot.slotStart?.slice(0, 5)}</b>
+                          {" – "}
+                          <span className="ag-nextslot__avail">{nextSlotResult.slot.availableMin} min liberi</span>
+                        </span>
+                        <button type="button" className="ag-btn ag-btn--ghost ag-nextslot__more" disabled={nextSlotLoading} onClick={searchNextSlotAgain}>
+                          Ancora →
+                        </button>
+                        <button
+                          type="button"
+                          className="ag-btn ag-btn--primary ag-nextslot__more"
+                          onClick={() => {
+                            const { date, slotStart } = nextSlotResult.slot;
+                            const time = slotStart?.slice(0, 5);
+                            setModalMode("create");
+                            setSelected({ startTime: `${date}T${time}` });
+                            setModalOpen(true);
+                          }}
+                        >
+                          📅 Prenota
+                        </button>
+                      </>
+                    ) : (
+                      <span className="ag-nextslot__result-text ag-muted">
+                        {nextSlotResult.error ? nextSlotResult.error : "Nessuno slot disponibile nei prossimi 90 giorni."}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="ag-kpi mt-3">
                 <div className="ag-kpi__item">
                   <div className="ag-kpi__label">Appuntamenti</div>
@@ -557,13 +733,17 @@ export default function AdminAgendaPage() {
                 <div className="ag-kpi__item">
                   <div className="ag-kpi__label">Giornata</div>
                   <div className="ag-kpi__value">
-                    {kpi.openMin
-                      ? kpi.occ >= 85
-                        ? <span className="ag-day-full">Piena 🔴</span>
-                        : kpi.occ >= 60
-                          ? <span className="ag-day-busy">Intensa 🟡</span>
-                          : <span className="ag-day-free">Libera 🟢</span>
-                      : "—"}
+                    {kpi.openMin ? (
+                      kpi.occ >= 85 ? (
+                        <span className="ag-day-full">Piena 🔴</span>
+                      ) : kpi.occ >= 60 ? (
+                        <span className="ag-day-busy">Intensa 🟡</span>
+                      ) : (
+                        <span className="ag-day-free">Libera 🟢</span>
+                      )
+                    ) : (
+                      "—"
+                    )}
                   </div>
                 </div>
               </div>
@@ -598,9 +778,7 @@ export default function AdminAgendaPage() {
                 <div>
                   <div className="ag-title">Appuntamenti</div>
                   <div className="ag-subtitle">
-                    {viewMode === "day"
-                      ? `${dateISO} · ${filtered.length}${hasStatusFilter ? ` di ${bookings.length}` : ""} risultati`
-                      : "Vista settimana"}
+                    {viewMode === "day" ? `${dateISO} · ${filtered.length}${hasStatusFilter ? ` di ${bookings.length}` : ""} risultati` : "Vista settimana"}
                   </div>
                 </div>
 
@@ -616,11 +794,7 @@ export default function AdminAgendaPage() {
 
               {viewMode === "day" && (
                 <div className="ag-filters">
-                  <button
-                    type="button"
-                    className={`ag-filter-pill pill--all ${!hasStatusFilter ? "is-active" : ""}`}
-                    onClick={clearStatusFilters}
-                  >
+                  <button type="button" className={`ag-filter-pill pill--all ${!hasStatusFilter ? "is-active" : ""}`} onClick={clearStatusFilters}>
                     <span>Tutti</span>
                     <span className="ag-filter-count">{bookings.length}</span>
                   </button>
@@ -674,109 +848,107 @@ export default function AdminAgendaPage() {
                   refreshKey={weekRefreshKey}
                 />
               ) : (
-              <>
-              <div className="ag-list">
-                {filtered.map(b => (
-                  <div key={b.bookingId} className="ag-item">
-                    <div className="ag-item__time">
-                      <div className="ag-item__timeMain">
-                        {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
-                      </div>
-                      <div className="ag-item__timeSub">{Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min</div>
-                    </div>
+                <>
+                  <div className="ag-list">
+                    {filtered.map(b => (
+                      <div key={b.bookingId} className="ag-item">
+                        <div className="ag-item__time">
+                          <div className="ag-item__timeMain">
+                            {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
+                          </div>
+                          <div className="ag-item__timeSub">{Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min</div>
+                        </div>
 
-                    <div className="ag-item__main">
-                      <div className="ag-item__top">
-                        <div className="ag-item__name">{b.customerName}</div>
-                        <StatusPill status={b.status} />
-                      </div>
+                        <div className="ag-item__main">
+                          <div className="ag-item__top">
+                            <div className="ag-item__name">{b.customerName}</div>
+                            <StatusPill status={b.status} />
+                          </div>
 
-                      <div className="ag-item__meta">
-                        <span className="ag-muted">{b.customerPhone}</span>
-                        <span className="ag-dotsep">•</span>
-                        <span className="ag-muted">{b.customerEmail}</span>
-                      </div>
+                          <div className="ag-item__meta">
+                            <span className="ag-muted">{b.customerPhone}</span>
+                            <span className="ag-dotsep">•</span>
+                            <span className="ag-muted">{b.customerEmail}</span>
+                          </div>
 
-                      <div className="ag-item__service">
-                        <span className="ag-service">{b.serviceTitle || "—"}</span>
-                        {b.optionName ? <span className="ag-option"> · {b.optionName}</span> : null}
-                        {b.notes ? <span className="ag-notes"> · {b.notes}</span> : null}
-                        {b.packageCreditId && (() => {
-                          const remaining = Number.isFinite(b.sessionsRemaining) ? b.sessionsRemaining : null;
-                          const total = Number.isFinite(b.sessionsTotal) ? b.sessionsTotal : null;
-                          const status = b.packageStatus || "ACTIVE";
+                          <div className="ag-item__service">
+                            <span className="ag-service">{b.serviceTitle || "—"}</span>
+                            {b.optionName ? <span className="ag-option"> · {b.optionName}</span> : null}
+                            {b.notes ? <span className="ag-notes"> · {b.notes}</span> : null}
+                            {b.packageCreditId &&
+                              (() => {
+                                const remaining = Number.isFinite(b.sessionsRemaining) ? b.sessionsRemaining : null;
+                                const total = Number.isFinite(b.sessionsTotal) ? b.sessionsTotal : null;
+                                const status = b.packageStatus || "ACTIVE";
 
-                          let variant = "active";
-                          let title = "";
+                                let variant = "active";
+                                let title = "";
 
-                          if (status === "EXPIRED") {
-                            variant = "expired";
-                          } else if (remaining === 0) {
-                            variant = "done";
-                          } else if (remaining === 1) {
-                            variant = "last";
-                            title = "Ultima seduta!";
-                          } else if (remaining > 1) {
-                            variant = "active";
-                          }
+                                if (status === "EXPIRED") {
+                                  variant = "expired";
+                                } else if (remaining === 0) {
+                                  variant = "done";
+                                } else if (remaining === 1) {
+                                  variant = "last";
+                                  title = "Ultima seduta!";
+                                } else if (remaining > 1) {
+                                  variant = "active";
+                                }
 
-                          return (
-                            <span
-                              className={`ag-pkg-indicator ag-pkg-indicator--${variant}`}
-                              title={title}
-                            >
-                              📦 {remaining ?? "?"}/{total ?? "?"}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                    </div>
+                                return (
+                                  <span className={`ag-pkg-indicator ag-pkg-indicator--${variant}`} title={title}>
+                                    📦 {remaining ?? "?"}/{total ?? "?"}
+                                  </span>
+                                );
+                              })()}
+                          </div>
+                        </div>
 
-                    <div className="ag-item__actions">
-                      {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
-                        <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => openEdit(b)}>
-                          Modifica
-                        </Button>
-                      )}
+                        <div className="ag-item__actions">
+                          {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
+                            <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => openEdit(b)}>
+                              Modifica
+                            </Button>
+                          )}
 
-                      {(b.status === "PENDING" || b.status === "PENDING_PAYMENT") && (
-                        <Button className="ag-btn ag-btn--primary" size="sm" onClick={() => changeStatus(b.bookingId, "CONFIRMED")}>
-                          Conferma
-                        </Button>
-                      )}
+                          {(b.status === "PENDING" || b.status === "PENDING_PAYMENT") && (
+                            <Button className="ag-btn ag-btn--primary" size="sm" onClick={() => changeStatus(b.bookingId, "CONFIRMED")}>
+                              Conferma
+                            </Button>
+                          )}
 
-                      {b.status === "CONFIRMED" && (
-                        <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
-                          Completa
-                        </Button>
-                      )}
+                          {b.status === "CONFIRMED" && (
+                            <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
+                              Completa
+                            </Button>
+                          )}
 
-                      {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
-                        <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
-                          Annulla
-                        </Button>
-                      )}
+                          {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
+                            <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
+                              Annulla
+                            </Button>
+                          )}
 
                       <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
-                        Elimina
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                            Elimina
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
 
-                {!filtered.length && (
-                  <div className="ag-empty">
-                    <div className="ag-empty__title">Nessun appuntamento</div>
-                    <div className="ag-empty__text">Per questo giorno non risultano prenotazioni.</div>
-                    <Button className="ag-btn ag-btn--primary mt-2" onClick={openCreate}>
-                      + Inserisci appuntamento
-                    </Button>
+                    {!filtered.length && (
+                      <div className="ag-empty">
+                        <div className="ag-empty__title">Nessun appuntamento</div>
+                        <div className="ag-empty__text">Per questo giorno non risultano prenotazioni.</div>
+                        <Button className="ag-btn ag-btn--primary mt-2" onClick={openCreate}>
+                          + Inserisci appuntamento
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              <div className="ag-footnote mt-2">Tip: “Modifica” apre la scheda completa. Per i walk-in puoi creare velocemente senza email.</div>
-              </>
+                  <div className="ag-footnote mt-2">Tip: “Modifica” apre la scheda completa. Per i walk-in puoi creare velocemente senza email.</div>
+                </>
               )}
             </Card.Body>
           </Card>
@@ -787,9 +959,7 @@ export default function AdminAgendaPage() {
         <div className="ag-confirm-overlay" onClick={() => setConfirmModal(null)}>
           <div className="ag-confirm-box" onClick={e => e.stopPropagation()}>
             <div className="ag-confirm-icon">{confirmModal.type === "delete" ? "🗑️" : "✕"}</div>
-            <div className="ag-confirm-title">
-              {confirmModal.type === "delete" ? "Elimina prenotazione" : "Annulla prenotazione"}
-            </div>
+            <div className="ag-confirm-title">{confirmModal.type === "delete" ? "Elimina prenotazione" : "Annulla prenotazione"}</div>
             <div className="ag-confirm-body">
               {confirmModal.type === "delete" ? (
                 <>
@@ -803,8 +973,7 @@ export default function AdminAgendaPage() {
             </div>
             {confirmModal.type === "delete" && confirmModal.stripeSessionId && (
               <div className="ag-confirm-warning">
-                ⚠️ Questa prenotazione è stata pagata online. Eliminandola non verrà
-                emesso alcun rimborso automatico — gestiscilo separatamente.
+                ⚠️ Questa prenotazione è stata pagata online. Eliminandola non verrà emesso alcun rimborso automatico — gestiscilo separatamente.
               </div>
             )}
             <div className="ag-confirm-actions">
@@ -815,7 +984,7 @@ export default function AdminAgendaPage() {
                 className={`ag-btn ${confirmModal.type === "delete" ? "ag-btn--danger" : "ag-btn--ghost"}`}
                 onClick={() => {
                   if (confirmModal.type === "delete") {
-                    removeBooking(confirmModal.bookingId);
+                    removeBooking(confirmModal.booking);
                   } else {
                     changeStatus(confirmModal.bookingId, "CANCELLED");
                   }
@@ -829,11 +998,23 @@ export default function AdminAgendaPage() {
         </div>
       )}
 
+      {pendingDelete && (
+        <div className="ag-snackbar">
+          <span className="ag-snackbar__text">
+            Appuntamento di <b>{pendingDelete.booking.customerName}</b> eliminato
+          </span>
+          <button type="button" className="ag-snackbar__undo" onClick={undoDelete}>
+            Annulla
+          </button>
+          <span className="ag-snackbar__countdown">{deleteCountdown}</span>
+        </div>
+      )}
+
       <BookingModal
         show={modalOpen}
         onHide={() => setModalOpen(false)}
         mode={modalMode}
-        initial={modalMode === "edit" ? selected : (selected?.startTime ? selected : null)}
+        initial={modalMode === "edit" ? selected : selected?.startTime ? selected : null}
         services={services}
         onSubmit={submitModal}
       />

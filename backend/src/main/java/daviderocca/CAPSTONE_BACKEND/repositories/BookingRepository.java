@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -91,6 +92,14 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
+
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE DATE(b.startTime) = :day
+          AND b.bookingStatus <> daviderocca.CAPSTONE_BACKEND.enums.BookingStatus.CANCELLED
+        ORDER BY b.startTime
+    """)
+    List<Booking> findByDateAndStatusNotCancelled(@Param("day") LocalDate day);
 
     // ===== Stripe =====
     Optional<Booking> findByStripeSessionId(String stripeSessionId);
