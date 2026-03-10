@@ -23,3 +23,7 @@ export const getCustomerSummary = async customerId => {
   const { data } = await http.get(CUSTOMER_ENDPOINTS.SUMMARY(customerId));
   return data;
 };
+
+export const updateCustomerNotes = async (customerId, notes) => {
+  await http.patch(CUSTOMER_ENDPOINTS.NOTES(customerId), { notes });
+};

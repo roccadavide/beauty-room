@@ -9,8 +9,12 @@ public record CustomerDetailDTO(
         String fullName,
         String phone,
         String email,
-        List<ActivePackageDTO> activePackages,
-        List<RecentBookingDTO> recentBookings
+        String notes,
+        int totalBookings,
+        int completedBookings,
+        int cancelledBookings,
+        List<ActivePackageDTO> packages,
+        List<RecentBookingDTO> bookings
 ) {
 
     /** One active PackageCredit the customer currently holds. */

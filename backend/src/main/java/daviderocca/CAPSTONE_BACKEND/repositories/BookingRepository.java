@@ -122,6 +122,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
      */
     List<Booking> findTop5ByCustomerEmailOrderByStartTimeDesc(String customerEmail);
 
+    List<Booking> findByCustomerEmailOrderByStartTimeDesc(String customerEmail);
+
     // ===== Lock singolo booking per update di stato =====
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Booking b WHERE b.bookingId = :id")

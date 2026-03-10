@@ -137,15 +137,6 @@ public class CustomerService {
     // CUSTOMER DETAIL / SUMMARY
     // ══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Returns a full customer card with:
-     *   – active PackageCredits
-     *   – last 5 bookings
-     *
-     * Uses the customer's email as the join key because existing Booking and
-     * PackageCredit rows were created before this customer registry existed and
-     * don't yet carry a customer_id FK.
-     */
     @Transactional(readOnly = true)
     public CustomerDetailDTO getSummary(UUID customerId) {
         Customer customer = customerRepository.findById(customerId)
@@ -168,30 +159,48 @@ public class CustomerService {
                 ))
                 .toList();
 
-        // ── Recent bookings ──
-        // NOTE: ServiceItem.getTitle() and ServiceOption.getName() are accessed
-        // lazily inside this @Transactional method – no LazyInitializationException.
+        // ── Bookings: full history (order desc by startTime) ──
         List<CustomerDetailDTO.RecentBookingDTO> bookings = (email == null)
             ? List.of()
             : bookingRepository
-                .findTop5ByCustomerEmailOrderByStartTimeDesc(email)
+                .findByCustomerEmailOrderByStartTimeDesc(email)
                 .stream()
                 .map(b -> new CustomerDetailDTO.RecentBookingDTO(
                     b.getBookingId(),
                     b.getStartTime(),
                     b.getBookingStatus().name(),
-                    b.getService()       != null ? b.getService().getTitle()          : "—",
-                    b.getServiceOption() != null ? b.getServiceOption().getName()     : null
+                    b.getService()       != null ? b.getService().getTitle()      : "—",
+                    b.getServiceOption() != null ? b.getServiceOption().getName() : null
                 ))
                 .toList();
 
+        int total = bookings.size();
+        int completed = (int) bookings.stream()
+                .filter(b -> "COMPLETED".equals(b.bookingStatus()))
+                .count();
+        int cancelled = (int) bookings.stream()
+                .filter(b -> "CANCELLED".equals(b.bookingStatus()) || "NO_SHOW".equals(b.bookingStatus()))
+                .count();
+
         return new CustomerDetailDTO(
-            customer.getCustomerId(),
-            customer.getFullName(),
-            customer.getPhone(),
-            customer.getEmail(),
-            packages,
-            bookings
+                customer.getCustomerId(),
+                customer.getFullName(),
+                customer.getPhone(),
+                customer.getEmail(),
+                customer.getNotes(),
+                total,
+                completed,
+                cancelled,
+                packages,
+                bookings
         );
+    }
+
+    @Transactional
+    public void updateNotes(UUID customerId, String notes) {
+        Customer c = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException(customerId));
+        c.setNotes(notes != null ? notes.trim() : null);
+        customerRepository.save(c);
     }
 }
