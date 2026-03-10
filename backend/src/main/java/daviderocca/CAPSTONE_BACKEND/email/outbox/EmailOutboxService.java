@@ -5,16 +5,20 @@ import daviderocca.CAPSTONE_BACKEND.email.events.EmailEventType;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.Order;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class EmailOutboxService {
 
     private final EmailOutboxRepository repo;
+    @Value("${app.admin.email:admin@beautyroom.local}")
+    private String adminEmail;
 
     public void enqueueBookingConfirmed(Booking booking) {
         if (booking == null || booking.getBookingId() == null) return;
@@ -60,6 +64,20 @@ public class EmailOutboxService {
                 EmailAggregateType.ORDER,
                 order.getOrderId(),
                 normalizeEmail(order.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
+    public void enqueuePaidConflictAlert(Booking booking, String stripeSessionId) {
+        if (booking == null || booking.getBookingId() == null) return;
+        String to = normalizeEmail(adminEmail);
+        if (to == null) return;
+
+        enqueueSafe(
+                EmailEventType.PAID_CONFLICT,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                to,
                 LocalDateTime.now()
         );
     }

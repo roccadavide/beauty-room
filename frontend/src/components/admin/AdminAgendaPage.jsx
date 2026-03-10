@@ -26,6 +26,8 @@ const fmtTime = dt => new Date(dt).toLocaleTimeString([], { hour: "2-digit", min
 
 const STATUS_META = {
   PENDING: { label: "In attesa", tone: "pending" },
+  PENDING_PAYMENT: { label: "Attesa pagamento", tone: "pending" },
+  NO_SHOW: { label: "Non presentata", tone: "noshow" },
   CONFIRMED: { label: "Confermato", tone: "confirmed" },
   COMPLETED: { label: "Completato", tone: "completed" },
   CANCELLED: { label: "Cancellato", tone: "cancelled" },
@@ -917,19 +919,24 @@ export default function AdminAgendaPage() {
                             </Button>
                           )}
 
-                          {b.status === "CONFIRMED" && (
-                            <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
-                              Completa
-                            </Button>
-                          )}
+                      {b.status === "CONFIRMED" && (
+                        <>
+                          <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
+                            Completa
+                          </Button>
+                          <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => changeStatus(b.bookingId, "NO_SHOW")}>
+                            Non presentata
+                          </Button>
+                        </>
+                      )}
 
-                          {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
-                            <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
-                              Annulla
-                            </Button>
-                          )}
+                      {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
+                        <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
+                          Annulla
+                        </Button>
+                      )}
 
-                      <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
+                          <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
                             Elimina
                           </Button>
                         </div>
@@ -974,6 +981,11 @@ export default function AdminAgendaPage() {
             {confirmModal.type === "delete" && confirmModal.stripeSessionId && (
               <div className="ag-confirm-warning">
                 ⚠️ Questa prenotazione è stata pagata online. Eliminandola non verrà emesso alcun rimborso automatico — gestiscilo separatamente.
+              </div>
+            )}
+            {confirmModal.type === "delete" && confirmModal.booking?.status === "COMPLETED" && confirmModal.booking?.packageCreditId && (
+              <div className="ag-confirm-warning">
+                ⚠️ Questa prenotazione è COMPLETATA e collegata a un pacchetto. La seduta consumata NON verrà ripristinata automaticamente.
               </div>
             )}
             <div className="ag-confirm-actions">

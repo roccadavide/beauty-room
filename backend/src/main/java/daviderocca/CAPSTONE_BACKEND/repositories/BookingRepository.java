@@ -80,14 +80,15 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     // ===== Admin agenda (fetch join) - include ALL statuses =====
     @Query("""
-        SELECT b
-        FROM Booking b
-        LEFT JOIN FETCH b.service s
-        LEFT JOIN FETCH b.serviceOption so
-        WHERE b.startTime < :to
-          AND b.endTime   > :from
-        ORDER BY b.startTime ASC
-    """)
+    SELECT b
+    FROM Booking b
+    LEFT JOIN FETCH b.service s
+    LEFT JOIN FETCH b.serviceOption so
+    LEFT JOIN FETCH b.packageCredit pc
+    WHERE b.startTime < :to
+      AND b.endTime   > :from
+    ORDER BY b.startTime ASC
+""")
     List<Booking> findAgendaRangeWithDetails(
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to

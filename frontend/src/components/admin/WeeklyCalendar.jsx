@@ -158,10 +158,7 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
 
   const visibleDays = isMobile ? mobileVisibleDays : weekDays;
 
-  const gridTemplateColumns = useMemo(
-    () => (isMobile ? "52px repeat(3, 1fr)" : "52px repeat(7, minmax(110px, 1fr))"),
-    [isMobile],
-  );
+  const gridTemplateColumns = useMemo(() => (isMobile ? "52px repeat(3, 1fr)" : "52px repeat(7, minmax(110px, 1fr))"), [isMobile]);
 
   if (loading) {
     return (
@@ -173,11 +170,7 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
   }
 
   if (error) {
-    return (
-      <div className="alert alert-danger mb-0">
-        {error}
-      </div>
-    );
+    return <div className="alert alert-danger mb-0">{error}</div>;
   }
 
   return (
@@ -209,9 +202,7 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
               ‹ Giorno prec.
             </button>
 
-            <span className="ag-week__mobile-label">
-              {visibleDays.map(d => `${d.date.getDate()} ${MONTH_IT[d.date.getMonth()].slice(0, 3)}`).join(" · ")}
-            </span>
+            <span className="ag-week__mobile-label">{visibleDays.map(d => `${d.date.getDate()} ${MONTH_IT[d.date.getMonth()].slice(0, 3)}`).join(" · ")}</span>
 
             <button
               type="button"
@@ -241,23 +232,21 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
               tabIndex={0}
               onKeyDown={e => e.key === "Enter" && onDayClick?.(d.iso)}
             >
-              <span className="dow">{DOW_IT[(idx + 1) % 7]}</span>
-              <span className="dd">{d.date.getDate()} {MONTH_IT[d.date.getMonth()].slice(0, 3)}</span>
+              <span className="dow">{DOW_IT[d.date.getDay()]}</span>
+              <span className="dd">
+                {d.date.getDate()} {MONTH_IT[d.date.getMonth()].slice(0, 3)}
+              </span>
             </div>
           ))}
 
-              {hours.map((hour, i) => (
+          {hours.map((hour, i) => (
             <div key={`time-${hour}`} className="ag-week__time-col ag-week__hour-row" style={{ gridRow: i + 2, gridColumn: 1 }}>
               {pad2(hour)}:00
             </div>
           ))}
 
           {visibleDays.map((d, dayIdx) => (
-            <div
-              key={d.iso}
-              className="ag-week__day-col"
-              style={{ gridColumn: dayIdx + 2, gridRow: "2 / -1" }}
-            >
+            <div key={d.iso} className="ag-week__day-col" style={{ gridColumn: dayIdx + 2, gridRow: "2 / -1" }}>
               {hours.map(hour => (
                 <div
                   key={hour}
@@ -282,10 +271,17 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                 const topPx = startMin - GRID_START_MIN;
                 const heightPx = Math.max((durationMin / 60) * HOUR_HEIGHT, 30);
 
-                return (
+              const statusClass =
+                ["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"].includes(b.status)
+                  ? b.status === "NO_SHOW"
+                    ? "CANCELLED"
+                    : b.status
+                  : "PENDING";
+
+              return (
                   <div
                     key={b.bookingId}
-                    className={`ag-week-block ag-week-block--${["CONFIRMED", "COMPLETED", "CANCELLED"].includes(b.status) ? b.status : "PENDING"}`}
+                  className={`ag-week-block ag-week-block--${statusClass}`}
                     style={{
                       top: topPx,
                       height: heightPx,
@@ -304,16 +300,15 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                       <>
                         <div className="ag-week-block__service">{b.serviceTitle || ""}</div>
                         <div className="ag-week-block__time">
-                          {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} –{" "}
+                          {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </div>
                       </>
                     )}
                   </div>
                 );
               })}
-              {nowLine?.iso === d.iso && (
-                <div className="ag-week-nowline" style={{ top: nowLine.topPx }} />
-              )}
+              {nowLine?.iso === d.iso && <div className="ag-week-nowline" style={{ top: nowLine.topPx }} />}
             </div>
           ))}
         </div>

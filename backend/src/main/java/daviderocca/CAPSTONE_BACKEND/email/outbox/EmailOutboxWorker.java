@@ -157,13 +157,18 @@ public class EmailOutboxWorker {
             Booking b = bookingRepo.findByIdWithDetails(e.getAggregateId())
                     .orElseThrow(() -> new IllegalStateException("Booking not found: " + e.getAggregateId()));
 
+            // Per le email cliente normali, evitiamo di inviare se la prenotazione è cancellata.
             if (b.getBookingStatus() == null || b.getBookingStatus().name().equals("CANCELLED")) {
-                throw new SkipEmailException("Booking cancelled (skip): " + b.getBookingId());
+                // Eccezione: per alert amministrativi come PAID_CONFLICT vogliamo comunque inviare.
+                if (type != EmailEventType.PAID_CONFLICT) {
+                    throw new SkipEmailException("Booking cancelled (skip): " + b.getBookingId());
+                }
             }
 
             return switch (type) {
                 case BOOKING_CONFIRMED -> templates.bookingConfirmed(b);
                 case BOOKING_REMINDER_24H -> templates.bookingReminder(b);
+                case PAID_CONFLICT -> templates.paidConflictAlert(b, null);
                 default -> throw new IllegalArgumentException("Unsupported booking event: " + type);
             };
         }

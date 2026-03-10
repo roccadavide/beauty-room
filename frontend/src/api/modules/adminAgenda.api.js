@@ -67,7 +67,7 @@ export const getNextAvailableSlot = async (durationMin, afterISO) => {
   const params = { durationMin };
   if (afterISO) params.after = afterISO;
   try {
-    const { data } = await http.get("/admin/bookings/next-available", { params });
+    const { data } = await http.get(AGENDA_ENDPOINTS.NEXT_AVAILABLE, { params });
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Impossibile cercare la prossima disponibilità.";

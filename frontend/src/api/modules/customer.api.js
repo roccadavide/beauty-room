@@ -1,4 +1,5 @@
 import http from "../httpClient";
+import { CUSTOMER_ENDPOINTS } from "../endpoints";
 
 /**
  * GET /admin/customers/search?q={query}
@@ -8,7 +9,7 @@ import http from "../httpClient";
  * @returns {Promise<Array<{customerId: string, fullName: string, phone?: string, email?: string}>>}
  */
 export const searchCustomers = async q => {
-  const { data } = await http.get("/admin/customers/search", { params: { q } });
+  const { data } = await http.get(CUSTOMER_ENDPOINTS.SEARCH, { params: { q } });
   return Array.isArray(data) ? data : [];
 };
 
@@ -19,6 +20,6 @@ export const searchCustomers = async q => {
  * @returns {Promise<any>}
  */
 export const getCustomerSummary = async customerId => {
-  const { data } = await http.get(`/admin/customers/${customerId}/summary`);
+  const { data } = await http.get(CUSTOMER_ENDPOINTS.SUMMARY(customerId));
   return data;
 };

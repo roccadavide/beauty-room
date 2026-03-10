@@ -156,7 +156,7 @@ public class BookingService {
 
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
 
-        LocalDateTime start = normalizeStart(payload.startTime());
+        LocalDateTime start = payload.startTime().truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end = start.plusMinutes(serviceItem.getDurationMin());
 
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
@@ -527,6 +527,21 @@ public class BookingService {
         if (newStatus == BookingStatus.COMPLETED) {
             found.setCompletedAt(LocalDateTime.now());
         }
+        if (newStatus == BookingStatus.CANCELLED) {
+            found.setCanceledAt(LocalDateTime.now());
+            found.setCancelReason("ADMIN_CANCEL");
+            found.setExpiresAt(null);
+        }
+        if (newStatus == BookingStatus.NO_SHOW) {
+            found.setCanceledAt(LocalDateTime.now());
+            found.setCancelReason("NO_SHOW");
+        }
+
+        if (newStatus == BookingStatus.CANCELLED) {
+    found.setCanceledAt(LocalDateTime.now());
+    found.setCancelReason("ADMIN_CANCEL");
+    found.setExpiresAt(null);
+}
 
         // --- gestione pacchetto: scalatura/rollback seduta ---
         boolean wasCompleted  = (old == BookingStatus.COMPLETED);

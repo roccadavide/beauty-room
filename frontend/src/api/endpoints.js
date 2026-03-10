@@ -39,6 +39,7 @@ export const BOOKING_ENDPOINTS = {
 // ---- BOOKINGS (ADMIN) ----
 export const BOOKING_ENDPOINTS_ADMIN = {
   BASE: "/admin/bookings",
+  CREATE_MANUAL: "/admin/bookings/manual", // POST /admin/bookings/manual
   BY_ID: id => `/admin/bookings/${id}`,
   BY_EMAIL: "/admin/bookings/by-email", // params: { email }
   DAY: "/admin/bookings/day", // params: { date }
@@ -118,8 +119,14 @@ export const AGENDA_ENDPOINTS = {
   BOOKINGS_BASE: "/admin/bookings",
   BOOKING_BY_ID: id => `/admin/bookings/${id}`,
   BOOKING_STATUS: id => `/admin/bookings/${id}/status`,
+  NEXT_AVAILABLE: "/admin/bookings/next-available",
 };
 
 export const AVAIL_ENDPOINTS = {
   SERVICE_SLOTS: serviceId => `/availabilities/services/${serviceId}`, // ?date=YYYY-MM-DD
+};
+
+export const CUSTOMER_ENDPOINTS = {
+  SEARCH: "/admin/customers/search",
+  SUMMARY: id => `/admin/customers/${id}/summary`,
 };

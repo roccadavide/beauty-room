@@ -226,6 +226,57 @@ public class EmailTemplateService {
                 """.formatted(brandName, customer, totalStr, whenPaid, safe(o.getPickupNote())));
     }
 
+    // ===================== PAID CONFLICT ALERT (ADMIN) =====================
+    public EmailContent paidConflictAlert(Booking b, String stripeSessionId) {
+        String subject = "⚠️ PAID_CONFLICT — Prenotazione pagata su slot già occupato";
+
+        String when = (b.getStartTime() != null) ? b.getStartTime().format(IT_DT) : "-";
+        String customerName = safe(b.getCustomerName());
+        String bookingId = b.getBookingId() != null ? b.getBookingId().toString() : "-";
+        String sessionId = (stripeSessionId != null && !stripeSessionId.isBlank()) ? stripeSessionId : "-";
+
+        String body = """
+            <h1 style="%s">⚠️ Pagamento su slot occupato</h1>
+
+            <p style="%s">
+              Si è verificato un <b>PAID_CONFLICT</b> su una prenotazione pagata con Stripe.
+            </p>
+
+            %s
+
+            <p style="%s; margin-top:16px;">
+              <b>Azione richiesta:</b> effettua manualmente il rimborso su Stripe
+              e contatta la cliente per fissare un nuovo appuntamento.
+            </p>
+        """.formatted(
+                h1Style(),
+                pStyle(),
+                detailsBox(new String[][]{
+                        {"Booking ID", bookingId},
+                        {"Cliente", customerName},
+                        {"Data/ora", when},
+                        {"Stripe Session", sessionId}
+                }),
+                smallStyle()
+        );
+
+        String html = wrap(body);
+
+        String text = """
+                ⚠️ PAID_CONFLICT — Prenotazione pagata su slot già occupato
+
+                Prenotazione ID: %s
+                Cliente: %s
+                Data/ora: %s
+                Stripe Session: %s
+
+                Azione richiesta: effettua manualmente il rimborso su Stripe
+                e contatta la cliente per fissare un nuovo appuntamento.
+                """.formatted(bookingId, customerName, when, sessionId);
+
+        return new EmailContent(subject, html, text);
+    }
+
     // ===================== LAYOUT HELPERS =====================
 
     private String wrap(String innerHtml) {

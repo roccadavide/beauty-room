@@ -148,6 +148,11 @@ public class StripeWebhookController {
 
                         log.error("PAID_CONFLICT: bookingId={} sessionId={} slot già occupato. Necessario intervento (refund/manual).",
                                 bookingId, session.getId());
+                        try {
+                            emailOutboxService.enqueuePaidConflictAlert(b, session.getId());
+                        } catch (Exception ex) {
+                            log.error("Failed to enqueue PAID_CONFLICT alert email: {}", ex.getMessage());
+                        }
                         return;
                     }
 
