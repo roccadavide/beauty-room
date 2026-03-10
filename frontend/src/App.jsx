@@ -34,6 +34,7 @@ import useLenis from "./hooks/useLenis";
 import { useEffect, useState } from "react";
 import AdminAgendaSettingsPage from "./components/admin/AdminAgendaSettingsPage";
 import AdminAgendaPage from "./components/admin/AdminAgendaPage";
+import ImpostazioniPage from "./components/admin/ImpostazioniPage";
 import { useDispatch } from "react-redux";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
@@ -328,6 +329,15 @@ function App() {
               element={
                 <PrivateRoute roles={["ADMIN"]}>
                   <AdminAgendaSettingsPage />
+                </PrivateRoute>
+              }
+            />
+
+            <Route
+              path="/admin/impostazioni"
+              element={
+                <PrivateRoute roles={["ADMIN"]}>
+                  <ImpostazioniPage />
                 </PrivateRoute>
               }
             />

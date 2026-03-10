@@ -202,12 +202,15 @@ export default function NavBar() {
                   <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"}>
                     {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
                   </NavDropdown.Item>
-                  {user.role === "ADMIN" ? (
-                    <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
-                      Agenda
-                    </NavDropdown.Item>
-                  ) : (
-                    ""
+                  {user.role === "ADMIN" && (
+                    <>
+                      <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
+                        Agenda
+                      </NavDropdown.Item>
+                      <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
+                        ⚙️ Impostazioni
+                      </NavDropdown.Item>
+                    </>
                   )}
                   <NavDropdown.Divider />
                   <NavDropdown.Item onClick={handleLogoutClick} className="text-danger">
@@ -294,12 +297,15 @@ export default function NavBar() {
                   <Link to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"} onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                     {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
                   </Link>
-                  {user.role === "ADMIN" ? (
-                    <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
-                      Agenda
-                    </NavDropdown.Item>
-                  ) : (
-                    ""
+                  {user.role === "ADMIN" && (
+                    <>
+                      <Link to="/profilo/admin/agenda" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                        Agenda
+                      </Link>
+                      <Link to="/admin/impostazioni" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                        ⚙️ Impostazioni
+                      </Link>
+                    </>
                   )}
                   <button type="button" onClick={handleLogoutClick} className="logout-btn-mobile" tabIndex={mobileProfileExpanded ? 0 : -1}>
                     Esci

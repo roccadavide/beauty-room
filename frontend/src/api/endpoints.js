@@ -130,3 +130,12 @@ export const CUSTOMER_ENDPOINTS = {
   SEARCH: "/admin/customers/search",
   SUMMARY: id => `/admin/customers/${id}/summary`,
 };
+
+// ---- SETTINGS (Orari & Chiusure) ----
+export const SETTINGS_ENDPOINTS = {
+  WORKING_HOURS:       "/working-hours",
+  WORKING_HOURS_BY_ID: id => `/working-hours/${id}`,
+  WORKING_HOURS_INIT:  "/working-hours/init-default-week",
+  CLOSURES:            "/closures",
+  CLOSURE_BY_ID:       id => `/closures/${id}`,
+};

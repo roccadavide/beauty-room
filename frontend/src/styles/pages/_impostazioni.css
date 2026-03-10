@@ -1,0 +1,677 @@
+/* ===========================
+   IMPOSTAZIONI — LIGHT THEME
+   Prefisso: imp-
+   =========================== */
+
+/* ── Page shell ── */
+.imp-page {
+  width: 100%;
+  min-height: 100%;
+  color: var(--ag-text);
+  background:
+    radial-gradient(800px 320px at 15% -5%, rgba(139, 94, 60, 0.08), transparent 55%),
+    radial-gradient(600px 280px at 88% 2%, rgba(231, 214, 195, 0.45), transparent 60%),
+    linear-gradient(180deg, var(--ag-bg), var(--ag-bg2));
+}
+
+.imp-container {
+  max-width: 900px;
+  padding-top: 32px;
+  padding-bottom: 60px;
+}
+
+/* ── Header ── */
+.imp-header {
+  margin-bottom: 28px;
+}
+
+.imp-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--ag-text);
+  letter-spacing: -0.3px;
+  margin: 0 0 4px;
+}
+
+.imp-subtitle {
+  font-size: 0.875rem;
+  color: var(--ag-muted);
+  margin: 0;
+}
+
+/* ── Loading / Global error ── */
+.imp-loading {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--ag-muted);
+  font-size: 0.9rem;
+}
+
+.imp-global-error {
+  background: rgba(210, 70, 70, 0.08);
+  border: 1px solid rgba(210, 70, 70, 0.22);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  color: #c0392b;
+  margin-bottom: 20px;
+}
+
+/* ── Tab pills ── */
+.imp-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--ag-border);
+  border-radius: 14px;
+  padding: 4px;
+  width: fit-content;
+}
+
+.imp-tab-pill {
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--ag-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.imp-tab-pill:hover {
+  background: rgba(231, 214, 195, 0.4);
+  color: var(--ag-text);
+}
+
+.imp-tab-pill--active {
+  background: linear-gradient(180deg, rgba(139, 94, 60, 0.95), rgba(111, 74, 47, 0.95));
+  color: #fff;
+}
+
+.imp-tab-pill--active:hover {
+  background: linear-gradient(180deg, rgba(139, 94, 60, 0.95), rgba(111, 74, 47, 0.95));
+  color: #fff;
+}
+
+/* ── Section ── */
+.imp-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.imp-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ag-text);
+}
+
+.imp-section-sub {
+  font-size: 0.8rem;
+  color: var(--ag-muted);
+  margin-top: 2px;
+}
+
+/* ── Buttons ── */
+.imp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(111, 74, 47, 0.2);
+  padding: 9px 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    filter 0.12s ease,
+    background 0.12s ease;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.imp-btn:active {
+  transform: translateY(1px);
+}
+
+.imp-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.imp-btn--primary {
+  background: linear-gradient(180deg, rgba(139, 94, 60, 0.95), rgba(111, 74, 47, 0.95));
+  color: #fff;
+  border-color: rgba(111, 74, 47, 0.45);
+}
+
+.imp-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.imp-btn--ghost {
+  background: transparent;
+  color: var(--ag-text);
+}
+
+.imp-btn--ghost:hover:not(:disabled) {
+  background: rgba(231, 214, 195, 0.4);
+}
+
+.imp-btn--danger {
+  background: rgba(210, 70, 70, 0.1);
+  border-color: rgba(210, 70, 70, 0.25);
+  color: #c0392b;
+}
+
+.imp-btn--danger:hover:not(:disabled) {
+  background: rgba(210, 70, 70, 0.17);
+}
+
+.imp-btn--danger-ghost {
+  background: transparent;
+  border-color: rgba(210, 70, 70, 0.2);
+  color: #c0392b;
+}
+
+.imp-btn--danger-ghost:hover:not(:disabled) {
+  background: rgba(210, 70, 70, 0.08);
+}
+
+.imp-btn--sm {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  border-radius: 10px;
+}
+
+/* ── Errors / feedback ── */
+.imp-field-error {
+  font-size: 0.78rem;
+  color: #c0392b;
+  margin-top: 8px;
+  background: rgba(210, 70, 70, 0.07);
+  border: 1px solid rgba(210, 70, 70, 0.18);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.imp-save-ok {
+  font-size: 0.82rem;
+  color: #27ae60;
+  font-weight: 700;
+  animation: imp-fadeIn 0.2s ease;
+}
+
+@keyframes imp-fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ══════════════════════════════════════
+   ORARI — Day Grid & Day Card
+   ══════════════════════════════════════ */
+
+.imp-day-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 576px) {
+  .imp-day-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 992px) {
+  .imp-day-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.imp-day-card {
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  border: 1px solid var(--ag-border);
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(35, 26, 20, 0.06);
+  padding: 16px;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.imp-day-card:hover {
+  box-shadow: 0 6px 22px rgba(35, 26, 20, 0.1);
+  border-color: rgba(111, 74, 47, 0.2);
+}
+
+.imp-day-card--closed {
+  opacity: 0.72;
+  background: linear-gradient(180deg, #f5f5f5, #f0ece8);
+}
+
+.imp-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.imp-day-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ag-text);
+  letter-spacing: 0.1px;
+}
+
+/* ── Custom toggle switch ── */
+.imp-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.imp-toggle input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.imp-toggle__track {
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: #d1d5db;
+  position: relative;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.imp-toggle__track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.imp-toggle input:checked ~ .imp-toggle__track {
+  background: #4caf78;
+}
+
+.imp-toggle input:checked ~ .imp-toggle__track::after {
+  transform: translateX(18px);
+}
+
+.imp-toggle__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ag-muted);
+  min-width: 40px;
+}
+
+/* ── Day card body ── */
+.imp-day-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.imp-slot-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--ag-muted);
+}
+
+.imp-time-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.imp-time-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.imp-time-label {
+  font-size: 0.7rem;
+  color: var(--ag-muted);
+  font-weight: 600;
+}
+
+.imp-time-input {
+  background: #fff;
+  border: 1px solid rgba(111, 74, 47, 0.18);
+  border-radius: 10px;
+  padding: 7px 9px;
+  font-size: 0.875rem;
+  color: var(--ag-text);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
+}
+
+.imp-time-input:focus {
+  border-color: rgba(139, 94, 60, 0.4);
+  box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.1);
+}
+
+.imp-time-sep {
+  font-size: 0.75rem;
+  color: var(--ag-muted);
+  padding-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.imp-pm-toggle-row {
+  margin-top: 2px;
+}
+
+.imp-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--ag-muted);
+  font-weight: 600;
+}
+
+.imp-checkbox-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #8b5e3c;
+  cursor: pointer;
+}
+
+/* ── Save row ── */
+.imp-save-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.imp-save-btn {
+  background: linear-gradient(180deg, rgba(139, 94, 60, 0.9), rgba(111, 74, 47, 0.9));
+  color: #fff;
+  border: 1px solid rgba(111, 74, 47, 0.4);
+  border-radius: 11px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.12s ease, transform 0.08s ease;
+  line-height: 1;
+}
+
+.imp-save-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.imp-save-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.imp-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ══════════════════════════════════════
+   CHIUSURE — Form & List
+   ══════════════════════════════════════ */
+
+.imp-closure-form {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(251, 245, 236, 0.9));
+  border: 1px solid rgba(139, 94, 60, 0.22);
+  border-radius: 18px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 18px rgba(35, 26, 20, 0.07);
+}
+
+.imp-form-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ag-text);
+  margin-bottom: 16px;
+}
+
+.imp-form-row {
+  margin-bottom: 14px;
+}
+
+.imp-form-row--times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.imp-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.imp-form-group--full {
+  width: 100%;
+}
+
+.imp-form-label {
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: var(--ag-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.imp-char-count {
+  font-weight: 400;
+  color: rgba(35, 26, 20, 0.38);
+}
+
+.imp-form-input {
+  background: #fff;
+  border: 1px solid rgba(111, 74, 47, 0.18);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 0.875rem;
+  color: var(--ag-text);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
+}
+
+.imp-form-input:focus {
+  border-color: rgba(139, 94, 60, 0.4);
+  box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.1);
+}
+
+.imp-form-input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.imp-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+/* ── Closure list ── */
+.imp-closure-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.imp-closure-card {
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  border: 1px solid var(--ag-border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  flex-wrap: wrap;
+}
+
+.imp-closure-card:hover {
+  box-shadow: 0 4px 16px rgba(35, 26, 20, 0.08);
+  border-color: rgba(111, 74, 47, 0.2);
+}
+
+.imp-closure-card--editing {
+  border-color: rgba(139, 94, 60, 0.35);
+  box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.08);
+}
+
+.imp-closure-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.imp-closure-date {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ag-text);
+  text-transform: capitalize;
+}
+
+.imp-closure-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.imp-closure-reason {
+  font-size: 0.82rem;
+  color: var(--ag-muted);
+}
+
+/* ── Badges ── */
+.imp-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.imp-badge--fullday {
+  background: rgba(35, 26, 20, 0.1);
+  color: var(--ag-text);
+  border: 1px solid rgba(35, 26, 20, 0.14);
+}
+
+.imp-badge--partial {
+  background: rgba(200, 164, 106, 0.18);
+  color: #6f4a2f;
+  border: 1px solid rgba(200, 164, 106, 0.3);
+}
+
+/* ── Closure actions ── */
+.imp-closure-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.imp-delete-confirm-text {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #c0392b;
+  white-space: nowrap;
+}
+
+/* ── Empty state ── */
+.imp-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--ag-muted);
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px dashed rgba(111, 74, 47, 0.18);
+  border-radius: 16px;
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — Mobile tweaks
+   ══════════════════════════════════════ */
+
+@media (max-width: 575px) {
+  .imp-title {
+    font-size: 1.4rem;
+  }
+
+  .imp-tabs {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .imp-tab-pill {
+    flex: 1;
+    text-align: center;
+  }
+
+  .imp-closure-card {
+    flex-direction: column;
+  }
+
+  .imp-closure-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .imp-form-row--times {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .imp-section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .imp-section-header > .imp-btn {
+    align-self: flex-start;
+  }
+}
