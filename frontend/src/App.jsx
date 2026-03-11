@@ -36,6 +36,7 @@ import AdminAgendaSettingsPage from "./components/admin/AdminAgendaSettingsPage"
 import AdminAgendaPage from "./components/admin/AdminAgendaPage";
 import ImpostazioniPage from "./components/admin/ImpostazioniPage";
 import ClientiPage from "./pages/admin/ClientiPage";
+import ReportPage from "./pages/admin/ReportPage";
 import { useDispatch } from "react-redux";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
@@ -347,6 +348,14 @@ function App() {
               element={
                 <PrivateRoute roles={["ADMIN"]}>
                   <ImpostazioniPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/report"
+              element={
+                <PrivateRoute roles={["ADMIN"]}>
+                  <ReportPage />
                 </PrivateRoute>
               }
             />

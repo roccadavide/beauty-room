@@ -132,6 +132,10 @@ export const CUSTOMER_ENDPOINTS = {
   NOTES: id => `/admin/customers/${id}/notes`,
 };
 
+export const REPORT_ENDPOINTS = {
+  REPORT: "/admin/report",
+};
+
 // ---- SETTINGS (Orari & Chiusure) ----
 export const SETTINGS_ENDPOINTS = {
   WORKING_HOURS:       "/working-hours",
