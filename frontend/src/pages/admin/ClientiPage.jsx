@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Container, Spinner } from "react-bootstrap";
 import CustomerAutocomplete from "../../components/admin/CustomerAutocomplete";
 import { getCustomerSummary, updateCustomerNotes } from "../../api/modules/customer.api";
@@ -73,9 +73,7 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
 
   const firstBookingDate = earliestBookingDate(customer.bookings);
   const firstYear = firstBookingDate?.getFullYear();
-  const firstWhen = firstBookingDate
-    ? firstBookingDate.toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
-    : null;
+  const firstWhen = firstBookingDate ? firstBookingDate.toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" }) : null;
 
   const notesChanged = notes !== (originalNotes || "");
 
@@ -109,11 +107,7 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
           </div>
           <div className="cli-customer-meta">
             {firstWhen && <span>Prima prenotazione: {firstWhen}</span>}
-            {firstYear && (
-              <span className="cli-badge-year">
-                Cliente dal {firstYear}
-              </span>
-            )}
+            {firstYear && <span className="cli-badge-year">Cliente dal {firstYear}</span>}
           </div>
         </div>
 
@@ -145,9 +139,7 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
                 if (remaining <= 1) barCls = "cli-pkg-bar-fill--critical";
                 else if (pct <= 50) barCls = "cli-pkg-bar-fill--warn";
 
-                const expiry = p.expiryDate
-                  ? new Date(p.expiryDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })
-                  : null;
+                const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
 
                 return (
                   <div key={p.packageCreditId} className="cli-pkg-card">
@@ -156,7 +148,9 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
                       <div className={`cli-pkg-bar-fill ${barCls}`} style={{ width: `${pct}%` }} />
                     </div>
                     <div className="cli-pkg-meta">
-                      <span>{remaining} / {total} sedute rimanenti</span>
+                      <span>
+                        {remaining} / {total} sedute rimanenti
+                      </span>
                       {expiry && <span>Scade il {expiry}</span>}
                     </div>
                   </div>
@@ -174,12 +168,7 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
           <div className="cli-notes-meta">{notes.length}/2000 caratteri</div>
         </div>
 
-        <textarea
-          className="cli-notes-textarea"
-          maxLength={2000}
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-        />
+        <textarea className="cli-notes-textarea" maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} />
 
         <div className="cli-notes-actions">
           <button className="cli-btn" disabled={!notesChanged || saving} onClick={handleSaveNotes}>
@@ -202,9 +191,7 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
                       {b.serviceTitle || "Servizio"}
                       {b.optionName && ` — ${b.optionName}`}
                     </div>
-                    <div className="cli-history-meta">
-                      {formatDateTimeIT(b.startTime)}
-                    </div>
+                    <div className="cli-history-meta">{formatDateTimeIT(b.startTime)}</div>
                   </div>
                   <div className="cli-history-status">
                     <StatusPill status={b.bookingStatus} />
@@ -260,25 +247,14 @@ export default function ClientiPage() {
 
         <div className="cli-search-card">
           <div className="cli-search-label">Cerca cliente</div>
-          <CustomerAutocomplete
-            value={query}
-            onChange={setQuery}
-            onSelect={handleSelect}
-            placeholder="Cerca per nome, telefono o email…"
-          />
+          <CustomerAutocomplete value={query} onChange={setQuery} onSelect={handleSelect} placeholder="Cerca per nome, telefono o email…" />
           {!selected && <div className="cli-search-empty">Cerca una cliente per nome, telefono o email.</div>}
         </div>
 
         <div className="cli-layout">
-          <ClientSummary
-            customer={detail}
-            loading={loading}
-            error={summaryError}
-            onNotesChange={handleNotesChange}
-          />
+          <ClientSummary customer={detail} loading={loading} error={summaryError} onNotesChange={handleNotesChange} />
         </div>
       </Container>
     </div>
   );
 }
-

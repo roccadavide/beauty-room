@@ -192,7 +192,7 @@ export default function NavBar() {
             >
                   {user ? (
                     <>
-                      <div className="dropdown-header-custom">Ciao, {user.name}</div>
+                      <div className="dropdown-header-custom">Ciao {user.name}!</div>
                       <NavDropdown.Item as={Link} to="/profilo">
                         Il mio profilo
                       </NavDropdown.Item>
@@ -288,7 +288,7 @@ export default function NavBar() {
                 >
                   <div className="d-flex align-items-center gap-2">
                     <PersonCircle size={24} className="gold-icon" />
-                    <span className="fw-bold">Ciao, {user.name}</span>
+                    <span className="fw-bold">Ciao {user.name}!</span>
                   </div>
                   {mobileProfileExpanded ? <ChevronUp /> : <ChevronDown />}
                 </div>

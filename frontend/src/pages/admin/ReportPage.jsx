@@ -4,15 +4,12 @@ import { getReport } from "../../api/modules/report.api";
 
 const MONTH_LABELS = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
-const fmtCurrency = value =>
-  (value ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+const fmtCurrency = value => (value ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
 
 function currentYearRange() {
   const now = new Date();
   const from = `${now.getFullYear()}-01-01`;
-  const to = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
-    now.getDate(),
-  ).padStart(2, "0")}`;
+  const to = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   return { from, to };
 }
 
@@ -37,21 +34,18 @@ function ReportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchData = useCallback(
-    async (f, t) => {
-      setLoading(true);
-      setError("");
-      try {
-        const payload = await getReport(f, t);
-        setData(payload);
-      } catch (e) {
-        setError(e.message || "Errore caricamento report.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
+  const fetchData = useCallback(async (f, t) => {
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await getReport(f, t);
+      setData(payload);
+    } catch (e) {
+      setError(e.message || "Errore caricamento report.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchData(from, to);
@@ -94,10 +88,7 @@ function ReportPage() {
   const topServices = data?.topServices || [];
   const topClients = data?.topClients || [];
 
-  const maxMonthly = monthly.reduce(
-    (max, m) => Math.max(max, Number(m.total ?? 0)),
-    0,
-  );
+  const maxMonthly = monthly.reduce((max, m) => Math.max(max, Number(m.total ?? 0)), 0);
 
   const renderKpi = () => {
     if (!summary) return null;
@@ -144,10 +135,6 @@ function ReportPage() {
               const tPct = total > 0 ? t / total : 0;
               const pPct = total > 0 ? p / total : 0;
 
-              const stackStyle = total === 0
-                ? { }
-                : {};
-
               return (
                 <div key={key} className="rep-bar-col" title={`${formatMonthLabel(m.year, m.month)} · ${fmtCurrency(m.total)}`}>
                   <div className="rep-bar-stack">
@@ -155,18 +142,8 @@ function ReportPage() {
                       <div className="rep-bar-zero" />
                     ) : (
                       <>
-                        {p > 0 && (
-                          <div
-                            className="rep-bar-segment rep-bar-products"
-                            style={{ height: `${totalPct * 100 * pPct}%` }}
-                          />
-                        )}
-                        {t > 0 && (
-                          <div
-                            className="rep-bar-segment rep-bar-treatments"
-                            style={{ height: `${totalPct * 100 * tPct}%` }}
-                          />
-                        )}
+                        {p > 0 && <div className="rep-bar-segment rep-bar-products" style={{ height: `${totalPct * 100 * pPct}%` }} />}
+                        {t > 0 && <div className="rep-bar-segment rep-bar-treatments" style={{ height: `${totalPct * 100 * tPct}%` }} />}
                       </>
                     )}
                   </div>
@@ -194,9 +171,15 @@ function ReportPage() {
       "Mese;Trattamenti (€);Prodotti (€);Totale (€)",
       ...monthly.map(m => {
         const label = `${MONTH_LABELS[m.month - 1]} ${m.year}`;
-        const t = Number(m.treatments ?? 0).toFixed(2).replace(".", ",");
-        const p = Number(m.products ?? 0).toFixed(2).replace(".", ",");
-        const tot = Number(m.total ?? 0).toFixed(2).replace(".", ",");
+        const t = Number(m.treatments ?? 0)
+          .toFixed(2)
+          .replace(".", ",");
+        const p = Number(m.products ?? 0)
+          .toFixed(2)
+          .replace(".", ",");
+        const tot = Number(m.total ?? 0)
+          .toFixed(2)
+          .replace(".", ",");
         return `${label};${t};${p};${tot}`;
       }),
     ];
@@ -213,10 +196,7 @@ function ReportPage() {
     URL.revokeObjectURL(url);
   };
 
-  const maxServiceRevenue = topServices.reduce(
-    (max, s) => Math.max(max, Number(s.revenue ?? 0)),
-    0,
-  );
+  const maxServiceRevenue = topServices.reduce((max, s) => Math.max(max, Number(s.revenue ?? 0)), 0);
 
   return (
     <div className="rep-page">
@@ -232,53 +212,27 @@ function ReportPage() {
           <div className="rep-filters-row">
             <div className="rep-filter-group">
               <label className="rep-filter-label">Da</label>
-              <input
-                type="date"
-                className="rep-filter-input"
-                value={from}
-                onChange={e => setFrom(e.target.value)}
-              />
+              <input type="date" className="rep-filter-input" value={from} onChange={e => setFrom(e.target.value)} />
             </div>
             <div className="rep-filter-group">
               <label className="rep-filter-label">A</label>
-              <input
-                type="date"
-                className="rep-filter-input"
-                value={to}
-                onChange={e => setTo(e.target.value)}
-              />
+              <input type="date" className="rep-filter-input" value={to} onChange={e => setTo(e.target.value)} />
             </div>
           </div>
           <div className="rep-filter-actions">
             <button className="rep-btn" type="button" onClick={handleManualUpdate} disabled={loading}>
               {loading ? "Aggiornamento…" : "Aggiorna"}
             </button>
-            <button
-              type="button"
-              className={`rep-btn-pill${activeShortcut === "M1" ? " rep-btn-pill--active" : ""}`}
-              onClick={() => applyShortcut("M1")}
-            >
+            <button type="button" className={`rep-btn-pill${activeShortcut === "M1" ? " rep-btn-pill--active" : ""}`} onClick={() => applyShortcut("M1")}>
               Ultimo mese
             </button>
-            <button
-              type="button"
-              className={`rep-btn-pill${activeShortcut === "M3" ? " rep-btn-pill--active" : ""}`}
-              onClick={() => applyShortcut("M3")}
-            >
+            <button type="button" className={`rep-btn-pill${activeShortcut === "M3" ? " rep-btn-pill--active" : ""}`} onClick={() => applyShortcut("M3")}>
               Ultimi 3 mesi
             </button>
-            <button
-              type="button"
-              className={`rep-btn-pill${activeShortcut === "M6" ? " rep-btn-pill--active" : ""}`}
-              onClick={() => applyShortcut("M6")}
-            >
+            <button type="button" className={`rep-btn-pill${activeShortcut === "M6" ? " rep-btn-pill--active" : ""}`} onClick={() => applyShortcut("M6")}>
               Ultimi 6 mesi
             </button>
-            <button
-              type="button"
-              className={`rep-btn-pill${activeShortcut === "YEAR" ? " rep-btn-pill--active" : ""}`}
-              onClick={() => applyShortcut("YEAR")}
-            >
+            <button type="button" className={`rep-btn-pill${activeShortcut === "YEAR" ? " rep-btn-pill--active" : ""}`} onClick={() => applyShortcut("YEAR")}>
               Anno corrente
             </button>
           </div>
@@ -400,4 +354,3 @@ function ReportPage() {
 }
 
 export default ReportPage;
-
