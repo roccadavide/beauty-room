@@ -71,6 +71,8 @@
 
 .br-footer__social {
   display: flex;
+  justify-content: center;
+  align-items: center;
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 8px;
@@ -89,7 +91,9 @@
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
-  transition: transform 0.12s ease, background 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease;
 }
 
 .br-footer__socialBtn:hover {
@@ -126,6 +130,17 @@
 .br-footer__devName {
   color: #3b2f2a;
   font-weight: 700;
+}
+
+.br-footer .row {
+  --bs-gutter-x: 1.5rem;
+  margin-inline: 0;
+}
+
+.br-footer,
+.br-footer__container {
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 /* mobile: centra meglio */
