@@ -101,88 +101,80 @@ const ServicesPreview = () => {
   // ---------- UI ----------
   if (loading) {
     return (
-      <Container className="container-base">
-        <Spinner animation="border" role="status" />
-      </Container>
+      <section className="sp-section">
+        <Container className="container-base">
+          <Spinner animation="border" role="status" />
+        </Container>
+      </section>
     );
   }
 
   if (error) {
     return (
-      <Container className="container-base">
-        <p className="text-danger">{error}</p>
-      </Container>
+      <section className="sp-section">
+        <Container className="container-base">
+          <p className="text-danger">{error}</p>
+        </Container>
+      </section>
     );
   }
 
   return (
-    <section className="services-preview">
+    <section className="sp-section">
       <Container>
-        <div className="services-preview__head">
-          <div className="services-preview__titles">
-            <h2 className="services-preview__title">Ti consigliamo anche</h2>
-            <p className="services-preview__subtitle">Selezione di trattamenti scelti da Michela per risultati visibili e look curato.</p>
-          </div>
-
-          <div className="services-preview__actions">
-            <button type="button" className="services-preview__link" onClick={() => navigate("/trattamenti")}>
-              Tutti i trattamenti →
-            </button>
-
-            {user?.role === "ADMIN" && (
-              <Button variant="light" className="services-preview__add" onClick={handleCreate} title="Aggiungi trattamento">
-                <Plus />
-              </Button>
-            )}
-          </div>
+        {/* Header centrato */}
+        <div className="sp-head">
+          <span className="sp-eyebrow">I nostri trattamenti</span>
+          <h2 className="sp-title">Scelti per te da Michela</h2>
+          <p className="sp-subtitle">
+            Una selezione dei trattamenti più amati, per un look curato
+            e risultati visibili fin dalla prima seduta.
+          </p>
         </div>
 
-        <Row className="g-4 justify-content-evenly">
-          {services.map(s => (
-            <Col key={s.serviceId} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
-              <Card
-                className="br-card br-card--service h-100"
-                onClick={() => navigate(`/trattamenti/${s.serviceId}`)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => e.key === "Enter" && navigate(`/trattamenti/${s.serviceId}`)}
-              >
-                <div className="card-img-container">
-                  <Card.Img src={s.images?.[0]} alt={s.title} />
-                </div>
-
-                <Card.Body className="d-flex flex-column">
-                  <Card.Title>{s.title}</Card.Title>
-
-                  <div className="mb-2 d-flex align-items-center gap-2">
-                    <Badge bg={badgeColors[s.categoryId] || "secondary"} className="text-uppercase">
-                      {categoriesMap[s.categoryId] || "Senza categoria"}
-                    </Badge>
-                    <small className="text-muted">{s.durationMin} min</small>
+        {/* Carousel wrapper */}
+        <div className="sp-track-wrapper">
+          <div className="sp-track" id="spTrack">
+            {services.map(s => (
+              <div key={s.serviceId} className="sp-slide">
+                <div
+                  className="sp-card"
+                  onClick={() => navigate(`/trattamenti/${s.serviceId}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === "Enter" && navigate(`/trattamenti/${s.serviceId}`)}
+                >
+                  <div className="sp-card__img-wrap">
+                    {s.images?.[0] ? (
+                      <img src={s.images[0]} alt={s.title} />
+                    ) : (
+                      <div className="sp-card__img-placeholder" />
+                    )}
+                    <div className="sp-card__overlay">
+                      <span className="sp-card__duration">{s.durationMin} min</span>
+                      <h3 className="sp-card__title">{s.title}</h3>
+                      <p className="sp-card__desc">{s.shortDescription}</p>
+                      <span className="sp-card__price">
+                        {s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                      </span>
+                    </div>
                   </div>
 
-                  <Card.Text className="flex-grow-1">{s.shortDescription}</Card.Text>
-
-                  <strong>{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
-
                   {user?.role === "ADMIN" && (
-                    <div className="d-flex gap-2 mt-3">
+                    <div className="sp-card__admin" onClick={e => e.stopPropagation()}>
                       <Button
                         variant="secondary"
-                        className="rounded-circle d-flex justify-content-center align-items-center"
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleEdit(s);
-                        }}
+                        size="sm"
+                        className="rounded-circle"
+                        onClick={() => handleEdit(s)}
                       >
                         <PencilFill />
                       </Button>
-
                       <Button
                         variant="danger"
-                        className="rounded-circle d-flex justify-content-center align-items-center"
-                        onClick={e => {
-                          e.stopPropagation();
+                        size="sm"
+                        className="rounded-circle"
+                        onClick={() => {
                           setSelectedService(s);
                           setDeleteModal(true);
                         }}
@@ -191,11 +183,46 @@ const ServicesPreview = () => {
                       </Button>
                     </div>
                   )}
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            className="sp-arrow sp-arrow--prev"
+            aria-label="Precedente"
+            onClick={() => {
+              document.getElementById("spTrack")?.scrollBy({ left: -320, behavior: "smooth" });
+            }}
+          >
+            ‹
+          </button>
+          <button
+            className="sp-arrow sp-arrow--next"
+            aria-label="Successivo"
+            onClick={() => {
+              document.getElementById("spTrack")?.scrollBy({ left: 320, behavior: "smooth" });
+            }}
+          >
+            ›
+          </button>
+        </div>
+
+        <div className="sp-footer">
+          <button
+            type="button"
+            className="sp-cta-btn"
+            onClick={() => navigate("/trattamenti")}
+          >
+            Scopri tutti i trattamenti →
+          </button>
+
+          {user?.role === "ADMIN" && (
+            <Button variant="light" className="sp-admin-add" onClick={handleCreate}>
+              <Plus /> Aggiungi
+            </Button>
+          )}
+        </div>
 
         {user?.role === "ADMIN" && (
           <>
@@ -209,7 +236,12 @@ const ServicesPreview = () => {
               service={editingService}
               onServiceSaved={handleServiceSaved}
             />
-            <DeleteServiceModal show={deleteModal} onHide={() => setDeleteModal(false)} service={selectedService} onConfirm={handleDeleteConfirm} />
+            <DeleteServiceModal
+              show={deleteModal}
+              onHide={() => setDeleteModal(false)}
+              service={selectedService}
+              onConfirm={handleDeleteConfirm}
+            />
           </>
         )}
       </Container>

@@ -1,27 +1,104 @@
-/* ==== CARD PRODUCT ==== */
+/* ==== CARD PRODUCT - Editorial Beauty ==== */
 
-.card--product {
-  border-color: rgba(116, 95, 69, 0.7);
+.beauty-product-card {
+  background: var(--card-bg, #fdfaf6);
+  border: 1px solid var(--card-border, rgba(180, 148, 106, 0.25));
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(59, 33, 18, 0.06);
+  transition:
+    transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+  cursor: pointer;
+  position: relative;
 }
 
-.card--product:hover {
-  border-color: var(--color-accent, #7a5e3c);
-}
-
-.card--product .card-price {
-  color: var(--color-secondary, #7a5e3c);
-}
-
-.card--product .card-badge {
+.beauty-product-card::before {
+  content: "";
   position: absolute;
-  top: 10px;
-  left: 10px;
-  background: var(--color-accent, #ffb700);
-  color: #fff;
-  padding: 0.3rem 0.8rem;
-  border-radius: 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  inset: 0;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1.5px rgba(184, 151, 106, 0);
+  transition: box-shadow 0.35s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.beauty-product-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 40px rgba(59, 33, 18, 0.12);
+  border-color: rgba(180, 148, 106, 0.55);
+}
+
+.beauty-product-card:hover::before {
+  box-shadow: inset 0 0 0 1.5px rgba(184, 151, 106, 0.7);
+}
+
+.bpc-img-wrap {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--card-warm-bg, #f5ede3);
+  position: relative;
+}
+
+.bpc-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: block;
+}
+
+.beauty-product-card:hover .bpc-img-wrap img {
+  transform: scale(1.07);
+}
+
+.bpc-img-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+  transform: translateX(-100%);
+  transition: transform 0.7s ease;
+  pointer-events: none;
+}
+
+.beauty-product-card:hover .bpc-img-wrap::after {
+  transform: translateX(100%);
+}
+
+.beauty-product-card .card-body {
+  padding: 1.1rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bpc-accent-line {
+  width: 32px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--card-gold, #b8976a), transparent);
+  border-radius: 2px;
+  margin-bottom: 0.4rem;
+}
+
+.bpc-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--card-text, #2e2118);
+  line-height: 1.3;
+  margin: 0;
+  font-family: "Petrona", serif;
+  letter-spacing: 0.01em;
+}
+
+.bpc-price {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--card-gold-deep, #8c6d3f);
+  margin-top: auto;
+  padding-top: 0.5rem;
+  letter-spacing: 0.02em;
 }

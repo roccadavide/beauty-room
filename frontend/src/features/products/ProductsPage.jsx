@@ -157,14 +157,17 @@ function ProductsPage() {
         </div>
       )}
 
-      <Container>
-        <Row className="g-4 justify-content-center">
+      <Container fluid="xxl">
+        <Row className="g-4 g-xl-5">
           {filtered.map(p => (
-            <Col key={p.productId} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
-              <Card className="h-100 shadow-sm" onClick={() => navigate(`/prodotti/${p.productId}`)}>
-                <Card.Img src={p.images?.[0]} alt={p.name} />
+            <Col key={p.productId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
+              <Card className="br-card beauty-product-card h-100" onClick={() => navigate(`/prodotti/${p.productId}`)}>
+                <div className="bpc-img-wrap">
+                  <Card.Img src={p.images?.[0]} alt={p.name} />
+                </div>
                 <Card.Body className="d-flex flex-column">
-                  <Card.Title className="mb-1">{p.name}</Card.Title>
+                  <div className="bpc-accent-line" />
+                  <Card.Title className="bpc-title mb-1">{p.name}</Card.Title>
                   <div className="mb-2 d-flex align-items-center gap-2">
                     <Badge bg={badgeColors[p.categoryId] || "secondary"} className="text-uppercase">
                       {categoriesMap[p.categoryId] || "Senza categoria"}
@@ -173,7 +176,7 @@ function ProductsPage() {
                   </div>
                   <Card.Text className="flex-grow-1">{p.shortDescription}</Card.Text>
                   <div className="d-flex justify-content-between align-items-center mt-2">
-                    <strong>{p.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                    <span className="bpc-price">{p.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
                     {user?.role === "ADMIN" && (
                       <div className="d-flex gap-2 ms-auto">
                         <Button

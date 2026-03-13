@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Container, Row, Col, Card, Button } from "react-bootstrap";
 import { StarFill, ChevronLeft, ChevronRight } from "react-bootstrap-icons";
+import Stack from "../common/Stack";
 
 const TestimonialsSection = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -8,6 +9,7 @@ const TestimonialsSection = () => {
   const [cardsPerView, setCardsPerView] = useState(3);
   const [showArrows, setShowArrows] = useState(true);
   const [showSwipeHint, setShowSwipeHint] = useState(false);
+  const [isMobileStack, setIsMobileStack] = useState(false);
 
   const sectionRef = useRef(null);
   const touchStartX = useRef(null);
@@ -40,6 +42,13 @@ const TestimonialsSection = () => {
     updateLayout();
     window.addEventListener("resize", updateLayout);
     return () => window.removeEventListener("resize", updateLayout);
+  }, []);
+
+  useEffect(() => {
+    const check = () => setIsMobileStack(window.innerWidth < 992);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   // Mostra hint solo quando la sezione entra nel viewport
@@ -117,58 +126,104 @@ const TestimonialsSection = () => {
     touchStartX.current = null;
   };
 
+  const stackCards = TESTIMONIALS.map(t => (
+    <div key={t.id} className="tstack-card">
+      <div className="tstack-header">
+        <div>
+          <div className="tstack-name">{t.name}</div>
+          <div className="tstack-date">{t.date}</div>
+        </div>
+        <img src="/google-logo.webp" alt="Google" className="tstack-glogo" />
+      </div>
+      <div className="tstack-stars">
+        {Array.from({ length: t.rating }).map((_, i) => (
+          <span key={i} className="tstack-star">
+            ★
+          </span>
+        ))}
+      </div>
+      <p className="tstack-text">"{t.review}"</p>
+      <div className="tstack-counter">
+        {TESTIMONIALS.indexOf(t) + 1} / {TESTIMONIALS.length}
+      </div>
+    </div>
+  ));
+
   return (
     <Container ref={sectionRef} fluid className="py-5 testimonials-root position-relative" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <h2 className="text-center mb-3 fw-bold">Cosa dicono i clienti</h2>
       <p className="text-center text-muted mb-5">Alcune testimonianze reali delle persone che hanno scelto Beauty Room.</p>
 
-      <div className="d-flex justify-content-center align-items-center position-relative">
-        {showArrows && !isAtStart && (
-          <Button variant="light" className="carousel-btn left" onClick={prev}>
-            <ChevronLeft size={28} />
-          </Button>
-        )}
-
-        <Row className="g-4 justify-content-center" style={{ width: "90%" }}>
-          {!showArrows && showSwipeHint && (
-            <div className="swipe-hint-overlay">
-              <div className="swipe-ghost" />
-            </div>
+      {isMobileStack ? (
+        <div className="tstack-wrapper">
+          <div className="tstack-hint">Tocca o trascina per sfogliare</div>
+          <div className="tstack-area">
+            <Stack
+              cards={stackCards}
+              autoplay={true}
+              autoplayDelay={3500}
+              pauseOnHover={true}
+              sendToBackOnClick={true}
+              sensitivity={80}
+              randomRotation={true}
+              animationConfig={{ stiffness: 200, damping: 22 }}
+              mobileClickOnly={true}
+              mobileBreakpoint={768}
+            />
+          </div>
+          <div className="tstack-count-label">
+            {TESTIMONIALS.length} recensioni · tutte 5 stelle
+          </div>
+        </div>
+      ) : (
+        <div className="d-flex justify-content-center align-items-center position-relative">
+          {showArrows && !isAtStart && (
+            <Button variant="light" className="carousel-btn left" onClick={prev}>
+              <ChevronLeft size={28} />
+            </Button>
           )}
-          {visibleTestimonials.map(t => (
-            <Col key={t.id} xs={12} sm={cardsPerView === 2 ? 6 : 12} md={cardsPerView === 3 ? 4 : 6} className="d-flex justify-content-center">
-              <Card
-                data-id={t.id}
-                ref={el => setCardRef(t.id, el)}
-                className={`testimonial-card shadow-sm border-0 rounded-4 p-3 ${visibleMap[t.id] ? "visible" : ""}`}
-              >
-                <div className="d-flex justify-content-between align-items-center">
-                  <div>
-                    <Card.Title className="mt-3 mb-0 fw-semibold fs-5">{t.name}</Card.Title>
-                    <Card.Subtitle className="text-muted fs-6">{t.date}</Card.Subtitle>
-                  </div>
-                  <img src="/google-logo.webp" alt="google-logo" style={{ width: "25px", height: "25px" }} />
-                </div>
 
-                <Card.Body className="ps-0 pt-2">
-                  <div className="mb-2 text-warning d-flex pb-1">
-                    {Array.from({ length: t.rating }).map((_, i) => (
-                      <StarFill key={i} className="me-1" />
-                    ))}
+          <Row className="g-4 justify-content-center" style={{ width: "90%" }}>
+            {!showArrows && showSwipeHint && (
+              <div className="swipe-hint-overlay">
+                <div className="swipe-ghost" />
+              </div>
+            )}
+            {visibleTestimonials.map(t => (
+              <Col key={t.id} xs={12} sm={cardsPerView === 2 ? 6 : 12} md={cardsPerView === 3 ? 4 : 6} className="d-flex justify-content-center">
+                <Card
+                  data-id={t.id}
+                  ref={el => setCardRef(t.id, el)}
+                  className={`testimonial-card shadow-sm border-0 rounded-4 p-3 ${visibleMap[t.id] ? "visible" : ""}`}
+                >
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <Card.Title className="mt-3 mb-0 fw-semibold fs-5">{t.name}</Card.Title>
+                      <Card.Subtitle className="text-muted fs-6">{t.date}</Card.Subtitle>
+                    </div>
+                    <img src="/google-logo.webp" alt="google-logo" style={{ width: "25px", height: "25px" }} />
                   </div>
-                  <Card.Text className="fst-italic text-muted text-start small">“{t.review}”</Card.Text>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
 
-        {showArrows && !isAtEnd && (
-          <Button variant="light" className="carousel-btn right" onClick={next}>
-            <ChevronRight size={28} />
-          </Button>
-        )}
-      </div>
+                  <Card.Body className="ps-0 pt-2">
+                    <div className="mb-2 text-warning d-flex pb-1">
+                      {Array.from({ length: t.rating }).map((_, i) => (
+                        <StarFill key={i} className="me-1" />
+                      ))}
+                    </div>
+                    <Card.Text className="fst-italic text-muted text-start small">“{t.review}”</Card.Text>
+                  </Card.Body>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+
+          {showArrows && !isAtEnd && (
+            <Button variant="light" className="carousel-btn right" onClick={next}>
+              <ChevronRight size={28} />
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="text-center mt-5">
         <a

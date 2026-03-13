@@ -93,7 +93,7 @@ const ServiceDetail = () => {
 
   return (
     <Container fluid className="service-detail">
-      <Row className="justify-content-center align-items-start gap-5 g-5">
+      <Row className="justify-content-center align-items-start gap-1 g-5">
         {/* ▸ IMMAGINE */}
         <Col md={5} className="d-flex justify-content-center position-relative">
           <div ref={imgRef} className={`service-image-glass fade-slide ${imgVisible ? "visible" : ""}`}>

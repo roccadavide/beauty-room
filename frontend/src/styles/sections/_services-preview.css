@@ -1,73 +1,275 @@
-.services-preview {
+/* ===== SERVICES PREVIEW — home section ===== */
+
+.sp-section {
   position: relative;
-  padding: 46px 0 70px; /* meno stacco sopra, ma aria sotto */
-  background: #fffdf8; /* coerente col resto */
+  padding: 5rem 0 6rem;
+  background: #fffdf8;
+  overflow: hidden;
 }
 
-/* “fade” sopra per fondere lo scuro del laser col chiaro */
-.services-preview::before {
+.sp-section::before {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
-  top: -1px;
-  height: 90px;
+  inset: 0 0 auto 0;
+  height: 80px;
   background: linear-gradient(to bottom, rgba(255, 253, 248, 0), #fffdf8);
   pointer-events: none;
 }
 
-.services-preview__head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 18px;
+.sp-head {
+  text-align: center;
+  margin-bottom: 3rem;
 }
 
-.services-preview__title {
-  margin: 0;
-  font-weight: 900;
-  color: #3b2f2a;
-  letter-spacing: 0.2px;
+.sp-eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #b8976a;
+  margin-bottom: 0.6rem;
 }
 
-.services-preview__subtitle {
-  margin: 8px 0 0;
+.sp-title {
+  font-family: "Petrona", serif;
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  font-weight: 700;
+  color: #2e2118;
+  line-height: 1.15;
+  margin: 0 0 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.sp-subtitle {
+  font-size: clamp(0.9rem, 1.5vw, 1rem);
   color: #7a6a61;
-  font-size: 14px;
-  line-height: 1.6;
-  max-width: 56ch;
+  max-width: 52ch;
+  margin: 0 auto;
+  line-height: 1.65;
 }
 
-.services-preview__actions {
+.sp-track-wrapper {
+  position: relative;
+}
+
+.sp-track {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  gap: 1.5rem;
+  justify-content: center;
 }
 
-.services-preview__link {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  color: #3b2f2a;
-  font-weight: 800;
-  letter-spacing: 0.2px;
+.sp-slide {
+  flex: 0 0 auto;
+  width: 320px;
+}
+
+.sp-card {
+  position: relative;
+  border-radius: 22px;
+  overflow: hidden;
   cursor: pointer;
-  text-decoration: none;
+  height: 420px;
+  box-shadow: 0 4px 20px rgba(46, 33, 24, 0.1);
+  transition:
+    transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1),
+    box-shadow 0.35s ease;
 }
 
-.services-preview__link:hover {
-  text-decoration: underline;
+.sp-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 48px rgba(46, 33, 24, 0.18);
 }
 
-.services-preview__add {
-  width: 40px;
-  height: 40px;
+.sp-card__img-wrap {
+  position: absolute;
+  inset: 0;
+  background: #f5ede3;
+}
+
+.sp-card__img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: block;
+}
+
+.sp-card:hover .sp-card__img-wrap img {
+  transform: scale(1.06);
+}
+
+.sp-card__img-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #f5ede3, #e8d5c4);
+}
+
+.sp-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(20, 12, 6, 0.88) 0%,
+    rgba(20, 12, 6, 0.45) 45%,
+    rgba(20, 12, 6, 0.05) 75%,
+    transparent 100%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1.5rem;
+  color: #fff;
+}
+
+.sp-card__duration {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(212, 185, 140, 0.9);
+  margin-bottom: 0.4rem;
+}
+
+.sp-card__title {
+  font-family: "Petrona", serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fdf6ee;
+  line-height: 1.25;
+  margin: 0 0 0.4rem;
+}
+
+.sp-card__desc {
+  font-size: 0.8rem;
+  color: rgba(255, 240, 220, 0.8);
+  line-height: 1.5;
+  margin: 0 0 0.75rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sp-card__price {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e8c98a;
+  letter-spacing: 0.03em;
+}
+
+.sp-card__admin {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.4rem;
+  z-index: 10;
+}
+
+.sp-arrow {
+  display: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 253, 248, 0.9);
+  border: 1px solid rgba(184, 151, 106, 0.3);
   border-radius: 999px;
+  width: 42px;
+  height: 42px;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #2e2118;
+  backdrop-filter: blur(6px);
+  z-index: 5;
+  transition: background 0.2s ease;
+}
+
+.sp-arrow:hover {
+  background: #fff;
+  border-color: rgba(184, 151, 106, 0.6);
+}
+
+.sp-arrow--prev {
+  left: -16px;
+}
+
+.sp-arrow--next {
+  right: -16px;
+}
+
+.sp-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(59, 47, 42, 0.14);
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(6px);
+  gap: 1rem;
+  margin-top: 2.5rem;
+}
+
+.sp-cta-btn {
+  background: transparent;
+  border: 1.5px solid rgba(184, 151, 106, 0.5);
+  border-radius: 999px;
+  padding: 0.6rem 1.75rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #2e2118;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.sp-cta-btn:hover {
+  background: rgba(184, 151, 106, 0.08);
+  border-color: rgba(184, 151, 106, 0.8);
+}
+
+.sp-admin-add {
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 991px) {
+  .sp-track {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0.5rem 0.25rem 1rem;
+    gap: 1rem;
+  }
+
+  .sp-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sp-slide {
+    scroll-snap-align: center;
+    width: 80vw;
+    max-width: 300px;
+  }
+
+  .sp-card {
+    height: 380px;
+  }
+
+  .sp-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 575px) {
+  .sp-slide {
+    width: 85vw;
+  }
+
+  .sp-card {
+    height: 340px;
+  }
 }

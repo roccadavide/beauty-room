@@ -156,16 +156,20 @@ const ServicePage = () => {
         </div>
       )}
 
-      <Container>
-        <Row className="g-4 justify-content-center">
+      <Container fluid="xxl">
+        <Row className="g-4 g-xl-5">
           {filtered.map(s => (
-            <Col key={s.serviceId} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
-              <Card className="h-100 shadow-sm" onClick={() => navigate(`/trattamenti/${s.serviceId}`)}>
-                <div className="card-img-container">
+            <Col key={s.serviceId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
+              <Card className="br-card beauty-service-card h-100" onClick={() => navigate(`/trattamenti/${s.serviceId}`)}>
+                <div className="bsc-img-wrap">
                   <Card.Img src={s.images?.[0]} alt={s.title} />
+                  <div className="bsc-img-overlay">
+                    <span className="bsc-duration">{s.durationMin} min</span>
+                  </div>
                 </div>
                 <Card.Body className="d-flex flex-column">
-                  <Card.Title className="mb-1">{s.title}</Card.Title>
+                  <div className="bsc-accent-line" />
+                  <Card.Title className="bsc-title mb-1">{s.title}</Card.Title>
                   <div className="mb-2 d-flex align-items-center gap-2">
                     <Badge bg={badgeColors[s.categoryId] || "secondary"} className="text-uppercase">
                       {categoriesMap[s.categoryId] || "Senza categoria"}
@@ -174,7 +178,7 @@ const ServicePage = () => {
                   </div>
                   <Card.Text className="flex-grow-1">{s.shortDescription}</Card.Text>
                   <div className="d-flex justify-content-between align-items-center mt-2">
-                    <strong>{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                    <span className="bsc-price">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
                     {user?.role === "ADMIN" && (
                       <div className="d-flex gap-2 ms-auto">
                         <Button

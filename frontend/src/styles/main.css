@@ -17,6 +17,7 @@
 @import "./components/_card-service.css";
 @import "./components/_card-testimonial.css";
 @import "./components/_laser.css";
+@import "./components/_stack.css";
 
 /* ===== SECTIONS ===== */
 @import "./sections/_about-hero.css";

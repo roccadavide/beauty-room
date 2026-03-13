@@ -28,51 +28,81 @@ const AcademySection = () => {
 
   const ACADEMIES = [
     {
-      id: "a1",
-      title: "My Beauty Accademy",
-      img: "/academy/logo-my.png",
-      desc: "Specializzazione in trattamenti viso e corpo.",
-      link: "https://mybeautyacademy.it/",
-    },
-    {
       id: "a2",
-      title: "PhiAccademy",
+      title: "PhiAcademy",
       img: "/academy/phiaccademy.jpg",
+      tag: "Trucco Permanente",
       desc: "Tecniche avanzate di trucco permanente.",
       link: "https://www.phi-academy.com/it-it",
+    },
+    {
+      id: "a1",
+      title: "My Beauty Academy",
+      img: "/academy/logo-my.png",
+      tag: "Trattamenti Viso & Corpo",
+      desc: "Specializzazione in trattamenti viso e corpo.",
+      link: "https://mybeautyacademy.it/",
     },
     {
       id: "a3",
       title: "Kalentin Training Academy",
       img: "/academy/kalentin.png",
+      tag: "Estetica Professionale",
       desc: "Formazione completa in estetica professionale.",
-      link: "https://kalentin.com/it/?gad_source=1&gad_campaignid=22712081003&gbraid=0AAAAADXU_E87ii9autOgH3gIXFmS_dbqK&gclid=CjwKCAjw_-3GBhAYEiwAjh9fUCDFxnNhhb08KJgbIm0deDkuBV4uQZXfsbkCnLSSTcDzsKLRpCzrFBoCwVwQAvD_BwE",
+      link: "https://kalentin.com/it/",
     },
   ];
 
   return (
     <Container fluid className="py-5 academy-root">
       <h2 className="text-center mb-3 fw-bold">Le mie Accademie</h2>
-      <p className="text-center text-muted mb-5">Una selezione di percorsi formativi che hanno arricchito le mie competenze professionali.</p>
+      <p className="text-center text-muted mb-5">
+        Una selezione di percorsi formativi che hanno arricchito le mie competenze professionali.
+      </p>
 
-      <Row className="g-4 justify-content-center">
-        {ACADEMIES.map((a, idx) => (
-          <Col key={a.id} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
-            <Card
-              data-id={a.id}
-              ref={el => (cardsRef.current[idx] = el)}
-              className={`academy-card shadow-sm border-0 rounded-4 ${visible[a.id] ? "visible" : ""}`}
-              onClick={() => window.open(a.link, "_blank")}
-            >
-              <Card.Img src={a.img} alt={a.title} className="academy-img rounded-top-4" />
-              <Card.Body>
-                <Card.Title className="fw-semibold">{a.title}</Card.Title>
-                <Card.Text className="small text-muted">{a.desc}</Card.Text>
-              </Card.Body>
-            </Card>
-          </Col>
-        ))}
-      </Row>
+      <div className="ac-track-wrapper">
+        <div className="ac-track" id="acTrack">
+          {ACADEMIES.map((a, idx) => (
+            <div key={a.id} className="ac-slide">
+              <Card
+                data-id={a.id}
+                ref={el => (cardsRef.current[idx] = el)}
+                className={`academy-card ${visible[a.id] ? "visible" : ""}`}
+                onClick={() => window.open(a.link, "_blank")}
+              >
+                <div className="ac-logo-wrap">
+                  <img src={a.img} alt={a.title} className="ac-logo-img" />
+                </div>
+                <div className="ac-body">
+                  <span className="ac-tag">{a.tag}</span>
+                  <h3 className="ac-title">{a.title}</h3>
+                  <p className="ac-desc">{a.desc}</p>
+                  <span className="ac-cta">Visita il sito →</span>
+                </div>
+              </Card>
+            </div>
+          ))}
+        </div>
+
+        <button
+          className="ac-arrow ac-arrow--prev"
+          aria-label="Precedente"
+          onClick={() =>
+            document.getElementById("acTrack")?.scrollBy({ left: -320, behavior: "smooth" })
+          }
+        >
+          ‹
+        </button>
+        <button
+          className="ac-arrow ac-arrow--next"
+          aria-label="Successivo"
+          onClick={() =>
+            document.getElementById("acTrack")?.scrollBy({ left: 320, behavior: "smooth" })
+          }
+        >
+          ›
+        </button>
+      </div>
     </Container>
   );
 };
