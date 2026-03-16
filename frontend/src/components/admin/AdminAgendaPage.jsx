@@ -24,6 +24,13 @@ const minutes = hhmm => {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmtTime = dt => new Date(dt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+const openWhatsApp = phone => {
+  if (!phone) return;
+  const clean = phone.replace(/[\s\-().+]/g, "");
+  const number = clean.startsWith("39") ? clean : `39${clean}`;
+  window.open(`https://wa.me/${number}`, "_blank", "noopener,noreferrer");
+};
+
 const STATUS_META = {
   PENDING: { label: "In attesa", tone: "pending" },
   PENDING_PAYMENT: { label: "Attesa pagamento", tone: "pending" },
@@ -854,21 +861,37 @@ export default function AdminAgendaPage() {
                   <div className="ag-list">
                     {filtered.map(b => (
                       <div key={b.bookingId} className="ag-item">
-                        <div className="ag-item__time">
-                          <div className="ag-item__timeMain">
-                            {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
+                        <div className="ag-item__header">
+                          <div className="ag-item__time">
+                            <div className="ag-item__timeMain">
+                              {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
+                            </div>
+                            <div className="ag-item__timeSub">
+                              {Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
+                            </div>
                           </div>
-                          <div className="ag-item__timeSub">{Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min</div>
+                          <StatusPill status={b.status} />
                         </div>
 
-                        <div className="ag-item__main">
-                          <div className="ag-item__top">
-                            <div className="ag-item__name">{b.customerName}</div>
-                            <StatusPill status={b.status} />
-                          </div>
+                        <div className="ag-item__body">
+                          <div className="ag-item__name">{b.customerName}</div>
 
                           <div className="ag-item__meta">
                             <span className="ag-muted">{b.customerPhone}</span>
+                            {b.customerPhone && (
+                              <button
+                                className="ag-wa-btn"
+                                type="button"
+                                title="Apri WhatsApp"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  openWhatsApp(b.customerPhone);
+                                }}
+                              >
+                                <span className="ag-wa-btn__icon">💬</span>
+                                <span>WhatsApp</span>
+                              </button>
+                            )}
                             <span className="ag-dotsep">•</span>
                             <span className="ag-muted">{b.customerEmail}</span>
                           </div>
@@ -919,22 +942,22 @@ export default function AdminAgendaPage() {
                             </Button>
                           )}
 
-                      {b.status === "CONFIRMED" && (
-                        <>
-                          <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
-                            Completa
-                          </Button>
-                          <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => changeStatus(b.bookingId, "NO_SHOW")}>
-                            Non presentata
-                          </Button>
-                        </>
-                      )}
+                          {b.status === "CONFIRMED" && (
+                            <>
+                              <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
+                                Completa
+                              </Button>
+                              <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => changeStatus(b.bookingId, "NO_SHOW")}>
+                                Non presentata
+                              </Button>
+                            </>
+                          )}
 
-                      {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
-                        <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
-                          Annulla
-                        </Button>
-                      )}
+                          {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
+                            <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
+                              Annulla
+                            </Button>
+                          )}
 
                           <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
                             Elimina

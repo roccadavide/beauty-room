@@ -190,40 +190,40 @@ export default function NavBar() {
               aria-label="Menu utente"
               disabled={isLoading}
             >
-                  {user ? (
+              {user ? (
+                <>
+                  <div className="dropdown-header-custom">Ciao {user.name}!</div>
+                  <NavDropdown.Item as={Link} to="/profilo">
+                    Il mio profilo
+                  </NavDropdown.Item>
+                  <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/prenotazioni/tutte" : "/prenotazioni"}>
+                    {user.role === "ADMIN" ? "Gestione Prenotazioni" : "Le mie prenotazioni"}
+                  </NavDropdown.Item>
+                  <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"}>
+                    {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
+                  </NavDropdown.Item>
+                  {user.role === "ADMIN" && (
                     <>
-                      <div className="dropdown-header-custom">Ciao {user.name}!</div>
-                      <NavDropdown.Item as={Link} to="/profilo">
-                        Il mio profilo
+                      <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
+                        Agenda
                       </NavDropdown.Item>
-                      <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/prenotazioni/tutte" : "/prenotazioni"}>
-                        {user.role === "ADMIN" ? "Gestione Prenotazioni" : "Le mie prenotazioni"}
-                      </NavDropdown.Item>
-                      <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"}>
-                        {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
-                      </NavDropdown.Item>
-                      {user.role === "ADMIN" && (
-                        <>
-                          <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
-                            Agenda
-                          </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/report"}>
                         📊 Report
                       </NavDropdown.Item>
-                          <NavDropdown.Item as={Link} to={"/admin/clienti"}>
-                            👥 Clienti
-                          </NavDropdown.Item>
-                          <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
-                            ⚙️ Impostazioni
-                          </NavDropdown.Item>
-                        </>
-                      )}
-                      <NavDropdown.Divider />
-                      <NavDropdown.Item onClick={handleLogoutClick} className="text-danger">
-                        Logout
+                      <NavDropdown.Item as={Link} to={"/admin/clienti"}>
+                        👥 Clienti
+                      </NavDropdown.Item>
+                      <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
+                        ⚙️ Impostazioni
                       </NavDropdown.Item>
                     </>
-                  ) : (
+                  )}
+                  <NavDropdown.Divider />
+                  <NavDropdown.Item onClick={handleLogoutClick} className="text-danger">
+                    Logout
+                  </NavDropdown.Item>
+                </>
+              ) : (
                 <>
                   <NavDropdown.Item as={Link} to="/login">
                     Accedi
@@ -309,13 +309,13 @@ export default function NavBar() {
                         Agenda
                       </Link>
                       <Link to="/admin/report" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                        📊 Report
+                        Report
                       </Link>
                       <Link to="/admin/clienti" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                        👥 Clienti
+                        Clienti
                       </Link>
                       <Link to="/admin/impostazioni" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                        ⚙️ Impostazioni
+                        Impostazioni
                       </Link>
                     </>
                   )}

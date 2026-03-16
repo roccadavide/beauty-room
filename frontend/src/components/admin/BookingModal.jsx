@@ -76,6 +76,8 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
   const panelRef = useRef(null);
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelActive, setPanelActive] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [serviceCatFilter, setServiceCatFilter] = useState("all");
 
   // ── Panel animation ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -116,6 +118,8 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
       setForm({ ...EMPTY_FORM });
       setWalkIn(true);
     }
+    setServiceSearch("");
+    setServiceCatFilter("all");
   }, [show, initial, isEdit]);
 
   // ── Fetch customer detail when customerId is set ─────────────────────────
@@ -157,6 +161,33 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
 
   // ── Derived state ────────────────────────────────────────────────────────
   const selectedService = useMemo(() => services?.find(s => String(s.serviceId) === String(form.serviceId)), [services, form.serviceId]);
+
+  const serviceCategories = useMemo(() => {
+    const seen = new Set();
+    const cats = [];
+    (services || []).forEach(s => {
+      const cat = s.category ?? s.categoryName ?? s.categoryLabel ?? null;
+      if (cat && !seen.has(cat)) {
+        seen.add(cat);
+        cats.push(cat);
+      }
+    });
+    return cats;
+  }, [services]);
+
+  const filteredServices = useMemo(() => {
+    let list = services || [];
+    if (serviceCatFilter !== "all") {
+      list = list.filter(s => (s.category ?? s.categoryName ?? s.categoryLabel) === serviceCatFilter);
+    }
+    const needle = serviceSearch.trim().toLowerCase();
+    if (needle) {
+      list = list.filter(
+        s => s.title?.toLowerCase().includes(needle) || s.durationMin?.toString().includes(needle),
+      );
+    }
+    return list;
+  }, [services, serviceSearch, serviceCatFilter]);
 
   const serviceOptions = useMemo(() => {
     const raw = selectedService?.options ?? selectedService?.serviceOptions ?? selectedService?.serviceOptionList;
@@ -556,18 +587,64 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                 <Form noValidate>
                   <Form.Group className="mb-2">
                     <Form.Label>Servizio *</Form.Label>
-                    <CustomSelect
-                      value={form.serviceId}
-                      onChange={v => onChange("serviceId", v)}
-                      isInvalid={submitted && !!errors.serviceId}
-                      placeholder="Seleziona…"
-                      options={(services || []).map(s => ({
-                        value: s.serviceId,
-                        label: [s.title, s.durationMin ? `${s.durationMin} min` : null, s.price != null ? `€${Number(s.price).toFixed(0)}` : null]
-                          .filter(Boolean)
-                          .join(" · "),
-                      }))}
-                    />
+
+                    <div className="ag-service-search-wrap mb-2">
+                      <input
+                        type="text"
+                        className="ag-service-search"
+                        placeholder="Cerca servizio…"
+                        value={serviceSearch}
+                        onChange={e => {
+                          setServiceSearch(e.target.value);
+                          onChange("serviceId", "");
+                        }}
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    {serviceCategories.length > 0 && (
+                      <div className="ag-service-cats mb-2">
+                        <button
+                          type="button"
+                          className={`ag-service-cat ${serviceCatFilter === "all" ? "is-active" : ""}`}
+                          onClick={() => setServiceCatFilter("all")}
+                        >
+                          Tutti
+                        </button>
+                        {serviceCategories.map(cat => (
+                          <button
+                            key={cat}
+                            type="button"
+                            className={`ag-service-cat ${serviceCatFilter === cat ? "is-active" : ""}`}
+                            onClick={() => setServiceCatFilter(cat)}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="ag-service-list">
+                      {filteredServices.length === 0 && <div className="ag-service-empty">Nessun servizio trovato.</div>}
+                      {filteredServices.map(s => (
+                        <button
+                          key={s.serviceId}
+                          type="button"
+                          className={`ag-service-item ${String(form.serviceId) === String(s.serviceId) ? "is-selected" : ""}`}
+                          onClick={() => {
+                            onChange("serviceId", s.serviceId);
+                            setServiceSearch("");
+                          }}
+                        >
+                          <span className="ag-service-item__title">{s.title}</span>
+                          <span className="ag-service-item__meta">
+                            {s.durationMin ? `${s.durationMin} min` : ""}
+                            {s.price != null ? ` · €${Number(s.price).toFixed(0)}` : ""}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
                     {submitted && errors.serviceId && <div className="invalid-feedback d-block">{errors.serviceId}</div>}
                   </Form.Group>
 

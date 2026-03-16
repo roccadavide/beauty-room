@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Container, Row, Col, Badge, Button, Image, Spinner } from "react-bootstrap";
+import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
 import { fetchServices } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import BookingModal from "../bookings/BookingModal";
@@ -95,53 +95,53 @@ const ServiceDetail = () => {
     <Container fluid className="service-detail">
       <Row className="justify-content-center align-items-start gap-1 g-5">
         {/* ▸ IMMAGINE */}
-        <Col md={5} className="d-flex justify-content-center position-relative">
-          <div ref={imgRef} className={`service-image-glass fade-slide ${imgVisible ? "visible" : ""}`}>
-            <Image src={service.images?.[0]} alt={service.title} fluid rounded />
+        <Col md={5} lg={5} className="d-flex justify-content-center">
+          <div ref={imgRef} className={`detail-img-hero fade-slide ${imgVisible ? "visible" : ""}`}>
+            <img src={service.images?.[0]} alt={service.title} />
+            <div className="detail-img-shimmer" />
           </div>
         </Col>
 
         {/* ▸ INFO */}
-        <Col md={6} lg={5} className="service-info fade-slide visible">
-          <h1 className="service-title">{service.title}</h1>
-
-          <div className="d-flex align-items-center gap-2 mb-3">
-            <Badge bg={badgeColors[service.categoryId] || "secondary"} className="text-uppercase">
+        <Col md={6} lg={5} className="detail-info fade-slide visible">
+          <div className="detail-meta">
+            <Badge bg={badgeColors[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
               {categoriesMap[service.categoryId] || "Senza categoria"}
             </Badge>
-            <small className="text-muted">{service.durationMin} min</small>
+            <span className="detail-duration">⏱ {service.durationMin} min</span>
           </div>
 
-          <div className="service-price-wrap mb-3">
-            <h3 className="service-price">{service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</h3>
+          <h1 className="detail-title">{service.title}</h1>
 
-            <div className="scalapay-info" title="Paga in 3 rate con Scalapay">
-              <img src="/scalapay.jpeg" alt="Scalapay" className="scalapay-logo" />
-              <span>Pagamento a rate disponibile</span>
-            </div>
+          <div className="detail-accent-line" />
+
+          <div className="detail-price-block">
+            <span className="detail-price">
+              {service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+            </span>
+            <span className="detail-price-note">prezzo per seduta</span>
           </div>
 
-          <div className="trust-box mb-4">
-            <p>✅ Prenotazione semplice e veloce</p>
-            <p>✅ Nessun pagamento anticipato</p>
-            <p>✅ Conferma immediata</p>
+          <div className="detail-trust">
+            <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
+            <span className="detail-trust-pill">✓ Nessun anticipo</span>
+            <span className="detail-trust-pill">✓ Conferma immediata</span>
           </div>
 
-          <Button variant="dark" className="rounded-pill px-4 mb-4" onClick={() => setOpen(true)}>
+          <button className="detail-cta-btn" onClick={() => setOpen(true)}>
             Prenota ora
-          </Button>
+          </button>
 
-          <hr className="my-4" />
+          <div className="detail-divider" />
 
-          {/* ▸ DESCRIZIONE */}
-          <div className={`service-description ${showFullDesc ? "expanded" : ""}`}>
+          <div className={`detail-description ${showFullDesc ? "expanded" : ""}`}>
             <p>{service.description}</p>
           </div>
 
           {service.description?.length > 200 && (
-            <Button variant="outline-dark" size="sm" className="rounded-pill mt-2" onClick={() => setShowFullDesc(!showFullDesc)}>
-              {showFullDesc ? "Mostra meno" : "Mostra di più"}
-            </Button>
+            <button className="detail-expand-btn" onClick={() => setShowFullDesc(!showFullDesc)}>
+              {showFullDesc ? "Mostra meno ↑" : "Leggi tutto ↓"}
+            </button>
           )}
         </Col>
       </Row>

@@ -55,10 +55,13 @@ const AcademySection = () => {
 
   return (
     <Container fluid className="py-5 academy-root">
-      <h2 className="text-center mb-3 fw-bold">Le mie Accademie</h2>
-      <p className="text-center text-muted mb-5">
-        Una selezione di percorsi formativi che hanno arricchito le mie competenze professionali.
-      </p>
+      <div className="ac-head">
+        <span className="section-eyebrow">Formazione</span>
+        <h2 className="section-title ac-section-title">Le mie Accademie</h2>
+        <p className="section-subtitle">
+          Una selezione di percorsi formativi che hanno arricchito le mie competenze professionali.
+        </p>
+      </div>
 
       <div className="ac-track-wrapper">
         <div className="ac-track" id="acTrack">

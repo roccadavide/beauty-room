@@ -1,4 +1,3 @@
-import { Button } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import { useEffect, useRef } from "react";
 
@@ -16,11 +15,11 @@ const AboutSection = () => {
           }
         });
       },
-      { threshold: 0.65 }
+      { threshold: 0.35 }
     );
 
-    observer.observe(boxRef.current);
-    observer.observe(imgRef.current);
+    if (boxRef.current) observer.observe(boxRef.current);
+    if (imgRef.current) observer.observe(imgRef.current);
 
     return () => observer.disconnect();
   }, []);
@@ -29,20 +28,29 @@ const AboutSection = () => {
     <section className="about-section">
       <div className="container about-container">
         <div ref={imgRef} className="about-img fade-element stagger-1">
-          <img src="/negoziomichi.jpeg" alt="Negozio Michela" />
+          <img src="/negoziomichi.jpeg" alt="Beauty Room — il negozio di Michela" />
+          <div className="about-img__shimmer" />
         </div>
 
         <div ref={boxRef} className="about-box fade-element stagger-2">
-          <h2 className="stagger-2">Il Negozio di Michela</h2>
-          <p className="stagger-3">
-            Vieni a scoprire il mondo Beauty Room, dove estetica e benessere si incontrano. Michela ti guiderà con professionalità e passione verso il tuo
-            percorso di bellezza e relax.
-          </p>
-          <Link to="/chisono">
-            <Button variant="dark" className="rounded-pill px-4 py-2 stagger-4">
-              Scopri di più
-            </Button>
-          </Link>
+          <div className="about-spotlight-border" aria-hidden="true" />
+
+          <div className="about-box__inner">
+            <span className="section-eyebrow">La mia storia</span>
+            <h2 className="about-title">
+              Il mio sogno,
+              <br />
+              la tua bellezza
+            </h2>
+            <div className="about-accent-line" />
+            <p className="about-text">
+              Beauty Room non è solo un centro estetico — è il posto dove la passione di Michela per il benessere diventa cura concreta
+              per ogni persona che entra. Scopri chi c&apos;è dietro ogni trattamento.
+            </p>
+            <Link to="/chisono" className="about-cta-btn">
+              Ascolta la mia storia →
+            </Link>
+          </div>
         </div>
       </div>
     </section>

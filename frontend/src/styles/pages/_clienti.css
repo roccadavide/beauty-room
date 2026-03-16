@@ -129,6 +129,41 @@
   color: rgba(35, 26, 20, 0.3);
 }
 
+.cli-phone-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cli-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #25d366;
+  border: none;
+  border-radius: 999px;
+  padding: 5px 12px 5px 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 10px rgba(37, 211, 102, 0.3);
+  white-space: nowrap;
+}
+
+.cli-wa-btn:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 16px rgba(37, 211, 102, 0.45);
+}
+
+.cli-wa-icon {
+  width: 16px;
+  height: 16px;
+  filter: brightness(0) invert(1);
+}
+
 .cli-customer-meta {
   display: flex;
   align-items: center;

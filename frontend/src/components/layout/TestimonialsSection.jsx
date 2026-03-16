@@ -151,8 +151,11 @@ const TestimonialsSection = () => {
 
   return (
     <Container ref={sectionRef} fluid className="py-5 testimonials-root position-relative" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-      <h2 className="text-center mb-3 fw-bold">Cosa dicono i clienti</h2>
-      <p className="text-center text-muted mb-5">Alcune testimonianze reali delle persone che hanno scelto Beauty Room.</p>
+      <div className="test-head">
+        <span className="test-eyebrow">Recensioni Google</span>
+        <h2 className="test-title">Cosa dicono i clienti</h2>
+        <p className="test-subtitle">Testimonianze reali delle persone che hanno scelto Beauty Room.</p>
+      </div>
 
       {isMobileStack ? (
         <div className="tstack-wrapper">
@@ -225,14 +228,16 @@ const TestimonialsSection = () => {
         </div>
       )}
 
-      <div className="text-center mt-5">
+      <div className="test-cta-wrap">
         <a
           href="https://www.google.com/search?hl=it&q=Beauty%20room%20Recensioni&rflfq=1&num=20&stick=H4sIAAAAAAAAAONgkxIxNLGwNDc2MrAwtTQDYhNLY0uDDYyMrxjFnFITS0sqFYry83MVglKTU_OKM_PzMhex4pAAAPVmQURNAAAA&rldimm=14897320859685949390&tbm=lcl&sa=X&ved=0CB0Q9fQKKABqFwoTCKDEsOHdvJADFQAAAAAdAAAAABAG&biw=1728&bih=878&dpr=2#lkt=LocalPoiReviews"
           target="_blank"
           rel="noopener noreferrer"
-          className="btn btn-dark rounded-pill px-4"
+          className="test-google-btn"
         >
-          Vedi tutte le recensioni su Google →
+          <img src="/google-logo.webp" alt="Google" className="test-google-icon" />
+          <span>Vedi tutte le recensioni</span>
+          <span className="test-google-arrow">→</span>
         </a>
       </div>
     </Container>

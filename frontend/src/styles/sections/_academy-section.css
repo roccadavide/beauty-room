@@ -4,10 +4,13 @@
   padding-block: 5rem;
 }
 
-.academy-root h2 {
-  font-family: "Petrona", serif;
+.ac-head {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.ac-section-title {
   color: #2e2118;
-  font-size: clamp(1.6rem, 3vw, 2.2rem);
 }
 
 /* ── Track wrapper academy ── */

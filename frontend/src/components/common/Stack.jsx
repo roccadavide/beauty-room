@@ -48,7 +48,7 @@ export default function Stack({
   animationConfig = { stiffness: 260, damping: 20 },
   sendToBackOnClick = false,
   autoplay = false,
-  autoplayDelay = 3000,
+  autoplayDelay = 1000,
   pauseOnHover = false,
   mobileClickOnly = false,
   mobileBreakpoint = 768,
@@ -92,20 +92,11 @@ export default function Stack({
   }, [autoplay, autoplayDelay, stack, isPaused]);
 
   return (
-    <div
-      className="stack-container"
-      onMouseEnter={() => pauseOnHover && setIsPaused(true)}
-      onMouseLeave={() => pauseOnHover && setIsPaused(false)}
-    >
+    <div className="stack-container" onMouseEnter={() => pauseOnHover && setIsPaused(true)} onMouseLeave={() => pauseOnHover && setIsPaused(false)}>
       {stack.map((card, index) => {
         const randomRotate = randomRotation ? Math.random() * 10 - 5 : 0;
         return (
-          <CardRotate
-            key={card.id}
-            onSendToBack={() => sendToBack(card.id)}
-            sensitivity={sensitivity}
-            disableDrag={shouldDisableDrag}
-          >
+          <CardRotate key={card.id} onSendToBack={() => sendToBack(card.id)} sensitivity={sensitivity} disableDrag={shouldDisableDrag}>
             <MotionDiv
               className="stack-card"
               onClick={() => shouldEnableClick && sendToBack(card.id)}
@@ -129,4 +120,3 @@ export default function Stack({
     </div>
   );
 }
-

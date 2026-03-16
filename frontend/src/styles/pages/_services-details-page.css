@@ -1,204 +1,41 @@
-.service-detail {
-  background: linear-gradient(180deg, #fff9f1 0%, #fef7ef 50%, #fffaf5 100%);
-  color: var(--ink-nav);
-  padding-top: 2rem;
+/* Immagine hero condivisa (usata da entrambi i detail) */
+.detail-img-hero {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 2px 4px rgba(46, 33, 24, 0.04), 0 8px 24px rgba(46, 33, 24, 0.08), 0 24px 56px rgba(46, 33, 24, 0.1);
+  transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.45s ease;
+  background: #f5ede3;
 }
 
-/* ▸ IMMAGINE effetto vetro */
-.service-image-glass {
-  position: relative;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(18px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 22px;
-  padding: 1.4rem;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.1);
-  transition: transform 0.45s ease, box-shadow 0.45s ease;
-}
-.service-image-glass:hover {
+.detail-img-hero:hover {
   transform: translateY(-6px);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.15);
-}
-.service-image-glass::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(130deg, rgba(255, 255, 255, 0.25) 0%, transparent 60%);
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}
-.service-image-glass:hover::after {
-  opacity: 1;
+  box-shadow: 0 4px 8px rgba(46, 33, 24, 0.06), 0 16px 40px rgba(46, 33, 24, 0.12), 0 36px 72px rgba(46, 33, 24, 0.12);
 }
 
-/* ▸ TITOLI & TESTO */
-.service-title {
-  font-weight: 800;
-  font-size: clamp(1.9rem, 3vw, 2.6rem);
-  letter-spacing: -0.02em;
-}
-.service-price {
-  color: var(--accent-nav);
-  font-weight: 700;
-  font-size: 1.9rem;
-}
-
-/* ▸ SCALAPAY */
-.scalapay-info {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.95rem;
-  opacity: 0.85;
-  cursor: pointer;
-  transition: opacity 0.25s ease;
-}
-.scalapay-info:hover {
-  opacity: 1;
-}
-.scalapay-logo {
-  height: 34px;
-}
-
-/* ▸ TRUST BOX */
-.trust-box {
-  font-size: 0.95rem;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 14px;
-  padding: 0.9rem 1.2rem;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.3);
-}
-
-/* ▸ DESCRIZIONE */
-.service-description {
-  position: relative;
-  white-space: pre-line;
-  font-size: 1.08rem;
-  line-height: 1.65;
-  opacity: 0.9;
-
-  /* altezza iniziale ≈ 5 righe */
-  max-height: 8.5rem;
-  overflow: hidden;
-
-  transition: max-height 0.45s ease, opacity 0.35s ease;
-}
-
-/* testo dentro */
-.service-description p {
-  margin-bottom: 0;
-}
-
-/* fade in basso quando è tagliata */
-.service-description::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 2.5rem;
-  background: linear-gradient(to bottom, rgba(254, 247, 239, 0) 0%, #fef7ef 100%);
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity 0.3s ease;
-}
-
-/* quando è espansa togliamo il limite */
-.service-description.expanded {
-  max-height: 1000px; /* abbastanza grande da contenere tutto */
-  opacity: 1;
-}
-
-.service-description.expanded::after {
-  opacity: 0; /* niente fade quando è aperta */
-}
-
-/* ▸ RELATED */
-.related-section {
-  position: relative;
-  background: #fffaf5;
-  padding: 3.5rem 1rem 5rem;
-  border-top: 1px solid rgba(60, 40, 20, 0.08);
-}
-.related-section::before {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 90px;
-  background: linear-gradient(to bottom, transparent, #fffaf5 90%);
-  pointer-events: none;
-}
-.related-section h3 {
-  position: relative;
-  z-index: 1;
-  font-weight: 700;
-  color: var(--ink-nav);
-  letter-spacing: -0.01em;
-  margin-bottom: 2rem;
-}
-
-/* ▸ CARD */
-.related-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(14px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 18px;
-  padding: 1.2rem;
-  cursor: pointer;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.related-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
-}
-.related-img-wrap {
-  position: relative;
-  overflow: hidden;
-  border-radius: 12px;
-}
-.related-img-wrap::after {
-  content: "Scopri";
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-weight: 600;
-  font-size: 1rem;
-  opacity: 0;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 12px;
-  transition: opacity 0.3s ease;
-}
-.related-card:hover .related-img-wrap::after {
-  opacity: 1;
-}
-.related-img-wrap img {
-  aspect-ratio: 1/1;
+.detail-img-hero img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
   object-fit: cover;
-  transition: transform 0.35s ease;
-}
-.related-card:hover img {
-  transform: scale(1.05);
+  display: block;
+  transition: transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* ▸ Fade on scroll */
-.fade-slide {
-  opacity: 0;
-  transform: translateY(40px);
-  transition: opacity 0.8s ease, transform 0.8s ease;
-}
-.fade-slide.visible {
-  opacity: 1;
-  transform: translateY(0);
+.detail-img-hero:hover img {
+  transform: scale(1.04);
 }
 
-/* ▸ Responsive */
-@media (max-width: 768px) {
-  .service-image-glass {
-    margin-bottom: 2.5rem;
-  }
+.detail-img-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.12) 50%, transparent 70%);
+  transform: translateX(-100%);
+  transition: transform 0.75s ease;
+  pointer-events: none;
+}
+
+.detail-img-hero:hover .detail-img-shimmer {
+  transform: translateX(100%);
 }

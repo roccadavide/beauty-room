@@ -358,39 +358,104 @@ body.modal-open {
   margin-top: 10px;
 }
 .ag-item {
-  display: grid;
-  grid-template-columns: 140px 1fr auto;
-  gap: 12px;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
   border-radius: 16px;
   border: 1px solid rgba(111, 74, 47, 0.14);
   background: rgba(255, 255, 255, 0.75);
+  transition: box-shadow 0.2s ease;
 }
+
+.ag-item:hover {
+  box-shadow: 0 4px 16px rgba(111, 74, 47, 0.1);
+}
+
+.ag-item__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ag-item__time {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .ag-item__timeMain {
   font-weight: 900;
+  font-size: 1rem;
 }
+
 .ag-item__timeSub {
-  color: rgba(35, 26, 20, 0.55);
-  font-size: 0.85rem;
+  color: rgba(35, 26, 20, 0.5);
+  font-size: 0.8rem;
+}
+
+.ag-item__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .ag-item__top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
+
 .ag-item__name {
   font-weight: 900;
+  font-size: 1rem;
 }
+
 .ag-item__meta {
-  margin-top: 2px;
-  font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 0.85rem;
   color: var(--ag-muted);
+  margin-top: 2px;
 }
+
+.ag-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #25d366;
+  border: none;
+  border-radius: 999px;
+  padding: 3px 10px 3px 6px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(37, 211, 102, 0.25);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.ag-wa-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);
+}
+
+.ag-wa-btn__icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
 .ag-item__service {
-  margin-top: 4px;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
+  margin-top: 2px;
 }
 .ag-service {
   font-weight: 800;
@@ -408,10 +473,14 @@ body.modal-open {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  justify-content: flex-end;
+  padding-top: 6px;
+  border-top: 1px solid rgba(111, 74, 47, 0.08);
+  margin-top: 2px;
 }
 .ag-item__actions .ag-btn {
   flex: 0 0 auto;
+  font-size: 0.8rem;
+  padding: 6px 12px !important;
 }
 
 /* Status pill */
@@ -680,6 +749,111 @@ body.modal-open {
   font-weight: 700;
 }
 
+/* ── Service search nel BookingModal ── */
+.ag-service-search-wrap {
+  position: relative;
+}
+
+.ag-service-search {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.88rem;
+  color: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.ag-service-search:focus {
+  border-color: rgba(184, 151, 106, 0.5);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.ag-service-search::placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.ag-service-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ag-service-cat {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.75rem;
+  color: rgba(35, 26, 20, 0.7);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.ag-service-cat.is-active {
+  background: rgba(184, 151, 106, 0.16);
+  border-color: rgba(184, 151, 106, 0.5);
+  color: #8c6d3f;
+}
+
+.ag-service-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  scrollbar-width: thin;
+}
+
+.ag-service-empty {
+  padding: 0.75rem 1rem;
+  font-size: 0.83rem;
+  color: rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.ag-service-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.18s ease;
+  text-align: left;
+}
+
+.ag-service-item:last-child {
+  border-bottom: none;
+}
+
+.ag-service-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.ag-service-item.is-selected {
+  background: rgba(184, 151, 106, 0.12);
+  border-left: 2px solid rgba(184, 151, 106, 0.7);
+}
+
+.ag-service-item__title {
+  font-size: 0.85rem;
+  color: rgba(35, 26, 20, 0.9);
+  font-weight: 500;
+}
+
+.ag-service-item__meta {
+  font-size: 0.75rem;
+  color: rgba(184, 151, 106, 0.9);
+  white-space: nowrap;
+  margin-left: 0.5rem;
+}
+
 .ag-dialog__footer {
   padding: 10px 18px 16px;
   border-top: 1px solid rgba(111, 74, 47, 0.12);
@@ -748,7 +922,7 @@ body.modal-open {
 
 @media (max-width: 1100px) {
   .ag-item {
-    grid-template-columns: 1fr;
+    /* già flex column di default */
   }
   .ag-item__actions {
     justify-content: flex-start;
@@ -757,58 +931,13 @@ body.modal-open {
 
 @media (max-width: 767px) {
   .ag-item {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+    /* layout già colonnare, solo padding più compatto */
     padding: 12px;
   }
 
-  .ag-item__time {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .ag-item__timeMain {
-    font-size: 0.95rem;
-    font-weight: 700;
-  }
-
-  .ag-item__timeSub {
-    font-size: 0.75rem;
-    opacity: 0.55;
-  }
-
-  .ag-item__top {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .ag-item__name {
-    font-size: 1rem;
-    font-weight: 700;
-  }
-
-  .ag-item__actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    width: 100%;
-  }
-
   .ag-item__actions .ag-btn {
-    font-size: 0.78rem;
-    padding: 7px 6px;
-    text-align: center;
-    width: 100%;
-  }
-
-  .ag-item__actions .ag-btn--danger {
-    grid-column: auto;
+    font-size: 0.75rem;
+    padding: 5px 10px !important;
   }
 }
 

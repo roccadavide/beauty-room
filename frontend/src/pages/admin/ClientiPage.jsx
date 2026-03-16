@@ -36,6 +36,13 @@ function formatDateTimeIT(iso) {
   });
 }
 
+const openWhatsApp = phone => {
+  if (!phone) return;
+  const clean = phone.replace(/[\s\-().+]/g, "");
+  const number = clean.startsWith("39") ? clean : `39${clean}`;
+  window.open(`https://wa.me/${number}`, "_blank", "noopener,noreferrer");
+};
+
 function ClientSummary({ customer, loading, error, onNotesChange }) {
   const [notes, setNotes] = useState(customer?.notes || "");
   const [originalNotes, setOriginalNotes] = useState(customer?.notes || "");
@@ -102,7 +109,20 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
         <div className="cli-customer-header">
           <div className="cli-customer-name">{customer.fullName || "—"}</div>
           <div className="cli-customer-sub">
-            <span>{customer.phone || "Telefono non indicato"}</span>
+              <span className="cli-phone-row">
+        <span>{customer.phone || "Telefono non indicato"}</span>
+        {customer.phone && (
+          <button
+            className="cli-wa-btn"
+            onClick={() => openWhatsApp(customer.phone)}
+            title="Apri su WhatsApp"
+            type="button"
+          >
+            <span>💬</span>
+            <span>Contatta su WhatsApp</span>
+          </button>
+        )}
+              </span>
             {customer.email && <span>{customer.email}</span>}
           </div>
           <div className="cli-customer-meta">

@@ -113,7 +113,13 @@ const ResultsPreview = () => {
 
   return (
     <Container className="py-5">
-      <h2 className="text-center mb-4">Risultati in evidenza</h2>
+      <div className="rp-head">
+        <span className="section-eyebrow">Prima &amp; Dopo</span>
+        <h2 className="section-title">Risultati in evidenza</h2>
+        <p className="section-subtitle">
+          Trasformazioni reali delle nostre clienti, trattamento dopo trattamento.
+        </p>
+      </div>
 
       {user?.role === "ADMIN" && (
         <div className="mb-4 d-flex align-items-center justify-content-center">
@@ -130,36 +136,45 @@ const ResultsPreview = () => {
 
       <Row className="g-4 justify-content-evenly">
         {results.map(r => (
-          <Col key={r.resultId} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
-            <Card className="h-100 shadow-sm" onClick={() => navigate(`/risultati/${r.resultId}`)}>
-              <Card.Img src={r.images?.[0]} alt={r.title} />
-              <Card.Body className="d-flex flex-column">
-                <Card.Title>{r.title}</Card.Title>
-                <div className="mb-2 d-flex align-items-center justify-content-between">
-                  <Badge bg={badgeColors[r.categoryId] || "secondary"} className="text-uppercase">
-                    {categoriesMap[r.categoryId] || "Altro"}
-                  </Badge>
-                  {r.date && <small className="text-muted">{new Date(r.date).toLocaleDateString()}</small>}
+          <Col key={r.resultId} xs={12} sm={6} lg={4} className="d-flex">
+            <div className="rp-card" onClick={() => navigate(`/risultati/${r.resultId}`)}>
+              <div className="rp-img-wrap">
+                <img src={r.images?.[0]} alt={r.title} />
+                <div className="rp-img-overlay">
+                  {r.date && (
+                    <span className="rp-date">
+                      {new Date(r.date).toLocaleDateString("it-IT", { month: "short", year: "numeric" })}
+                    </span>
+                  )}
                 </div>
-                <Card.Text className="flex-grow-1">{r.shortDescription}</Card.Text>
-
+              </div>
+              <div className="rp-body">
+                <div className="rp-accent-line" />
+                <h3 className="rp-title">{r.title}</h3>
+                <Badge bg={badgeColors[r.categoryId] || "secondary"} className="text-uppercase rp-badge">
+                  {categoriesMap[r.categoryId] || "Altro"}
+                </Badge>
+                <p className="rp-desc">{r.shortDescription}</p>
                 {user?.role === "ADMIN" && (
-                  <div className="d-flex gap-2 mt-3">
+                  <div
+                    className="rp-admin"
+                    onClick={e => {
+                      e.stopPropagation();
+                    }}
+                  >
                     <Button
                       variant="secondary"
+                      size="sm"
                       className="rounded-circle d-flex justify-content-center align-items-center"
-                      onClick={e => {
-                        e.stopPropagation();
-                        handleEdit(r);
-                      }}
+                      onClick={() => handleEdit(r)}
                     >
                       <PencilFill />
                     </Button>
                     <Button
                       variant="danger"
+                      size="sm"
                       className="rounded-circle d-flex justify-content-center align-items-center"
-                      onClick={e => {
-                        e.stopPropagation();
+                      onClick={() => {
                         setSelectedResult(r);
                         setDeleteModal(true);
                       }}
@@ -168,8 +183,8 @@ const ResultsPreview = () => {
                     </Button>
                   </div>
                 )}
-              </Card.Body>
-            </Card>
+              </div>
+            </div>
           </Col>
         ))}
       </Row>
