@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
-import { fetchServices } from "../../api/modules/services.api";
+import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import BookingModal from "../bookings/BookingModal";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
@@ -28,16 +28,23 @@ const ServiceDetail = () => {
   const [categories, setCategories] = useState([]);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [open, setOpen] = useState(false);
+  // FIX-2: opzione selezionata dal cliente prima di aprire il modal
+  const [selectedOption, setSelectedOption] = useState(null);
+  // FIX-2: gruppo attivo nel selettore (caso laser con più zone)
+  const [activeGroup, setActiveGroup] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadServices = async () => {
       try {
-        const all = await fetchServices();
-        const found = all.find(s => s.serviceId === serviceId);
+        // FIX-2: fetchServiceById garantisce il DTO completo con options[] popolato
+        const [found, all, cats] = await Promise.all([
+          fetchServiceById(serviceId),
+          fetchServices(),
+          fetchCategories(),
+        ]);
         setService(found || null);
         setAllServices(all);
-        const cats = await fetchCategories();
         setCategories(cats);
       } catch (err) {
         setError(err.message);
@@ -70,6 +77,23 @@ const ServiceDetail = () => {
 
   const [imgRef, imgVisible] = useInView();
   const [relatedRef, relatedVisible] = useInView();
+
+  // FIX-2: calcola gruppi distinti dalle opzioni attive
+  const activeOptions = service?.options?.filter(o => o.active) ?? [];
+  const optionGroups = useMemo(() => {
+    const groups = [...new Set(activeOptions.map(o => o.optionGroup).filter(Boolean))];
+    return groups; // es. ["Gambe", "Ascelle", "Viso"] oppure [] se nessun gruppo
+  }, [activeOptions]);
+  const hasGroups = optionGroups.length > 0;
+  // Opzioni visibili: se ci sono gruppi mostra solo quelle del gruppo attivo
+  const visibleOptions = hasGroups && activeGroup
+    ? activeOptions.filter(o => o.optionGroup === activeGroup)
+    : hasGroups
+      ? [] // nessun gruppo ancora selezionato → non mostrare opzioni
+      : activeOptions;
+  const hasOptions = activeOptions.length > 0;
+  // Prezzo dinamico: usa il prezzo dell'opzione selezionata se presente
+  const displayPrice = selectedOption?.price ?? service?.price;
 
   if (loading)
     return (
@@ -117,9 +141,67 @@ const ServiceDetail = () => {
           <div className="detail-accent-line" />
 
           <div className="detail-price-block">
-            <span className="detail-price">{service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-            <span className="detail-price-note">prezzo per seduta</span>
+            {/* FIX-2: prezzo dinamico aggiornato in base all'opzione scelta */}
+            <span className="detail-price">{displayPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+            <span className="detail-price-note">
+              {selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}
+            </span>
           </div>
+
+          {/* FIX-2: selettore opzioni — visibile solo se il servizio ha opzioni */}
+          {hasOptions && (
+            <div className="so-selector">
+              {/* Pill gruppi (caso laser: zone corpo) */}
+              {hasGroups && (
+                <div className="so-groups">
+                  <span className="so-label">Seleziona zona:</span>
+                  <div className="so-group-pills">
+                    {optionGroups.map(g => (
+                      <button
+                        key={g}
+                        type="button"
+                        className={`so-group-pill${activeGroup === g ? " so-group-pill--active" : ""}`}
+                        onClick={() => {
+                          setActiveGroup(g);
+                          setSelectedOption(null);
+                        }}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Lista opzioni */}
+              {visibleOptions.length > 0 && (
+                <div className="so-options">
+                  <span className="so-label">{hasGroups ? "Seleziona pacchetto:" : "Seleziona opzione:"}</span>
+                  <div className="so-option-list">
+                    {visibleOptions.map(opt => (
+                      <button
+                        key={opt.optionId}
+                        type="button"
+                        className={`so-option-card${selectedOption?.optionId === opt.optionId ? " so-option-card--selected" : ""}`}
+                        onClick={() => setSelectedOption(opt)}
+                      >
+                        <span className="so-option-name">{opt.name}</span>
+                        <span className="so-option-price">
+                          {opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                        </span>
+                        {opt.sessions > 1 && (
+                          <span className="so-option-sessions">{opt.sessions} sedute</span>
+                        )}
+                        {opt.gender && (
+                          <span className="so-option-gender">{opt.gender}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="detail-trust">
             <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
@@ -127,8 +209,13 @@ const ServiceDetail = () => {
             <span className="detail-trust-pill">✓ Conferma immediata</span>
           </div>
 
-          <button className="detail-cta-btn" onClick={() => setOpen(true)}>
-            Prenota ora
+          {/* FIX-2: bottone disabilitato finché non è scelta un'opzione (quando esistono) */}
+          <button
+            className="detail-cta-btn"
+            onClick={() => setOpen(true)}
+            disabled={hasOptions && selectedOption === null}
+          >
+            {hasOptions && selectedOption === null ? "Scegli un'opzione" : "Prenota ora"}
           </button>
 
           <div className="detail-divider" />
@@ -177,7 +264,13 @@ const ServiceDetail = () => {
         </section>
       )}
 
-      <BookingModal show={open} onHide={() => setOpen(false)} service={service} />
+      {/* FIX-2: passa l'opzione scelta al modal */}
+      <BookingModal
+        show={open}
+        onHide={() => setOpen(false)}
+        service={service}
+        initialOptionId={selectedOption?.optionId ?? null}
+      />
     </Container>
   );
 };

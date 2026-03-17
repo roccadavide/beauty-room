@@ -99,7 +99,8 @@ function BookingCalendar({ selected, onChange, minDate }) {
   );
 }
 
-const BookingModal = ({ show, onHide, service }) => {
+// FIX-2: initialOptionId viene passato da ServiceDetails quando il servizio ha opzioni
+const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
   const { accessToken, user } = useSelector(state => state.auth);
 
   const [step, setStep] = useState(1);
@@ -234,7 +235,7 @@ const BookingModal = ({ show, onHide, service }) => {
         notes: customer.notes,
         startTime: `${day}T${slot.start}:00`,
         serviceId: service.serviceId,
-        serviceOptionId: null, // per ora (quando aggiungi opzioni lo colleghi)
+        serviceOptionId: initialOptionId, // FIX-2: passato da ServiceDetails
       };
 
       // NIENTE token param: ci pensa httpClient/interceptor

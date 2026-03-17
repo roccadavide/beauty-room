@@ -152,7 +152,9 @@ public class ServiceItemService {
                         o.getPrice(),
                         o.getSessions(),
                         o.getGender(),
-                        o.isActive()
+                        o.isActive(),
+                        // FIX-2: includi optionGroup nel DTO
+                        o.getOptionGroup()
                 ))
                 .toList();
 

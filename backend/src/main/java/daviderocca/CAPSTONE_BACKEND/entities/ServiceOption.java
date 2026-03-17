@@ -40,4 +40,8 @@ public class ServiceOption {
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
+    // FIX-2: raggruppa opzioni per zona/variante (es. "Gambe", "Ascelle", "Viso")
+    @Column(name = "option_group", length = 80)
+    private String optionGroup;
+
 }
