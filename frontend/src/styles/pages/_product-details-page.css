@@ -33,12 +33,12 @@
 
 /* Titolo principale */
 .detail-title {
-  font-family: "Petrona", serif;
-  font-weight: 700;
-  font-size: clamp(1.9rem, 3.5vw, 2.8rem);
+  font-family: "SaolDisplay-Light", "Petrona", serif;
+  font-weight: 300;
+  font-size: clamp(2.2rem, 4vw, 3.2rem);
   color: #1e140e;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
   margin: 0 0 1rem;
 }
 
@@ -60,11 +60,11 @@
 }
 
 .detail-price {
-  font-size: 2.2rem;
-  font-weight: 800;
+  font-size: 2.4rem;
+  font-weight: 300;
   color: #8c6d3f;
-  letter-spacing: -0.02em;
-  font-family: "Petrona", serif;
+  letter-spacing: -0.03em;
+  font-family: "SaolDisplay-Light", "Petrona", serif;
 }
 
 .detail-price-note {
@@ -203,14 +203,18 @@
   margin-top: 4rem;
 }
 
-.related-section h3 {
-  font-family: "Petrona", serif;
-  font-weight: 700;
-  font-size: clamp(1.3rem, 2.5vw, 1.8rem);
-  color: #2e2118;
+.related-head {
   text-align: center;
   margin-bottom: 2.5rem;
-  letter-spacing: -0.01em;
+}
+
+.related-title {
+  font-family: "SaolDisplay-Light", "Petrona", serif;
+  font-weight: 300;
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  color: #2e2118;
+  letter-spacing: -0.02em;
+  margin: 0.3rem 0 0;
 }
 
 .related-card {
@@ -295,14 +299,35 @@
 }
 
 /* ── Responsive ── */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
+  .service-detail,
+  .product-detail {
+    padding: 0 0 3rem;
+  }
+
   .detail-img-hero {
     max-width: 100%;
-    margin-bottom: 2rem;
+    width: 100%;
+    border-radius: 0;
+    margin-bottom: 0;
+  }
+
+  .detail-img-hero img {
+    aspect-ratio: 4 / 3;
+    max-height: 55vw;
+  }
+
+  .service-detail .row,
+  .product-detail .row {
+    gap: 0 !important;
+  }
+
+  .detail-info {
+    padding: 1.5rem 1.25rem 0;
   }
 
   .detail-title {
-    font-size: clamp(1.6rem, 5vw, 2.2rem);
+    font-size: clamp(1.6rem, 6vw, 2.2rem);
   }
 
   .detail-price {
@@ -311,5 +336,6 @@
 
   .detail-cta-btn {
     width: 100%;
+    justify-content: center;
   }
 }

@@ -4,6 +4,7 @@ import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
 import { fetchServices } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import BookingModal from "../bookings/BookingModal";
+import RelatedCarousel from "../../components/common/RelatedCarousel";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -116,9 +117,7 @@ const ServiceDetail = () => {
           <div className="detail-accent-line" />
 
           <div className="detail-price-block">
-            <span className="detail-price">
-              {service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-            </span>
+            <span className="detail-price">{service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
             <span className="detail-price-note">prezzo per seduta</span>
           </div>
 
@@ -148,21 +147,33 @@ const ServiceDetail = () => {
 
       {/* ▸ SERVIZI SIMILI */}
       {related.length > 0 && (
-        <section ref={relatedRef} className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}>
-          <h3 className="text-center mb-4">Altri trattamenti simili</h3>
-          <Row className="justify-content-center g-4">
-            {related.map(s => (
-              <Col key={s.serviceId} xs={10} sm={6} md={4} lg={3}>
-                <div className="related-card text-center" onClick={() => navigate(`/trattamenti/${s.serviceId}`)}>
-                  <div className="related-img-wrap mb-3">
-                    <img src={s.images?.[0]} alt={s.title} className="img-fluid rounded-4" />
-                  </div>
-                  <h5>{s.title}</h5>
-                  <p className="text-muted mb-0">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</p>
+        <section
+          ref={relatedRef}
+          className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}
+        >
+          <div className="related-head">
+            <span className="section-eyebrow">Scopri anche</span>
+            <h3 className="related-title">Trattamenti simili</h3>
+          </div>
+          <RelatedCarousel
+            items={related}
+            getKey={(s) => s.serviceId}
+            renderCard={(s) => (
+              <div
+                className="related-card text-center"
+                onClick={() => navigate(`/trattamenti/${s.serviceId}`)}
+                style={{ cursor: "pointer" }}
+              >
+                <div className="related-img-wrap mb-3">
+                  <img src={s.images?.[0]} alt={s.title} className="img-fluid rounded-4" />
                 </div>
-              </Col>
-            ))}
-          </Row>
+                <h5>{s.title}</h5>
+                <p className="text-muted mb-0">
+                  {s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                </p>
+              </div>
+            )}
+          />
         </section>
       )}
 

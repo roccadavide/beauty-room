@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Container, Card, Button, Spinner, Alert } from "react-bootstrap";
+import { Spinner } from "react-bootstrap";
 import { fetchBookingSummary } from "../../api/modules/stripe.api";
 
 const BOOKING_SUMMARY_ERROR_MESSAGE =
@@ -52,34 +52,32 @@ const BookingSuccessPage = () => {
 
   if (loading) {
     return (
-      <Container className="py-5 d-flex justify-content-center align-items-center container-base" style={{ marginTop: "7rem", minHeight: "40vh" }}>
-        <div className="d-flex flex-column align-items-center gap-3">
-          <Spinner animation="border" />
-          <p className="text-muted mb-0">Caricamento dettagli prenotazione...</p>
+      <div className="bs-page">
+        <div className="bs-loading">
+          <Spinner animation="border" style={{ color: "#b8976a" }} />
+          <p>Verifica prenotazione in corso…</p>
         </div>
-      </Container>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container className="py-5 container-base" style={{ marginTop: "7rem" }}>
-        <Card className="border-0 shadow-sm">
-          <Card.Body className="text-center py-4">
-            <Alert variant="danger" className="mb-4">
-              {error}
-            </Alert>
-            <div className="d-flex flex-wrap justify-content-center gap-2">
-              <Link to="/">
-                <Button variant="dark">Torna alla Home</Button>
-              </Link>
-              <Link to="/prenotazioni">
-                <Button variant="outline-dark">Vai ai miei appuntamenti</Button>
-              </Link>
-            </div>
-          </Card.Body>
-        </Card>
-      </Container>
+      <div className="bs-page">
+        <div className="bs-error-card">
+          <div className="bs-error-icon">⚠️</div>
+          <h2>Qualcosa non ha funzionato</h2>
+          <p>{error}</p>
+          <div className="bs-actions">
+            <Link to="/" className="bs-btn bs-btn--primary">
+              Torna alla Home
+            </Link>
+            <Link to="/prenotazioni" className="bs-btn bs-btn--ghost">
+              I miei appuntamenti
+            </Link>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -88,34 +86,75 @@ const BookingSuccessPage = () => {
     : null;
 
   return (
-    <Container className="py-5 container-base">
-      <Card className="order-hero border-0 shadow-sm">
-        <Card.Body className="d-flex flex-column align-items-center text-center py-5">
-          <div className="status-badge paid">Pagamento confermato</div>
-          <h2 className="mt-3 mb-2">Prenotazione completata con successo!</h2>
-          {shortCode && (
-            <>
-              <p className="text-muted mb-1">Codice prenotazione</p>
-              <p className="order-id mb-2">{shortCode}</p>
-            </>
-          )}
-          <p className="lead text-muted mb-4">
-            Ti abbiamo inviato un'email con tutti i dettagli della prenotazione.
-          </p>
-          <div className="d-flex flex-wrap justify-content-center gap-2">
-            <Link to="/trattamenti">
-              <Button variant="dark">Torna ai trattamenti</Button>
-            </Link>
-            <Link to="/prenotazioni">
-              <Button variant="outline-dark">Vai ai miei appuntamenti</Button>
-            </Link>
-            <Link to="/">
-              <Button variant="outline-secondary">Torna alla Home</Button>
-            </Link>
+    <div className="bs-page">
+      <div className="bs-hero">
+        <div className="bs-hero__check">✓</div>
+        <span className="section-eyebrow">Prenotazione confermata</span>
+        <h1 className="bs-hero__title">Ci vediamo presto</h1>
+        <p className="bs-hero__sub">Ti abbiamo inviato una email con tutti i dettagli.</p>
+        {shortCode && (
+          <div className="bs-code">
+            <span className="bs-code__label">Codice prenotazione</span>
+            <span className="bs-code__value">{shortCode}</span>
           </div>
-        </Card.Body>
-      </Card>
-    </Container>
+        )}
+      </div>
+
+      {data?.booking && (
+        <div className="bs-card">
+          <div className="bs-card__header">
+            <span className="section-eyebrow">Riepilogo</span>
+          </div>
+
+          <div className="bs-rows">
+            {[
+              { label: "Cliente", value: data.booking.customerName },
+              { label: "Email", value: data.booking.customerEmail },
+              { label: "Telefono", value: data.booking.customerPhone },
+            ]
+              .filter(r => r.value)
+              .map(r => (
+                <div key={r.label} className="bs-row">
+                  <span>{r.label}</span>
+                  <strong>{r.value}</strong>
+                </div>
+              ))}
+
+            <div className="bs-row bs-row--divider" />
+
+            {data.booking.serviceId && (
+              <div className="bs-row">
+                <span>Servizio</span>
+                <strong>{data.booking.serviceId}</strong>
+              </div>
+            )}
+            {data.booking.startTime && (
+              <div className="bs-row">
+                <span>Data e ora</span>
+                <strong>
+                  {new Date(data.booking.startTime).toLocaleString("it-IT", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "long",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </strong>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="bs-actions">
+        <Link to="/trattamenti" className="bs-btn bs-btn--ghost">
+          Prenota un altro trattamento
+        </Link>
+        <Link to="/" className="bs-btn bs-btn--primary">
+          Torna alla Home
+        </Link>
+      </div>
+    </div>
   );
 };
 

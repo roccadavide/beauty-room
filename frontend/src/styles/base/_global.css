@@ -3,6 +3,11 @@
 
 html {
   scroll-behavior: auto;
+  max-width: 100%;
+}
+
+#root {
+  overflow-x: clip;
 }
 
 body {
@@ -12,7 +17,7 @@ body {
   color: var(--color-dark);
   line-height: 1.6;
   overflow-x: hidden;
-  overflow-y: visible;
+  overflow-y: auto;
   max-width: 100%;
 }
 

@@ -208,13 +208,13 @@ export default function NavBar() {
                         Agenda
                       </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/report"}>
-                        📊 Report
+                        Report
                       </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/clienti"}>
-                        👥 Clienti
+                        Clienti
                       </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
-                        ⚙️ Impostazioni
+                        Impostazioni
                       </NavDropdown.Item>
                     </>
                   )}

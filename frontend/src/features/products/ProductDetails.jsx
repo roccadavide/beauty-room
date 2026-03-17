@@ -4,6 +4,7 @@ import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
 import QuantitySelector from "../../components/layout/QuantitySelector";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchCategories } from "../../api/modules/categories.api";
+import RelatedCarousel from "../../components/common/RelatedCarousel";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -117,9 +118,7 @@ const ProductDetail = () => {
           <div className="detail-accent-line" />
 
           <div className="detail-price-block">
-            <span className="detail-price">
-              {product.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-            </span>
+            <span className="detail-price">{product.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
             <span className="detail-price-note">prezzo al pezzo</span>
           </div>
 
@@ -148,21 +147,33 @@ const ProductDetail = () => {
 
       {/* ▸ PRODOTTI CORRELATI */}
       {relatedProducts.length > 0 && (
-        <section ref={relatedRef} className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}>
-          <h3 className="text-center mb-4">Ti potrebbe interessare anche</h3>
-          <Row className="justify-content-center g-4">
-            {relatedProducts.map(rp => (
-              <Col key={rp.productId} xs={10} sm={6} md={4} lg={3}>
-                <div className="related-card text-center" onClick={() => navigate(`/prodotti/${rp.productId}`)}>
-                  <div className="related-img-wrap mb-3">
-                    <img src={rp.images?.[0]} alt={rp.name} className="img-fluid rounded-4" />
-                  </div>
-                  <h5>{rp.name}</h5>
-                  <p className="text-muted mb-0">{rp.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</p>
+        <section
+          ref={relatedRef}
+          className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}
+        >
+          <div className="related-head">
+            <span className="section-eyebrow">Scopri anche</span>
+            <h3 className="related-title">Potrebbe interessarti</h3>
+          </div>
+          <RelatedCarousel
+            items={relatedProducts}
+            getKey={(p) => p.productId}
+            renderCard={(p) => (
+              <div
+                className="related-card text-center"
+                onClick={() => navigate(`/prodotti/${p.productId}`)}
+                style={{ cursor: "pointer" }}
+              >
+                <div className="related-img-wrap mb-3">
+                  <img src={p.images?.[0]} alt={p.name} className="img-fluid rounded-4" />
                 </div>
-              </Col>
-            ))}
-          </Row>
+                <h5>{p.name}</h5>
+                <p className="text-muted mb-0">
+                  {p.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                </p>
+              </div>
+            )}
+          />
         </section>
       )}
     </Container>

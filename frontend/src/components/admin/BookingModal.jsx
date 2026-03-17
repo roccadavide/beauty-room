@@ -182,9 +182,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     }
     const needle = serviceSearch.trim().toLowerCase();
     if (needle) {
-      list = list.filter(
-        s => s.title?.toLowerCase().includes(needle) || s.durationMin?.toString().includes(needle),
-      );
+      list = list.filter(s => s.title?.toLowerCase().includes(needle) || s.durationMin?.toString().includes(needle));
     }
     return list;
   }, [services, serviceSearch, serviceCatFilter]);

@@ -1,0 +1,202 @@
+/* ===== BOOKING SUCCESS PAGE ===== */
+
+.bs-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fffdf8 0%, #fef7ef 60%, #fffaf5 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5rem 1.5rem 4rem;
+  gap: 2rem;
+}
+
+.bs-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 8rem;
+  color: #8a7060;
+  font-size: 0.9rem;
+}
+
+.bs-error-card {
+  max-width: 480px;
+  width: 100%;
+  background: #fffdf8;
+  border: 1px solid rgba(180, 148, 106, 0.2);
+  border-radius: 24px;
+  padding: 3rem 2rem;
+  text-align: center;
+  margin-top: 4rem;
+  box-shadow: 0 8px 32px rgba(46, 33, 24, 0.08);
+}
+
+.bs-error-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.bs-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  max-width: 560px;
+}
+
+.bs-hero__check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2e2118, #1a110a);
+  color: #f5e8d8;
+  font-size: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 8px 24px rgba(46, 33, 24, 0.2);
+}
+
+.bs-hero__title {
+  font-family: "SaolDisplay-Light", "Petrona", serif;
+  font-weight: 300;
+  font-size: clamp(2rem, 5vw, 3rem);
+  color: #1e140e;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0.3rem 0 0.5rem;
+}
+
+.bs-hero__sub {
+  font-size: 1rem;
+  color: #7a6a61;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 40ch;
+}
+
+.bs-code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 0.5rem;
+  background: rgba(184, 151, 106, 0.08);
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 14px;
+  padding: 12px 24px;
+}
+
+.bs-code__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #b8976a;
+}
+
+.bs-code__value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #2e2118;
+  letter-spacing: 0.08em;
+  font-family: "Petrona", serif;
+}
+
+.bs-card {
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border: 1px solid rgba(180, 148, 106, 0.18);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(46, 33, 24, 0.06);
+}
+
+.bs-card__header {
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid rgba(180, 148, 106, 0.12);
+  background: rgba(184, 151, 106, 0.04);
+}
+
+.bs-rows {
+  padding: 0;
+}
+
+.bs-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  font-size: 0.88rem;
+  border-bottom: 1px solid rgba(180, 148, 106, 0.07);
+}
+
+.bs-row:last-child {
+  border-bottom: none;
+}
+
+.bs-row span {
+  color: #8a7060;
+}
+
+.bs-row strong {
+  color: #2e2118;
+  text-align: right;
+  max-width: 60%;
+}
+
+.bs-row--divider {
+  padding: 0;
+  height: 1px;
+  background: rgba(180, 148, 106, 0.15);
+  border: none;
+}
+
+.bs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.bs-btn {
+  border-radius: 999px;
+  padding: 0.7rem 1.8rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bs-btn--primary {
+  background: linear-gradient(135deg, #2e2118, #1a110a);
+  color: #f5e8d8;
+  box-shadow: 0 4px 16px rgba(46, 33, 24, 0.2);
+}
+
+.bs-btn--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(46, 33, 24, 0.3);
+  color: #f5e8d8;
+  text-decoration: none;
+}
+
+.bs-btn--ghost {
+  background: transparent;
+  color: #2e2118;
+  border: 1.5px solid rgba(180, 148, 106, 0.4);
+}
+
+.bs-btn--ghost:hover {
+  background: rgba(184, 151, 106, 0.06);
+  color: #2e2118;
+  text-decoration: none;
+}
+

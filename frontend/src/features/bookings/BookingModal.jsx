@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import { Modal, Button, Form, Badge, Spinner, Alert } from "react-bootstrap";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
+import { useEffect, useRef, useState } from "react";
+import { Button, Form, Badge, Spinner, Alert } from "react-bootstrap";
+import { createPortal } from "react-dom";
 import { useSelector } from "react-redux";
 import { fetchAvailabilities } from "../../api/modules/availabilities.api";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
@@ -9,6 +8,96 @@ import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest } f
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
+
+function BookingCalendar({ selected, onChange, minDate }) {
+  const [viewYear, setViewYear] = useState(selected.getFullYear());
+  const [viewMonth, setViewMonth] = useState(selected.getMonth());
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDOW = new Date(viewYear, viewMonth, 1).getDay();
+  const startOffset = (firstDOW + 6) % 7; // Lun primo
+
+  const prevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(y => y - 1);
+    } else {
+      setViewMonth(m => m - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(y => y + 1);
+    } else {
+      setViewMonth(m => m + 1);
+    }
+  };
+
+  const monthName = new Date(viewYear, viewMonth, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+
+  const isSelected = d => selected.getDate() === d && selected.getMonth() === viewMonth && selected.getFullYear() === viewYear;
+
+  const isToday = d => {
+    const dt = new Date(viewYear, viewMonth, d);
+    return dt.toDateString() === new Date().toDateString();
+  };
+
+  const isPast = d => {
+    const dt = new Date(viewYear, viewMonth, d);
+    dt.setHours(0, 0, 0, 0);
+    const min = new Date(minDate);
+    min.setHours(0, 0, 0, 0);
+    return dt < min;
+  };
+
+  const DOW_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div className="bc-calendar">
+      <div className="bc-header">
+        <button className="bc-nav-btn" onClick={prevMonth} type="button">
+          ‹
+        </button>
+        <span className="bc-month-label">{monthName}</span>
+        <button className="bc-nav-btn" onClick={nextMonth} type="button">
+          ›
+        </button>
+      </div>
+
+      <div className="bc-grid">
+        {DOW_LABELS.map(l => (
+          <div key={l} className="bc-dow">
+            {l}
+          </div>
+        ))}
+        {cells.map((d, i) => {
+          const classes = ["bc-day"];
+          if (d === null) classes.push("bc-day--empty");
+          if (d && isSelected(d)) classes.push("bc-day--selected");
+          if (d && isToday(d)) classes.push("bc-day--today");
+          if (d && isPast(d)) classes.push("bc-day--past");
+          return (
+            <div
+              key={i}
+              className={classes.join(" ")}
+              onClick={() => {
+                if (!d || isPast(d)) return;
+                onChange(new Date(viewYear, viewMonth, d));
+              }}
+            >
+              {d}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const BookingModal = ({ show, onHide, service }) => {
   const { accessToken, user } = useSelector(state => state.auth);
@@ -22,6 +111,9 @@ const BookingModal = ({ show, onHide, service }) => {
   const [slot, setSlot] = useState(null);
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "", notes: "" });
   const [errors, setErrors] = useState({});
+  const [panelVisible, setPanelVisible] = useState(false);
+  const [panelActive, setPanelActive] = useState(false);
+  const panelRef = useRef(null);
 
   const reset = () => {
     setStep(1);
@@ -59,6 +151,38 @@ const BookingModal = ({ show, onHide, service }) => {
       loadSlots();
     }
   }, [step, service, date]);
+
+  useEffect(() => {
+    if (show) {
+      setPanelVisible(true);
+      const id = requestAnimationFrame(() => requestAnimationFrame(() => setPanelActive(true)));
+      return () => cancelAnimationFrame(id);
+    }
+    setPanelActive(false);
+    const t = setTimeout(() => setPanelVisible(false), 320);
+    return () => clearTimeout(t);
+  }, [show]);
+
+  useEffect(() => {
+    if (!show) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [show]);
+
+  useEffect(() => {
+    if (!show) return;
+    const kd = e => {
+      if (e.key === "Escape") {
+        onHide();
+        reset();
+      }
+    };
+    document.addEventListener("keydown", kd);
+    return () => document.removeEventListener("keydown", kd);
+  }, [show, onHide]);
 
   const handleCustomerChange = (field, value) => {
     setCustomer(prev => ({ ...prev, [field]: value }));
@@ -130,154 +254,241 @@ const BookingModal = ({ show, onHide, service }) => {
     }));
   }, [show, step, accessToken, user]);
 
-  return (
-    <Modal
-      show={show}
-      onHide={() => {
-        onHide();
-        reset();
-      }}
-      scrollable
-      centered
-      size="lg"
-    >
-      <Modal.Header closeButton>
-        <Modal.Title>
-          Prenotazione — {service?.title}{" "}
-          <Badge bg="secondary" className="ms-2">
-            {service?.durationMin} min
-          </Badge>
-        </Modal.Title>
-      </Modal.Header>
+  if (!panelVisible) return null;
 
-      <Modal.Body
-        data-lenis-prevent
-        style={{
-          maxHeight: "80vh",
-          overflowY: "auto",
-          overscrollBehavior: "contain",
-        }}
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
+
+  const handleClose = () => {
+    onHide();
+    reset();
+  };
+
+  return createPortal(
+    <div className={`bm-root${panelActive ? " bm-root--active" : ""}`}>
+      <div className="bm-backdrop" onClick={handleClose} />
+      <div
+        ref={panelRef}
+        className={`bm-panel ${isDesktop ? "bm-panel--side" : "bm-panel--sheet"} ${panelActive ? "open" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
       >
-        {error && (
-          <Alert variant="danger" className="mb-3">
-            {error}
-          </Alert>
-        )}
+        {!isDesktop && <div className="bm-handle" />}
 
-        {step === 1 && (
-          <>
-            <h5 className="mb-3">1/4 — Seleziona la data</h5>
-            <DatePicker selected={date} onChange={setDate} dateFormat="dd/MM/yyyy" minDate={new Date()} inline />
-            <div className="d-flex justify-content-end mt-3">
-              <Button variant="dark" onClick={() => setStep(2)}>
-                Avanti
-              </Button>
-            </div>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <h5 className="mb-3">2/4 — Seleziona l’orario</h5>
-            {loadingSlots && <Spinner animation="border" />}
-            {error && <Alert variant="danger">{error}</Alert>}
-            <div className="d-flex flex-wrap gap-2">
-              {slots.map(s => (
-                <Button key={s.start} variant={slot?.start === s.start ? "dark" : "outline-dark"} className="rounded-pill" onClick={() => setSlot(s)}>
-                  {s.start} - {s.end}
-                </Button>
-              ))}
-              {slots.length === 0 && !loadingSlots && <p>Nessuno slot disponibile per questa data.</p>}
-            </div>
-            <div className="d-flex justify-content-between mt-3">
-              <Button variant="outline-dark" onClick={() => setStep(1)}>
-                Indietro
-              </Button>
-              <Button variant="dark" onClick={() => setStep(3)} disabled={!slot}>
-                Avanti
-              </Button>
-            </div>
-          </>
-        )}
-
-        {step === 3 && (
-          <>
-            <h5 className="mb-3">3/4 — I tuoi dati</h5>
-            <Form className="row g-3">
-              <div className="col-md-6">
-                <Form.Label>Nome e Cognome</Form.Label>
-                <Form.Control value={customer.name} onChange={e => handleCustomerChange("name", e.target.value)} isInvalid={!!errors.name} />
-                <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
-              </div>
-              <div className="col-md-6">
-                <Form.Label>Email</Form.Label>
-                <Form.Control type="email" value={customer.email} onChange={e => handleCustomerChange("email", e.target.value)} isInvalid={!!errors.email} />
-                <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
-              </div>
-              <div className="col-md-6">
-                <Form.Label>Telefono</Form.Label>
-                <Form.Control value={customer.phone} onChange={e => handleCustomerChange("phone", e.target.value)} isInvalid={!!errors.phone} />
-                <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
-              </div>
-              <div className="col-md-12">
-                <Form.Label>Note (opzionale)</Form.Label>
-                <Form.Control as="textarea" rows={3} value={customer.notes} onChange={e => handleCustomerChange("notes", e.target.value)} />
-              </div>
-            </Form>
-            <div className="d-flex justify-content-between mt-3">
-              <Button variant="outline-dark" onClick={() => setStep(2)}>
-                Indietro
-              </Button>
-              <Button variant="dark" onClick={goToSummary}>
-                Avanti
-              </Button>
-            </div>
-          </>
-        )}
-
-        {step === 4 && (
-          <>
-            <h5 className="mb-3">4/4 — Riepilogo</h5>
-            <ul className="list-unstyled">
-              <li>
-                <strong>Servizio:</strong> {service.title}
-              </li>
-              <li>
-                <strong>Durata:</strong> {service.durationMin} min
-              </li>
-              <li>
-                <strong>Prezzo:</strong> € {service.price}
-              </li>
-              <li>
-                <strong>Data:</strong> {date.toLocaleDateString()}
-              </li>
-              <li>
-                <strong>Orario:</strong> {slot?.start} - {slot?.end}
-              </li>
-              <li>
-                <strong>Cliente:</strong> {customer.name} — {customer.phone}
-              </li>
-              <li>
-                <strong>Email:</strong> {customer.email}
-              </li>
-              {customer.notes && (
-                <li>
-                  <strong>Note:</strong> {customer.notes}
-                </li>
+        <header className="bm-header">
+          <div className="bm-header__info">
+            <h2 className="bm-title">{service?.title}</h2>
+            <div className="bm-header__meta">
+              {service?.durationMin && (
+                <span className="bm-meta-pill">⏱ {service.durationMin} min</span>
               )}
-            </ul>
-            <div className="d-flex justify-content-between mt-3">
-              <Button variant="outline-dark" onClick={() => setStep(3)}>
-                Indietro
-              </Button>
-              <Button variant="dark" onClick={confirm}>
-                Vai al pagamento
-              </Button>
+              {service?.price != null && (
+                <span className="bm-meta-pill">
+                  {service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                </span>
+              )}
             </div>
-          </>
-        )}
-      </Modal.Body>
-    </Modal>
+          </div>
+          <button className="bm-close" onClick={handleClose} aria-label="Chiudi" type="button">
+            ×
+          </button>
+        </header>
+
+        <div className="bm-steps">
+          {[1, 2, 3, 4].map(s => (
+            <div key={s} className={`bm-step ${step === s ? "active" : step > s ? "done" : ""}`}>
+              <div className="bm-step__dot">{step > s ? "✓" : s}</div>
+              <span className="bm-step__label">
+                {s === 1 ? "Data" : s === 2 ? "Orario" : s === 3 ? "Dati" : "Riepilogo"}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="bm-body">
+          {error && <div className="bm-alert">{error}</div>}
+
+          {step === 1 && (
+            <div className="bm-step-content">
+              <BookingCalendar selected={date} onChange={setDate} minDate={new Date()} />
+              <div className="bm-nav">
+                <span />
+                <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(2)}>
+                  Scegli orario →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="bm-step-content">
+              <div className="bm-date-recap">
+                📅{" "}
+                {date.toLocaleDateString("it-IT", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
+              </div>
+              {loadingSlots && (
+                <div className="bm-loading">
+                  <Spinner size="sm" animation="border" /> Carico slot…
+                </div>
+              )}
+              <div className="bm-slots">
+                {slots.map(s => (
+                  <button
+                    key={s.start}
+                    type="button"
+                    className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""}`}
+                    onClick={() => setSlot(s)}
+                  >
+                    {s.start}
+                    <span className="bm-slot__end">– {s.end}</span>
+                  </button>
+                ))}
+              </div>
+              {slots.length === 0 && !loadingSlots && (
+                <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>
+              )}
+              <div className="bm-nav">
+                <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(1)}>
+                  ← Indietro
+                </button>
+                <button
+                  className="bm-btn bm-btn--primary"
+                  type="button"
+                  onClick={() => setStep(3)}
+                  disabled={!slot}
+                >
+                  Continua →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="bm-step-content">
+              <Form className="bm-form">
+                <Form.Group className="bm-form-group">
+                  <Form.Label>Nome e Cognome *</Form.Label>
+                  <Form.Control
+                    value={customer.name}
+                    onChange={e => handleCustomerChange("name", e.target.value)}
+                    isInvalid={!!errors.name}
+                    placeholder="Es. Mario Rossi"
+                    className="bm-input"
+                  />
+                  <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
+                </Form.Group>
+                <Form.Group className="bm-form-group">
+                  <Form.Label>Email *</Form.Label>
+                  <Form.Control
+                    type="email"
+                    value={customer.email}
+                    onChange={e => handleCustomerChange("email", e.target.value)}
+                    isInvalid={!!errors.email}
+                    placeholder="nome@email.com"
+                    className="bm-input"
+                  />
+                  <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+                </Form.Group>
+                <Form.Group className="bm-form-group">
+                  <Form.Label>Telefono *</Form.Label>
+                  <Form.Control
+                    value={customer.phone}
+                    onChange={e => handleCustomerChange("phone", e.target.value)}
+                    isInvalid={!!errors.phone}
+                    placeholder="+39 333 1234567"
+                    className="bm-input"
+                  />
+                  <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
+                </Form.Group>
+                <Form.Group className="bm-form-group">
+                  <Form.Label>Note (opzionale)</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={customer.notes}
+                    onChange={e => handleCustomerChange("notes", e.target.value)}
+                    placeholder="Allergie, preferenze, domande…"
+                    className="bm-input"
+                  />
+                </Form.Group>
+              </Form>
+              <div className="bm-nav">
+                <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(2)}>
+                  ← Indietro
+                </button>
+                <button className="bm-btn bm-btn--primary" type="button" onClick={goToSummary}>
+                  Riepilogo →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="bm-step-content">
+              <div className="bm-summary">
+                <div className="bm-summary__row">
+                  <span>Servizio</span>
+                  <strong>{service?.title}</strong>
+                </div>
+                <div className="bm-summary__row">
+                  <span>Durata</span>
+                  <strong>{service?.durationMin} min</strong>
+                </div>
+                <div className="bm-summary__row">
+                  <span>Prezzo</span>
+                  <strong>
+                    {service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                  </strong>
+                </div>
+                <div className="bm-summary__divider" />
+                <div className="bm-summary__row">
+                  <span>Data</span>
+                  <strong>
+                    {date.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" })}
+                  </strong>
+                </div>
+                <div className="bm-summary__row">
+                  <span>Orario</span>
+                  <strong>{slot?.start} – {slot?.end}</strong>
+                </div>
+                <div className="bm-summary__divider" />
+                <div className="bm-summary__row">
+                  <span>Cliente</span>
+                  <strong>{customer.name}</strong>
+                </div>
+                <div className="bm-summary__row">
+                  <span>Email</span>
+                  <strong>{customer.email}</strong>
+                </div>
+                <div className="bm-summary__row">
+                  <span>Telefono</span>
+                  <strong>{customer.phone}</strong>
+                </div>
+                {customer.notes && (
+                  <div className="bm-summary__row">
+                    <span>Note</span>
+                    <strong>{customer.notes}</strong>
+                  </div>
+                )}
+              </div>
+              <div className="bm-nav">
+                <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>
+                  ← Modifica
+                </button>
+                <button className="bm-btn bm-btn--cta" type="button" onClick={confirm}>
+                  💳 Vai al pagamento
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 };
 
