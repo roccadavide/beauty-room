@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 
 import java.math.BigDecimal;
@@ -44,13 +45,17 @@ public class BookingCheckoutController {
     private final ServiceItemService serviceItemService;
     private final ServiceOptionRepository serviceOptionRepository;
 
+    // FIX-24: Stripe.apiKey impostato una sola volta a startup invece che per ogni chiamata
+    @PostConstruct
+    public void init() {
+        Stripe.apiKey = this.stripeSecretKey;
+    }
+
     @PostMapping("/create-session")
     public Map<String, Object> createSessionAuth(
             @Valid @RequestBody NewBookingDTO payload,
             @AuthenticationPrincipal User currentUser
     ) throws StripeException {
-
-        Stripe.apiKey = stripeSecretKey;
 
         if (currentUser == null) throw new BadRequestException("Utente non autenticato.");
 
@@ -71,7 +76,6 @@ public class BookingCheckoutController {
     // PUBLIC (guest)
     @PostMapping("/create-session-guest")
     public Map<String, Object> createSessionGuest(@Valid @RequestBody NewBookingDTO payload) throws StripeException {
-        Stripe.apiKey = stripeSecretKey;
         return createStripeSessionForBooking(payload, null);
     }
 
@@ -141,10 +145,13 @@ public class BookingCheckoutController {
         return resp;
     }
 
+    // FIX-8: validazione owner per utenti autenticati — gli ospiti (guest) accedono liberamente
+    // perché l'endpoint è protect strutturalmente dalla casualità del session_id Stripe
     @GetMapping("/booking-summary")
-    public ResponseEntity<BookingSummaryDTO> getBookingSummary(@RequestParam("session_id") String sessionId) throws StripeException {
-        Stripe.apiKey = stripeSecretKey;
-
+    public ResponseEntity<BookingSummaryDTO> getBookingSummary(
+            @RequestParam("session_id") String sessionId,
+            @AuthenticationPrincipal User currentUser
+    ) throws StripeException {
         Session session = Session.retrieve(sessionId);
 
         boolean isPaid = "paid".equalsIgnoreCase(session.getPaymentStatus());
@@ -156,6 +163,12 @@ public class BookingCheckoutController {
 
         UUID bookingId = UUID.fromString(bookingIdStr);
         BookingResponseDTO booking = bookingService.findBookingByIdAndConvert(bookingId);
+
+        // FIX-8: se l'utente è autenticato, il booking deve appartenergli
+        if (currentUser != null && booking.userId() != null
+                && !booking.userId().equals(currentUser.getUserId())) {
+            return ResponseEntity.status(403).build();
+        }
 
         String email = session.getCustomerDetails() != null
                 ? session.getCustomerDetails().getEmail()

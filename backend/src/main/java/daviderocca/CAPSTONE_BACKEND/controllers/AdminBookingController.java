@@ -1,5 +1,6 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
+import com.stripe.exception.StripeException;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.AdminBookingCardDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
@@ -137,5 +138,14 @@ public class AdminBookingController {
         log.info("ADMIN | hard delete bookingId={}", id);
         bookingService.hardDeleteBooking(id, currentUser);
         return ResponseEntity.noContent().build();
+    }
+
+    // FIX-1: rimborso Stripe per prenotazioni pagate online
+    // Recupera payment_intent dalla sessione, crea Refund, aggiorna status a CANCELLED
+    @PostMapping("/{id}/refund")
+    public ResponseEntity<BookingResponseDTO> refundBooking(@PathVariable UUID id) throws StripeException {
+        log.info("ADMIN | refund bookingId={}", id);
+        bookingService.refundBooking(id);
+        return ResponseEntity.ok(bookingService.findBookingByIdAndConvert(id));
     }
 }

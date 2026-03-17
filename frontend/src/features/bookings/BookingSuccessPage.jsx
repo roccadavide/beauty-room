@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Spinner } from "react-bootstrap";
 import { fetchBookingSummary } from "../../api/modules/stripe.api";
+// FIX-3: fallback fetch del titolo servizio se il backend non include ancora serviceTitle
+import { fetchServiceById } from "../../api/modules/services.api";
 
 const BOOKING_SUMMARY_ERROR_MESSAGE =
   "Non è stato possibile recuperare i dettagli della prenotazione. Controlla la tua email per la conferma.";
@@ -14,6 +16,9 @@ const BookingSuccessPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  // FIX-3: titolo servizio locale come fallback se l'API non include ancora serviceTitle
+  const [serviceTitle, setServiceTitle] = useState(null);
+  const [serviceTitleLoading, setServiceTitleLoading] = useState(false);
 
   useEffect(() => {
     if (!sessionId || sessionId.trim() === "") {
@@ -49,6 +54,24 @@ const BookingSuccessPage = () => {
       alive = false;
     };
   }, [sessionId]);
+
+  // FIX-3: fallback fetch del titolo servizio se il backend non include serviceTitle
+  useEffect(() => {
+    const serviceId = data?.booking?.serviceId;
+    if (!serviceId || data?.booking?.serviceTitle) return;
+
+    let alive = true;
+    setServiceTitleLoading(true);
+
+    fetchServiceById(serviceId)
+      .then(service => {
+        if (alive) setServiceTitle(service?.title ?? null);
+      })
+      .catch(() => {/* silenzioso: l'UUID rimane come fallback */})
+      .finally(() => { if (alive) setServiceTitleLoading(false); });
+
+    return () => { alive = false; };
+  }, [data]);
 
   if (loading) {
     return (
@@ -125,7 +148,14 @@ const BookingSuccessPage = () => {
             {data.booking.serviceId && (
               <div className="bs-row">
                 <span>Servizio</span>
-                <strong>{data.booking.serviceId}</strong>
+                {/* FIX-3: mostra titolo servizio; fallback locale se non arriva dall'API */}
+                <strong>
+                  {data.booking.serviceTitle || serviceTitle
+                    ? (data.booking.serviceTitle || serviceTitle)
+                    : serviceTitleLoading
+                      ? "Caricamento…"
+                      : data.booking.serviceId}
+                </strong>
               </div>
             )}
             {data.booking.startTime && (

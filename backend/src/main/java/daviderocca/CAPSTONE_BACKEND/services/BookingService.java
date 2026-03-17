@@ -20,8 +20,14 @@ import daviderocca.CAPSTONE_BACKEND.repositories.BookingRepository;
 import daviderocca.CAPSTONE_BACKEND.repositories.ClosureRepository;
 import daviderocca.CAPSTONE_BACKEND.repositories.ServiceOptionRepository;
 import daviderocca.CAPSTONE_BACKEND.repositories.WorkingHoursRepository;
+import com.stripe.Stripe;
+import com.stripe.exception.StripeException;
+import com.stripe.model.Refund;
+import com.stripe.model.checkout.Session;
+import com.stripe.param.RefundCreateParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +52,10 @@ public class BookingService {
     private final CustomerService customerService;
     private final WorkingHoursRepository workingHoursRepository;
     private final ClosureRepository closureRepository;
+
+    // FIX-1: chiave Stripe per il rimborso (field injection, non final per compatibilità con @Value)
+    @Value("${stripe.secret}")
+    private String stripeSecretKey;
 
     private static final int HOLD_EXPIRE_MINUTES = 12;
 
@@ -454,6 +464,46 @@ public class BookingService {
         log.info("Booking hard-deleted by admin: id={}", bookingId);
     }
 
+    // ============================ REFUND (ADMIN) ============================
+    // FIX-1: rimborso Stripe per prenotazioni pagate online
+    @Transactional(rollbackFor = StripeException.class)
+    public void refundBooking(UUID bookingId) throws StripeException {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(bookingId));
+
+        if (booking.getBookingStatus() != BookingStatus.CONFIRMED) {
+            throw new BadRequestException("Il rimborso è possibile solo per prenotazioni in stato CONFIRMED.");
+        }
+        if (booking.getStripeSessionId() == null) {
+            throw new BadRequestException("Questa prenotazione non è stata pagata online (nessuna sessione Stripe).");
+        }
+
+        Stripe.apiKey = stripeSecretKey;
+
+        // Recupera il payment_intent dalla sessione Stripe
+        Session stripeSession = Session.retrieve(booking.getStripeSessionId());
+        String paymentIntentId = stripeSession.getPaymentIntent();
+        if (paymentIntentId == null || paymentIntentId.isBlank()) {
+            throw new BadRequestException("Nessun payment_intent trovato per la sessione Stripe di questa prenotazione.");
+        }
+
+        // Crea il rimborso su Stripe
+        RefundCreateParams refundParams = RefundCreateParams.builder()
+                .setPaymentIntent(paymentIntentId)
+                .build();
+        Refund.create(refundParams);
+
+        // Aggiorna lo stato del booking a CANCELLED
+        booking.setBookingStatus(BookingStatus.CANCELLED);
+        booking.setCanceledAt(LocalDateTime.now());
+        booking.setCancelReason("ADMIN_REFUND");
+        booking.setExpiresAt(null);
+        bookingRepository.save(booking);
+
+        log.info("FIX-1 | Booking refunded and cancelled: bookingId={} stripeSession={}",
+                bookingId, booking.getStripeSessionId());
+    }
+
     // ============================ UPDATE (ADMIN/OWNER) ============================
     @Transactional
     public BookingResponseDTO updateBooking(UUID bookingId, NewBookingDTO payload, User currentUser) {
@@ -537,11 +587,7 @@ public class BookingService {
             found.setCancelReason("NO_SHOW");
         }
 
-        if (newStatus == BookingStatus.CANCELLED) {
-    found.setCanceledAt(LocalDateTime.now());
-    found.setCancelReason("ADMIN_CANCEL");
-    found.setExpiresAt(null);
-}
+        // FIX-23: rimosso blocco CANCELLED duplicato che sovrascriveva cancelReason senza utilità
 
         // --- gestione pacchetto: scalatura/rollback seduta ---
         boolean wasCompleted  = (old == BookingStatus.COMPLETED);
@@ -697,7 +743,9 @@ public class BookingService {
                 booking.getCreatedAt(),
                 booking.getService() != null ? booking.getService().getServiceId() : null,
                 booking.getServiceOption() != null ? booking.getServiceOption().getOptionId() : null,
-                booking.getUser() != null ? booking.getUser().getUserId() : null
+                booking.getUser() != null ? booking.getUser().getUserId() : null,
+                // FIX-18: titolo del servizio per evitare UUID grezzo in BookingSuccessPage
+                booking.getService() != null ? booking.getService().getTitle() : null
         );
     }
 

@@ -125,8 +125,9 @@ const ServicesPreview = () => {
         {/* Header centrato */}
         <div className="sp-head">
           <span className="sp-eyebrow">I nostri trattamenti</span>
-          <h2 className="sp-title">Scelti per te da Michela</h2>
-          <p className="sp-subtitle">
+          {/* FIX-20: sp-title/sp-subtitle → section-title/section-subtitle (identici, unificati) */}
+          <h2 className="section-title">Scelti per te da Michela</h2>
+          <p className="section-subtitle">
             Una selezione dei trattamenti più amati, per un look curato
             e risultati visibili fin dalla prima seduta.
           </p>

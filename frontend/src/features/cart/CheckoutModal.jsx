@@ -84,7 +84,8 @@ const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) 
       await onConfirm(orderData);
       onHide();
     } catch (err) {
-      console.error("Errore pagamento:", err);
+      // FIX-16: evita leak di oggetti di errore raw nella console
+      console.error("Errore pagamento:", err.message || err);
       setServerError(err.message || "Si è verificato un errore durante il pagamento.");
     } finally {
       setLoading(false);

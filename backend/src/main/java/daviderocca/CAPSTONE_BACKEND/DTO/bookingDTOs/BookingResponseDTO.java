@@ -18,5 +18,7 @@ public record BookingResponseDTO(
         LocalDateTime createdAt,
         UUID serviceId,
         UUID serviceOptionId,
-        UUID userId // opzionale se è un utente registrato
+        UUID userId, // opzionale se è un utente registrato
+        // FIX-18: titolo del servizio per evitare di mostrare UUID grezzo in BookingSuccessPage
+        String serviceTitle
 ) {}

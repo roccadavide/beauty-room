@@ -60,23 +60,7 @@
   margin-bottom: 0.6rem;
 }
 
-.sp-title {
-  font-family: "Petrona", serif;
-  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
-  font-weight: 700;
-  color: #2e2118;
-  line-height: 1.15;
-  margin: 0 0 0.75rem;
-  letter-spacing: -0.02em;
-}
-
-.sp-subtitle {
-  font-size: clamp(0.9rem, 1.5vw, 1rem);
-  color: #7a6a61;
-  max-width: 52ch;
-  margin: 0 auto;
-  line-height: 1.65;
-}
+/* FIX-20: .sp-title e .sp-subtitle rimossi — identici a .section-title/.section-subtitle */
 
 .sp-track-wrapper {
   position: relative;

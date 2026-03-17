@@ -165,15 +165,7 @@
   margin-bottom: 0.6rem;
 }
 
-.test-title {
-  font-family: "Petrona", serif;
-  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
-  font-weight: 700;
-  color: #2e2118;
-  line-height: 1.15;
-  margin: 0 0 0.75rem;
-  letter-spacing: -0.02em;
-}
+/* FIX-20: .test-title rimosso — identico a .section-title */
 
 .test-subtitle {
   font-size: clamp(0.9rem, 1.5vw, 1rem);

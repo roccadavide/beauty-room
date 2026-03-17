@@ -277,6 +277,72 @@ public class EmailTemplateService {
         return new EmailContent(subject, html, text);
     }
 
+    // ===================== BOOKING REFUNDED (FIX-6) =====================
+    public EmailContent bookingRefunded(Booking b) {
+        String subject = "Rimborso in arrivo - " + brandName;
+
+        String when = (b.getStartTime() != null) ? b.getStartTime().format(IT_DT) : "-";
+        String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
+        String customerName = safe(b.getCustomerName());
+
+        String body = """
+  <h1 style="%s">Rimborso in arrivo</h1>
+
+  <p style="%s">Ciao <b>%s</b>,</p>
+  <p style="%s">
+    ci dispiace informarti che la tua prenotazione non è stata confermata perché
+    lo slot era già stato occupato da un'altra cliente nel frattempo.
+    Il pagamento che hai effettuato su Stripe verrà <b>rimborsato automaticamente</b>
+    entro 5-10 giorni lavorativi.
+  </p>
+
+  %s
+
+  <p style="%s; margin-top:16px;">
+    Contattaci su WhatsApp o per email per concordare un nuovo appuntamento:
+    siamo spiacenti per l'inconveniente.
+  </p>
+
+  <div style="margin-top:10px;">
+    %s
+    %s
+    %s
+  </div>
+""".formatted(
+                h1Style(),
+                pStyle(),
+                esc(customerName),
+                pStyle(),
+                detailsBox(new String[][]{
+                        {"Servizio", serviceTitle},
+                        {"Data/ora prenotata", when},
+                        {"Email", safe(b.getCustomerEmail())}
+                }),
+                smallStyle(),
+                miniLink("WhatsApp", "https://wa.me/" + brandPhoneE164.replace("+", "")),
+                miniLink("Chiama", "tel:" + brandPhoneE164),
+                miniLink("Email", "mailto:" + brandEmail)
+        );
+
+        String html = wrap(body);
+
+        String text = """
+                Rimborso in arrivo - %s
+                Ciao %s,
+                La tua prenotazione non è stata confermata (slot già occupato).
+                Il pagamento verrà rimborsato automaticamente entro 5-10 giorni lavorativi.
+
+                Servizio: %s
+                Data/ora: %s
+
+                WhatsApp: https://wa.me/%s
+                """.formatted(
+                brandName, customerName, serviceTitle, when, brandPhoneE164.replace("+", "")
+        );
+
+        return new EmailContent(subject, html, text);
+    }
+
     // ===================== LAYOUT HELPERS =====================
 
     private String wrap(String innerHtml) {

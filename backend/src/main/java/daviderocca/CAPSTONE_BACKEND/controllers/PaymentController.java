@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 
 import java.util.HashMap;
@@ -39,14 +40,18 @@ public class PaymentController {
 
     private final OrderService orderService;
 
+    // FIX-24: Stripe.apiKey impostato una sola volta a startup invece che per ogni chiamata
+    @PostConstruct
+    public void init() {
+        Stripe.apiKey = this.stripeSecretKey;
+    }
+
     // ========== AUTHENTICATED ==========
     @PostMapping("/create-session")
     public Map<String, Object> createCheckoutSession(
             @Valid @RequestBody NewOrderDTO orderDTO,
             @AuthenticationPrincipal User currentUser
     ) throws StripeException {
-
-        Stripe.apiKey = stripeSecretKey;
 
         if (currentUser == null) throw new UnauthorizedException("Utente non autenticato.");
 
@@ -76,8 +81,6 @@ public class PaymentController {
     // ========== GUEST (PUBLIC) ==========
     @PostMapping("/create-session-guest")
     public Map<String, Object> createCheckoutSessionGuest(@Valid @RequestBody NewOrderDTO orderDTO) throws StripeException {
-        Stripe.apiKey = stripeSecretKey;
-
         if (isBlank(orderDTO.customerName())
                 || isBlank(orderDTO.customerSurname())
                 || isBlank(orderDTO.customerEmail())
@@ -104,8 +107,6 @@ public class PaymentController {
 
     @GetMapping("/order-summary")
     public ResponseEntity<OrderSummaryDTO> getOrderSummary(@RequestParam("session_id") String sessionId) throws StripeException {
-        Stripe.apiKey = stripeSecretKey;
-
         Session session = Session.retrieve(sessionId);
 
         boolean isPaid = "paid".equalsIgnoreCase(session.getPaymentStatus());

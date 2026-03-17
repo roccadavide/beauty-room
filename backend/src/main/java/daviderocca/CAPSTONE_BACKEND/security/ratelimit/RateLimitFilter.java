@@ -48,6 +48,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 bucket = config.resolveLoginBucket(ip);
             } else if (path.startsWith("/auth/register")) {
                 bucket = config.resolveRegisterBucket(ip);
+            // FIX-7: rate limit su endpoint booking checkout (max 10 per IP ogni 5 min)
+            } else if (path.startsWith("/checkout/bookings/")) {
+                bucket = config.resolveCheckoutBookingBucket(ip);
             }
 
             if (bucket == null) {
@@ -80,24 +83,49 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
     }
 
+    // FIX-10: X-Forwarded-For è fidato solo se la connessione diretta arriva da un IP privato
+    // (cioè da un reverse proxy/load balancer nella nostra infrastruttura).
+    // Se la connessione arriva direttamente da un IP pubblico si usa getRemoteAddr(),
+    // impedendo a client malevoli di spoofing del header per bypassare il rate limit.
     private String getClientIP(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            String[] parts = xForwardedFor.split(",");
-            for (String part : parts) {
-                String candidate = part.trim();
-                if (!candidate.isEmpty() && !"unknown".equalsIgnoreCase(candidate)) {
-                    return candidate;
+        String remoteAddr = request.getRemoteAddr();
+
+        if (isPrivateIp(remoteAddr)) {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+                String[] parts = xForwardedFor.split(",");
+                for (String part : parts) {
+                    String candidate = part.trim();
+                    if (!candidate.isEmpty() && !"unknown".equalsIgnoreCase(candidate)) {
+                        return candidate;
+                    }
                 }
+            }
+
+            String realIp = request.getHeader("X-Real-IP");
+            if (realIp != null && !realIp.isBlank() && !"unknown".equalsIgnoreCase(realIp)) {
+                return realIp;
             }
         }
 
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank() && !"unknown".equalsIgnoreCase(realIp)) {
-            return realIp;
-        }
+        return remoteAddr;
+    }
 
-        return request.getRemoteAddr();
+    // FIX-10: verifica se un IP è privato/loopback (proxy interno fidato)
+    private boolean isPrivateIp(String ip) {
+        if (ip == null) return false;
+        if (ip.equals("127.0.0.1") || ip.equals("0:0:0:0:0:0:0:1") || ip.equals("::1")) return true;
+        if (ip.startsWith("10.")) return true;
+        if (ip.startsWith("192.168.")) return true;
+        if (ip.startsWith("172.")) {
+            try {
+                int second = Integer.parseInt(ip.split("\\.")[1]);
+                return second >= 16 && second <= 31;
+            } catch (NumberFormatException | ArrayIndexOutOfBoundsException ignored) {
+                return false;
+            }
+        }
+        return false;
     }
 }
 

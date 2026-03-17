@@ -48,44 +48,4 @@
   transform: translateX(100%);
 }
 
-.related-carousel {
-  display: flex;
-  gap: 1.25rem;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding-bottom: 1rem;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(180, 148, 106, 0.3) transparent;
-}
-
-.related-carousel::-webkit-scrollbar {
-  height: 4px;
-}
-
-.related-carousel::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.related-carousel::-webkit-scrollbar-thumb {
-  background: rgba(180, 148, 106, 0.35);
-  border-radius: 999px;
-}
-
-.related-carousel .related-card {
-  flex: 0 0 220px;
-  scroll-snap-align: start;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.related-carousel .related-card:hover {
-  transform: translateY(-4px);
-}
-
-@media (max-width: 576px) {
-  .related-carousel .related-card {
-    flex: 0 0 160px;
-  }
-}
+/* FIX-19: rimosso blocco .related-carousel — classe mai usata nel JSX (sostituita da RelatedCarousel.jsx) */

@@ -114,6 +114,10 @@ const BookingModal = ({ show, onHide, service }) => {
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelActive, setPanelActive] = useState(false);
   const panelRef = useRef(null);
+  // FIX-9: blocca doppio click su "Vai al pagamento"
+  const [paying, setPaying] = useState(false);
+  // FIX-22: breakpoint reattivo invece di lettura statica a render time
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 768);
 
   const reset = () => {
     setStep(1);
@@ -122,6 +126,7 @@ const BookingModal = ({ show, onHide, service }) => {
     setCustomer({ name: "", email: "", phone: "", notes: "" });
     setErrors({});
     setError(null);
+    setPaying(false);
   };
 
   useLenisModalLock(show);
@@ -207,6 +212,9 @@ const BookingModal = ({ show, onHide, service }) => {
   };
 
   const confirm = async () => {
+    // FIX-9: prevenzione doppio click
+    if (paying) return;
+    setPaying(true);
     try {
       setError(null);
 
@@ -237,6 +245,7 @@ const BookingModal = ({ show, onHide, service }) => {
       window.location.href = res.url;
     } catch (err) {
       setError(err.message || "Si è verificato un errore durante la prenotazione. Riprova più tardi.");
+      setPaying(false);
     }
   };
 
@@ -254,9 +263,15 @@ const BookingModal = ({ show, onHide, service }) => {
     }));
   }, [show, step, accessToken, user]);
 
-  if (!panelVisible) return null;
+  // FIX-22: aggiorna isDesktop al resize
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const handler = e => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
-  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
+  if (!panelVisible) return null;
 
   const handleClose = () => {
     onHide();
@@ -479,8 +494,9 @@ const BookingModal = ({ show, onHide, service }) => {
                 <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>
                   ← Modifica
                 </button>
-                <button className="bm-btn bm-btn--cta" type="button" onClick={confirm}>
-                  💳 Vai al pagamento
+                {/* FIX-9: disabled durante redirect Stripe */}
+                <button className="bm-btn bm-btn--cta" type="button" onClick={confirm} disabled={paying}>
+                  {paying ? <><Spinner size="sm" animation="border" /> Reindirizzamento…</> : "💳 Vai al pagamento"}
                 </button>
               </div>
             </div>

@@ -91,7 +91,10 @@ public class SecConfig {
                         .requestMatchers(HttpMethod.POST, "/checkout/create-session").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session-guest").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session").authenticated()
-// CHECKOUT (public + auth)
+// FIX-8: booking-summary rimane permitAll per non rompere il flusso guest post-pagamento.
+                                // La sicurezza è enforcement a livello applicativo nel controller:
+                                // se l'utente è autenticato, si verifica che il booking appartenga a lui.
+                                // La protezione strutturale è nell'opacità del session_id Stripe (UUID lungo casuale).
                                 .requestMatchers(HttpMethod.GET, "/checkout/bookings/booking-summary").permitAll()
                                 .requestMatchers(HttpMethod.GET,  "/checkout/order-summary").permitAll()
 

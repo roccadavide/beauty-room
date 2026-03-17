@@ -54,7 +54,8 @@ const Register = () => {
         nav("/login", { replace: true });
       }, 3500);
     } catch (err) {
-      console.error(err);
+      // FIX-16: evita leak di oggetti di errore raw nella console
+      console.error(err.message || err);
       if (typeof err === "string") setServerError(err);
       else if (err?.message) setServerError(err.message);
       else if (err?.errors) setServerError(Object.values(err.errors).join(", "));

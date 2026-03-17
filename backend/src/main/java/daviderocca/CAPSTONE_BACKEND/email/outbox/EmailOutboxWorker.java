@@ -159,8 +159,10 @@ public class EmailOutboxWorker {
 
             // Per le email cliente normali, evitiamo di inviare se la prenotazione è cancellata.
             if (b.getBookingStatus() == null || b.getBookingStatus().name().equals("CANCELLED")) {
-                // Eccezione: per alert amministrativi come PAID_CONFLICT vogliamo comunque inviare.
-                if (type != EmailEventType.PAID_CONFLICT) {
+                // Eccezione: PAID_CONFLICT (admin) e BOOKING_REFUNDED (cliente) devono essere inviate
+                // anche se il booking è CANCELLED, perché la cancellazione è proprio il motivo dell'email.
+                // FIX-6: aggiunto BOOKING_REFUNDED come eccezione al filtro CANCELLED
+                if (type != EmailEventType.PAID_CONFLICT && type != EmailEventType.BOOKING_REFUNDED) {
                     throw new SkipEmailException("Booking cancelled (skip): " + b.getBookingId());
                 }
             }
@@ -169,6 +171,8 @@ public class EmailOutboxWorker {
                 case BOOKING_CONFIRMED -> templates.bookingConfirmed(b);
                 case BOOKING_REMINDER_24H -> templates.bookingReminder(b);
                 case PAID_CONFLICT -> templates.paidConflictAlert(b, null);
+                // FIX-6: template rimborso automatico per PAID_CONFLICT
+                case BOOKING_REFUNDED -> templates.bookingRefunded(b);
                 default -> throw new IllegalArgumentException("Unsupported booking event: " + type);
             };
         }

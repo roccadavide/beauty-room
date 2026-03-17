@@ -65,7 +65,8 @@ const Login = () => {
         nav(redirectTo, { replace: true });
       }, 3500);
     } catch (err) {
-      console.error(err);
+      // FIX-16: evita leak di oggetti di errore raw nella console
+      console.error(err.message || err);
 
       let errorMessage = "Errore durante il login";
       if (typeof err === "string") errorMessage = err;

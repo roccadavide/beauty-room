@@ -68,6 +68,19 @@ public class EmailOutboxService {
         );
     }
 
+    // FIX-6: notifica cliente che il suo slot era già occupato e il pagamento verrà rimborsato
+    public void enqueueBookingRefunded(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) return;
+
+        enqueueSafe(
+                EmailEventType.BOOKING_REFUNDED,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                normalizeEmail(booking.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
     public void enqueuePaidConflictAlert(Booking booking, String stripeSessionId) {
         if (booking == null || booking.getBookingId() == null) return;
         String to = normalizeEmail(adminEmail);

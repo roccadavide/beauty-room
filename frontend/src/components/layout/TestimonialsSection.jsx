@@ -153,7 +153,8 @@ const TestimonialsSection = () => {
     <Container ref={sectionRef} fluid className="py-5 testimonials-root position-relative" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <div className="test-head">
         <span className="test-eyebrow">Recensioni Google</span>
-        <h2 className="test-title">Cosa dicono i clienti</h2>
+        {/* FIX-20: test-title → section-title (identici) */}
+        <h2 className="section-title">Cosa dicono i clienti</h2>
         <p className="test-subtitle">Testimonianze reali delle persone che hanno scelto Beauty Room.</p>
       </div>
 

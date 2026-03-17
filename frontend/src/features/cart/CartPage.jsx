@@ -31,7 +31,8 @@ const CartPage = () => {
         })),
       };
 
-      if (process.env.NODE_ENV !== "production") {
+      // FIX-16: usa import.meta.env.DEV (Vite) invece di process.env
+      if (import.meta.env.DEV) {
         console.debug("[checkout] endpoint: /checkout/create-session (auth)", { ...orderData, items: `[${orderData.items.length} items]` });
       }
 

@@ -1,7 +1,11 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
+import com.stripe.Stripe;
 import com.stripe.exception.SignatureVerificationException;
+import com.stripe.exception.StripeException;
 import com.stripe.model.*;
+import com.stripe.model.Refund;
+import com.stripe.param.RefundCreateParams;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.ApiResource;
 import com.stripe.net.Webhook;
@@ -35,6 +39,10 @@ public class StripeWebhookController {
 
     @Value("${stripe.webhook.secret}")
     private String endpointSecret;
+
+    // FIX-6: necessario per chiamare Stripe Refund API nel blocco PAID_CONFLICT
+    @Value("${stripe.secret}")
+    private String stripeSecretKey;
 
     private final OrderService orderService;
     private final BookingService bookingService;
@@ -146,13 +154,42 @@ public class StripeWebhookController {
                         b.setExpiresAt(null);
                         bookingService.save(b);
 
-                        log.error("PAID_CONFLICT: bookingId={} sessionId={} slot già occupato. Necessario intervento (refund/manual).",
+                        log.error("PAID_CONFLICT: bookingId={} sessionId={} slot già occupato — avvio rimborso automatico.",
                                 bookingId, session.getId());
+
+                        // FIX-6: rimborso automatico Stripe quando lo slot è già occupato
+                        try {
+                            Stripe.apiKey = stripeSecretKey;
+                            String paymentIntentId = session.getPaymentIntent();
+                            if (paymentIntentId != null && !paymentIntentId.isBlank()) {
+                                RefundCreateParams refundParams = RefundCreateParams.builder()
+                                        .setPaymentIntent(paymentIntentId)
+                                        .build();
+                                Refund.create(refundParams);
+                                log.info("PAID_CONFLICT: rimborso Stripe creato per bookingId={} pi={}",
+                                        bookingId, paymentIntentId);
+                            } else {
+                                log.error("PAID_CONFLICT: payment_intent assente nella sessione, rimborso manuale necessario. sessionId={}",
+                                        session.getId());
+                            }
+                        } catch (StripeException ex) {
+                            log.error("PAID_CONFLICT: errore rimborso Stripe per bookingId={}: {}", bookingId, ex.getMessage());
+                        }
+
+                        // FIX-6: alert admin
                         try {
                             emailOutboxService.enqueuePaidConflictAlert(b, session.getId());
                         } catch (Exception ex) {
                             log.error("Failed to enqueue PAID_CONFLICT alert email: {}", ex.getMessage());
                         }
+
+                        // FIX-6: notifica cliente — rimborso in arrivo
+                        try {
+                            emailOutboxService.enqueueBookingRefunded(b);
+                        } catch (Exception ex) {
+                            log.error("Failed to enqueue BOOKING_REFUNDED customer email: {}", ex.getMessage());
+                        }
+
                         return;
                     }
 
