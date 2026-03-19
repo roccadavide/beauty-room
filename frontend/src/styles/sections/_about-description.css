@@ -1,188 +1,599 @@
-/* ==== ABOUT DESCRIPTION ==== */
+/* ===== CHI SONO — Editorial Beauty ===== */
 
-:root {
-  --c-cream: #f6efe9;
-  --c-sand: #ead8c8;
-  --c-taupe: #c9a98c;
-  --c-cocoa: #8b6b5e;
-  --c-choco: #5d473f;
-  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.08);
-  --shadow-strong: 0 14px 36px rgba(0, 0, 0, 0.15);
-}
-
-/* ---------- ROOT ---------- */
-.about-root {
-  background: linear-gradient(180deg, var(--c-cream) 0%, #fff 100%);
+/* ── ROOT ── */
+.ab-root {
+  background: #fffdf8;
   overflow: hidden;
-  position: relative;
 }
 
-/* ---------- TITOLI ---------- */
-.about-title {
-  color: var(--c-choco);
-  font-family: var(--font-display, "Saol Display Light");
-  letter-spacing: 0.5px;
-  margin-bottom: 0.6rem;
+/* ─────────────────────────────────────────
+   HERO
+───────────────────────────────────────── */
+.ab-hero {
+  padding: 6rem 0 5rem;
 }
 
-.about-subtitle {
-  color: #6b5e56;
-  font-size: 1.1rem;
+.ab-hero-title {
+  font-family: "SaolDisplay-Light", serif;
+  font-size: clamp(2.6rem, 5.5vw, 4.2rem);
+  font-weight: 300;
+  color: #2e2118;
+  line-height: 1.08;
+  margin: 0.6rem 0 1.4rem;
+  letter-spacing: -0.025em;
+}
+
+.ab-hero-title em {
+  font-style: italic;
+  color: #b8976a; /* --card-gold */
+}
+
+.ab-hero-lead {
+  font-size: clamp(1rem, 1.8vw, 1.13rem);
+  color: #5f4e45;
+  line-height: 1.75;
+  margin: 1.4rem 0 0.9rem;
   font-weight: 400;
 }
 
-.about-hr {
-  width: 120px;
-  height: 3px;
-  border: 0;
-  margin: 18px auto 0;
-  background: linear-gradient(90deg, transparent, var(--c-taupe), transparent);
-  border-radius: 2px;
-  animation: scroll-gradient 6s linear infinite;
-}
-
-@keyframes scroll-gradient {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-.section-heading {
-  color: var(--c-choco);
-  font-weight: 700;
-  font-size: 1.6rem;
+.ab-body-text {
+  font-size: 0.975rem;
+  color: #7a6a61;
+  line-height: 1.82;
   margin-bottom: 1rem;
 }
 
-/* ---------- BOX / CARD ---------- */
-.soft-card {
-  background: #fff;
-  border: 1px solid rgba(95, 70, 60, 0.08);
-  border-radius: 18px !important;
-  box-shadow: var(--shadow-soft);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+.ab-accent-bar {
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, #b8976a, #e8c98a 60%, transparent);
+  border-radius: 2px;
 }
 
-.soft-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-strong);
-}
-
-/* ---------- ABOUT IMAGE ---------- */
-.about-image-wrap {
-  display: inline-block;
-  padding: 10px;
-  background: var(--c-sand);
-  border-radius: 24px;
-  box-shadow: var(--shadow-soft);
+/* ── Portrait ── */
+.ab-portrait-wrap {
   position: relative;
-  overflow: hidden;
+  display: flex;
+  justify-content: center;
 }
 
-.about-image-wrap::after {
+.ab-portrait-frame {
+  position: relative;
+  border-radius: 28px 28px 80px 28px;
+  overflow: hidden;
+  box-shadow:
+    0 24px 60px rgba(46, 33, 24, 0.13),
+    0 0 0 1px rgba(184, 151, 106, 0.22);
+  max-width: 420px;
+  width: 100%;
+  transition: box-shadow 0.4s ease;
+}
+
+.ab-portrait-frame::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, transparent 40%, rgba(255, 255, 255, 0.3) 50%, transparent 60%);
-  transform: translateX(-100%);
-  transition: transform 0.7s ease;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.15) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.85s ease;
+  pointer-events: none;
 }
 
-.about-image-wrap:hover::after {
-  transform: translateX(100%);
+.ab-portrait-wrap:hover .ab-portrait-frame::after {
+  transform: translateX(120%);
 }
 
-.about-image {
+.ab-portrait {
   width: 100%;
-  max-width: 520px;
-  border-radius: 16px;
-  border: 6px solid var(--c-cream);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
   display: block;
+  transition: transform 0.65s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* ---------- CHIPS (COMPETENZE) ---------- */
-.chips {
+.ab-portrait-wrap:hover .ab-portrait {
+  transform: scale(1.04);
+}
+
+.ab-portrait-badge {
+  position: absolute;
+  bottom: 1.75rem;
+  left: -1rem; /* sporge fuori dalla foto */
+  background: #fffdf8;
+  border: 1px solid rgba(184, 151, 106, 0.35);
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #b8976a;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  box-shadow: 0 4px 20px rgba(46, 33, 24, 0.1);
+}
+
+.ab-portrait-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b8976a;
+  animation: ab-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes ab-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.75);
+  }
+}
+
+/* ─────────────────────────────────────────
+   STATS
+───────────────────────────────────────── */
+.ab-stats-section {
+  padding: 4rem 0;
+  background: linear-gradient(135deg, #fef7ef 0%, #fffdf8 100%);
+  border-top: 1px solid rgba(184, 151, 106, 0.13);
+  border-bottom: 1px solid rgba(184, 151, 106, 0.13);
+}
+
+.ab-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.ab-stat {
+  text-align: center;
+  padding: 1.25rem 0.75rem;
+  position: relative;
+  transition-delay: var(--delay, 0s);
+}
+
+/* separatori verticali oro */
+.ab-stat + .ab-stat::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  height: 64%;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, rgba(184, 151, 106, 0.4), transparent);
+}
+
+.ab-stat__value {
+  display: block;
+  font-family: "SaolDisplay-Light", serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 300;
+  color: #b8976a;
+  line-height: 1;
+  margin-bottom: 0.45rem;
+}
+
+.ab-stat__label {
+  display: block;
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #7a6a61;
+}
+
+/* ─────────────────────────────────────────
+   VALORI — card stile bpc
+───────────────────────────────────────── */
+.ab-values-section {
+  padding: 5.5rem 0;
+}
+
+.ab-value-card {
+  background: #fdfaf6;
+  border: 1px solid rgba(184, 151, 106, 0.22);
+  border-radius: 20px;
+  padding: 2rem 1.75rem;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(59, 33, 18, 0.05);
+  transition:
+    transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+  transition-delay: var(--delay, 0s);
+}
+
+/* inner glow ring al hover — identico a beauty-product-card */
+.ab-value-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1.5px rgba(184, 151, 106, 0);
+  transition: box-shadow 0.35s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* shimmer */
+.ab-value-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.7s ease;
+  pointer-events: none;
+}
+
+.ab-value-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 40px rgba(59, 33, 18, 0.1);
+  border-color: rgba(184, 151, 106, 0.5);
+}
+
+.ab-value-card:hover::before {
+  box-shadow: inset 0 0 0 1.5px rgba(184, 151, 106, 0.65);
+}
+
+.ab-value-card:hover::after {
+  transform: translateX(120%);
+}
+
+/* accent line — esattamente come .bpc-accent-line */
+.ab-accent-line {
+  width: 32px;
+  height: 2px;
+  background: linear-gradient(90deg, #b8976a, transparent);
+  border-radius: 2px;
+  margin-bottom: 1.1rem;
+}
+
+.ab-value-title {
+  font-family: "Petrona", serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2e2118;
+  margin-bottom: 0.65rem;
+  line-height: 1.3;
+}
+
+.ab-value-text {
+  font-size: 0.9rem;
+  color: #7a6a61;
+  line-height: 1.75;
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────
+   STORIA
+───────────────────────────────────────── */
+.ab-story-section {
+  padding: 5.5rem 0;
+  background: linear-gradient(135deg, #fef7ef 0%, #fffdf8 60%);
+}
+
+.ab-story-img-wrap {
+  position: relative;
+}
+
+.ab-story-img-frame {
+  border-radius: 28px 80px 28px 28px; /* speculare al portrait */
+  overflow: hidden;
+  box-shadow:
+    0 20px 50px rgba(46, 33, 24, 0.12),
+    0 0 0 1px rgba(184, 151, 106, 0.2);
+  transition: box-shadow 0.4s ease;
+}
+
+.ab-story-img-frame img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.65s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.ab-story-img-wrap:hover .ab-story-img-frame img {
+  transform: scale(1.04);
+}
+
+/* angolo decorativo oro */
+.ab-story-deco {
+  position: absolute;
+  bottom: -1.25rem;
+  right: -1.25rem;
+  width: 72px;
+  height: 72px;
+  border-right: 2px solid rgba(184, 151, 106, 0.45);
+  border-bottom: 2px solid rgba(184, 151, 106, 0.45);
+  border-radius: 0 0 14px 0;
+  pointer-events: none;
+}
+
+/* ─────────────────────────────────────────
+   SPECIALIZZAZIONI — chip gold outline
+───────────────────────────────────────── */
+.ab-skills-section {
+  padding: 5.5rem 0;
+}
+
+.ab-chips {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
-.chip {
-  background: var(--c-taupe);
-  color: #fff;
-  padding: 10px 18px;
+.ab-chip {
+  display: inline-block;
+  padding: 0.55rem 1.3rem;
+  border: 1.5px solid rgba(184, 151, 106, 0.4);
   border-radius: 999px;
+  font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.3px;
-  box-shadow: var(--shadow-soft);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
-}
-
-.chip-alt {
-  background: var(--c-sand);
-  color: #3b2b24;
-}
-
-.chip:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-strong);
-  filter: brightness(1.05);
-}
-
-/* ---------- ICON VALUE CARD ---------- */
-.value-icon {
-  width: 56px;
-  height: 56px;
-  display: grid;
-  place-items: center;
-  font-size: 28px;
-  background: var(--c-sand);
-  border-radius: 12px;
-  margin-bottom: 10px;
-  color: #4e3c2f;
-}
-
-/* ---------- FADE-IN ANIMATION ---------- */
-.fade-section {
-  opacity: 0;
-  transform: translateY(40px);
-  transition: opacity 0.8s ease, transform 0.8s ease;
-}
-
-.fade-section.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* ---------- TEXT STYLES ---------- */
-.about-root p {
   color: #5f4e45;
-  line-height: 1.6;
-  font-size: 1rem;
+  letter-spacing: 0.03em;
+  background: transparent;
+  cursor: default;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    transform 0.25s ease;
+  transition-delay: var(--delay, 0s);
 }
 
-/* ---------- RESPONSIVE ---------- */
-@media (max-width: 768px) {
-  .about-image-wrap {
-    margin-top: 1.5rem;
+.ab-chip:hover {
+  background: rgba(184, 151, 106, 0.1);
+  border-color: #b8976a;
+  color: #8c6d3f;
+  transform: translateY(-2px);
+}
+
+/* ─────────────────────────────────────────
+   FILOSOFIA / CITAZIONE
+───────────────────────────────────────── */
+.ab-philosophy-section {
+  padding: 5.5rem 0;
+  background: linear-gradient(135deg, #fef7ef 0%, #fffdf8 100%);
+}
+
+.ab-philosophy-card {
+  background: #fdfaf6;
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 24px;
+  padding: 3.5rem 4rem;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 4px 28px rgba(59, 33, 18, 0.07);
+  overflow: hidden;
+}
+
+/* linea oro in cima alla card */
+.ab-philosophy-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #b8976a 40%, #e8c98a 60%, transparent);
+}
+
+.ab-philosophy-ornament {
+  font-size: 1.3rem;
+  color: #b8976a;
+  letter-spacing: 0.35em;
+  margin-bottom: 1.75rem;
+  display: block;
+  opacity: 0.65;
+}
+
+.ab-philosophy-quote {
+  font-family: "Petrona", serif;
+  font-size: clamp(1rem, 2vw, 1.22rem);
+  font-weight: 400;
+  font-style: italic;
+  color: #2e2118;
+  line-height: 1.85;
+  margin: 0 0 2rem;
+  border: none;
+  padding: 0;
+  quotes: none;
+}
+
+.ab-philosophy-author {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #b8976a;
+}
+
+.ab-philosophy-line {
+  width: 36px;
+  height: 1px;
+  background: rgba(184, 151, 106, 0.5);
+}
+
+/* ─────────────────────────────────────────
+   CTA FINALE
+───────────────────────────────────────── */
+.ab-cta-section {
+  padding: 5rem 0 7rem; /* spazio generoso sopra la mappa */
+}
+
+.ab-cta-wrap {
+  text-align: center;
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+.ab-cta-btns {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 2.25rem;
+}
+
+/* btn primario — scuro come dark CTA del sito */
+.ab-btn-primary {
+  background: #2e2118;
+  color: #fef7ef;
+  border: none;
+  border-radius: 999px;
+  padding: 0.78rem 2.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition:
+    background 0.25s ease,
+    transform 0.2s ease,
+    box-shadow 0.25s ease;
+}
+
+.ab-btn-primary:hover {
+  background: #1a110a;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(46, 33, 24, 0.25);
+}
+
+/* btn secondario — identico a .sp-cta-btn */
+.ab-btn-secondary {
+  background: transparent;
+  color: #2e2118;
+  border: 1.5px solid rgba(184, 151, 106, 0.5);
+  border-radius: 999px;
+  padding: 0.78rem 2.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.2s ease;
+}
+
+.ab-btn-secondary:hover {
+  background: rgba(184, 151, 106, 0.08);
+  border-color: rgba(184, 151, 106, 0.8);
+  transform: translateY(-2px);
+}
+
+/* ─────────────────────────────────────────
+   ANIMAZIONI FADE
+───────────────────────────────────────── */
+.ab-fade {
+  opacity: 0;
+  transition:
+    opacity 0.85s cubic-bezier(0.25, 0.8, 0.25, 1),
+    transform 0.85s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition-delay: var(--delay, 0s);
+}
+
+.ab-fade--up {
+  transform: translateY(36px);
+}
+.ab-fade--left {
+  transform: translateX(-36px);
+}
+.ab-fade--right {
+  transform: translateX(36px);
+}
+
+.ab-fade--in {
+  opacity: 1;
+  transform: translate(0, 0);
+}
+
+/* ─────────────────────────────────────────
+   RESPONSIVE
+───────────────────────────────────────── */
+@media (max-width: 991px) {
+  .ab-hero {
+    padding: 4rem 0 3rem;
   }
 
-  .section-heading {
-    font-size: 1.4rem;
+  .ab-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
   }
 
-  .chip {
-    font-size: 0.9rem;
-    padding: 8px 14px;
+  /* rimuovi separatore sul 3° elemento (primo della riga 2) */
+  .ab-stat:nth-child(3)::before {
+    display: none;
+  }
+
+  .ab-portrait-badge {
+    left: auto;
+    right: 1rem;
+    bottom: 1rem;
+  }
+
+  .ab-story-deco {
+    display: none;
+  }
+
+  .ab-philosophy-card {
+    padding: 2.5rem 2rem;
   }
 }
 
-@media (max-width: 480px) {
-  .about-title {
-    font-size: 1.8rem;
+@media (max-width: 575px) {
+  .ab-hero {
+    padding: 3rem 0 2rem;
+  }
+
+  .ab-stats-grid {
+    gap: 0.75rem;
+  }
+
+  .ab-stat {
+    padding: 1rem 0.5rem;
+  }
+
+  /* su mobile teniamo solo la riga verticale sinistra */
+  .ab-stat:nth-child(even)::before {
+    display: none;
+  }
+
+  .ab-portrait-frame,
+  .ab-story-img-frame {
+    border-radius: 20px;
+  }
+
+  .ab-philosophy-card {
+    padding: 2rem 1.25rem;
+  }
+
+  .ab-cta-section {
+    padding: 3.5rem 0 5rem;
+  }
+
+  .ab-cta-btns {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .ab-btn-primary,
+  .ab-btn-secondary {
+    width: 100%;
+    max-width: 280px;
   }
 }
