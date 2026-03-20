@@ -8,6 +8,7 @@
 @import "./layout/_footer.css";
 
 /* ===== COMPONENTS ===== */
+@import "./components/_unified-drawer.css";
 @import "./components/_button.css";
 @import "./components/_card-base.css";
 @import "./components/_card-cart.css";
@@ -30,6 +31,7 @@
 @import "./sections/_services-section.css";
 @import "./sections/_services-preview.css";
 @import "./sections/_legal.css";
+@import "./sections/_result-drawer.css";
 
 /* ===== PAGES ===== */
 @import "./pages/_register-page.css";
@@ -47,3 +49,4 @@
 @import "./pages/_impostazioni.css";
 @import "./pages/_booking-modal.css";
 @import "./pages/_booking-success.css";
+@import "./pages/_offerte-page.css";

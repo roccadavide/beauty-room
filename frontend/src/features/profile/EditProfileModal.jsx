@@ -1,7 +1,9 @@
+// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
 import { useState, useEffect } from "react";
-import { Modal, Button, Form, Spinner } from "react-bootstrap";
+import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { updateUser } from "../../api/modules/users.api";
+import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 
 const EditProfileModal = ({ show, onHide, user, onProfileUpdated }) => {
   const { accessToken } = useSelector(state => state.auth);
@@ -77,55 +79,50 @@ const EditProfileModal = ({ show, onHide, user, onProfileUpdated }) => {
   };
 
   return (
-    <Modal show={show} onHide={onHide} centered scrollable>
-      <Modal.Header closeButton>
-        <Modal.Title>Modifica profilo</Modal.Title>
-      </Modal.Header>
-      <Modal.Body
-        data-lenis-prevent
-        style={{
-          maxHeight: "80vh",
-          overflowY: "auto",
-          overscrollBehavior: "contain",
-        }}
-      >
-        {errors.general && <p className="text-danger">{errors.general}</p>}
+    <UnifiedDrawer
+      show={show}
+      onHide={onHide}
+      title="Modifica profilo"
+      size="sm"
+      footer={
+        <div className="ud-footer-actions">
+          <button type="button" className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>
+            Chiudi
+          </button>
+          <button type="button" className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size="sm" animation="border" /> : "Salva modifiche"}
+          </button>
+        </div>
+      }
+    >
+      {errors.general && <p className="ud-error">{errors.general}</p>}
 
-        <Form>
-          <Form.Group className="mb-3">
-            <Form.Label>Nome *</Form.Label>
-            <Form.Control type="text" value={form.name} onChange={e => handleChange("name", e.target.value)} isInvalid={!!errors.name} />
-            <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
-          </Form.Group>
+      <Form className="d-flex flex-column gap-3">
+        <Form.Group>
+          <Form.Label>Nome *</Form.Label>
+          <Form.Control type="text" value={form.name} onChange={e => handleChange("name", e.target.value)} isInvalid={!!errors.name} />
+          <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Cognome *</Form.Label>
-            <Form.Control type="text" value={form.surname} onChange={e => handleChange("surname", e.target.value)} isInvalid={!!errors.surname} />
-            <Form.Control.Feedback type="invalid">{errors.surname}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Cognome *</Form.Label>
+          <Form.Control type="text" value={form.surname} onChange={e => handleChange("surname", e.target.value)} isInvalid={!!errors.surname} />
+          <Form.Control.Feedback type="invalid">{errors.surname}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Email *</Form.Label>
-            <Form.Control type="email" value={form.email} onChange={e => handleChange("email", e.target.value)} isInvalid={!!errors.email} />
-            <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Email *</Form.Label>
+          <Form.Control type="email" value={form.email} onChange={e => handleChange("email", e.target.value)} isInvalid={!!errors.email} />
+          <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Telefono *</Form.Label>
-            <Form.Control type="text" value={form.phone} onChange={e => handleChange("phone", e.target.value)} isInvalid={!!errors.phone} />
-            <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
-          </Form.Group>
-        </Form>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={onHide} disabled={loading}>
-          Chiudi
-        </Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? <Spinner size="sm" animation="border" /> : "Salva modifiche"}
-        </Button>
-      </Modal.Footer>
-    </Modal>
+        <Form.Group>
+          <Form.Label>Telefono *</Form.Label>
+          <Form.Control type="text" value={form.phone} onChange={e => handleChange("phone", e.target.value)} isInvalid={!!errors.phone} />
+          <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
+        </Form.Group>
+      </Form>
+    </UnifiedDrawer>
   );
 };
 

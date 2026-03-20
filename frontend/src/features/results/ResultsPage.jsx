@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Badge, Button, Card, Col, Container, Row, Spinner } from "react-bootstrap";
+import { Badge, Button, Container, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { PencilFill, Plus, Trash2Fill } from "react-bootstrap-icons";
-import ResultModal from "./ResultModal";
+import ResultDrawer from "./ResultDrawer";
 import DeleteResultModal from "./DeleteResultModal";
+import BeforeAfterSlider from "./BeforeAfterSlider";
 import { deleteResult, fetchResults } from "../../api/modules/results.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 
@@ -16,16 +17,14 @@ function ResultsPage() {
 
   const [open, setOpen] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
-
   const [selectedResult, setSelectedResult] = useState(null);
   const [editingResult, setEditingResult] = useState(null);
 
-  const { user, accessToken } = useSelector(state => state.auth);
+  const { user } = useSelector(state => state.auth);
 
-  const cardsRef = useRef([]);
+  const itemRefs = useRef([]);
   const [visibleMap, setVisibleMap] = useState({});
 
-  // ---------- FETCH ----------
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -41,42 +40,39 @@ function ResultsPage() {
     loadData();
   }, []);
 
-  // ---------- OBSERVER ----------
   useEffect(() => {
     const obs = new IntersectionObserver(
-      entries => {
-        entries.forEach(e => {
-          if (e.isIntersecting) {
-            setVisibleMap(prev => ({ ...prev, [e.target.dataset.id]: true }));
-          }
-        });
-      },
-      { threshold: 0.25 }
+      entries => entries.forEach(e => {
+        if (e.isIntersecting) setVisibleMap(prev => ({ ...prev, [e.target.dataset.id]: true }));
+      }),
+      { threshold: 0.15 }
     );
-    const targets = [...cardsRef.current].filter(Boolean);
+    const targets = [...itemRefs.current].filter(Boolean);
     targets.forEach(el => obs.observe(el));
-    return () => {
-      targets.forEach(el => obs.unobserve(el));
-      obs.disconnect();
-    };
+    return () => { targets.forEach(el => obs.unobserve(el)); obs.disconnect(); };
   }, [cat, allResults]);
 
-  // ---------- CATEGORIES MAP ----------
   const categoriesMap = useMemo(() => {
     const map = {};
     categories.forEach(c => (map[c.categoryId] = c.label));
     return map;
   }, [categories]);
 
-  // ---------- FILTER ----------
+  const badgeColors = {
+    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary",
+    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success",
+    "95b6d339-a765-4569-9aee-08107d27516b": "warning",
+    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info",
+    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger",
+  };
+
   const filtered = useMemo(() => {
     return allResults.filter(r => (cat === "all" ? true : r.categoryId === cat));
   }, [allResults, cat]);
 
-  // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
-      await deleteResult(id, accessToken);
+      await deleteResult(id);
       setAllResults(prev => prev.filter(r => r.resultId !== id));
       setDeleteModal(false);
       setSelectedResult(null);
@@ -85,41 +81,23 @@ function ResultsPage() {
     }
   };
 
-  // ---------- EDIT ----------
-  const handleEdit = result => {
-    setEditingResult(result);
-    setOpen(true);
-  };
+  const handleEdit = result => { setEditingResult(result); setOpen(true); };
+  const handleCreate = () => { setEditingResult(null); setOpen(true); };
 
-  // ---------- CREATE ----------
-  const handleCreate = () => {
-    setEditingResult(null);
-    setOpen(true);
-  };
-
-  // ---------- UPDATE OR CREATE ----------
   const handleResultSaved = updatedResult => {
-    if (editingResult) {
-      setAllResults(prev => prev.map(r => (r.resultId === updatedResult.resultId ? updatedResult : r)));
-    } else {
-      setAllResults(prev => [...prev, updatedResult]);
-    }
+    setAllResults(prev => {
+      const exists = prev.some(r => r.resultId === updatedResult.resultId);
+      return exists
+        ? prev.map(r => (r.resultId === updatedResult.resultId ? updatedResult : r))
+        : [...prev, updatedResult];
+    });
     setOpen(false);
     setEditingResult(null);
   };
 
-  const badgeColors = {
-    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary", //Trucco permanente
-    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success", //Piedi
-    "95b6d339-a765-4569-9aee-08107d27516b": "warning", //Mani
-    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info", //Corpo
-    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger", //Viso
-  };
-
-  // ---------- UI ----------
   if (loading) {
     return (
-      <Container className="container-base">
+      <Container className="container-base d-flex justify-content-center py-5">
         <Spinner animation="border" role="status" />
       </Container>
     );
@@ -127,19 +105,29 @@ function ResultsPage() {
 
   if (error) {
     return (
-      <Container className="container-base">
-        <p className="text-danger">{error}</p>
+      <Container className="container-base py-5">
+        <p className="text-danger text-center">{error}</p>
       </Container>
     );
   }
 
   return (
-    <Container fluid className="py-5 results-root conatiner-base flex-column">
-      <h1 className="text-center mb-3">I miei risultati</h1>
-      <p className="text-center lead mb-5">Una raccolta di esempi reali dei miei trattamenti: viso, mani, make-up e altro.</p>
+    <Container fluid className="results-root px-3 px-md-4">
+      <div className="ra-page-head">
+        <span className="section-eyebrow">Portfolio</span>
+        <h1 className="ra-page-title">I miei risultati</h1>
+        <p className="section-subtitle">
+          Trasformazioni reali delle nostre clienti, trattamento dopo trattamento.
+        </p>
+      </div>
 
       <div className="d-flex flex-wrap justify-content-center gap-2 mb-4">
-        <Button key="all" variant={cat === "all" ? "dark" : "outline-dark"} onClick={() => setCat("all")} className="rounded-pill px-3">
+        <Button
+          key="all"
+          variant={cat === "all" ? "dark" : "outline-dark"}
+          onClick={() => setCat("all")}
+          className="rounded-pill px-3"
+        >
           Tutti
         </Button>
         {categories.map(c => (
@@ -167,73 +155,80 @@ function ResultsPage() {
         </div>
       )}
 
-      <Container>
-        <Row className="g-4 justify-content-center">
-          {filtered.map((res, idx) => (
-            <Col key={res.resultId} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
-              <Card
-                data-id={res.resultId}
-                ref={el => (cardsRef.current[idx] = el)}
-                className={`results-card border-0 rounded-4 shadow-sm ${visibleMap[res.resultId] ? "visible" : ""}`}
-              >
-                <Card.Img src={res.images?.[0]} alt={res.title} className="results-img rounded-top-4" />
-                <Card.Body className="d-flex flex-column">
-                  <Card.Title className="mb-1">{res.title}</Card.Title>
-                  <div className="mb-2 d-flex align-items-center justify-content-between">
-                    <Badge bg={badgeColors[res.categoryId] || "secondary"} className="text-uppercase">
-                      {categoriesMap[res.categoryId] || "Altro"}
-                    </Badge>
-                    {res.date && <small className="text-muted">{new Date(res.date).toLocaleDateString()}</small>}
-                  </div>
-                  <Card.Text className="flex-grow-1 small text-muted">{res.shortDescription}</Card.Text>
+      <div className="ra-gallery">
+        {filtered.map((res, idx) => (
+          <div
+            key={res.resultId}
+            data-id={res.resultId}
+            ref={el => (itemRefs.current[idx] = el)}
+            className={`ra-item${visibleMap[res.resultId] ? " visible" : ""}`}
+          >
+            {res.images?.length >= 2 ? (
+              <BeforeAfterSlider
+                beforeSrc={res.images[0]}
+                afterSrc={res.images[1]}
+                alt={res.title}
+              />
+            ) : (
+              <div className="ra-single-img">
+                <img src={res.images?.[0]} alt={res.title} />
+              </div>
+            )}
 
-                  {user?.role === "ADMIN" && (
-                    <div className="d-flex gap-2 justify-content-end">
-                      <Button
-                        variant="secondary"
-                        className="rounded-circle d-flex justify-content-center align-items-center"
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleEdit(res);
-                        }}
-                      >
-                        <PencilFill />
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="rounded-circle d-flex justify-content-center align-items-center"
-                        onClick={e => {
-                          e.stopPropagation();
-                          setSelectedResult(res);
-                          setDeleteModal(true);
-                        }}
-                      >
-                        <Trash2Fill />
-                      </Button>
-                    </div>
-                  )}
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-        {filtered.length === 0 && <p className="text-center text-muted mt-4">Nessun risultato in questa categoria.</p>}
-      </Container>
+            <div className="ra-item-body">
+              <Badge
+                bg={badgeColors[res.categoryId] || "secondary"}
+                className="text-uppercase rp-badge"
+              >
+                {categoriesMap[res.categoryId] || "Altro"}
+              </Badge>
+              <h3 className="ra-item-title">{res.title}</h3>
+              <p className="ra-item-desc">{res.shortDescription}</p>
+
+              {user?.role === "ADMIN" && (
+                <div className="ra-item-admin">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-circle d-flex justify-content-center align-items-center"
+                    onClick={e => { e.stopPropagation(); handleEdit(res); }}
+                  >
+                    <PencilFill />
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    className="rounded-circle d-flex justify-content-center align-items-center"
+                    onClick={e => { e.stopPropagation(); setSelectedResult(res); setDeleteModal(true); }}
+                  >
+                    <Trash2Fill />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-center text-muted mt-4">Nessun risultato in questa categoria.</p>
+      )}
 
       {user?.role === "ADMIN" && (
         <>
-          <ResultModal
+          <ResultDrawer
             show={open}
-            onHide={() => {
-              setOpen(false);
-              setEditingResult(null);
-            }}
+            onHide={() => { setOpen(false); setEditingResult(null); }}
             categories={categories}
             result={editingResult}
             onResultSaved={handleResultSaved}
           />
-
-          <DeleteResultModal show={deleteModal} onHide={() => setDeleteModal(false)} result={selectedResult} onConfirm={handleDeleteConfirm} />
+          <DeleteResultModal
+            show={deleteModal}
+            onHide={() => setDeleteModal(false)}
+            result={selectedResult}
+            onConfirm={handleDeleteConfirm}
+          />
         </>
       )}
     </Container>

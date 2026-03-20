@@ -1,7 +1,9 @@
-import { Button, Form, Modal, Spinner } from "react-bootstrap";
+// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css (dead code, use ResultDrawer)
+import { Form, Spinner } from "react-bootstrap";
 import { createResult, updateResult } from "../../api/modules/results.api";
 import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
+import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 
 const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
   const { accessToken } = useSelector(state => state.auth);
@@ -119,90 +121,83 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
   };
 
   return (
-    <Modal show={show} onHide={onHide} scrollable centered>
-      <Modal.Header closeButton>
-        <Modal.Title>{isEdit ? "Modifica Risultato" : "Aggiungi Risultato"}</Modal.Title>
-      </Modal.Header>
-      <Modal.Body
-        data-lenis-prevent
-        style={{
-          maxHeight: "80vh",
-          overflowY: "auto",
-          overscrollBehavior: "contain",
-        }}
-      >
-        {errors.general && <p className="text-danger">{errors.general}</p>}
+    <UnifiedDrawer
+      show={show}
+      onHide={onHide}
+      title={isEdit ? "Modifica Risultato" : "Aggiungi Risultato"}
+      size="md"
+      footer={
+        <div className="ud-footer-actions">
+          <button type="button" className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>
+            Chiudi
+          </button>
+          <button type="button" className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size="sm" animation="border" /> : isEdit ? "Salva modifiche" : "Crea"}
+          </button>
+        </div>
+      }
+    >
+      {errors.general && <p className="ud-error">{errors.general}</p>}
 
-        <Form>
-          <Form.Group className="mb-3">
-            <Form.Label>Titolo *</Form.Label>
-            <Form.Control type="text" value={form.title} onChange={e => handleChange("title", e.target.value)} isInvalid={!!errors.title} />
-            <Form.Control.Feedback type="invalid">{errors.title}</Form.Control.Feedback>
-          </Form.Group>
+      <Form className="d-flex flex-column gap-3">
+        <Form.Group>
+          <Form.Label>Titolo *</Form.Label>
+          <Form.Control type="text" value={form.title} onChange={e => handleChange("title", e.target.value)} isInvalid={!!errors.title} />
+          <Form.Control.Feedback type="invalid">{errors.title}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Descrizione breve *</Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={2}
-              value={form.shortDescription}
-              onChange={e => handleChange("shortDescription", e.target.value)}
-              isInvalid={!!errors.shortDescription}
-            />
-            <Form.Control.Feedback type="invalid">{errors.shortDescription}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Descrizione breve *</Form.Label>
+          <Form.Control
+            as="textarea"
+            rows={2}
+            value={form.shortDescription}
+            onChange={e => handleChange("shortDescription", e.target.value)}
+            isInvalid={!!errors.shortDescription}
+          />
+          <Form.Control.Feedback type="invalid">{errors.shortDescription}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Descrizione *</Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={3}
-              value={form.description}
-              onChange={e => handleChange("description", e.target.value)}
-              isInvalid={!!errors.description}
-            />
-            <Form.Control.Feedback type="invalid">{errors.description}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Descrizione *</Form.Label>
+          <Form.Control
+            as="textarea"
+            rows={3}
+            value={form.description}
+            onChange={e => handleChange("description", e.target.value)}
+            isInvalid={!!errors.description}
+          />
+          <Form.Control.Feedback type="invalid">{errors.description}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Data *</Form.Label>
-            <Form.Control type="date" value={form.date} onChange={e => handleChange("date", e.target.value)} isInvalid={!!errors.date} />
-            <Form.Control.Feedback type="invalid">{errors.date}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Data *</Form.Label>
+          <Form.Control type="date" value={form.date} onChange={e => handleChange("date", e.target.value)} isInvalid={!!errors.date} />
+          <Form.Control.Feedback type="invalid">{errors.date}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Categoria *</Form.Label>
-            <Form.Select value={form.categoryId} onChange={e => handleChange("categoryId", e.target.value)} isInvalid={!!errors.categoryId}>
-              <option value="">-- Seleziona una categoria --</option>
-              {categories.map(c => (
-                <option key={c.categoryId} value={c.categoryId}>
-                  {c.label}
-                </option>
-              ))}
-            </Form.Select>
-            <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Categoria *</Form.Label>
+          <Form.Select value={form.categoryId} onChange={e => handleChange("categoryId", e.target.value)} isInvalid={!!errors.categoryId}>
+            <option value="">-- Seleziona una categoria --</option>
+            {categories.map(c => (
+              <option key={c.categoryId} value={c.categoryId}>
+                {c.label}
+              </option>
+            ))}
+          </Form.Select>
+          <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Immagine</Form.Label>
-
-            {isEdit && result.images?.length > 0 && !file && (
-              <small className="d-block text-muted mb-2">L'immagine attuale rimarrà se non ne carichi una nuova</small>
-            )}
-
-            <Form.Control type="file" accept="image/*" onChange={handleFileChange} />
-          </Form.Group>
-        </Form>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={onHide} disabled={loading}>
-          Chiudi
-        </Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? <Spinner size="sm" animation="border" /> : isEdit ? "Salva modifiche" : "Crea"}
-        </Button>
-      </Modal.Footer>
-    </Modal>
+        <Form.Group>
+          <Form.Label>Immagine</Form.Label>
+          {isEdit && result.images?.length > 0 && !file && (
+            <small className="d-block text-muted mb-2">L'immagine attuale rimarrà se non ne carichi una nuova</small>
+          )}
+          <Form.Control type="file" accept="image/*" onChange={handleFileChange} />
+        </Form.Group>
+      </Form>
+    </UnifiedDrawer>
   );
 };
 

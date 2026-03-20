@@ -1,6 +1,7 @@
+// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
 import { useState } from "react";
-import { Modal, Button, Form, Row, Col, Spinner, Alert } from "react-bootstrap";
-import useLenisModalLock from "../../hooks/useLenisModalLock";
+import { Form, Row, Col, Spinner } from "react-bootstrap";
+import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 
 const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) => {
   const [form, setForm] = useState({
@@ -94,91 +95,87 @@ const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) 
 
   // ---------- UI ----------
   return (
-    <Modal show={show} onHide={onHide} size="lg" backdrop="static" scrollable centered>
-      <Form onSubmit={handleSubmit}>
-        <Modal.Header closeButton>
-          <Modal.Title>Completa i tuoi dati per il pagamento</Modal.Title>
-        </Modal.Header>
-
-        <Modal.Body
-          data-lenis-prevent
-          style={{
-            maxHeight: "80vh",
-            overflowY: "auto",
-            overscrollBehavior: "contain",
-          }}
-        >
-          {serverError && (
-            <Alert variant="danger" onClose={() => setServerError(null)} dismissible>
-              {serverError}
-            </Alert>
-          )}
-
-          <p className="text-muted mb-4">
-            Inserisci i tuoi dati per completare il checkout come ospite.
-            <br />
-            <strong>Totale ordine: € {totalPrice.toFixed(2)}</strong>
-          </p>
-
-          <Row className="g-3">
-            <Col md={6}>
-              <Form.Label>Nome *</Form.Label>
-              <Form.Control name="name" value={form.name} onChange={handleChange} isInvalid={!!errors.name} disabled={loading} />
-              <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
-            </Col>
-
-            <Col md={6}>
-              <Form.Label>Cognome *</Form.Label>
-              <Form.Control name="surname" value={form.surname} onChange={handleChange} isInvalid={!!errors.surname} disabled={loading} />
-              <Form.Control.Feedback type="invalid">{errors.surname}</Form.Control.Feedback>
-            </Col>
-
-            <Col md={6}>
-              <Form.Label>Email *</Form.Label>
-              <Form.Control type="email" name="email" value={form.email} onChange={handleChange} isInvalid={!!errors.email} disabled={loading} />
-              <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
-            </Col>
-
-            <Col md={6}>
-              <Form.Label>Telefono *</Form.Label>
-              <Form.Control
-                type="tel"
-                name="phone"
-                placeholder="+39..."
-                value={form.phone}
-                onChange={handleChange}
-                isInvalid={!!errors.phone}
-                disabled={loading}
-              />
-              <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
-            </Col>
-
-            <Col md={12}>
-              <Form.Label>Quando vuoi ritirare il tuo ordine? (opzionale)</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={2}
-                name="pickupNote"
-                value={form.pickupNote}
-                onChange={handleChange}
-                disabled={loading}
-                placeholder="Es: Passo domani pomeriggio, grazie!"
-              />
-            </Col>
-          </Row>
-        </Modal.Body>
-
-        <Modal.Footer className="d-flex justify-content-between">
-          <Button variant="secondary" onClick={onHide} disabled={loading}>
+    <UnifiedDrawer
+      show={show}
+      onHide={onHide}
+      title="Completa i tuoi dati"
+      subtitle={`Totale ordine: € ${totalPrice?.toFixed(2) ?? "0.00"}`}
+      size="lg"
+      footer={
+        <div className="d-flex justify-content-between align-items-center w-100">
+          <button type="button" className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>
             Annulla
-          </Button>
-
-          <Button variant="success" size="lg" type="submit" disabled={loading}>
+          </button>
+          <button type="button" className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
             {loading ? <Spinner animation="border" size="sm" /> : "Procedi al pagamento"}
-          </Button>
-        </Modal.Footer>
+          </button>
+        </div>
+      }
+    >
+      {serverError && (
+        <div className="bm-alert mb-3">
+          {serverError}{" "}
+          <button
+            type="button"
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "#c0392b" }}
+            onClick={() => setServerError(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <p className="text-muted mb-4">Inserisci i tuoi dati per completare il checkout come ospite.</p>
+
+      <Form>
+        <Row className="g-3">
+          <Col md={6}>
+            <Form.Label>Nome *</Form.Label>
+            <Form.Control name="name" value={form.name} onChange={handleChange} isInvalid={!!errors.name} disabled={loading} />
+            <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
+          </Col>
+
+          <Col md={6}>
+            <Form.Label>Cognome *</Form.Label>
+            <Form.Control name="surname" value={form.surname} onChange={handleChange} isInvalid={!!errors.surname} disabled={loading} />
+            <Form.Control.Feedback type="invalid">{errors.surname}</Form.Control.Feedback>
+          </Col>
+
+          <Col md={6}>
+            <Form.Label>Email *</Form.Label>
+            <Form.Control type="email" name="email" value={form.email} onChange={handleChange} isInvalid={!!errors.email} disabled={loading} />
+            <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+          </Col>
+
+          <Col md={6}>
+            <Form.Label>Telefono *</Form.Label>
+            <Form.Control
+              type="tel"
+              name="phone"
+              placeholder="+39..."
+              value={form.phone}
+              onChange={handleChange}
+              isInvalid={!!errors.phone}
+              disabled={loading}
+            />
+            <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
+          </Col>
+
+          <Col md={12}>
+            <Form.Label>Quando vuoi ritirare il tuo ordine? (opzionale)</Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              name="pickupNote"
+              value={form.pickupNote}
+              onChange={handleChange}
+              disabled={loading}
+              placeholder="Es: Passo domani pomeriggio, grazie!"
+            />
+          </Col>
+        </Row>
       </Form>
-    </Modal>
+    </UnifiedDrawer>
   );
 };
 

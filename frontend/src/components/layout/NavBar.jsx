@@ -10,11 +10,11 @@ import { clearAccessToken } from "../../utils/token";
 import { logoutUser } from "../../api/modules/auth.api";
 
 const LINKS = [
-  { to: "/prodotti", label: "Prodotti" },
   { to: "/trattamenti", label: "Trattamenti" },
-  { to: "/risultati", label: "Risultati" },
-  { to: "/chisono", label: "Chi sono" },
-  { to: "/promozioni", label: "Promozioni" },
+  { to: "/prodotti",    label: "Prodotti"    },
+  { to: "/risultati",   label: "Risultati"   },
+  { to: "/offerte",     label: "Offerte"     },
+  { to: "/chisono",     label: "Chi sono"    },
 ];
 
 export default function NavBar() {

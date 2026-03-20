@@ -1,0 +1,341 @@
+/* ===== UNIFIED DRAWER ===== */
+
+/* ── Root & Backdrop ── */
+.ud-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s linear;
+  overflow: hidden;
+}
+
+.ud-root--active {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.ud-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 9, 5, 0.45);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.3s linear;
+}
+
+.ud-root--active .ud-backdrop {
+  opacity: 1;
+}
+
+/* ── Panel shell ── */
+.ud-panel {
+  position: fixed;
+  background: #fffdf8;
+  color: #2e2118;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Side drawer (desktop ≥768px) */
+.ud-panel--side {
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: clamp(440px, 38vw, 700px);
+  border-radius: 20px 0 0 20px;
+  box-shadow: -8px 0 40px rgba(46, 33, 24, 0.15);
+  transform: translateX(100%);
+}
+
+.ud-panel--side.open {
+  transform: translateX(0);
+}
+
+/* Size variants */
+.ud-panel--side.ud-size--sm { width: 440px; }
+.ud-panel--side.ud-size--md { width: clamp(440px, 38vw, 640px); }
+.ud-panel--side.ud-size--lg { width: clamp(560px, 44vw, 700px); }
+
+/* Bottom sheet (mobile <768px) */
+.ud-panel--sheet {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 92dvh;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(46, 33, 24, 0.18);
+  transform: translateY(100%);
+}
+
+.ud-panel--sheet.open {
+  transform: translateY(0);
+}
+
+/* ── Handle (mobile only) ── */
+.ud-handle {
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(180, 148, 106, 0.35);
+  margin: 10px auto 4px;
+  flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+/* ── Header ── */
+.ud-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(180, 148, 106, 0.15);
+  flex-shrink: 0;
+}
+
+.ud-header__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  margin-right: 12px;
+}
+
+.ud-title {
+  font-family: "SaolDisplay-Light", "Petrona", serif;
+  font-weight: 300;
+  font-size: 1.25rem;
+  color: #1e140e;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.ud-subtitle {
+  font-size: 0.82rem;
+  color: #8a7060;
+  margin: 0;
+}
+
+.ud-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #8a7060;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ud-close:hover {
+  color: #2e2118;
+}
+
+/* ── Top slot (between header and body) ── */
+.ud-top-slot {
+  flex-shrink: 0;
+}
+
+/* ── Body ── */
+.ud-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.5rem 1.75rem;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  min-height: 0;
+}
+
+/* ── Footer ── */
+.ud-footer {
+  padding: 1rem 1.75rem 1.5rem;
+  border-top: 1px solid rgba(180, 148, 106, 0.18);
+  background: #fffdf8;
+  flex-shrink: 0;
+}
+
+.ud-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.ud-error {
+  color: #c0392b;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ── Section block (DrawerSection) ── */
+.ud-section {
+  border-radius: 12px;
+  border: 1px solid rgba(111, 74, 47, 0.12);
+  background: rgba(231, 214, 195, 0.22);
+  padding: 14px;
+}
+
+.ud-section + .ud-section {
+  margin-top: 0.75rem;
+}
+
+.ud-section__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ud-section__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.ud-section__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b5c55;
+  margin: 0;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── Field helper (FieldHelper) ── */
+.ud-field-helper {
+  display: block;
+  font-size: 0.82rem;
+  color: rgba(35, 26, 20, 0.55);
+  margin-top: 5px;
+}
+
+/* ── Responsive ── */
+@media (min-width: 768px) and (max-width: 1100px) {
+  .ud-panel--side { width: 65vw; }
+  .ud-panel--side.ud-size--sm { width: min(65vw, 440px); }
+  .ud-panel--side.ud-size--md { width: 65vw; }
+  .ud-panel--side.ud-size--lg { width: 72vw; }
+}
+
+@media (max-width: 767px) {
+  .ud-panel--side { width: 100%; }
+}
+
+/* ===== CONFIRM DIALOG ===== */
+
+.cd-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s linear;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.cd-root--active {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.cd-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 9, 5, 0.5);
+  backdrop-filter: blur(3px);
+}
+
+.cd-dialog {
+  position: relative;
+  z-index: 1;
+  background: #f5e8d0;
+  border-radius: 14px;
+  padding: 1.75rem;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(46, 33, 24, 0.2);
+  transform: scale(0.88);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cd-dialog--active {
+  transform: scale(1);
+}
+
+.cd-title {
+  font-family: "Petrona", serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2e2118;
+  margin: 0 0 0.75rem;
+}
+
+.cd-message {
+  font-size: 0.9rem;
+  color: #5c4b3f;
+  line-height: 1.55;
+  margin: 0 0 1rem;
+}
+
+.cd-warning {
+  background: rgba(220, 53, 69, 0.08);
+  border: 1px solid rgba(220, 53, 69, 0.25);
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.82rem;
+  color: #c0392b;
+  margin-bottom: 1rem;
+}
+
+.cd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.cd-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1.2rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.cd-btn:hover {
+  transform: translateY(-1px);
+}
+
+.cd-btn--cancel {
+  background: rgba(180, 148, 106, 0.12);
+  color: #6b5c55;
+  border: 1px solid rgba(180, 148, 106, 0.25);
+}
+
+.cd-btn--confirm.cd-btn--danger {
+  background: #dc3545;
+  color: #fff;
+}
+
+.cd-btn--confirm.cd-btn--danger:hover {
+  background: #c0392b;
+}
+
+.cd-btn--confirm.cd-btn--primary {
+  background: #2e2118;
+  color: #fff;
+}
+
+.cd-btn--confirm.cd-btn--primary:hover {
+  background: #1a110a;
+}

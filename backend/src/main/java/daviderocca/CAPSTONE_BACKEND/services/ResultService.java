@@ -56,19 +56,19 @@ public class ResultService {
     // ---------------------------- CREATE ----------------------------
 
     @Transactional
-    public ResultResponseDTO saveResult(NewResultDTO payload, MultipartFile image) {
+    public ResultResponseDTO saveResult(NewResultDTO payload, List<MultipartFile> images) {
         if (resultRepository.existsByTitle(payload.title())) {
             throw new BadRequestException("Esiste già un risultato con questo titolo!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-        List<String> images = uploadImageIfPresent(image);
+        List<String> imageUrls = uploadImagesIfPresent(images);
 
         Result newResult = new Result(
                 payload.title(),
                 payload.shortDescription(),
                 payload.description(),
-                images,
+                imageUrls,
                 relatedCategory
         );
 
@@ -82,7 +82,7 @@ public class ResultService {
     // ---------------------------- UPDATE ----------------------------
 
     @Transactional
-    public ResultResponseDTO updateResult(UUID resultId, NewResultDTO payload, MultipartFile image) {
+    public ResultResponseDTO updateResult(UUID resultId, NewResultDTO payload, List<MultipartFile> images) {
         Result found = resultRepository.findByIdWithDetails(resultId)
                 .orElseThrow(() -> new ResourceNotFoundException(resultId));
 
@@ -91,17 +91,15 @@ public class ResultService {
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-        List<String> images = found.getImages();
-
-        if (image != null && !image.isEmpty()) {
-            images = uploadImageIfPresent(image);
-        }
+        List<String> imageUrls = (images != null && !images.isEmpty())
+                ? uploadImagesIfPresent(images)
+                : found.getImages();
 
         found.setTitle(payload.title());
         found.setShortDescription(payload.shortDescription());
         found.setDescription(payload.description());
         found.setCategory(relatedCategory);
-        found.setImages(images);
+        found.setImages(imageUrls);
 
         Result updated = resultRepository.save(found);
         log.info("Risultato '{}' (ID: {}) aggiornato (categoria: {})",
@@ -120,21 +118,23 @@ public class ResultService {
     }
 
     // ---------------------------- CLOUDINARY ----------------------------
-    private List<String> uploadImageIfPresent(MultipartFile image) {
-        List<String> images = new ArrayList<>();
-        if (image != null && !image.isEmpty()) {
+    private List<String> uploadImagesIfPresent(List<MultipartFile> files) {
+        List<String> urls = new ArrayList<>();
+        if (files == null) return urls;
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) continue;
             try {
                 Map uploadResult = cloudinary.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap());
+                        .upload(file.getBytes(), ObjectUtils.emptyMap());
                 String url = (String) uploadResult.get("url");
-                images.add(url);
+                urls.add(url);
                 log.info("Immagine caricata su Cloudinary: {}", url);
             } catch (IOException e) {
                 log.error("Errore durante l'upload dell'immagine su Cloudinary", e);
                 throw new BadRequestException("Errore durante l'upload dell'immagine");
             }
         }
-        return images;
+        return urls;
     }
 
     // ---------------------------- CONVERTER ----------------------------

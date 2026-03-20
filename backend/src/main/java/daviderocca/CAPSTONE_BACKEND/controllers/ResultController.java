@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -47,10 +48,10 @@ public class ResultController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResultResponseDTO> createResult(
             @Valid @RequestPart("data") NewResultDTO payload,
-            @RequestPart(value = "image", required = false) MultipartFile image
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
         log.info("Richiesta creazione nuovo risultato '{}'", payload.title());
-        ResultResponseDTO created = resultService.saveResult(payload, image);
+        ResultResponseDTO created = resultService.saveResult(payload, images);
         return ResponseEntity.status(201).body(created);
     }
 
@@ -61,10 +62,10 @@ public class ResultController {
     public ResponseEntity<ResultResponseDTO> updateResult(
             @PathVariable UUID resultId,
             @Valid @RequestPart("data") NewResultDTO payload,
-            @RequestPart(value = "image", required = false) MultipartFile image
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
         log.info("Richiesta aggiornamento risultato {}", resultId);
-        ResultResponseDTO updated = resultService.updateResult(resultId, payload, image);
+        ResultResponseDTO updated = resultService.updateResult(resultId, payload, images);
         return ResponseEntity.ok(updated);
     }
 

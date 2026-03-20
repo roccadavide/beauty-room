@@ -26,13 +26,10 @@ export const fetchResultById = async resultId => {
 };
 
 // -------------------------- CREATE --------------------------
-export const createResult = async (resultData, file) => {
-  const formData = buildFormData(resultData, file);
-
+// formData deve essere un FormData pre-costruito con "data" (JSON blob) + "images" (files)
+export const createResult = async (formData) => {
   try {
-    const { data } = await http.post(RESULT_ENDPOINTS.BASE, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const { data } = await http.post(RESULT_ENDPOINTS.BASE, formData);
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nella creazione del risultato.";
@@ -41,13 +38,9 @@ export const createResult = async (resultData, file) => {
 };
 
 // -------------------------- UPDATE --------------------------
-export const updateResult = async (resultId, resultData, file) => {
-  const formData = buildFormData(resultData, file);
-
+export const updateResult = async (resultId, formData) => {
   try {
-    const { data } = await http.put(RESULT_ENDPOINTS.BY_ID(resultId), formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const { data } = await http.put(RESULT_ENDPOINTS.BY_ID(resultId), formData);
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nell’aggiornamento del risultato.";
@@ -67,16 +60,17 @@ export const deleteResult = async resultId => {
 };
 
 // -------------------------- HELPERS --------------------------
-function buildFormData(resultData, file) {
+// Costruisce un FormData con il blob JSON "data" + i file in "images"
+export function buildResultFormData(resultData, files = []) {
   const formData = new FormData();
   formData.append("data", new Blob([JSON.stringify(resultData)], { type: "application/json" }));
 
-  if (file) {
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) throw new Error("Immagine troppo grande (max 5MB)");
+  const MAX_SIZE = 5 * 1024 * 1024;
+  files.forEach(file => {
+    if (file.size > MAX_SIZE) throw new Error("Immagine troppo grande (max 5MB)");
     if (!file.type.startsWith("image/")) throw new Error("File non valido: carica un'immagine");
-    formData.append("image", file);
-  }
+    formData.append("images", file);
+  });
 
   return formData;
 }

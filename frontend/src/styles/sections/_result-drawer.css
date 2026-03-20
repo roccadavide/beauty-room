@@ -1,0 +1,72 @@
+.rd-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 1.75rem;
+  overscroll-behavior: contain;
+}
+
+.rd-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.rd-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.rd-existing-wrap {
+  background: #f9f5f1;
+  border-radius: 12px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.rd-preview-grid {
+  display: flex;
+  gap: 10px;
+}
+
+.rd-preview-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rd-preview-img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(180, 148, 106, 0.25);
+}
+
+.rd-preview-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b8976a;
+}
+
+.rd-footer {
+  padding: 1rem 1.75rem 1.5rem;
+  border-top: 1px solid rgba(180, 148, 106, 0.18);
+  background: #fffdf8;
+}
+
+.rd-error {
+  color: #c0392b;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.rd-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}

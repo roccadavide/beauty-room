@@ -20,7 +20,7 @@ import ResultsPreview from "./features/results/ResultPreview";
 import ProductDetail from "./features/products/ProductDetails";
 import ServicePage from "./features/services/ServicePage";
 import ServiceDetail from "./features/services/ServiceDetails";
-import PromotionsPage from "./features/promotions/PromotionsPage";
+import OffertePage from "./features/offerte/OffertePage";
 import Login from "./features/auth/Login";
 import Register from "./features/auth/Register";
 import CartPage from "./features/cart/CartPage";
@@ -233,10 +233,10 @@ function App() {
               }
             />
             <Route
-              path="/promozioni"
+              path="/offerte"
               element={
                 <PageTransition routeKey={location.pathname}>
-                  <PromotionsPage />
+                  <OffertePage />
                 </PageTransition>
               }
             />

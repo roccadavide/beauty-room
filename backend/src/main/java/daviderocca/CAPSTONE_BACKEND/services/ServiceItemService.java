@@ -3,7 +3,9 @@ package daviderocca.CAPSTONE_BACKEND.services;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.NewServiceItemDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.PackageResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceItemResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceOptionRequestDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceOptionResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Category;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
@@ -11,6 +13,7 @@ import daviderocca.CAPSTONE_BACKEND.entities.ServiceOption;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ServiceItemRepository;
+import daviderocca.CAPSTONE_BACKEND.repositories.ServiceOptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -29,9 +32,82 @@ public class ServiceItemService {
 
     private final ServiceItemRepository serviceItemRepository;
 
+    private final ServiceOptionRepository serviceOptionRepository;
+
     private final CategoryService categoryService;
 
     private final Cloudinary cloudinary;
+
+    // ---------------------------- PACKAGES ----------------------------
+
+    @Transactional(readOnly = true)
+    public List<PackageResponseDTO> getActivePackages() {
+        return serviceOptionRepository.findActivePackages()
+                .stream()
+                .map(so -> {
+                    ServiceItem si = so.getService();
+                    String imageUrl = (si.getImages() == null || si.getImages().isEmpty())
+                            ? null
+                            : si.getImages().iterator().next();
+                    return new PackageResponseDTO(
+                            so.getOptionId(),
+                            si.getServiceId(),
+                            si.getTitle(),
+                            imageUrl,
+                            so.getName(),
+                            so.getSessions(),
+                            so.getPrice(),
+                            so.getOptionGroup(),
+                            so.getGender()
+                    );
+                })
+                .toList();
+    }
+
+    // ---------------------------- OPTION CRUD ----------------------------
+
+    @Transactional
+    public ServiceOptionResponseDTO createOption(UUID serviceId, ServiceOptionRequestDTO dto) {
+        ServiceItem si = serviceItemRepository.findById(serviceId)
+                .orElseThrow(() -> new ResourceNotFoundException(serviceId));
+        ServiceOption opt = new ServiceOption();
+        opt.setName(dto.name());
+        opt.setPrice(dto.price());
+        opt.setSessions(dto.sessions());
+        opt.setOptionGroup(dto.optionGroup());
+        opt.setGender(dto.gender());
+        opt.setActive(dto.active());
+        opt.setService(si);
+        return toOptionDTO(serviceOptionRepository.save(opt));
+    }
+
+    @Transactional
+    public ServiceOptionResponseDTO updateOption(UUID optionId, ServiceOptionRequestDTO dto) {
+        ServiceOption opt = serviceOptionRepository.findById(optionId)
+                .orElseThrow(() -> new ResourceNotFoundException(optionId));
+        opt.setName(dto.name());
+        opt.setPrice(dto.price());
+        opt.setSessions(dto.sessions());
+        opt.setOptionGroup(dto.optionGroup());
+        opt.setGender(dto.gender());
+        opt.setActive(dto.active());
+        return toOptionDTO(serviceOptionRepository.save(opt));
+    }
+
+    @Transactional
+    public void deleteOption(UUID optionId) {
+        if (!serviceOptionRepository.existsById(optionId)) {
+            throw new ResourceNotFoundException(optionId);
+        }
+        serviceOptionRepository.deleteById(optionId);
+    }
+
+    private ServiceOptionResponseDTO toOptionDTO(ServiceOption o) {
+        return new ServiceOptionResponseDTO(
+                o.getOptionId(), o.getName(), o.getPrice(),
+                o.getSessions(), o.getGender(), o.isActive(), o.getOptionGroup()
+        );
+    }
 
     // ---------------------------- FIND METHODS ----------------------------
 

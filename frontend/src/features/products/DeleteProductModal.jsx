@@ -1,26 +1,16 @@
-import { Modal, Button } from "react-bootstrap";
+// Migrated to ConfirmDialog — 2026-03-20 — see _unified-drawer.css
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
-const DeleteProductModal = ({ show, onHide, product, onConfirm }) => {
-  if (!product) return null;
-
-  return (
-    <Modal show={show} onHide={onHide} centered>
-      <Modal.Header closeButton>
-        <Modal.Title>Conferma eliminazione</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        Sei sicuro di voler eliminare il prodotto <strong>{product.title}</strong>? Questa azione non può essere annullata.
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={onHide}>
-          Annulla
-        </Button>
-        <Button variant="danger" onClick={() => onConfirm(product.productId)}>
-          Elimina
-        </Button>
-      </Modal.Footer>
-    </Modal>
-  );
-};
+const DeleteProductModal = ({ show, onHide, product, onConfirm }) => (
+  <ConfirmDialog
+    show={show && Boolean(product)}
+    onHide={onHide}
+    onConfirm={() => onConfirm(product?.productId)}
+    title="Elimina prodotto"
+    message={`Sei sicuro di voler eliminare "${product?.name ?? product?.title}"? Questa azione non può essere annullata.`}
+    confirmLabel="Elimina"
+    confirmVariant="danger"
+  />
+);
 
 export default DeleteProductModal;

@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { Button, Form, Badge, Spinner, Alert } from "react-bootstrap";
-import { createPortal } from "react-dom";
+// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
+import { useEffect, useState } from "react";
+import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { fetchAvailabilities } from "../../api/modules/availabilities.api";
-import useLenisModalLock from "../../hooks/useLenisModalLock";
 import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest } from "../../api/modules/stripe.api";
+import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
@@ -112,13 +112,8 @@ const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
   const [slot, setSlot] = useState(null);
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "", notes: "" });
   const [errors, setErrors] = useState({});
-  const [panelVisible, setPanelVisible] = useState(false);
-  const [panelActive, setPanelActive] = useState(false);
-  const panelRef = useRef(null);
   // FIX-9: blocca doppio click su "Vai al pagamento"
   const [paying, setPaying] = useState(false);
-  // FIX-22: breakpoint reattivo invece di lettura statica a render time
-  const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 768);
 
   const reset = () => {
     setStep(1);
@@ -129,8 +124,6 @@ const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
     setError(null);
     setPaying(false);
   };
-
-  useLenisModalLock(show);
 
   useEffect(() => {
     if (step === 2 && service) {
@@ -158,37 +151,6 @@ const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
     }
   }, [step, service, date]);
 
-  useEffect(() => {
-    if (show) {
-      setPanelVisible(true);
-      const id = requestAnimationFrame(() => requestAnimationFrame(() => setPanelActive(true)));
-      return () => cancelAnimationFrame(id);
-    }
-    setPanelActive(false);
-    const t = setTimeout(() => setPanelVisible(false), 320);
-    return () => clearTimeout(t);
-  }, [show]);
-
-  useEffect(() => {
-    if (!show) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [show]);
-
-  useEffect(() => {
-    if (!show) return;
-    const kd = e => {
-      if (e.key === "Escape") {
-        onHide();
-        reset();
-      }
-    };
-    document.addEventListener("keydown", kd);
-    return () => document.removeEventListener("keydown", kd);
-  }, [show, onHide]);
 
   const handleCustomerChange = (field, value) => {
     setCustomer(prev => ({ ...prev, [field]: value }));
@@ -264,248 +226,214 @@ const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
     }));
   }, [show, step, accessToken, user]);
 
-  // FIX-22: aggiorna isDesktop al resize
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const handler = e => setIsDesktop(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  if (!panelVisible) return null;
-
   const handleClose = () => {
     onHide();
     reset();
   };
 
-  return createPortal(
-    <div className={`bm-root${panelActive ? " bm-root--active" : ""}`}>
-      <div className="bm-backdrop" onClick={handleClose} />
-      <div
-        ref={panelRef}
-        className={`bm-panel ${isDesktop ? "bm-panel--side" : "bm-panel--sheet"} ${panelActive ? "open" : ""}`}
-        role="dialog"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
-      >
-        {!isDesktop && <div className="bm-handle" />}
+  const metaSubtitle = (service?.durationMin || service?.price != null) ? (
+    <div className="bm-header__meta">
+      {service.durationMin && <span className="bm-meta-pill">⏱ {service.durationMin} min</span>}
+      {service.price != null && (
+        <span className="bm-meta-pill">{service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+      )}
+    </div>
+  ) : null;
 
-        <header className="bm-header">
-          <div className="bm-header__info">
-            <h2 className="bm-title">{service?.title}</h2>
-            <div className="bm-header__meta">
-              {service?.durationMin && (
-                <span className="bm-meta-pill">⏱ {service.durationMin} min</span>
-              )}
-              {service?.price != null && (
-                <span className="bm-meta-pill">
-                  {service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                </span>
-              )}
-            </div>
+  const stepsSlot = (
+    <div className="bm-steps">
+      {[1, 2, 3, 4].map(s => (
+        <div key={s} className={`bm-step ${step === s ? "active" : step > s ? "done" : ""}`}>
+          <div className="bm-step__dot">{step > s ? "✓" : s}</div>
+          <span className="bm-step__label">
+            {s === 1 ? "Data" : s === 2 ? "Orario" : s === 3 ? "Dati" : "Riepilogo"}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <UnifiedDrawer
+      show={show}
+      onHide={handleClose}
+      title={service?.title}
+      subtitle={metaSubtitle}
+      topSlot={stepsSlot}
+      size="sm"
+    >
+      {error && <div className="bm-alert">{error}</div>}
+
+      {step === 1 && (
+        <div className="bm-step-content">
+          <BookingCalendar selected={date} onChange={setDate} minDate={new Date()} />
+          <div className="bm-nav">
+            <span />
+            <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(2)}>
+              Scegli orario →
+            </button>
           </div>
-          <button className="bm-close" onClick={handleClose} aria-label="Chiudi" type="button">
-            ×
-          </button>
-        </header>
-
-        <div className="bm-steps">
-          {[1, 2, 3, 4].map(s => (
-            <div key={s} className={`bm-step ${step === s ? "active" : step > s ? "done" : ""}`}>
-              <div className="bm-step__dot">{step > s ? "✓" : s}</div>
-              <span className="bm-step__label">
-                {s === 1 ? "Data" : s === 2 ? "Orario" : s === 3 ? "Dati" : "Riepilogo"}
-              </span>
-            </div>
-          ))}
         </div>
+      )}
 
-        <div className="bm-body">
-          {error && <div className="bm-alert">{error}</div>}
-
-          {step === 1 && (
-            <div className="bm-step-content">
-              <BookingCalendar selected={date} onChange={setDate} minDate={new Date()} />
-              <div className="bm-nav">
-                <span />
-                <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(2)}>
-                  Scegli orario →
-                </button>
-              </div>
+      {step === 2 && (
+        <div className="bm-step-content">
+          <div className="bm-date-recap">
+            📅{" "}
+            {date.toLocaleDateString("it-IT", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+          </div>
+          {loadingSlots && (
+            <div className="bm-loading">
+              <Spinner size="sm" animation="border" /> Carico slot…
             </div>
           )}
-
-          {step === 2 && (
-            <div className="bm-step-content">
-              <div className="bm-date-recap">
-                📅{" "}
-                {date.toLocaleDateString("it-IT", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })}
-              </div>
-              {loadingSlots && (
-                <div className="bm-loading">
-                  <Spinner size="sm" animation="border" /> Carico slot…
-                </div>
-              )}
-              <div className="bm-slots">
-                {slots.map(s => (
-                  <button
-                    key={s.start}
-                    type="button"
-                    className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""}`}
-                    onClick={() => setSlot(s)}
-                  >
-                    {s.start}
-                    <span className="bm-slot__end">– {s.end}</span>
-                  </button>
-                ))}
-              </div>
-              {slots.length === 0 && !loadingSlots && (
-                <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>
-              )}
-              <div className="bm-nav">
-                <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(1)}>
-                  ← Indietro
-                </button>
-                <button
-                  className="bm-btn bm-btn--primary"
-                  type="button"
-                  onClick={() => setStep(3)}
-                  disabled={!slot}
-                >
-                  Continua →
-                </button>
-              </div>
-            </div>
+          <div className="bm-slots">
+            {slots.map(s => (
+              <button
+                key={s.start}
+                type="button"
+                className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""}`}
+                onClick={() => setSlot(s)}
+              >
+                {s.start}
+                <span className="bm-slot__end">– {s.end}</span>
+              </button>
+            ))}
+          </div>
+          {slots.length === 0 && !loadingSlots && (
+            <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>
           )}
-
-          {step === 3 && (
-            <div className="bm-step-content">
-              <Form className="bm-form">
-                <Form.Group className="bm-form-group">
-                  <Form.Label>Nome e Cognome *</Form.Label>
-                  <Form.Control
-                    value={customer.name}
-                    onChange={e => handleCustomerChange("name", e.target.value)}
-                    isInvalid={!!errors.name}
-                    placeholder="Es. Mario Rossi"
-                    className="bm-input"
-                  />
-                  <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
-                </Form.Group>
-                <Form.Group className="bm-form-group">
-                  <Form.Label>Email *</Form.Label>
-                  <Form.Control
-                    type="email"
-                    value={customer.email}
-                    onChange={e => handleCustomerChange("email", e.target.value)}
-                    isInvalid={!!errors.email}
-                    placeholder="nome@email.com"
-                    className="bm-input"
-                  />
-                  <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
-                </Form.Group>
-                <Form.Group className="bm-form-group">
-                  <Form.Label>Telefono *</Form.Label>
-                  <Form.Control
-                    value={customer.phone}
-                    onChange={e => handleCustomerChange("phone", e.target.value)}
-                    isInvalid={!!errors.phone}
-                    placeholder="+39 333 1234567"
-                    className="bm-input"
-                  />
-                  <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
-                </Form.Group>
-                <Form.Group className="bm-form-group">
-                  <Form.Label>Note (opzionale)</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={2}
-                    value={customer.notes}
-                    onChange={e => handleCustomerChange("notes", e.target.value)}
-                    placeholder="Allergie, preferenze, domande…"
-                    className="bm-input"
-                  />
-                </Form.Group>
-              </Form>
-              <div className="bm-nav">
-                <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(2)}>
-                  ← Indietro
-                </button>
-                <button className="bm-btn bm-btn--primary" type="button" onClick={goToSummary}>
-                  Riepilogo →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="bm-step-content">
-              <div className="bm-summary">
-                <div className="bm-summary__row">
-                  <span>Servizio</span>
-                  <strong>{service?.title}</strong>
-                </div>
-                <div className="bm-summary__row">
-                  <span>Durata</span>
-                  <strong>{service?.durationMin} min</strong>
-                </div>
-                <div className="bm-summary__row">
-                  <span>Prezzo</span>
-                  <strong>
-                    {service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                  </strong>
-                </div>
-                <div className="bm-summary__divider" />
-                <div className="bm-summary__row">
-                  <span>Data</span>
-                  <strong>
-                    {date.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" })}
-                  </strong>
-                </div>
-                <div className="bm-summary__row">
-                  <span>Orario</span>
-                  <strong>{slot?.start} – {slot?.end}</strong>
-                </div>
-                <div className="bm-summary__divider" />
-                <div className="bm-summary__row">
-                  <span>Cliente</span>
-                  <strong>{customer.name}</strong>
-                </div>
-                <div className="bm-summary__row">
-                  <span>Email</span>
-                  <strong>{customer.email}</strong>
-                </div>
-                <div className="bm-summary__row">
-                  <span>Telefono</span>
-                  <strong>{customer.phone}</strong>
-                </div>
-                {customer.notes && (
-                  <div className="bm-summary__row">
-                    <span>Note</span>
-                    <strong>{customer.notes}</strong>
-                  </div>
-                )}
-              </div>
-              <div className="bm-nav">
-                <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>
-                  ← Modifica
-                </button>
-                {/* FIX-9: disabled durante redirect Stripe */}
-                <button className="bm-btn bm-btn--cta" type="button" onClick={confirm} disabled={paying}>
-                  {paying ? <><Spinner size="sm" animation="border" /> Reindirizzamento…</> : "💳 Vai al pagamento"}
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="bm-nav">
+            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(1)}>
+              ← Indietro
+            </button>
+            <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(3)} disabled={!slot}>
+              Continua →
+            </button>
+          </div>
         </div>
-      </div>
-    </div>,
-    document.body
+      )}
+
+      {step === 3 && (
+        <div className="bm-step-content">
+          <Form className="bm-form">
+            <Form.Group className="bm-form-group">
+              <Form.Label>Nome e Cognome *</Form.Label>
+              <Form.Control
+                value={customer.name}
+                onChange={e => handleCustomerChange("name", e.target.value)}
+                isInvalid={!!errors.name}
+                placeholder="Es. Mario Rossi"
+                className="bm-input"
+              />
+              <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
+            </Form.Group>
+            <Form.Group className="bm-form-group">
+              <Form.Label>Email *</Form.Label>
+              <Form.Control
+                type="email"
+                value={customer.email}
+                onChange={e => handleCustomerChange("email", e.target.value)}
+                isInvalid={!!errors.email}
+                placeholder="nome@email.com"
+                className="bm-input"
+              />
+              <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+            </Form.Group>
+            <Form.Group className="bm-form-group">
+              <Form.Label>Telefono *</Form.Label>
+              <Form.Control
+                value={customer.phone}
+                onChange={e => handleCustomerChange("phone", e.target.value)}
+                isInvalid={!!errors.phone}
+                placeholder="+39 333 1234567"
+                className="bm-input"
+              />
+              <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
+            </Form.Group>
+            <Form.Group className="bm-form-group">
+              <Form.Label>Note (opzionale)</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                value={customer.notes}
+                onChange={e => handleCustomerChange("notes", e.target.value)}
+                placeholder="Allergie, preferenze, domande…"
+                className="bm-input"
+              />
+            </Form.Group>
+          </Form>
+          <div className="bm-nav">
+            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(2)}>
+              ← Indietro
+            </button>
+            <button className="bm-btn bm-btn--primary" type="button" onClick={goToSummary}>
+              Riepilogo →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="bm-step-content">
+          <div className="bm-summary">
+            <div className="bm-summary__row">
+              <span>Servizio</span>
+              <strong>{service?.title}</strong>
+            </div>
+            <div className="bm-summary__row">
+              <span>Durata</span>
+              <strong>{service?.durationMin} min</strong>
+            </div>
+            <div className="bm-summary__row">
+              <span>Prezzo</span>
+              <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+            </div>
+            <div className="bm-summary__divider" />
+            <div className="bm-summary__row">
+              <span>Data</span>
+              <strong>{date.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" })}</strong>
+            </div>
+            <div className="bm-summary__row">
+              <span>Orario</span>
+              <strong>{slot?.start} – {slot?.end}</strong>
+            </div>
+            <div className="bm-summary__divider" />
+            <div className="bm-summary__row">
+              <span>Cliente</span>
+              <strong>{customer.name}</strong>
+            </div>
+            <div className="bm-summary__row">
+              <span>Email</span>
+              <strong>{customer.email}</strong>
+            </div>
+            <div className="bm-summary__row">
+              <span>Telefono</span>
+              <strong>{customer.phone}</strong>
+            </div>
+            {customer.notes && (
+              <div className="bm-summary__row">
+                <span>Note</span>
+                <strong>{customer.notes}</strong>
+              </div>
+            )}
+          </div>
+          <div className="bm-nav">
+            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>
+              ← Modifica
+            </button>
+            {/* FIX-9: disabled durante redirect Stripe */}
+            <button className="bm-btn bm-btn--cta" type="button" onClick={confirm} disabled={paying}>
+              {paying ? <><Spinner size="sm" animation="border" /> Reindirizzamento…</> : "💳 Vai al pagamento"}
+            </button>
+          </div>
+        </div>
+      )}
+    </UnifiedDrawer>
   );
 };
 

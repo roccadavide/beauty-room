@@ -1,7 +1,9 @@
+// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
 import { useState } from "react";
-import { Modal, Button, Form, Spinner } from "react-bootstrap";
+import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { patchPassword } from "../../api/modules/users.api";
+import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 
 const ChangePasswordModal = ({ show, onHide, userId }) => {
   const { accessToken } = useSelector(state => state.auth);
@@ -48,57 +50,59 @@ const ChangePasswordModal = ({ show, onHide, userId }) => {
   };
 
   return (
-    <Modal show={show} onHide={onHide} centered>
-      <Modal.Header closeButton>
-        <Modal.Title>Cambia password</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        {errors.general && <p className="text-danger">{errors.general}</p>}
+    <UnifiedDrawer
+      show={show}
+      onHide={onHide}
+      title="Cambia password"
+      size="sm"
+      footer={
+        <div className="ud-footer-actions">
+          <button type="button" className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>
+            Chiudi
+          </button>
+          <button type="button" className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size="sm" animation="border" /> : "Aggiorna password"}
+          </button>
+        </div>
+      }
+    >
+      {errors.general && <p className="ud-error">{errors.general}</p>}
 
-        <Form>
-          <Form.Group className="mb-3">
-            <Form.Label>Vecchia password *</Form.Label>
-            <Form.Control
-              type="password"
-              value={form.oldPassword}
-              onChange={e => handleChange("oldPassword", e.target.value)}
-              isInvalid={!!errors.oldPassword}
-            />
-            <Form.Control.Feedback type="invalid">{errors.oldPassword}</Form.Control.Feedback>
-          </Form.Group>
+      <Form className="d-flex flex-column gap-3">
+        <Form.Group>
+          <Form.Label>Vecchia password *</Form.Label>
+          <Form.Control
+            type="password"
+            value={form.oldPassword}
+            onChange={e => handleChange("oldPassword", e.target.value)}
+            isInvalid={!!errors.oldPassword}
+          />
+          <Form.Control.Feedback type="invalid">{errors.oldPassword}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Nuova password *</Form.Label>
-            <Form.Control
-              type="password"
-              value={form.newPassword}
-              onChange={e => handleChange("newPassword", e.target.value)}
-              isInvalid={!!errors.newPassword}
-            />
-            <Form.Control.Feedback type="invalid">{errors.newPassword}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Nuova password *</Form.Label>
+          <Form.Control
+            type="password"
+            value={form.newPassword}
+            onChange={e => handleChange("newPassword", e.target.value)}
+            isInvalid={!!errors.newPassword}
+          />
+          <Form.Control.Feedback type="invalid">{errors.newPassword}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Conferma nuova password *</Form.Label>
-            <Form.Control
-              type="password"
-              value={form.confirmNewPassword}
-              onChange={e => handleChange("confirmNewPassword", e.target.value)}
-              isInvalid={!!errors.confirmNewPassword}
-            />
-            <Form.Control.Feedback type="invalid">{errors.confirmNewPassword}</Form.Control.Feedback>
-          </Form.Group>
-        </Form>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={onHide} disabled={loading}>
-          Chiudi
-        </Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? <Spinner size="sm" animation="border" /> : "Aggiorna password"}
-        </Button>
-      </Modal.Footer>
-    </Modal>
+        <Form.Group>
+          <Form.Label>Conferma nuova password *</Form.Label>
+          <Form.Control
+            type="password"
+            value={form.confirmNewPassword}
+            onChange={e => handleChange("confirmNewPassword", e.target.value)}
+            isInvalid={!!errors.confirmNewPassword}
+          />
+          <Form.Control.Feedback type="invalid">{errors.confirmNewPassword}</Form.Control.Feedback>
+        </Form.Group>
+      </Form>
+    </UnifiedDrawer>
   );
 };
 

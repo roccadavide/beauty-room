@@ -1,7 +1,10 @@
 package daviderocca.CAPSTONE_BACKEND.controllers;
 
 import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.NewServiceItemDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.PackageResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceItemResponseDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceOptionRequestDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs.ServiceOptionResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.services.ServiceItemService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -23,6 +27,12 @@ public class ServiceItemController {
     private final ServiceItemService serviceItemService;
 
     // ---------------------------------- GET ----------------------------------
+
+    @GetMapping("/options/packages")
+    public ResponseEntity<List<PackageResponseDTO>> getActivePackages() {
+        log.info("Richiesta pacchetti (ServiceOption con sessions > 1)");
+        return ResponseEntity.ok(serviceItemService.getActivePackages());
+    }
 
     @GetMapping
     public ResponseEntity<Page<ServiceItemResponseDTO>> getAllServiceItems(
@@ -66,6 +76,31 @@ public class ServiceItemController {
         log.info("Richiesta aggiornamento servizio {}", serviceItemId);
         ServiceItemResponseDTO updated = serviceItemService.updateServiceItem(serviceItemId, payload, image);
         return ResponseEntity.ok(updated);
+    }
+
+    // ---------------------------------- OPTIONS CRUD ----------------------------------
+
+    @PostMapping("/{serviceId}/options")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ServiceOptionResponseDTO> createOption(
+            @PathVariable UUID serviceId,
+            @Valid @RequestBody ServiceOptionRequestDTO dto) {
+        return ResponseEntity.status(201).body(serviceItemService.createOption(serviceId, dto));
+    }
+
+    @PutMapping("/options/{optionId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ServiceOptionResponseDTO> updateOption(
+            @PathVariable UUID optionId,
+            @Valid @RequestBody ServiceOptionRequestDTO dto) {
+        return ResponseEntity.ok(serviceItemService.updateOption(optionId, dto));
+    }
+
+    @DeleteMapping("/options/{optionId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteOption(@PathVariable UUID optionId) {
+        serviceItemService.deleteOption(optionId);
+        return ResponseEntity.noContent().build();
     }
 
     // ---------------------------------- DELETE ----------------------------------

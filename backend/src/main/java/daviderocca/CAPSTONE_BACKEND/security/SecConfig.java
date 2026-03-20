@@ -98,6 +98,11 @@ public class SecConfig {
                                 .requestMatchers(HttpMethod.GET, "/checkout/bookings/booking-summary").permitAll()
                                 .requestMatchers(HttpMethod.GET,  "/checkout/order-summary").permitAll()
 
+                        // SERVICE-ITEMS WRITE — ADMIN only
+                        .requestMatchers(HttpMethod.POST,   "/service-items/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/service-items/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/service-items/**").hasRole("ADMIN")
+
                         // PUBLIC GET
                         .requestMatchers(HttpMethod.GET,
                                 "/products/**",

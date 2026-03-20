@@ -1,26 +1,16 @@
-import { Modal, Button } from "react-bootstrap";
+// Migrated to ConfirmDialog — 2026-03-20 — see _unified-drawer.css
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
-const DeleteServiceModal = ({ show, onHide, service, onConfirm }) => {
-  if (!service) return null;
-
-  return (
-    <Modal show={show} onHide={onHide} centered>
-      <Modal.Header closeButton>
-        <Modal.Title>Conferma eliminazione</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        Sei sicuro di voler eliminare il servizio <strong>{service.title}</strong>? Questa azione non può essere annullata.
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={onHide}>
-          Annulla
-        </Button>
-        <Button variant="danger" onClick={() => onConfirm(service.serviceId)}>
-          Elimina
-        </Button>
-      </Modal.Footer>
-    </Modal>
-  );
-};
+const DeleteServiceModal = ({ show, onHide, service, onConfirm }) => (
+  <ConfirmDialog
+    show={show && Boolean(service)}
+    onHide={onHide}
+    onConfirm={() => onConfirm(service?.serviceId)}
+    title="Elimina servizio"
+    message={`Sei sicuro di voler eliminare "${service?.title}"? Questa azione non può essere annullata.`}
+    confirmLabel="Elimina"
+    confirmVariant="danger"
+  />
+);
 
 export default DeleteServiceModal;

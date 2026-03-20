@@ -1,8 +1,9 @@
-import { Button, Form, Modal, Spinner } from "react-bootstrap";
+// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
+import { Form, Spinner } from "react-bootstrap";
 import { createProduct, updateProduct } from "../../api/modules/products.api";
 import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
-import useLenisModalLock from "../../hooks/useLenisModalLock";
+import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 
 const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => {
   const { accessToken } = useSelector(state => state.auth);
@@ -33,8 +34,6 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
     setFile(null);
     setErrors({});
   };
-
-  useLenisModalLock(show);
 
   useEffect(() => {
     if (isEdit) {
@@ -131,96 +130,89 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
   };
 
   return (
-    <Modal show={show} onHide={onHide} scrollable centered>
-      <Modal.Header closeButton>
-        <Modal.Title>{isEdit ? "Modifica Prodotto" : "Aggiungi Prodotto"}</Modal.Title>
-      </Modal.Header>
-      <Modal.Body
-        data-lenis-prevent
-        style={{
-          maxHeight: "80vh",
-          overflowY: "auto",
-          overscrollBehavior: "contain",
-        }}
-      >
-        {errors.general && <p className="text-danger">{errors.general}</p>}
+    <UnifiedDrawer
+      show={show}
+      onHide={onHide}
+      title={isEdit ? "Modifica Prodotto" : "Aggiungi Prodotto"}
+      size="md"
+      footer={
+        <div className="ud-footer-actions">
+          <button type="button" className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>
+            Chiudi
+          </button>
+          <button type="button" className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size="sm" animation="border" /> : isEdit ? "Salva modifiche" : "Crea"}
+          </button>
+        </div>
+      }
+    >
+      {errors.general && <p className="ud-error">{errors.general}</p>}
 
-        <Form>
-          <Form.Group className="mb-3">
-            <Form.Label>Nome *</Form.Label>
-            <Form.Control type="text" value={form.name} onChange={e => handleChange("name", e.target.value)} isInvalid={!!errors.name} />
-            <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
-          </Form.Group>
+      <Form className="d-flex flex-column gap-3">
+        <Form.Group>
+          <Form.Label>Nome *</Form.Label>
+          <Form.Control type="text" value={form.name} onChange={e => handleChange("name", e.target.value)} isInvalid={!!errors.name} />
+          <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Prezzo (€) *</Form.Label>
-            <Form.Control type="text" value={form.price} onChange={e => handleChange("price", e.target.value)} isInvalid={!!errors.price} />
-            <Form.Control.Feedback type="invalid">{errors.price}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Prezzo (€) *</Form.Label>
+          <Form.Control type="text" value={form.price} onChange={e => handleChange("price", e.target.value)} isInvalid={!!errors.price} />
+          <Form.Control.Feedback type="invalid">{errors.price}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Descrizione breve *</Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={2}
-              value={form.shortDescription}
-              onChange={e => handleChange("shortDescription", e.target.value)}
-              isInvalid={!!errors.shortDescription}
-            />
-            <Form.Control.Feedback type="invalid">{errors.shortDescription}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Descrizione breve *</Form.Label>
+          <Form.Control
+            as="textarea"
+            rows={2}
+            value={form.shortDescription}
+            onChange={e => handleChange("shortDescription", e.target.value)}
+            isInvalid={!!errors.shortDescription}
+          />
+          <Form.Control.Feedback type="invalid">{errors.shortDescription}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Descrizione *</Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={3}
-              value={form.description}
-              onChange={e => handleChange("description", e.target.value)}
-              isInvalid={!!errors.description}
-            />
-            <Form.Control.Feedback type="invalid">{errors.description}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Descrizione *</Form.Label>
+          <Form.Control
+            as="textarea"
+            rows={3}
+            value={form.description}
+            onChange={e => handleChange("description", e.target.value)}
+            isInvalid={!!errors.description}
+          />
+          <Form.Control.Feedback type="invalid">{errors.description}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Stock *</Form.Label>
-            <Form.Control type="number" value={form.stock} onChange={e => handleChange("stock", e.target.value)} isInvalid={!!errors.stock} />
-            <Form.Control.Feedback type="invalid">{errors.stock}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Stock *</Form.Label>
+          <Form.Control type="number" value={form.stock} onChange={e => handleChange("stock", e.target.value)} isInvalid={!!errors.stock} />
+          <Form.Control.Feedback type="invalid">{errors.stock}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Categoria *</Form.Label>
-            <Form.Select value={form.categoryId} onChange={e => handleChange("categoryId", e.target.value)} isInvalid={!!errors.categoryId}>
-              <option value="">-- Seleziona una categoria --</option>
-              {categories.map(c => (
-                <option key={c.categoryId} value={c.categoryId}>
-                  {c.label}
-                </option>
-              ))}
-            </Form.Select>
-            <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
-          </Form.Group>
+        <Form.Group>
+          <Form.Label>Categoria *</Form.Label>
+          <Form.Select value={form.categoryId} onChange={e => handleChange("categoryId", e.target.value)} isInvalid={!!errors.categoryId}>
+            <option value="">-- Seleziona una categoria --</option>
+            {categories.map(c => (
+              <option key={c.categoryId} value={c.categoryId}>
+                {c.label}
+              </option>
+            ))}
+          </Form.Select>
+          <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
+        </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Immagine</Form.Label>
-
-            {isEdit && product.images?.length > 0 && !file && (
-              <small className="d-block text-muted mb-2">L'immagine attuale rimarrà se non ne carichi una nuova</small>
-            )}
-
-            <Form.Control type="file" accept="image/*" onChange={handleFileChange} />
-          </Form.Group>
-        </Form>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={onHide} disabled={loading}>
-          Chiudi
-        </Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? <Spinner size="sm" animation="border" /> : isEdit ? "Salva modifiche" : "Crea"}
-        </Button>
-      </Modal.Footer>
-    </Modal>
+        <Form.Group>
+          <Form.Label>Immagine</Form.Label>
+          {isEdit && product.images?.length > 0 && !file && (
+            <small className="d-block text-muted mb-2">L'immagine attuale rimarrà se non ne carichi una nuova</small>
+          )}
+          <Form.Control type="file" accept="image/*" onChange={handleFileChange} />
+        </Form.Group>
+      </Form>
+    </UnifiedDrawer>
   );
 };
 

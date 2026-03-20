@@ -32,7 +32,6 @@ public class BookingController {
     }
 
     // ---------------------------------- ADMIN POST (agenda manual create) ----------------------------------
-    // Usato dall'agenda admin: POST /bookings
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BookingResponseDTO> createBookingFromAdmin(

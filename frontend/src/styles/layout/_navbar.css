@@ -1,8 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=Arapey:ital@0;1&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Montserrat:wght@300;400;500;600&display=swap");
 
 :root {
-  --nav-bg: rgba(255, 249, 241, 0.42);
-  --nav-bg-scrolled: rgba(255, 253, 250, 0.98);
+  --nav-bg: rgba(255, 246, 232, 0.38);
+  --nav-bg-scrolled: rgba(254, 248, 238, 0.96);
   --nav-text: #3e2723;
   --nav-gold: #d4af37;
 
@@ -32,12 +32,12 @@
 
 .nav-transparent {
   background: var(--nav-bg);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(8px);
 }
 
 .nav-scrolled {
   background: var(--nav-bg-scrolled);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
   height: var(--nav-height-scroll);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   border-bottom: 1px solid rgba(212, 175, 55, 0.2);
@@ -201,12 +201,12 @@
 /* --- MEDIA QUERY RESPONSIVE (992px - 1100px) --- */
 @media (min-width: 992px) and (max-width: 1100px) {
   .nav-links {
-    gap: 1.9rem !important;
+    gap: 1.4rem !important;
     transform: translateX(0);
   }
 
   .beauty-link {
-    font-size: 0.92rem !important;
+    font-size: 0.88rem !important;
     letter-spacing: 1px;
     margin: 0 0.1rem;
   }
@@ -228,13 +228,13 @@
 /* --- MEDIA QUERY RESPONSIVE (1101px - 1280px) --- */
 @media (min-width: 1101px) and (max-width: 1280px) {
   .nav-links {
-    gap: 2.2rem !important;
+    gap: 1.8rem !important;
     transform: translateX(0);
   }
 
   .beauty-link {
-    font-size: 0.98rem !important;
-    letter-spacing: 1.4px;
+    font-size: 0.94rem !important;
+    letter-spacing: 1.2px;
     margin: 0 0.2rem;
   }
 
@@ -653,3 +653,7 @@
     transform: scale(0.95);
   }
 }
+
+/* --- CTA PRENOTA (rimosso) --- */
+/* .nb-cta-prenota { … } */
+/* .nb-cta-prenota-mobile { … } */
