@@ -67,7 +67,9 @@ public class BookingCheckoutController {
                 payload.notes(),
                 payload.serviceId(),
                 payload.serviceOptionId(),
-                null  // packageCreditId non applicabile nel flow Stripe
+                null,                   // packageCreditId non applicabile nel flow Stripe
+                payload.promoPrice(),   // propaga prezzo promo
+                payload.promotionId()   // propaga id promo
         );
 
         return createStripeSessionForBooking(dto, currentUser);
@@ -92,7 +94,14 @@ public class BookingCheckoutController {
                     .orElseThrow(() -> new BadRequestException("Opzione non trovata."));
         }
 
-        BigDecimal amount = (option != null ? option.getPrice() : service.getPrice());
+        // Se arriva un prezzo promozionale valido dal frontend, usalo.
+        // Altrimenti fallback su option.price o service.price.
+        BigDecimal amount;
+        if (payload.promoPrice() != null && payload.promoPrice().compareTo(BigDecimal.ZERO) > 0) {
+            amount = payload.promoPrice();
+        } else {
+            amount = (option != null ? option.getPrice() : service.getPrice());
+        }
         if (amount == null || amount.signum() <= 0) throw new BadRequestException("Prezzo non valido.");
 
         int sessionsTotal = (option != null && option.getSessions() != null ? option.getSessions() : 1);
@@ -104,11 +113,21 @@ public class BookingCheckoutController {
                 .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                 .setMode(SessionCreateParams.Mode.PAYMENT)
                 .setSuccessUrl(frontUrl + "/prenotazione-confermata?session_id={CHECKOUT_SESSION_ID}")
-                .setCancelUrl(frontUrl + "/prenota?cancel=1")
+                .setCancelUrl(
+                        payload.promotionId() != null
+                                ? frontUrl + "/occasioni?cancel=1&tab=promozioni&promo=" + payload.promotionId()
+                                : frontUrl + "/trattamenti/" + service.getServiceId() + "?cancel=1"
+                )
                 .putMetadata("bookingId", bookingId)
                 .putMetadata("serviceId", service.getServiceId().toString())
                 .putMetadata("sessionsTotal", String.valueOf(sessionsTotal))
-                .setCustomerEmail(payload.customerEmail())
+                .setCustomerEmail(payload.customerEmail());
+
+        if (payload.promotionId() != null) {
+            builder.putMetadata("promotionId", payload.promotionId().toString());
+        }
+
+        builder
                 .setPaymentIntentData(
                         SessionCreateParams.PaymentIntentData.builder()
                                 .putMetadata("bookingId", bookingId)
@@ -126,7 +145,9 @@ public class BookingCheckoutController {
                                         .setUnitAmount(amount.movePointRight(2).longValueExact())
                                         .setProductData(
                                                 SessionCreateParams.LineItem.PriceData.ProductData.builder()
-                                                        .setName(service.getTitle() + (option != null ? " - " + option.getName() : ""))
+                                                        .setName(service.getTitle()
+                                                                + (option != null ? " — " + option.getName() : "")
+                                                                + (payload.promoPrice() != null ? " (Promozione)" : ""))
                                                         .build()
                                         )
                                         .build()

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -31,5 +32,12 @@ public record NewBookingDTO(
         UUID serviceOptionId,
 
         /** Opzionale: se presente la prenotazione viene collegata al pacchetto. */
-        UUID packageCreditId
+        UUID packageCreditId,
+
+        /** Prezzo promozionale totale (servizio + prodotti inclusi).
+         *  Se presente e > 0, sovrascrive il prezzo standard su Stripe. */
+        BigDecimal promoPrice,
+
+        /** ID promozione — usato per il metadata Stripe e per validazione futura. */
+        UUID promotionId
 ) {}

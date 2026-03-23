@@ -1,4 +1,3 @@
-// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
 import { useEffect, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
@@ -100,7 +99,15 @@ function BookingCalendar({ selected, onChange, minDate }) {
 }
 
 // FIX-2: initialOptionId viene passato da ServiceDetails quando il servizio ha opzioni
-const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
+const BookingModal = ({
+  show,
+  onHide,
+  service,
+  initialOptionId = null,
+  promoPrice = null,
+  promotionId = null,
+  promoProducts = [],
+}) => {
   const { accessToken, user } = useSelector(state => state.auth);
 
   const [step, setStep] = useState(1);
@@ -197,7 +204,11 @@ const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
         notes: customer.notes,
         startTime: `${day}T${slot.start}:00`,
         serviceId: service.serviceId,
-        serviceOptionId: initialOptionId, // FIX-2: passato da ServiceDetails
+        serviceOptionId: initialOptionId,
+        ...(promotionId != null && { promotionId: String(promotionId) }),
+        ...(promoPrice != null && promoPrice > 0 && {
+          promoPrice: parseFloat(promoPrice.toFixed(2)),
+        }),
       };
 
       // NIENTE token param: ci pensa httpClient/interceptor
@@ -231,11 +242,32 @@ const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
     reset();
   };
 
+  const promoOriginal =
+    promoPrice != null
+      ? (Number(service?.price || 0) + promoProducts.reduce((sum, p) => sum + Number(p?.price || 0), 0))
+      : null;
+
   const metaSubtitle = (service?.durationMin || service?.price != null) ? (
     <div className="bm-header__meta">
       {service.durationMin && <span className="bm-meta-pill">⏱ {service.durationMin} min</span>}
-      {service.price != null && (
-        <span className="bm-meta-pill">{service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+      {promoPrice != null ? (
+        <>
+          <span className="bm-meta-pill bm-meta-pill--orig">
+            {service.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+          </span>
+          <span className="bm-meta-pill bm-meta-pill--promo">
+            {promoPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+          </span>
+        </>
+      ) : service.price != null ? (
+        <span className="bm-meta-pill">
+          {service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+        </span>
+      ) : null}
+      {promoProducts.length > 0 && (
+        <div className="bm-meta-pill bm-meta-pill--product">
+          🎁 {promoProducts.map(p => p.name).join(", ")} incluso
+        </div>
       )}
     </div>
   ) : null;
@@ -389,10 +421,77 @@ const BookingModal = ({ show, onHide, service, initialOptionId = null }) => {
               <span>Durata</span>
               <strong>{service?.durationMin} min</strong>
             </div>
-            <div className="bm-summary__row">
-              <span>Prezzo</span>
-              <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
-            </div>
+            {promoPrice != null && promoOriginal != null ? (
+              <>
+                <div className="bm-summary__row">
+                  <span>{service?.title}</span>
+                  <strong>
+                    {service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                  </strong>
+                </div>
+
+                {promoProducts.map(p => (
+                  <div key={p.productId} className="bm-summary__row">
+                    <span>{p.name} <span style={{ fontSize: "0.72rem", color: "#b8976a" }}>incluso</span></span>
+                    <strong>
+                      {Number(p.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                    </strong>
+                  </div>
+                ))}
+
+                <div className="bm-summary__row" style={{ marginTop: "4px" }}>
+                  <span style={{ fontWeight: 600, color: "#2e2118" }}>Totale listino</span>
+                  <strong style={{ textDecoration: "line-through", color: "#b0a09a" }}>
+                    {promoOriginal.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                  </strong>
+                </div>
+
+                <div className="bm-summary__divider" />
+
+                <div className="bm-summary__row">
+                  <span style={{ fontWeight: 700, color: "#2e2118" }}>Prezzo promozione</span>
+                  <strong style={{ fontSize: "1.1rem", color: "#2e2118" }}>
+                    {promoPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                  </strong>
+                </div>
+
+                <div className="bm-summary__row">
+                  <span style={{ fontSize: "0.8rem", color: "#8c6d3f" }}>Risparmi</span>
+                  <span style={{
+                    fontSize: "0.78rem",
+                    background: "rgba(184,151,106,0.13)",
+                    color: "#8c6d3f",
+                    padding: "0.15rem 0.55rem",
+                    borderRadius: "999px",
+                    fontWeight: 700
+                  }}>
+                    {(promoOriginal - promoPrice).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="bm-summary__row">
+                <span>Prezzo</span>
+                <strong>
+                  {service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                </strong>
+              </div>
+            )}
+            {promoProducts.length > 0 && (
+              <>
+                <div className="bm-summary__divider" />
+                <div className="bm-summary__row bm-summary__row--highlight">
+                  <span>Prodotto incluso</span>
+                  <strong>{promoProducts.map(p => p.name).join(", ")}</strong>
+                </div>
+                <div className="bm-summary__row">
+                  <span style={{ fontSize: "0.78rem", color: "#9c8880" }}>Consegna</span>
+                  <span style={{ fontSize: "0.78rem", color: "#9c8880", textAlign: "right" }}>
+                    Il giorno del trattamento
+                  </span>
+                </div>
+              </>
+            )}
             <div className="bm-summary__divider" />
             <div className="bm-summary__row">
               <span>Data</span>

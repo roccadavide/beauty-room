@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Button, Card, Col, Container, Row, Spinner } from "react-bootstrap";
+import { Button, Col, Container, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { Link } from "react-router-dom";
-import { PencilFill, Plus, Trash2Fill } from "react-bootstrap-icons";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { PencilFill, Plus } from "react-bootstrap-icons";
 import PromotionDrawer from "./PromotionDrawer";
-import PromoCountdown from "./PromoCountdown";
 import PackageDrawer from "./PackageDrawer";
+import BookingModal from "../bookings/BookingModal";
 import DeletePromotionModal from "../promotions/DeletePromotionModal";
+import PromoCard from "./PromoCard";
+import PromoDetailDrawer from "./PromoDetailDrawer";
 import { fetchPackages } from "../../api/modules/packages.api";
 import { fetchPromotions, deletePromotion } from "../../api/modules/promotions.api";
 import { fetchProducts } from "../../api/modules/products.api";
@@ -30,6 +32,7 @@ const getTotalOriginalPrice = (promotion, products, services) => {
 // ═════════════════════════════════════════════════════════════════════════════
 
 function OccasioniPage() {
+  const navigate = useNavigate();
   const { user, accessToken } = useSelector(state => state.auth);
   const [activeTab, setActiveTab] = useState("pacchetti");
 
@@ -50,6 +53,16 @@ function OccasioniPage() {
   const [editingPromotion, setEditingPromotion] = useState(null);
   const [deleteModal, setDeleteModal] = useState(false);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
+  const [drawerPromo, setDrawerPromo] = useState(null);
+  const [bookingService,       setBookingService]       = useState(null);
+  const [bookingPromoPrice,    setBookingPromoPrice]    = useState(null);
+  const [bookingPromoId,       setBookingPromoId]       = useState(null);
+  const [bookingPromoProducts, setBookingPromoProducts] = useState([]);
+  const [openBooking,          setOpenBooking]          = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wasCancelled = searchParams.get("cancel") === "1";
+  const cancelPromoId = searchParams.get("promo");
+  const cancelTab = searchParams.get("tab");
 
   // Admin pacchetti state
   const [openPkg, setOpenPkg] = useState(false);
@@ -93,21 +106,6 @@ function OccasioniPage() {
     load();
   }, []);
 
-  // ── IntersectionObserver per promozioni ───────────────────────────────────
-
-  useEffect(() => {
-    const obs = new IntersectionObserver(
-      entries => entries.forEach(e => e.isIntersecting && setVisibleMap(prev => ({ ...prev, [e.target.dataset.id]: true }))),
-      { threshold: 0.2 },
-    );
-    const targets = [...cardsRef.current].filter(Boolean);
-    targets.forEach(el => obs.observe(el));
-    return () => {
-      targets.forEach(el => obs.unobserve(el));
-      obs.disconnect();
-    };
-  }, [allPromos]);
-
   // ── computed ──────────────────────────────────────────────────────────────
 
   const grouped = useMemo(() => {
@@ -125,6 +123,56 @@ function OccasioniPage() {
     const base = user?.role === "ADMIN" ? allPromos : allPromos.filter(p => p.active && (!p.endDate || new Date(p.endDate) >= today));
     return base.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
   }, [allPromos, user]);
+
+  // ── IntersectionObserver per promozioni ───────────────────────────────────
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      entries =>
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            setVisibleMap(prev => ({ ...prev, [e.target.dataset.id]: true }));
+          }
+        }),
+      { threshold: 0.2 },
+    );
+    const targets = [...cardsRef.current].filter(Boolean);
+    targets.forEach(el => obs.observe(el));
+
+    const fallbackTimer = setTimeout(() => {
+      const allVisible = {};
+      filteredPromos.forEach(p => {
+        allVisible[String(p.promotionId)] = true;
+      });
+      setVisibleMap(prev => ({ ...prev, ...allVisible }));
+    }, 400);
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      targets.forEach(el => obs.unobserve(el));
+      obs.disconnect();
+    };
+  }, [filteredPromos]);
+
+  useEffect(() => {
+    if (!cancelPromoId || allPromos.length === 0) return;
+    if (cancelTab) setActiveTab(cancelTab);
+    const promo = allPromos.find(p => String(p.promotionId) === cancelPromoId);
+    if (promo) setDrawerPromo(promo);
+  }, [cancelPromoId, cancelTab, allPromos]);
+
+  useEffect(() => {
+    if (!wasCancelled) return;
+    const t = setTimeout(() => {
+      setSearchParams(prev => {
+        prev.delete("cancel");
+        prev.delete("promo");
+        prev.delete("tab");
+        return prev;
+      });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [wasCancelled, setSearchParams]);
 
   // ── admin handlers ────────────────────────────────────────────────────────
 
@@ -300,85 +348,36 @@ function OccasioniPage() {
 
           {!promoLoading && !promoError && filteredPromos.length === 0 && <p className="of-empty">Nessuna promozione attiva al momento. Torna presto!</p>}
 
-          <Row className="g-4 justify-content-center">
+          <div className="promo-grid">
             {filteredPromos.map((p, idx) => {
               const totalOriginal = getTotalOriginalPrice(p, products, services);
               const totalDiscounted = totalOriginal ? getDiscountedPrice(totalOriginal, p.discountType, p.discountValue) : null;
-              const img = p.cardImageUrl || p.bannerImageUrl || "/assets/placeholder.jpg";
-              const discount =
-                p.discountType === "PERCENTAGE" ? `-${p.discountValue}%` : p.discountType === "FIXED" ? `-€${Number(p.discountValue).toFixed(2)}` : null;
-
               return (
-                <Col key={p.promotionId} xs={12} sm={6} md={4} lg={3} className="d-flex justify-content-center">
-                  <Card
-                    data-id={p.promotionId}
-                    ref={el => (cardsRef.current[idx] = el)}
-                    className={`promo-card border-0 rounded-4 shadow-lg overflow-hidden position-relative ${visibleMap[p.promotionId] ? "visible" : ""}`}
-                  >
-                    <div className="promo-img-wrapper position-relative">
-                      <Card.Img src={img} alt={p.title} className="promo-img" />
-                      {discount && <div className="promo-badge">{discount}</div>}
-                      {user?.role === "ADMIN" && !p.active && (
-                        <Badge bg="secondary" className="position-absolute top-0 start-0 m-2">
-                          Inattiva
-                        </Badge>
-                      )}
-                    </div>
-                    <Card.Body className="text-center d-flex flex-column justify-content-between p-4">
-                      <div>
-                        <Card.Title className="fw-bold fs-5 mb-1">{p.title}</Card.Title>
-                        {p.subtitle && <p className="text-muted small mb-3">{p.subtitle}</p>}
-                        {totalOriginal > 0 && totalDiscounted && (
-                          <div className="price-block">
-                            <span className="old-price text-muted text-decoration-line-through">
-                              {totalOriginal.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                            </span>
-                            <span className="price-arrow mx-2">→</span>
-                            <span className="new-price text-success fw-bold fs-4">
-                              {totalDiscounted.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                            </span>
-                          </div>
-                        )}
-                        {p.endDate && <PromoCountdown endDate={p.endDate} />}
-                      </div>
-                      <div className="mt-3">
-                        <small className="text-muted d-block">
-                          {p.startDate ? new Date(p.startDate).toLocaleDateString() : ""}
-                          {p.endDate ? ` → ${new Date(p.endDate).toLocaleDateString()}` : ""}
-                        </small>
-                        {user?.role === "ADMIN" && (
-                          <div className="d-flex gap-2 justify-content-center mt-3">
-                            <Button
-                              size="sm"
-                              variant="outline-secondary"
-                              className="rounded-circle"
-                              onClick={() => {
-                                setEditingPromotion(p);
-                                setOpenPromo(true);
-                              }}
-                            >
-                              <PencilFill />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline-danger"
-                              className="rounded-circle"
-                              onClick={() => {
-                                setSelectedPromotion(p);
-                                setDeleteModal(true);
-                              }}
-                            >
-                              <Trash2Fill />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </Card.Body>
-                  </Card>
-                </Col>
+                <div
+                  key={p.promotionId}
+                  data-id={String(p.promotionId)}
+                  ref={el => (cardsRef.current[idx] = el)}
+                  className={`pc-anim ${visibleMap[String(p.promotionId)] ? "pc-visible" : ""}`}
+                >
+                  <PromoCard
+                    promo={p}
+                    totalOriginal={totalOriginal}
+                    totalDiscounted={totalDiscounted}
+                    isAdmin={user?.role === "ADMIN"}
+                    onEdit={promo => {
+                      setEditingPromotion(promo);
+                      setOpenPromo(true);
+                    }}
+                    onDelete={promo => {
+                      setSelectedPromotion(promo);
+                      setDeleteModal(true);
+                    }}
+                    onClick={promo => setDrawerPromo(promo)}
+                  />
+                </div>
               );
             })}
-          </Row>
+          </div>
 
           {user?.role === "ADMIN" && (
             <>
@@ -398,6 +397,38 @@ function OccasioniPage() {
           )}
         </Container>
       )}
+
+      <PromoDetailDrawer
+        show={!!drawerPromo}
+        onHide={() => setDrawerPromo(null)}
+        promo={drawerPromo}
+        products={products}
+        services={services}
+        showCancelBanner={wasCancelled && !!cancelPromoId}
+        onBooking={(service, promoPrice, promotionId, promoProducts = []) => {
+          setDrawerPromo(null);
+          setBookingService(service);
+          setBookingPromoPrice(promoPrice);
+          setBookingPromoId(promotionId);
+          setBookingPromoProducts(promoProducts);
+          setOpenBooking(true);
+        }}
+      />
+
+      <BookingModal
+        show={openBooking}
+        onHide={() => {
+          setOpenBooking(false);
+          setBookingService(null);
+          setBookingPromoPrice(null);
+          setBookingPromoId(null);
+          setBookingPromoProducts([]);
+        }}
+        service={bookingService}
+        promoPrice={bookingPromoPrice}
+        promotionId={bookingPromoId}
+        promoProducts={bookingPromoProducts}
+      />
     </Container>
   );
 }

@@ -4,30 +4,73 @@ import { Col, Form, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createPromotion, updatePromotion } from "../../api/modules/promotions.api";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import ServiceProductSelector from "./ServiceProductSelector";
+
+const ImageUploadZone = ({ current, onFile, aspectHint }) => {
+  const [preview, setPreview] = useState(current || null);
+  const handleFile = f => {
+    setPreview(URL.createObjectURL(f));
+    onFile(f);
+  };
+  return (
+    <div
+      className="img-upload-zone"
+      onDragOver={e => e.preventDefault()}
+      onDrop={e => {
+        e.preventDefault();
+        if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+      }}
+      onClick={() => document.getElementById(`file-${aspectHint}`)?.click()}
+    >
+      {preview ? (
+        <img src={preview} alt="preview" className="img-upload-preview" />
+      ) : (
+        <span className="img-upload-placeholder">Trascina qui o clicca · {aspectHint}</span>
+      )}
+      <input
+        id={`file-${aspectHint}`}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={e => {
+          if (e.target.files[0]) handleFile(e.target.files[0]);
+        }}
+      />
+    </div>
+  );
+};
 
 const DISCOUNT_TYPES = [
-  { v: "NONE",           l: "Nessuno sconto" },
-  { v: "PERCENTAGE",     l: "Sconto percentuale (%)" },
-  { v: "FIXED",          l: "Sconto importo fisso (€)" },
+  { v: "NONE", l: "Nessuno sconto" },
+  { v: "PERCENTAGE", l: "Sconto percentuale (%)" },
+  { v: "FIXED", l: "Sconto importo fisso (€)" },
   { v: "PRICE_OVERRIDE", l: "Prezzo finale personalizzato (€)" },
 ];
 
 const SCOPES = [
-  { v: "GLOBAL",   l: "Tutto il sito" },
+  { v: "GLOBAL", l: "Tutto il sito" },
   { v: "PRODUCTS", l: "Solo Prodotti" },
   { v: "SERVICES", l: "Solo Trattamenti" },
-  { v: "MIXED",    l: "Prodotti e Trattamenti insieme" },
+  { v: "MIXED", l: "Prodotti e Trattamenti insieme" },
 ];
 
 const initialForm = {
-  title: "", subtitle: "", description: "",
-  ctaLabel: "", ctaLink: "",
-  startDate: "", endDate: "",
-  active: true, onlineOnly: false,
+  title: "",
+  subtitle: "",
+  description: "",
+  ctaLabel: "",
+  ctaLink: "",
+  startDate: "",
+  endDate: "",
+  active: true,
+  onlineOnly: false,
   priority: 0,
-  discountType: "NONE", discountValue: "",
+  discountType: "NONE",
+  discountValue: "",
   scope: "GLOBAL",
-  productIds: [], serviceIds: [], categoryIds: [],
+  productIds: [],
+  serviceIds: [],
+  categoryIds: [],
 };
 
 const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion }) => {
@@ -72,15 +115,9 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
     }
   }, [show, isEdit, promotion]);
 
-
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
     setErrors(prev => ({ ...prev, [field]: null }));
-  };
-
-  const handleMultiSelect = (field, options) => {
-    const values = Array.from(options).filter(o => o.selected).map(o => o.value);
-    setForm(prev => ({ ...prev, [field]: values }));
   };
 
   const validateField = (field, value) => {
@@ -99,8 +136,7 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
         }
         break;
       case "endDate":
-        if (form.startDate && value && new Date(value) < new Date(form.startDate))
-          return "La data di fine deve essere dopo la data di inizio.";
+        if (form.startDate && value && new Date(value) < new Date(form.startDate)) return "La data di fine deve essere dopo la data di inizio.";
         break;
       default:
         return null;
@@ -116,8 +152,7 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
     });
     if (form.scope === "PRODUCTS" && !form.productIds?.length) errs.scope = "Seleziona almeno un prodotto.";
     if (form.scope === "SERVICES" && !form.serviceIds?.length) errs.scope = "Seleziona almeno un servizio.";
-    if (form.scope === "MIXED" && !form.productIds?.length && !form.serviceIds?.length)
-      errs.scope = "Seleziona almeno un prodotto o un servizio.";
+    if (form.scope === "MIXED" && !form.productIds?.length && !form.serviceIds?.length) errs.scope = "Seleziona almeno un prodotto o un servizio.";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -151,11 +186,9 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
     setErrorMsg("");
     try {
       const files = { bannerImage, cardImage };
-      const saved = isEdit
-        ? await updatePromotion(promotion.promotionId, payload, files, accessToken)
-        : await createPromotion(payload, files, accessToken);
+      const saved = isEdit ? await updatePromotion(promotion.promotionId, payload, files, accessToken) : await createPromotion(payload, files, accessToken);
       onSaved(saved);
-      handleClose();
+      onHide();
     } catch (err) {
       setErrorMsg(err?.response?.data?.message || err.message || "Errore durante il salvataggio.");
     } finally {
@@ -177,7 +210,15 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
               Annulla
             </button>
             <button type="button" className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
-              {loading ? <><Spinner size="sm" animation="border" /> Salvataggio…</> : isEdit ? "Salva modifiche" : "Crea"}
+              {loading ? (
+                <>
+                  <Spinner size="sm" animation="border" /> Salvataggio…
+                </>
+              ) : isEdit ? (
+                "Salva modifiche"
+              ) : (
+                "Crea"
+              )}
             </button>
           </div>
         </>
@@ -213,27 +254,6 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
           </Col>
           <Col md={6}>
             <Form.Group>
-              <Form.Label>Testo del bottone</Form.Label>
-              <Form.Control
-                placeholder="Es. Scopri ora"
-                value={form.ctaLabel}
-                onChange={e => handleChange("ctaLabel", e.target.value)}
-              />
-              <Form.Text className="text-muted">Lascia vuoto per non mostrare il bottone</Form.Text>
-            </Form.Group>
-          </Col>
-          <Col md={6}>
-            <Form.Group>
-              <Form.Label>Link del bottone</Form.Label>
-              <Form.Control
-                placeholder="Es. /trattamenti"
-                value={form.ctaLink}
-                onChange={e => handleChange("ctaLink", e.target.value)}
-              />
-            </Form.Group>
-          </Col>
-          <Col md={6}>
-            <Form.Group>
               <Form.Label>Data inizio</Form.Label>
               <Form.Control type="date" value={form.startDate || ""} onChange={e => handleChange("startDate", e.target.value)} />
             </Form.Group>
@@ -249,7 +269,11 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
             <Form.Group>
               <Form.Label>Tipo di sconto</Form.Label>
               <Form.Select value={form.discountType} onChange={e => handleChange("discountType", e.target.value)}>
-                {DISCOUNT_TYPES.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                {DISCOUNT_TYPES.map(o => (
+                  <option key={o.v} value={o.v}>
+                    {o.l}
+                  </option>
+                ))}
               </Form.Select>
             </Form.Group>
           </Col>
@@ -257,7 +281,8 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
             <Form.Group>
               <Form.Label>Valore sconto</Form.Label>
               <Form.Control
-                type="number" step="0.01"
+                type="number"
+                step="0.01"
                 disabled={form.discountType === "NONE"}
                 value={form.discountValue}
                 onChange={e => handleChange("discountValue", e.target.value)}
@@ -270,54 +295,47 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
             <Form.Check type="switch" id="pd-active" label="Promozione attiva" checked={form.active} onChange={e => handleChange("active", e.target.checked)} />
           </Col>
           <Col md={6}>
-            <Form.Check type="switch" id="pd-online" label="Visibile solo online" checked={form.onlineOnly} onChange={e => handleChange("onlineOnly", e.target.checked)} />
+            <Form.Check
+              type="switch"
+              id="pd-online"
+              label="Visibile solo online"
+              checked={form.onlineOnly}
+              onChange={e => handleChange("onlineOnly", e.target.checked)}
+            />
           </Col>
           <Col md={12}>
             <Form.Group>
               <Form.Label>A chi si applica</Form.Label>
               <Form.Select value={form.scope} onChange={e => handleChange("scope", e.target.value)} isInvalid={!!errors.scope}>
-                {SCOPES.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}
+                {SCOPES.map(s => (
+                  <option key={s.v} value={s.v}>
+                    {s.l}
+                  </option>
+                ))}
               </Form.Select>
               <Form.Control.Feedback type="invalid">{errors.scope}</Form.Control.Feedback>
             </Form.Group>
           </Col>
-          {(form.scope === "PRODUCTS" || form.scope === "MIXED") && (
+          {form.scope !== "GLOBAL" && (
             <Col md={12}>
-              <Form.Group>
-                <Form.Label>Prodotti inclusi</Form.Label>
-                <Form.Select multiple value={form.productIds} onChange={e => handleMultiSelect("productIds", e.target.options)}>
-                  {products.map(p => <option key={p.productId} value={p.productId}>{p.name}</option>)}
-                </Form.Select>
-              </Form.Group>
+              <ServiceProductSelector
+                scope={form.scope}
+                services={services}
+                products={products}
+                selectedServiceIds={form.serviceIds.map(String)}
+                selectedProductIds={form.productIds.map(String)}
+                onServicesChange={ids => handleChange("serviceIds", ids)}
+                onProductsChange={ids => handleChange("productIds", ids)}
+              />
             </Col>
           )}
-          {(form.scope === "SERVICES" || form.scope === "MIXED") && (
-            <Col md={12}>
-              <Form.Group>
-                <Form.Label>Servizi inclusi</Form.Label>
-                <Form.Select multiple value={form.serviceIds} onChange={e => handleMultiSelect("serviceIds", e.target.options)}>
-                  {services.map(s => <option key={s.serviceId} value={s.serviceId}>{s.title}</option>)}
-                </Form.Select>
-              </Form.Group>
-            </Col>
-          )}
-          <Col md={6}>
-            <Form.Group>
-              <Form.Label>Immagine banner (orizzontale, grande)</Form.Label>
-              <Form.Control type="file" accept="image/*" onChange={e => setBannerImage(e.target.files[0])} />
-              {isEdit && promotion.bannerImageUrl && !bannerImage && (
-                <small className="text-muted d-block mt-1">Immagine attuale mantenuta</small>
-              )}
-            </Form.Group>
+          <Col md={12}>
+            <p className="form-label mb-2">Immagine card (4:3 — anteprima lista)</p>
+            <ImageUploadZone current={isEdit ? promotion.cardImageUrl : null} onFile={file => setCardImage(file)} aspectHint="4:3" />
           </Col>
-          <Col md={6}>
-            <Form.Group>
-              <Form.Label>Immagine card (quadrata, anteprima)</Form.Label>
-              <Form.Control type="file" accept="image/*" onChange={e => setCardImage(e.target.files[0])} />
-              {isEdit && promotion.cardImageUrl && !cardImage && (
-                <small className="text-muted d-block mt-1">Immagine attuale mantenuta</small>
-              )}
-            </Form.Group>
+          <Col md={12} className="mt-2">
+            <p className="form-label mb-2">Immagine banner (16:9 — header drawer)</p>
+            <ImageUploadZone current={isEdit ? promotion.bannerImageUrl : null} onFile={file => setBannerImage(file)} aspectHint="16:9" />
           </Col>
         </Row>
       </Form>

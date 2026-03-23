@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
@@ -33,17 +33,25 @@ const ServiceDetail = () => {
   const [selectedOption, setSelectedOption] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
   const [addedFeedback, setAddedFeedback] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wasCancelled = searchParams.get("cancel") === "1";
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   useEffect(() => {
+    if (!wasCancelled) return;
+    const t = setTimeout(() => {
+      const next = new URLSearchParams(searchParams);
+      next.delete("cancel");
+      setSearchParams(next, { replace: true });
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [wasCancelled, searchParams, setSearchParams]);
+
+  useEffect(() => {
     const loadServices = async () => {
       try {
-        const [found, all, cats] = await Promise.all([
-          fetchServiceById(serviceId),
-          fetchServices(),
-          fetchCategories(),
-        ]);
+        const [found, all, cats] = await Promise.all([fetchServiceById(serviceId), fetchServices(), fetchCategories()]);
         setService(found || null);
         setAllServices(all);
         setCategories(cats);
@@ -85,28 +93,26 @@ const ServiceDetail = () => {
     return groups;
   }, [activeOptions]);
   const hasGroups = optionGroups.length > 0;
-  const visibleOptions = hasGroups && activeGroup
-    ? activeOptions.filter(o => o.optionGroup === activeGroup)
-    : hasGroups
-      ? []
-      : activeOptions;
+  const visibleOptions = hasGroups && activeGroup ? activeOptions.filter(o => o.optionGroup === activeGroup) : hasGroups ? [] : activeOptions;
   const hasOptions = activeOptions.length > 0;
   const displayPrice = selectedOption?.price ?? service?.price;
 
   const handleAddPackageToCart = () => {
     if (!selectedOption) return;
-    dispatch(addToCart({
-      id: selectedOption.optionId,
-      type: "package",
-      optionId: selectedOption.optionId,
-      serviceId: service.serviceId,
-      name: `${service.title} — ${selectedOption.name}`,
-      price: selectedOption.price,
-      quantity: 1,
-      image: service.images?.[0],
-      sessions: selectedOption.sessions,
-      serviceName: service.title,
-    }));
+    dispatch(
+      addToCart({
+        id: selectedOption.optionId,
+        type: "package",
+        optionId: selectedOption.optionId,
+        serviceId: service.serviceId,
+        name: `${service.title} — ${selectedOption.name}`,
+        price: selectedOption.price,
+        quantity: 1,
+        image: service.images?.[0],
+        sessions: selectedOption.sessions,
+        serviceName: service.title,
+      }),
+    );
     setAddedFeedback(true);
     setTimeout(() => setAddedFeedback(false), 1800);
   };
@@ -134,6 +140,12 @@ const ServiceDetail = () => {
 
   return (
     <Container fluid="xxl" className="service-detail">
+      {wasCancelled && (
+        <div className="sd-cancel-banner">
+          <span className="sd-cancel-banner__icon">↩</span>
+          <span>Pagamento annullato — nessun addebito effettuato. Puoi riprovare quando vuoi.</span>
+        </div>
+      )}
       <Row className="justify-content-center align-items-start g-4 g-md-5">
         {/* ▸ IMMAGINE */}
         <Col md={5} lg={5} className="d-flex justify-content-center">
@@ -158,9 +170,7 @@ const ServiceDetail = () => {
 
           <div className="detail-price-block">
             <span className="detail-price">{displayPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-            <span className="detail-price-note">
-              {selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}
-            </span>
+            <span className="detail-price-note">{selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}</span>
           </div>
 
           {/* Selettore opzioni */}
@@ -199,15 +209,9 @@ const ServiceDetail = () => {
                         onClick={() => setSelectedOption(opt)}
                       >
                         <span className="so-option-name">{opt.name}</span>
-                        <span className="so-option-price">
-                          {opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                        </span>
-                        {opt.sessions > 1 && (
-                          <span className="so-option-sessions">{opt.sessions} sedute</span>
-                        )}
-                        {opt.gender && (
-                          <span className="so-option-gender">{opt.gender}</span>
-                        )}
+                        <span className="so-option-price">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                        {opt.sessions > 1 && <span className="so-option-sessions">{opt.sessions} sedute</span>}
+                        {opt.gender && <span className="so-option-gender">{opt.gender}</span>}
                       </button>
                     ))}
                   </div>
@@ -224,20 +228,12 @@ const ServiceDetail = () => {
 
           {/* Dual CTA */}
           <div className="detail-cart-actions">
-            <button
-              className="detail-pay-btn"
-              onClick={() => setOpen(true)}
-              disabled={hasOptions && selectedOption === null}
-            >
+            <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={hasOptions && selectedOption === null}>
               {hasOptions && selectedOption === null ? "Scegli un'opzione" : "Prenota ora"}
             </button>
 
             {hasOptions && (
-              <button
-                className={`detail-cart-btn${addedFeedback ? " added" : ""}`}
-                onClick={handleAddPackageToCart}
-                disabled={selectedOption === null}
-              >
+              <button className={`detail-cart-btn${addedFeedback ? " added" : ""}`} onClick={handleAddPackageToCart} disabled={selectedOption === null}>
                 {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
               </button>
             )}
@@ -259,10 +255,7 @@ const ServiceDetail = () => {
 
       {/* ▸ SERVIZI SIMILI */}
       {related.length > 0 && (
-        <section
-          ref={relatedRef}
-          className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}
-        >
+        <section ref={relatedRef} className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}>
           <div className="related-head">
             <span className="section-eyebrow">Scopri anche</span>
             <h3 className="related-title">Trattamenti simili</h3>
@@ -271,30 +264,19 @@ const ServiceDetail = () => {
             items={related}
             getKey={s => s.serviceId}
             renderCard={s => (
-              <div
-                className="related-card text-center"
-                onClick={() => navigate(`/trattamenti/${s.serviceId}`)}
-                style={{ cursor: "pointer" }}
-              >
+              <div className="related-card text-center" onClick={() => navigate(`/trattamenti/${s.serviceId}`)} style={{ cursor: "pointer" }}>
                 <div className="related-img-wrap mb-3">
                   <img src={s.images?.[0]} alt={s.title} className="img-fluid rounded-4" />
                 </div>
                 <h5>{s.title}</h5>
-                <p className="text-muted mb-0">
-                  {s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                </p>
+                <p className="text-muted mb-0">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</p>
               </div>
             )}
           />
         </section>
       )}
 
-      <BookingModal
-        show={open}
-        onHide={() => setOpen(false)}
-        service={service}
-        initialOptionId={selectedOption?.optionId ?? null}
-      />
+      <BookingModal show={open} onHide={() => setOpen(false)} service={service} initialOptionId={selectedOption?.optionId ?? null} />
     </Container>
   );
 };

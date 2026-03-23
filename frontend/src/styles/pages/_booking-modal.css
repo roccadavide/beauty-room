@@ -537,3 +537,25 @@
   }
 }
 
+/* ── Pillole prezzo promozionale ── */
+.bm-meta-pill--orig {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.bm-meta-pill--promo {
+  background: rgba(184, 151, 106, 0.15);
+  color: #8c6d3f;
+  font-weight: 700;
+}
+.bm-meta-pill--product {
+  background: rgba(184, 151, 106, 0.12);
+  color: #8c6d3f;
+  font-weight: 600;
+  width: 100%;
+  justify-content: center;
+  margin-top: 2px;
+}
+.bm-summary__row--highlight strong {
+  color: #b8976a;
+}
+

@@ -109,6 +109,8 @@ class BookingServiceTest {
                 "Note test",
                 serviceId,
                 optionId,
+                null,
+                null,
                 null
         );
 
