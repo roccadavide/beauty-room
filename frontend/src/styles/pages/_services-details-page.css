@@ -77,3 +77,355 @@
     transform: translateY(0);
   }
 }
+
+/* ── SELETTORE OPZIONI / ZONE / PACCHETTI ──────────────── */
+.so-selector {
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.so-selector--packages {
+  padding: 0.85rem 1rem;
+  background: rgba(184, 151, 106, 0.06);
+  border: 1px dashed rgba(184, 151, 106, 0.3);
+  border-radius: 14px;
+}
+
+.so-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #b8976a;
+  font-weight: 700;
+}
+
+.so-label--pkg {
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #7a6156;
+  font-weight: 600;
+}
+
+.so-group-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.so-group-pill {
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 151, 106, 0.3);
+  background: transparent;
+  color: #7a6156;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.so-group-pill:hover {
+  border-color: #b8976a;
+  color: #2e2118;
+}
+
+.so-group-pill--active {
+  background: #b8976a;
+  border-color: #b8976a;
+  color: #fff;
+}
+
+.so-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.so-option-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(184, 151, 106, 0.22);
+  background: #fdfaf6;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  width: 100%;
+}
+
+.so-option-card:hover {
+  border-color: #b8976a;
+  background: rgba(184, 151, 106, 0.05);
+}
+
+.so-option-card--selected {
+  border-color: #b8976a;
+  background: rgba(184, 151, 106, 0.1);
+  box-shadow: 0 0 0 2px rgba(184, 151, 106, 0.2);
+}
+
+.so-option-card--pkg {
+  background: #fff;
+}
+
+.so-option-name {
+  flex: 1;
+  font-size: 0.88rem;
+  color: #2e2118;
+  font-weight: 500;
+}
+
+.so-option-price {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #2e2118;
+  white-space: nowrap;
+}
+
+.so-option-sessions {
+  font-size: 0.72rem;
+  background: var(--card-gold, #b8976a);
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.so-option-gender {
+  font-size: 0.72rem;
+  color: #9c8880;
+  white-space: nowrap;
+}
+
+/* ── PackageDrawer: ricerca trattamento ──────────────────── */
+.pkg-service-search-wrap {
+  padding: 0.4rem 0.75rem;
+  background: #fffdf8;
+  border: 1px solid rgba(184, 151, 106, 0.2);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.pkg-service-search {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  color: #2e2118;
+  outline: none;
+}
+
+.pkg-service-search::placeholder {
+  color: #b0a09a;
+}
+
+.pkg-service-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid rgba(184, 151, 106, 0.15);
+  border-radius: 10px;
+  padding: 4px;
+  background: #fdfaf6;
+}
+
+/* ── SEZIONE PACCHETTI BEAUTY ROOM ──────────────────────── */
+.so-pkg-section {
+  margin: 1.25rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.so-pkg-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.so-pkg-eyebrow {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #b8976a;
+  font-weight: 700;
+}
+
+.so-pkg-subtitle {
+  font-size: 0.82rem;
+  color: #9c8880;
+  line-height: 1.4;
+}
+
+.so-pkg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.so-pkg-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto auto;
+  align-items: center;
+  gap: 3px 12px;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(184, 151, 106, 0.22);
+  background: #fdfaf6;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s ease,
+              background 0.2s ease,
+              box-shadow 0.2s ease,
+              transform 0.15s ease;
+  width: 100%;
+  overflow: hidden;
+}
+
+.so-pkg-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #b8976a, #8c6d3f);
+  border-radius: 3px 0 0 3px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.so-pkg-card:hover {
+  border-color: rgba(184, 151, 106, 0.45);
+  background: rgba(184, 151, 106, 0.04);
+  transform: translateX(2px);
+}
+
+.so-pkg-card--selected {
+  border-color: #b8976a;
+  background: rgba(184, 151, 106, 0.09);
+  box-shadow: 0 0 0 3px rgba(184, 151, 106, 0.15);
+}
+
+.so-pkg-card--selected::before {
+  opacity: 1;
+}
+
+.so-pkg-sessions-badge {
+  grid-column: 2;
+  grid-row: 1;
+  background: var(--card-gold, #b8976a);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  justify-self: end;
+}
+
+.so-pkg-name {
+  grid-column: 1;
+  grid-row: 1;
+  font-family: "Petrona", serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #2e2118;
+  line-height: 1.3;
+}
+
+.so-pkg-price-block {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.so-pkg-price-full {
+  font-size: 0.82rem;
+  color: #b0a09a;
+  text-decoration: line-through;
+}
+
+.so-pkg-price-actual {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #2e2118;
+}
+
+.so-pkg-savings {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 0.72rem;
+  background: rgba(184, 151, 106, 0.13);
+  color: #8c6d3f;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+  justify-self: end;
+  align-self: center;
+}
+
+.so-pkg-gender {
+  grid-column: 1;
+  grid-row: 3;
+  font-size: 0.72rem;
+  color: #9c8880;
+  margin-top: 2px;
+}
+
+.so-pkg-check {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 18px;
+  height: 18px;
+  background: #b8976a;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.so-pkg-card--selected .so-pkg-name,
+.so-pkg-card--selected .so-pkg-price-block {
+  padding-left: 26px;
+}
+
+.so-pkg-note {
+  font-size: 0.78rem;
+  color: #9c8880;
+  text-align: center;
+  margin: 0;
+  padding: 0.5rem;
+  border-top: 1px dashed rgba(184, 151, 106, 0.25);
+}
+
+.detail-pay-btn {
+  transition: background 0.2s ease,
+              transform 0.15s ease,
+              box-shadow 0.2s ease;
+}
+
+.detail-pay-btn:not(:disabled):active {
+  transform: scale(0.98);
+}

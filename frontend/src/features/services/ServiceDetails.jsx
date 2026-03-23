@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useDispatch } from "react-redux";
 import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
-import { addToCart } from "../cart/slices/cart.slice";
 import BookingModal from "../bookings/BookingModal";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
 
@@ -32,11 +30,9 @@ const ServiceDetail = () => {
   const [open, setOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
-  const [addedFeedback, setAddedFeedback] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const wasCancelled = searchParams.get("cancel") === "1";
   const navigate = useNavigate();
-  const dispatch = useDispatch();
 
   useEffect(() => {
     if (!wasCancelled) return;
@@ -88,33 +84,27 @@ const ServiceDetail = () => {
   const [relatedRef, relatedVisible] = useInView();
 
   const activeOptions = service?.options?.filter(o => o.active) ?? [];
-  const optionGroups = useMemo(() => {
-    const groups = [...new Set(activeOptions.map(o => o.optionGroup).filter(Boolean))];
-    return groups;
-  }, [activeOptions]);
-  const hasGroups = optionGroups.length > 0;
-  const visibleOptions = hasGroups && activeGroup ? activeOptions.filter(o => o.optionGroup === activeGroup) : hasGroups ? [] : activeOptions;
-  const hasOptions = activeOptions.length > 0;
+
+  const zoneOptions = activeOptions.filter(o => !o.sessions || o.sessions === 1);
+  const packageOptions = activeOptions.filter(o => o.sessions && o.sessions > 1);
+
+  const zoneGroups = useMemo(() => [...new Set(zoneOptions.map(o => o.optionGroup).filter(Boolean))], [zoneOptions]);
+
+  const hasZoneGroups = zoneGroups.length > 0;
+  const hasZoneOptions = zoneOptions.length > 0 && !hasZoneGroups;
+  const hasPackages = packageOptions.length > 0;
+
+  const visibleZoneOptions = hasZoneGroups && activeGroup ? zoneOptions.filter(o => o.optionGroup === activeGroup) : hasZoneGroups ? [] : zoneOptions;
+
   const displayPrice = selectedOption?.price ?? service?.price;
 
-  const handleAddPackageToCart = () => {
-    if (!selectedOption) return;
-    dispatch(
-      addToCart({
-        id: selectedOption.optionId,
-        type: "package",
-        optionId: selectedOption.optionId,
-        serviceId: service.serviceId,
-        name: `${service.title} — ${selectedOption.name}`,
-        price: selectedOption.price,
-        quantity: 1,
-        image: service.images?.[0],
-        sessions: selectedOption.sessions,
-        serviceName: service.title,
-      }),
-    );
-    setAddedFeedback(true);
-    setTimeout(() => setAddedFeedback(false), 1800);
+  const needsZoneSelection = (hasZoneGroups || hasZoneOptions) && selectedOption === null;
+
+  const calcSavings = opt => {
+    if (!opt?.sessions || opt.sessions < 2 || !service?.price) return null;
+    const fullPrice = service.price * opt.sessions;
+    const saved = fullPrice - opt.price;
+    return saved > 0 ? { fullPrice, saved } : null;
   };
 
   if (loading)
@@ -173,14 +163,14 @@ const ServiceDetail = () => {
             <span className="detail-price-note">{selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}</span>
           </div>
 
-          {/* Selettore opzioni */}
-          {hasOptions && (
+          {/* ── Selettore ZONE (seduta singola, varianti) ── */}
+          {(hasZoneGroups || hasZoneOptions) && (
             <div className="so-selector">
-              {hasGroups && (
+              {hasZoneGroups && (
                 <div className="so-groups">
                   <span className="so-label">Seleziona zona:</span>
                   <div className="so-group-pills">
-                    {optionGroups.map(g => (
+                    {zoneGroups.map(g => (
                       <button
                         key={g}
                         type="button"
@@ -196,12 +186,11 @@ const ServiceDetail = () => {
                   </div>
                 </div>
               )}
-
-              {visibleOptions.length > 0 && (
+              {visibleZoneOptions.length > 0 && (
                 <div className="so-options">
-                  <span className="so-label">{hasGroups ? "Seleziona pacchetto:" : "Seleziona opzione:"}</span>
+                  <span className="so-label">Seleziona opzione:</span>
                   <div className="so-option-list">
-                    {visibleOptions.map(opt => (
+                    {visibleZoneOptions.map(opt => (
                       <button
                         key={opt.optionId}
                         type="button"
@@ -210,7 +199,6 @@ const ServiceDetail = () => {
                       >
                         <span className="so-option-name">{opt.name}</span>
                         <span className="so-option-price">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                        {opt.sessions > 1 && <span className="so-option-sessions">{opt.sessions} sedute</span>}
                         {opt.gender && <span className="so-option-gender">{opt.gender}</span>}
                       </button>
                     ))}
@@ -220,23 +208,60 @@ const ServiceDetail = () => {
             </div>
           )}
 
+          {/* ── Selettore PACCHETTI (multi-seduta, opzionale) ── */}
+          {hasPackages && (
+            <div className="so-pkg-section">
+              <div className="so-pkg-header">
+                <span className="so-pkg-eyebrow">Pacchetti multi-seduta</span>
+                <span className="so-pkg-subtitle">Prenota più sedute e risparmia rispetto al prezzo singolo</span>
+              </div>
+              <div className="so-pkg-list">
+                {packageOptions.map(opt => {
+                  const savings = calcSavings(opt);
+                  const isSelected = selectedOption?.optionId === opt.optionId;
+                  return (
+                    <button
+                      key={opt.optionId}
+                      type="button"
+                      className={`so-pkg-card${isSelected ? " so-pkg-card--selected" : ""}`}
+                      onClick={() => setSelectedOption(prev => (prev?.optionId === opt.optionId ? null : opt))}
+                    >
+                      <span className="so-pkg-sessions-badge">{opt.sessions} sedute</span>
+                      <span className="so-pkg-name">{opt.name}</span>
+                      <div className="so-pkg-price-block">
+                        {savings && (
+                          <span className="so-pkg-price-full">{savings.fullPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                        )}
+                        <span className="so-pkg-price-actual">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                      </div>
+                      {savings && (
+                        <span className="so-pkg-savings">Risparmi {savings.saved.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                      )}
+                      {opt.gender && <span className="so-pkg-gender">{opt.gender}</span>}
+                      {isSelected && <span className="so-pkg-check">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedOption?.sessions > 1 && <p className="so-pkg-note">Paghi ora la prima seduta · Le successive le fissi con me</p>}
+            </div>
+          )}
+
           <div className="detail-trust">
             <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
             <span className="detail-trust-pill">✓ Nessun anticipo</span>
             <span className="detail-trust-pill">✓ Conferma immediata</span>
           </div>
 
-          {/* Dual CTA */}
           <div className="detail-cart-actions">
-            <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={hasOptions && selectedOption === null}>
-              {hasOptions && selectedOption === null ? "Scegli un'opzione" : "Prenota ora"}
+            <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={needsZoneSelection}>
+              {needsZoneSelection
+                ? "Scegli una zona"
+                : selectedOption?.sessions > 1
+                  ? `Prenota il pacchetto · ${selectedOption.sessions} sedute →`
+                  : "Prenota ora →"}
             </button>
-
-            {hasOptions && (
-              <button className={`detail-cart-btn${addedFeedback ? " added" : ""}`} onClick={handleAddPackageToCart} disabled={selectedOption === null}>
-                {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
-              </button>
-            )}
           </div>
 
           <div className="detail-divider" />

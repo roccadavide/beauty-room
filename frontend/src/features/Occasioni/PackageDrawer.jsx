@@ -20,6 +20,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState("");
 
   useEffect(() => {
     if (show) {
@@ -43,9 +44,9 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
       setErrors({});
       setErrorMsg("");
       setConfirmDelete(false);
+      setServiceSearch("");
     }
   }, [show, isEdit, pkg, services]);
-
 
   const validate = () => {
     const errs = {};
@@ -104,6 +105,8 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
     }
   };
 
+  const filteredServices = services.filter(s => s.title.toLowerCase().includes(serviceSearch.toLowerCase()));
+
   return (
     <UnifiedDrawer
       show={show}
@@ -124,7 +127,15 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
                 Annulla
               </button>
               <button type="button" className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
-                {loading ? <><Spinner size="sm" animation="border" /> Salvataggio…</> : isEdit ? "Salva modifiche" : "Crea"}
+                {loading ? (
+                  <>
+                    <Spinner size="sm" animation="border" /> Salvataggio…
+                  </>
+                ) : isEdit ? (
+                  "Salva modifiche"
+                ) : (
+                  "Crea"
+                )}
               </button>
             </div>
           </div>
@@ -144,17 +155,32 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
             <Col md={12}>
               <Form.Group>
                 <Form.Label>Trattamento di riferimento *</Form.Label>
-                <Form.Select
-                  value={selectedServiceId}
-                  onChange={e => setSelectedServiceId(e.target.value)}
-                  isInvalid={!!errors.selectedServiceId}
-                >
-                  <option value="">— Seleziona —</option>
-                  {services.map(s => (
-                    <option key={s.serviceId} value={s.serviceId}>{s.title}</option>
+                <div className="pkg-service-search-wrap">
+                  <input
+                    type="text"
+                    className="sps-search pkg-service-search"
+                    placeholder="Cerca trattamento..."
+                    value={serviceSearch}
+                    onChange={e => setServiceSearch(e.target.value)}
+                  />
+                </div>
+                <div className="pkg-service-list">
+                  {filteredServices.length === 0 && <p className="sps-empty">Nessun trattamento trovato</p>}
+                  {filteredServices.map(s => (
+                    <label key={s.serviceId} className={`sps-item${selectedServiceId === s.serviceId ? " sps-item--checked" : ""}`}>
+                      <input
+                        type="radio"
+                        name="pkg-service"
+                        className="sps-checkbox"
+                        checked={selectedServiceId === s.serviceId}
+                        onChange={() => setSelectedServiceId(s.serviceId)}
+                      />
+                      <span className="sps-item-name">{s.title}</span>
+                      {s.price && <span className="sps-item-price">{Number(s.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>}
+                    </label>
                   ))}
-                </Form.Select>
-                <Form.Control.Feedback type="invalid">{errors.selectedServiceId}</Form.Control.Feedback>
+                </div>
+                {errors.selectedServiceId && <div className="invalid-feedback d-block">{errors.selectedServiceId}</div>}
               </Form.Group>
             </Col>
           )}
@@ -162,12 +188,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
           <Col md={12}>
             <Form.Group>
               <Form.Label>Nome del pacchetto *</Form.Label>
-              <Form.Control
-                placeholder="Es. Pacchetto 5 sedute gambe"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                isInvalid={!!errors.name}
-              />
+              <Form.Control placeholder="Es. Pacchetto 5 sedute gambe" value={name} onChange={e => setName(e.target.value)} isInvalid={!!errors.name} />
               <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
             </Form.Group>
           </Col>
@@ -175,13 +196,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
           <Col md={6}>
             <Form.Group>
               <Form.Label>Numero di sedute *</Form.Label>
-              <Form.Control
-                type="number"
-                min={2}
-                value={sessions}
-                onChange={e => setSessions(e.target.value)}
-                isInvalid={!!errors.sessions}
-              />
+              <Form.Control type="number" min={2} value={sessions} onChange={e => setSessions(e.target.value)} isInvalid={!!errors.sessions} />
               <Form.Text className="text-muted">Minimo 2 per essere considerato un pacchetto</Form.Text>
               <Form.Control.Feedback type="invalid">{errors.sessions}</Form.Control.Feedback>
             </Form.Group>
@@ -189,15 +204,8 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
 
           <Col md={6}>
             <Form.Group>
-              <Form.Label>Prezzo del pacchetto (€) *</Form.Label>
-              <Form.Control
-                type="number"
-                step="0.01"
-                min={0}
-                value={price}
-                onChange={e => setPrice(e.target.value)}
-                isInvalid={!!errors.price}
-              />
+              <Form.Label>Prezzo del pacchetto *</Form.Label>
+              <Form.Control type="number" step="0.01" min={0} value={price} onChange={e => setPrice(e.target.value)} isInvalid={!!errors.price} />
               <Form.Control.Feedback type="invalid">{errors.price}</Form.Control.Feedback>
             </Form.Group>
           </Col>
@@ -205,11 +213,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
           <Col md={6}>
             <Form.Group>
               <Form.Label>Zona / Gruppo</Form.Label>
-              <Form.Control
-                placeholder="Es. Gambe, Viso, Corpo"
-                value={group}
-                onChange={e => setGroup(e.target.value)}
-              />
+              <Form.Control placeholder="Es. Gambe, Viso, Corpo" value={group} onChange={e => setGroup(e.target.value)} />
             </Form.Group>
           </Col>
 
@@ -225,13 +229,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
           </Col>
 
           <Col md={12}>
-            <Form.Check
-              type="switch"
-              id="pkg-active"
-              label="Pacchetto visibile"
-              checked={active}
-              onChange={e => setActive(e.target.checked)}
-            />
+            <Form.Check type="switch" id="pkg-active" label="Pacchetto visibile" checked={active} onChange={e => setActive(e.target.checked)} />
           </Col>
         </Row>
       </Form>

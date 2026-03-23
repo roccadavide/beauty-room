@@ -23,6 +23,7 @@ import daviderocca.CAPSTONE_BACKEND.services.PackageCreditService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -70,19 +71,29 @@ public class StripeWebhookController {
             log.info("Stripe event già processato, skip: {}", event.getId());
             return ResponseEntity.ok("duplicate");
         }
-        processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
 
         try {
             switch (event.getType()) {
                 case "checkout.session.completed" -> handleCheckoutCompleted(event);
-                case "checkout.session.expired" -> handleCheckoutExpired(event);
+                case "checkout.session.expired"   -> handleCheckoutExpired(event);
                 case "payment_intent.payment_failed" -> handlePaymentFailed(event);
-                case "charge.refunded" -> handleChargeRefunded(event);
+                case "charge.refunded"            -> handleChargeRefunded(event);
                 default -> log.info("Evento non gestito: {}", event.getType());
             }
+
+            // Salva SOLO se il processing è andato a buon fine
+            processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
+
+        } catch (DataIntegrityViolationException dup) {
+            // Race condition: due webhook in parallelo hanno processato lo stesso evento
+            // Il secondo trova il record già salvato dal primo → ok, non è un errore
+            log.info("Stripe event già processato (race condition): {}", event.getId());
+            return ResponseEntity.ok("duplicate");
         } catch (Exception e) {
             log.error("Errore gestione Stripe {}: {}", event.getType(), e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing event");
+            // NON salvare ProcessedStripeEvent → Stripe reinvierà e verrà riprocessato
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error processing event");
         }
 
         return ResponseEntity.ok("success");
