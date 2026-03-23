@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
 import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot } from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
+import BookingSalePanel from "./BookingSalePanel";
 import WeeklyCalendar from "./WeeklyCalendar";
 import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
@@ -245,6 +246,7 @@ export default function AdminAgendaPage() {
   const [viewMode, setViewMode] = useState("day"); // "day" | "week"
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [openSalePanel, setOpenSalePanel] = useState(null);
   const [nextSlotDuration, setNextSlotDuration] = useState(60);
   const [nextSlotResult, setNextSlotResult] = useState(null);
   const [nextSlotLoading, setNextSlotLoading] = useState(false);
@@ -962,7 +964,21 @@ export default function AdminAgendaPage() {
                           <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
                             Elimina
                           </Button>
+                          <Button
+                            className="ag-btn ag-btn--soft"
+                            size="sm"
+                            onClick={() => setOpenSalePanel(openSalePanel === b.bookingId ? null : b.bookingId)}
+                          >
+                            🛍️ Prodotto
+                          </Button>
                         </div>
+
+                        {openSalePanel === b.bookingId && (
+                          <BookingSalePanel
+                            bookingId={b.bookingId}
+                            onClose={() => setOpenSalePanel(null)}
+                          />
+                        )}
                       </div>
                     ))}
 

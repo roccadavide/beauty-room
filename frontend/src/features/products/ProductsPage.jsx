@@ -161,9 +161,17 @@ function ProductsPage() {
         <Row className="g-4 g-xl-5">
           {filtered.map(p => (
             <Col key={p.productId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
-              <Card className="br-card beauty-product-card h-100" onClick={() => navigate(`/prodotti/${p.productId}`)}>
+              <Card
+                className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}`}
+                onClick={() => navigate(`/prodotti/${p.productId}`)}
+              >
                 <div className="bpc-img-wrap">
                   <Card.Img src={p.images?.[0]} alt={p.name} />
+                  {p.stock === 0 && (
+                    <div className="bpc-sold-out-overlay">
+                      <span className="bpc-sold-out-label">Esaurito</span>
+                    </div>
+                  )}
                 </div>
                 <Card.Body className="d-flex flex-column">
                   <div className="bpc-accent-line" />
@@ -172,11 +180,12 @@ function ProductsPage() {
                     <Badge bg={badgeColors[p.categoryId] || "secondary"} className="text-uppercase">
                       {categoriesMap[p.categoryId] || "Senza categoria"}
                     </Badge>
-                    <small className="text-muted">{p.stock} rimanenti</small>
+                    <small className="text-muted">{p.stock > 0 ? `${p.stock} rimanenti` : "Esaurito"}</small>
                   </div>
                   <Card.Text className="flex-grow-1">{p.shortDescription}</Card.Text>
                   <div className="d-flex justify-content-between align-items-center mt-2">
                     <span className="bpc-price">{p.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                    {p.stock === 0 && <span className="bpc-out-pill">Non disponibile</span>}
                     {user?.role === "ADMIN" && (
                       <div className="d-flex gap-2 ms-auto">
                         <Button

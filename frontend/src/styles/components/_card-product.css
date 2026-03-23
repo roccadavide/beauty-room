@@ -102,3 +102,47 @@
   padding-top: 0.5rem;
   letter-spacing: 0.02em;
 }
+
+/* ── Sold out overlay ── */
+.bpc-sold-out-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 253, 248, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  backdrop-filter: blur(1px);
+  z-index: 1;
+}
+
+.bpc-sold-out-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: #6d4c41;
+  background: rgba(255, 253, 248, 0.92);
+  border: 1px solid rgba(109, 76, 65, 0.25);
+  border-radius: 20px;
+  padding: 0.3rem 0.9rem;
+}
+
+.bpc--sold-out {
+  opacity: 0.78;
+}
+
+.bpc--sold-out:hover {
+  opacity: 0.88;
+}
+
+.bpc-out-pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #6d4c41;
+  background: rgba(109, 76, 65, 0.08);
+  border: 1px solid rgba(109, 76, 65, 0.2);
+  border-radius: 20px;
+  padding: 0.2rem 0.7rem;
+  letter-spacing: 0.5px;
+}

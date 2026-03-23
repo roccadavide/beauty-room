@@ -33,6 +33,9 @@ public class ProductService {
 
     private final Cloudinary cloudinary;
 
+    @org.springframework.context.annotation.Lazy
+    private final StockAlertService stockAlertService;
+
     // ---------------------------- FIND METHODS ----------------------------
 
     @Transactional(readOnly = true)
@@ -112,6 +115,8 @@ public class ProductService {
             currentImages.addAll(uploadImagesIfPresent(images));
         }
 
+        int oldStock = found.getStock();
+
         found.setImages(currentImages);
         found.setName(payload.name());
         found.setPrice(payload.price());
@@ -123,6 +128,10 @@ public class ProductService {
         Product updated = productRepository.save(found);
         log.info("Prodotto '{}' (ID: {}) aggiornato correttamente (categoria: {})",
                 updated.getName(), updated.getProductId(), relatedCategory.getCategoryKey());
+
+        if (oldStock == 0 && updated.getStock() > 0) {
+            stockAlertService.notifyRestocked(updated.getProductId(), updated.getName());
+        }
 
         return convertToDTO(updated);
     }

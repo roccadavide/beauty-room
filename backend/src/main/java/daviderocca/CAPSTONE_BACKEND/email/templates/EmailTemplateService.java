@@ -505,4 +505,54 @@ public class EmailTemplateService {
                 .replace("\"", "&quot;");
     }
     private String escAttr(String s) { return esc(s).replace("'", "%27"); }
+
+    // ===================== PRODUCT BACK IN STOCK =====================
+    public EmailContent productBackInStock(String customerName, String productName,
+                                           String productUrl, String email) {
+        String subject = "\"" + productName + "\" \u00e8 di nuovo disponibile \u2013 " + brandName;
+        String safeCustomer = safe(customerName);
+        String safeProduct  = safe(productName);
+
+        String body = """
+            <h1 style="%s">Buone notizie!</h1>
+
+            <p style="%s">Ciao <b>%s</b>,</p>
+            <p style="%s">
+              il prodotto che stavi aspettando \u00e8 tornato disponibile in negozio.
+            </p>
+
+            %s
+
+            <div style="margin-top:18px;">
+              %s
+            </div>
+
+            <p style="%s; margin-top:16px;">
+              Gli articoli si esauriscono velocemente \u2014 ti consigliamo di procedere all'acquisto
+              il prima possibile.
+            </p>
+            """.formatted(
+                    h1Style(),
+                    pStyle(),
+                    esc(safeCustomer),
+                    pStyle(),
+                    detailsBox(new String[][]{
+                        {"Prodotto", safeProduct},
+                        {"Negozio", brandName},
+                        {"Dove", brandAddress}
+                    }),
+                    button("Acquista ora", productUrl),
+                    smallStyle()
+            );
+
+        String html = wrap(body);
+        String text = """
+                %s \u00e8 di nuovo disponibile \u2013 %s
+                Ciao %s,
+                il prodotto "%s" \u00e8 tornato disponibile.
+                Acquista ora: %s
+                """.formatted(safeProduct, brandName, safeCustomer, safeProduct, productUrl);
+
+        return new EmailContent(subject, html, text);
+    }
 }

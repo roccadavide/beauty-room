@@ -4,9 +4,11 @@ import { useDispatch, useSelector } from "react-redux";
 import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchCategories } from "../../api/modules/categories.api";
-import { createCheckoutSession } from "../../api/modules/stripe.api";
+import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/modules/stripe.api";
+import { subscribeStockAlert } from "../../api/modules/products.api";
 import { addToCart } from "../cart/slices/cart.slice";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
+import PayNowModal from "./PayNowModal";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -39,6 +41,15 @@ const ProductDetail = () => {
   const dispatch = useDispatch();
   const { user, accessToken } = useSelector(s => s.auth);
 
+  // ── PayNow modal state ──
+  const [showPayNow, setShowPayNow] = useState(false);
+
+  // ── Stock alert state ──
+  const [alertEmail, setAlertEmail] = useState("");
+  const [alertName, setAlertName] = useState("");
+  const [alertLoading, setAlertLoading] = useState(false);
+  const [alertStatus, setAlertStatus] = useState(null); // null | 'success' | 'already' | 'error'
+
   useEffect(() => {
     const loadProducts = async () => {
       try {
@@ -56,6 +67,14 @@ const ProductDetail = () => {
     };
     loadProducts();
   }, [productId]);
+
+  // Pre-fill alert fields when user/product loads
+  useEffect(() => {
+    if (user) {
+      setAlertEmail(user.email || "");
+      setAlertName(`${user.name || ""} ${user.surname || ""}`.trim());
+    }
+  }, [user]);
 
   const categoriesMap = useMemo(() => {
     const map = {};
@@ -94,27 +113,30 @@ const ProductDetail = () => {
     setTimeout(() => setAddedFeedback(false), 1800);
   };
 
-  const handlePayNow = async () => {
-    if (!accessToken) {
-      navigate("/login", { state: { from: `/prodotti/${product.productId}` } });
-      return;
-    }
+  const handlePayNow = () => {
+    setShowPayNow(true);
+  };
+
+  const handleCheckoutAuth = async (orderData) => {
+    const { url } = await createCheckoutSession(orderData);
+    window.location.href = url;
+  };
+
+  const handleCheckoutGuest = async (orderData) => {
+    const res = await createCheckoutSessionGuest(orderData);
+    window.location.href = res.url;
+  };
+
+  const handleStockAlert = async () => {
+    if (!alertEmail || !/\S+@\S+\.\S+/.test(alertEmail)) return;
     try {
-      setPayLoading(true);
-      const orderData = {
-        customerName: user?.name || "",
-        customerSurname: user?.surname || "",
-        customerEmail: user?.email || "",
-        customerPhone: user?.phone || "",
-        pickupNote: "",
-        items: [{ productId: product.productId, quantity: qty }],
-      };
-      const { url } = await createCheckoutSession(orderData);
-      window.location.href = url;
+      setAlertLoading(true);
+      await subscribeStockAlert(product.productId, alertEmail, alertName || "Cliente");
+      setAlertStatus("success");
     } catch (err) {
-      alert("Errore: " + err.message);
+      setAlertStatus(err.message === "ALREADY_SUBSCRIBED" ? "already" : "error");
     } finally {
-      setPayLoading(false);
+      setAlertLoading(false);
     }
   };
 
@@ -156,7 +178,7 @@ const ProductDetail = () => {
             <Badge bg={badgeColors[product.categoryId] || "secondary"} className="text-uppercase detail-badge">
               {categoriesMap[product.categoryId] || "Senza categoria"}
             </Badge>
-            <span className="detail-duration">{product.stock} disponibili</span>
+            <span className="detail-duration">{product.stock > 0 ? `${product.stock} disponibili` : "Esaurito"}</span>
           </div>
 
           <h1 className="detail-title">{product.name}</h1>
@@ -174,41 +196,80 @@ const ProductDetail = () => {
             <span className="detail-trust-pill">✓ Nessun costo al ritiro</span>
           </div>
 
-          {/* Selettore quantità */}
-          <div className="detail-qty-wrap">
-            <span className="so-label">Quantità</span>
-            <div className="detail-qty-controls">
-              <button
-                className="cart-qty-btn"
-                onClick={() => setQty(q => Math.max(1, q - 1))}
-                disabled={qty <= 1}
-              >−</button>
-              <span className="cart-qty-num">{qty}</span>
-              <button
-                className="cart-qty-btn"
-                onClick={() => setQty(q => Math.min(product.stock, q + 1))}
-                disabled={qty >= product.stock}
-              >+</button>
-            </div>
-          </div>
+          {product.stock === 0 ? (
+            /* ── PRODOTTO ESAURITO ── */
+            <div className="detail-sold-out-section">
+              <div className="detail-sold-out-badge">
+                <span className="detail-sold-out-icon">◆</span>
+                Temporaneamente esaurito
+              </div>
 
-          {/* Dual CTA */}
-          <div className="detail-cart-actions">
-            <button
-              className="detail-pay-btn"
-              onClick={handlePayNow}
-              disabled={payLoading || product.stock === 0}
-            >
-              {payLoading ? "..." : "Paga ora"}
-            </button>
-            <button
-              className={`detail-cart-btn${addedFeedback ? " added" : ""}`}
-              onClick={handleAddToCart}
-              disabled={product.stock === 0}
-            >
-              {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
-            </button>
-          </div>
+              {alertStatus === "success" ? (
+                <div className="detail-alert-success">
+                  <span>✓</span> Ti avviseremo via email appena torna disponibile.
+                </div>
+              ) : alertStatus === "already" ? (
+                <div className="detail-alert-success">
+                  <span>✓</span> Sei già in lista d&apos;attesa per questo prodotto.
+                </div>
+              ) : (
+                <div className="detail-alert-form">
+                  <p className="detail-alert-title">Avvisami quando torna disponibile</p>
+                  <div className="detail-alert-inputs">
+                    {!user && (
+                      <input
+                        className="detail-alert-input"
+                        placeholder="Il tuo nome"
+                        value={alertName}
+                        onChange={e => setAlertName(e.target.value)}
+                      />
+                    )}
+                    <input
+                      className="detail-alert-input"
+                      type="email"
+                      placeholder="La tua email"
+                      value={alertEmail}
+                      onChange={e => setAlertEmail(e.target.value)}
+                    />
+                    <button
+                      className="detail-alert-btn"
+                      onClick={handleStockAlert}
+                      disabled={alertLoading || !alertEmail}
+                    >
+                      {alertLoading ? "..." : "Avvisami"}
+                    </button>
+                  </div>
+                  {alertStatus === "error" && (
+                    <p className="detail-alert-error">Si è verificato un errore. Riprova.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ── PRODOTTO DISPONIBILE: CTAs normali ── */
+            <>
+              <div className="detail-qty-wrap">
+                <span className="so-label">Quantità</span>
+                <div className="detail-qty-controls">
+                  <button className="cart-qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))} disabled={qty <= 1}>−</button>
+                  <span className="cart-qty-num">{qty}</span>
+                  <button className="cart-qty-btn" onClick={() => setQty(q => Math.min(product.stock, q + 1))} disabled={qty >= product.stock}>+</button>
+                </div>
+              </div>
+
+              <div className="detail-cart-actions">
+                <button className="detail-pay-btn" onClick={handlePayNow} disabled={payLoading}>
+                  {payLoading ? "..." : "Paga ora"}
+                </button>
+                <button
+                  className={`detail-cart-btn${addedFeedback ? " added" : ""}`}
+                  onClick={handleAddToCart}
+                >
+                  {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
+                </button>
+              </div>
+            </>
+          )}
 
           <div className="detail-divider" />
 
@@ -255,6 +316,17 @@ const ProductDetail = () => {
           />
         </section>
       )}
+
+      <PayNowModal
+        show={showPayNow}
+        onHide={() => setShowPayNow(false)}
+        product={product}
+        qty={qty}
+        user={user}
+        accessToken={accessToken}
+        onCheckoutAuth={handleCheckoutAuth}
+        onCheckoutGuest={handleCheckoutGuest}
+      />
     </Container>
   );
 };

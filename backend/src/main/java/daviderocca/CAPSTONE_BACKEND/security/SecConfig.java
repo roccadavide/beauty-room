@@ -113,6 +113,9 @@ public class SecConfig {
                                 "/promotions/**"
                         ).permitAll()
 
+                        // STOCK ALERT — pubblica, non richiede auth
+                        .requestMatchers(HttpMethod.POST, "/products/*/stock-alerts").permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)

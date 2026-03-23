@@ -657,3 +657,20 @@
 /* --- CTA PRENOTA (rimosso) --- */
 /* .nb-cta-prenota { … } */
 /* .nb-cta-prenota-mobile { … } */
+
+/* ── Post-it badge ── */
+.nav-postit-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  background: #c0392b;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 4px;
+  margin-left: 6px;
+  line-height: 1;
+}

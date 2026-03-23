@@ -63,3 +63,19 @@ export const deleteProduct = async productId => {
   }
 };
 
+
+// -------------------------- STOCK ALERT --------------------------
+export const subscribeStockAlert = async (productId, email, customerName) => {
+  try {
+    const { data } = await http.post(
+      `${PRODUCT_ENDPOINTS.BY_ID(productId)}/stock-alerts`,
+      { email, customerName }
+    );
+    return data;
+  } catch (error) {
+    if (error.response?.status === 409) {
+      throw new Error("ALREADY_SUBSCRIBED");
+    }
+    throw new Error(error.response?.data?.message || "Impossibile registrare l'avviso.");
+  }
+};

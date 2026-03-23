@@ -1663,3 +1663,197 @@ body.modal-open {
   border-radius: 50%;
   background: #f87171;
 }
+
+/* ── Booking Sale Panel ── */
+.bsp-panel {
+  margin-top: 8px;
+  border: 1px solid rgba(139, 94, 60, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  overflow: visible;
+}
+
+.bsp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(139, 94, 60, 0.1);
+}
+
+.bsp-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ag-mocha);
+}
+
+.bsp-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--ag-muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.bsp-loading { padding: 1rem; display: flex; justify-content: center; }
+.bsp-error { padding: 0.5rem 1rem; font-size: 0.78rem; color: #f87171; margin: 0; }
+
+/* Sales list */
+.bsp-sales-list {
+  padding: 8px 14px;
+}
+
+.bsp-sale-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(139, 94, 60, 0.07);
+}
+
+.bsp-sale-row:last-of-type { border-bottom: none; }
+
+.bsp-sale-info { flex: 1; min-width: 0; }
+.bsp-sale-name { font-size: 0.82rem; font-weight: 600; color: var(--ag-text); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bsp-sale-meta { font-size: 0.72rem; color: var(--ag-muted); }
+.bsp-sale-total { font-size: 0.82rem; font-weight: 700; color: var(--ag-text); flex-shrink: 0; }
+
+.bsp-sale-del {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: rgba(248, 113, 113, 0.6);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.bsp-sale-del:hover { color: #f87171; }
+
+.bsp-sales-total {
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ag-mocha);
+  padding-top: 6px;
+  border-top: 1px solid rgba(139, 94, 60, 0.12);
+  margin-top: 4px;
+}
+
+/* Add section */
+.bsp-add-section {
+  padding: 8px 14px 12px;
+  border-top: 1px solid rgba(139, 94, 60, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bsp-search-wrap { position: relative; }
+
+.bsp-search {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(139, 94, 60, 0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  color: var(--ag-text);
+}
+
+.bsp-search:focus { outline: none; border-color: rgba(139, 94, 60, 0.4); }
+
+.bsp-search-results {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid rgba(139, 94, 60, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(35, 26, 20, 0.12);
+  z-index: 200;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.bsp-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(139, 94, 60, 0.06);
+  font-size: 0.8rem;
+  color: var(--ag-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.bsp-result-item:hover { background: rgba(231, 214, 195, 0.4); }
+.bsp-result-price { color: var(--ag-cocoa); font-weight: 600; }
+
+/* Qty row */
+.bsp-qty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bsp-selected-name { font-size: 0.78rem; font-weight: 600; color: var(--ag-text); flex: 1; min-width: 100px; }
+
+.bsp-qty-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(231, 214, 195, 0.4);
+  border-radius: 20px;
+  padding: 2px 6px;
+}
+
+.bsp-qty-btn {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: var(--ag-cocoa);
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.15s;
+}
+.bsp-qty-btn:hover:not(:disabled) { background: rgba(139, 94, 60, 0.15); }
+.bsp-qty-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.bsp-qty-num { font-size: 0.82rem; font-weight: 700; min-width: 16px; text-align: center; color: var(--ag-text); }
+.bsp-add-price { font-size: 0.82rem; font-weight: 700; color: var(--ag-mocha); }
+
+.bsp-add-btn {
+  background: rgba(139, 94, 60, 0.15);
+  border: 1px solid rgba(139, 94, 60, 0.3);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ag-mocha);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.bsp-add-btn:hover:not(:disabled) {
+  background: rgba(139, 94, 60, 0.25);
+  border-color: rgba(139, 94, 60, 0.5);
+}
+
+.bsp-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }

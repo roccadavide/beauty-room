@@ -8,6 +8,7 @@ import { persistor } from "../../app/store";
 import { logout } from "../../features/auth/slices/auth.slice";
 import { clearAccessToken } from "../../utils/token";
 import { logoutUser } from "../../api/modules/auth.api";
+import { fetchExpiringCount } from "../../api/modules/postits.api";
 
 const LINKS = [
   { to: "/trattamenti", label: "Trattamenti" },
@@ -23,6 +24,7 @@ export default function NavBar() {
   const [mobileProfileExpanded, setMobileProfileExpanded] = useState(false);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [expiringPostIts, setExpiringPostIts] = useState(0);
 
   const drawerRef = useRef(null);
   const togglerRef = useRef(null);
@@ -119,6 +121,13 @@ export default function NavBar() {
     setExpanded(false);
     setMobileProfileExpanded(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!user || user.role !== "ADMIN") return;
+    fetchExpiringCount()
+      .then(count => setExpiringPostIts(count))
+      .catch(() => {});
+  }, [user]);
 
   const closeMenu = useCallback(() => setExpanded(false), []);
 
@@ -218,6 +227,11 @@ export default function NavBar() {
                       </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
                         Impostazioni
+                      </NavDropdown.Item>
+                      <NavDropdown.Item as={Link} to="/admin/post-it">
+                        Post-it{expiringPostIts > 0 && (
+                          <span className="nav-postit-badge">{expiringPostIts}</span>
+                        )}
                       </NavDropdown.Item>
                     </>
                   )}
@@ -322,6 +336,9 @@ export default function NavBar() {
                       </Link>
                       <Link to="/admin/impostazioni" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         Impostazioni
+                      </Link>
+                      <Link to="/admin/post-it" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                        Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}
                       </Link>
                     </>
                   )}

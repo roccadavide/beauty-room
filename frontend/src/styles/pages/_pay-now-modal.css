@@ -1,0 +1,221 @@
+/* ── Pay Now Modal ── */
+
+.pnm-section {
+  border: 1px solid rgba(184, 151, 106, 0.18);
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+  background: rgba(254, 247, 239, 0.5);
+  margin-bottom: 1rem;
+}
+
+.pnm-section-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: #b8976a;
+  font-weight: 700;
+  margin-bottom: 0.85rem;
+}
+
+.pnm-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.pnm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.pnm-label {
+  font-size: 0.72rem;
+  color: #8a7060;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+}
+
+.pnm-input {
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(184, 151, 106, 0.28);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.9rem;
+  color: #3e2723;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.pnm-input:focus {
+  outline: none;
+  border-color: #b8976a;
+  box-shadow: 0 0 0 3px rgba(184, 151, 106, 0.1);
+}
+
+.pnm-input--err { border-color: #c0392b !important; }
+.pnm-err-msg { font-size: 0.75rem; color: #c0392b; }
+.pnm-textarea { resize: none; }
+
+.pnm-loading {
+  font-size: 0.82rem;
+  color: #9e8272;
+  padding: 0.5rem 0;
+}
+
+/* Pickup tabs */
+.pnm-pickup-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.pnm-pickup-tab {
+  flex: 1;
+  padding: 0.55rem;
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #6d4c41;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.pnm-pickup-tab.active {
+  background: linear-gradient(135deg, #b8976a, #8c6d3f);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* Booking options list */
+.pnm-bookings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pnm-booking-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid rgba(184, 151, 106, 0.2);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pnm-booking-option.selected {
+  border-color: #b8976a;
+  background: rgba(254, 247, 239, 0.8);
+}
+
+.pnm-booking-date {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #2a1b15;
+  flex: 1;
+}
+
+.pnm-booking-meta {
+  font-size: 0.78rem;
+  color: #9e8272;
+  flex: 1;
+}
+
+.pnm-booking-check {
+  color: #b8976a;
+  font-size: 1rem;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: right;
+}
+
+.pnm-booking-note {
+  font-size: 0.75rem;
+  color: #b8976a;
+  margin: 0.25rem 0 0;
+  font-style: italic;
+}
+
+/* Custom pickup */
+.pnm-custom-pickup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Time chips */
+.pnm-time-opts {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.pnm-time-chip {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 20px;
+  background: #fff;
+  font-size: 0.78rem;
+  color: #6d4c41;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pnm-time-chip.active {
+  background: #b8976a;
+  border-color: #b8976a;
+  color: #fff;
+}
+
+/* Summary */
+.pnm-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: rgba(46, 33, 24, 0.04);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.pnm-summary-total {
+  font-family: "SaolDisplay-Light", serif;
+  font-size: 1.4rem;
+  color: #2a1b15;
+  font-weight: 300;
+}
+
+/* Error banner */
+.pnm-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(192, 57, 43, 0.08);
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: #c0392b;
+}
+
+.pnm-error-close {
+  background: none;
+  border: none;
+  color: #c0392b;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0;
+  line-height: 1;
+}
+
+@media (max-width: 576px) {
+  .pnm-field-row { grid-template-columns: 1fr; }
+}

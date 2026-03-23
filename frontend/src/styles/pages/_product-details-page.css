@@ -397,6 +397,114 @@
   transform: translateY(0);
 }
 
+/* ── Sold out section ── */
+.detail-sold-out-section {
+  margin-bottom: 2rem;
+}
+
+.detail-sold-out-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #6d4c41;
+  background: rgba(109, 76, 65, 0.08);
+  border: 1px solid rgba(109, 76, 65, 0.2);
+  border-radius: 20px;
+  padding: 0.4rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.detail-sold-out-icon {
+  font-size: 0.6rem;
+  color: #b8976a;
+}
+
+/* Alert form */
+.detail-alert-form {
+  background: #fef7ef;
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+}
+
+.detail-alert-title {
+  font-family: "Petrona", serif;
+  font-size: 1rem;
+  color: #2a1b15;
+  margin-bottom: 0.85rem;
+  font-weight: 400;
+}
+
+.detail-alert-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.detail-alert-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(184, 151, 106, 0.3);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.9rem;
+  color: #3e2723;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.detail-alert-input:focus {
+  outline: none;
+  border-color: #b8976a;
+  box-shadow: 0 0 0 3px rgba(184, 151, 106, 0.12);
+}
+
+.detail-alert-btn {
+  padding: 0.85rem;
+  background: linear-gradient(135deg, #b8976a, #8c6d3f);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.25s;
+  box-shadow: 0 4px 14px rgba(140, 109, 63, 0.3);
+}
+
+.detail-alert-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(140, 109, 63, 0.4);
+}
+
+.detail-alert-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.detail-alert-success {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #2d6a4f;
+  background: rgba(45, 106, 79, 0.08);
+  border: 1px solid rgba(45, 106, 79, 0.2);
+  border-radius: 12px;
+  padding: 0.85rem 1.2rem;
+}
+
+.detail-alert-error {
+  font-size: 0.8rem;
+  color: #c0392b;
+  margin: 0.5rem 0 0;
+}
+
 /* ── Responsive ── */
 @media (max-width: 767px) {
   .service-detail,

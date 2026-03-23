@@ -222,3 +222,78 @@
   background: #dc3545;
   color: #fff;
 }
+
+/* ── Promo Countdown ── */
+.pc-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.6rem 0.8rem;
+  background: rgba(184, 151, 106, 0.08);
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 12px;
+  margin-top: 0.75rem;
+}
+
+.pc-wrap--calm {
+  background: transparent;
+  border-color: transparent;
+  padding: 0.3rem 0;
+}
+
+.pc-days-only {
+  font-size: 0.78rem;
+  color: #b8976a;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.pc-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #b8976a;
+  font-weight: 600;
+}
+
+.pc-segments {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.pc-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 32px;
+}
+
+.pc-num {
+  font-family: "SaolDisplay-Light", "EB Garamond", serif;
+  font-size: 1.3rem;
+  font-weight: 300;
+  color: #2a1b15;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-seg--seconds .pc-num {
+  color: #8c6d3f;
+}
+
+.pc-unit {
+  font-size: 0.58rem;
+  color: #b8976a;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 1px;
+}
+
+.pc-colon {
+  font-size: 1.1rem;
+  color: rgba(184, 151, 106, 0.5);
+  margin-bottom: 8px;
+  font-weight: 300;
+}

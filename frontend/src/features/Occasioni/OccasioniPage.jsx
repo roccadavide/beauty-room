@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import { PencilFill, Plus, Trash2Fill } from "react-bootstrap-icons";
 import PromotionDrawer from "./PromotionDrawer";
+import PromoCountdown from "./PromoCountdown";
 import PackageDrawer from "./PackageDrawer";
 import DeletePromotionModal from "../promotions/DeletePromotionModal";
 import { fetchPackages } from "../../api/modules/packages.api";
@@ -338,6 +339,7 @@ function OccasioniPage() {
                             </span>
                           </div>
                         )}
+                        {p.endDate && <PromoCountdown endDate={p.endDate} />}
                       </div>
                       <div className="mt-3">
                         <small className="text-muted d-block">
