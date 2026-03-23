@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
 import java.util.UUID;
 
 public record NewResultDTO(
@@ -16,5 +17,7 @@ public record NewResultDTO(
         @NotEmpty(message = "La descrizione  non può essere vuota")
         String description,
         @NotNull(message = "La categoria è obbligatoria")
-        UUID categoryId
+        UUID categoryId,
+        // nullable — URL immagini da rimuovere (cleanup lista; Cloudinary TODO)
+        List<String> removedImageUrls
 ) {}

@@ -11,10 +11,10 @@ import { logoutUser } from "../../api/modules/auth.api";
 
 const LINKS = [
   { to: "/trattamenti", label: "Trattamenti" },
-  { to: "/prodotti",    label: "Prodotti"    },
-  { to: "/risultati",   label: "Risultati"   },
-  { to: "/offerte",     label: "Offerte"     },
-  { to: "/chisono",     label: "Chi sono"    },
+  { to: "/prodotti", label: "Prodotti" },
+  { to: "/risultati", label: "Risultati" },
+  { to: "/occasioni", label: "Occasioni" },
+  { to: "/chisono", label: "Chi sono" },
 ];
 
 export default function NavBar() {
@@ -192,16 +192,19 @@ export default function NavBar() {
             >
               {user ? (
                 <>
-                  <div className="dropdown-header-custom">Ciao {user.name}!</div>
+                  <div className="dropdown-header-custom">Ciao {user.name}</div>
                   <NavDropdown.Item as={Link} to="/profilo">
                     Il mio profilo
                   </NavDropdown.Item>
-                  <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/prenotazioni/tutte" : "/prenotazioni"}>
-                    {user.role === "ADMIN" ? "Gestione Prenotazioni" : "Le mie prenotazioni"}
-                  </NavDropdown.Item>
-                  <NavDropdown.Item as={Link} to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"}>
-                    {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
-                  </NavDropdown.Item>
+                  {user.role === "ADMIN" ? (
+                    <NavDropdown.Item as={Link} to="/ordini/tutti">
+                      Gestione Ordini
+                    </NavDropdown.Item>
+                  ) : (
+                    <NavDropdown.Item as={Link} to="/area-personale">
+                      La mia area
+                    </NavDropdown.Item>
+                  )}
                   {user.role === "ADMIN" && (
                     <>
                       <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
@@ -297,12 +300,15 @@ export default function NavBar() {
                   <Link to="/profilo" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                     Il mio profilo
                   </Link>
-                  <Link to={user.role === "ADMIN" ? "/prenotazioni/tutte" : "/prenotazioni"} onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                    {user.role === "ADMIN" ? "Gestione Prenotazioni" : "Le mie prenotazioni"}
-                  </Link>
-                  <Link to={user.role === "ADMIN" ? "/ordini/tutti" : "/ordini"} onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                    {user.role === "ADMIN" ? "Gestione Ordini" : "I miei ordini"}
-                  </Link>
+                  {user.role === "ADMIN" ? (
+                    <Link to="/ordini/tutti" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                      Gestione Ordini
+                    </Link>
+                  ) : (
+                    <Link to="/area-personale" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                      La mia area
+                    </Link>
+                  )}
                   {user.role === "ADMIN" && (
                     <>
                       <Link to="/profilo/admin/agenda" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>

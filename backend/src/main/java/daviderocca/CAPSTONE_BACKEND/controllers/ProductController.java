@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -47,10 +48,10 @@ public class ProductController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductResponseDTO> createProduct(
             @Valid @RequestPart("data") NewProductDTO payload,
-            @RequestPart(value = "image", required = false) MultipartFile image
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
         log.info("Richiesta creazione nuovo prodotto '{}'", payload.name());
-        ProductResponseDTO created = productService.saveProduct(payload, image);
+        ProductResponseDTO created = productService.saveProduct(payload, images);
         return ResponseEntity.status(201).body(created);
     }
 
@@ -61,10 +62,10 @@ public class ProductController {
     public ResponseEntity<ProductResponseDTO> updateProduct(
             @PathVariable UUID productId,
             @Valid @RequestPart("data") NewProductDTO payload,
-            @RequestPart(value = "image", required = false) MultipartFile image
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
         log.info("Richiesta aggiornamento prodotto {}", productId);
-        ProductResponseDTO updated = productService.updateProduct(productId, payload, image);
+        ProductResponseDTO updated = productService.updateProduct(productId, payload, images);
         return ResponseEntity.ok(updated);
     }
 

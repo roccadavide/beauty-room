@@ -1,0 +1,216 @@
+/* MultiImageUpload — prefisso .miu- */
+
+.miu-root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.miu-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4a3728;
+  margin-bottom: 2px;
+}
+
+/* ── Drop zone ─────────────────────────────────────────────────── */
+.miu-drop {
+  position: relative;
+  border: 1.5px dashed rgba(184, 151, 106, 0.5);
+  border-radius: 12px;
+  background: rgba(231, 214, 195, 0.08);
+  padding: 20px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+  user-select: none;
+}
+
+.miu-drop:hover,
+.miu-drop--over {
+  border-color: rgba(184, 151, 106, 0.85);
+  background: rgba(184, 151, 106, 0.08);
+}
+
+.miu-drop--over {
+  border-style: solid;
+}
+
+.miu-drop--disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.miu-drop__icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  margin-bottom: 6px;
+  color: rgba(184, 151, 106, 0.7);
+}
+
+.miu-drop__hint {
+  font-size: 0.8rem;
+  color: rgba(74, 55, 40, 0.6);
+  line-height: 1.4;
+}
+
+.miu-drop__hint strong {
+  color: #b8976a;
+  font-weight: 600;
+}
+
+/* ── Compressing overlay ────────────────────────────────────────── */
+.miu-compressing {
+  font-size: 0.8rem;
+  color: #b8976a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 2px;
+}
+
+.miu-compressing::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(184, 151, 106, 0.3);
+  border-top-color: #b8976a;
+  border-radius: 50%;
+  animation: miu-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes miu-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Limit reached ──────────────────────────────────────────────── */
+.miu-limit {
+  font-size: 0.78rem;
+  color: rgba(74, 55, 40, 0.5);
+  padding: 2px 0;
+}
+
+/* ── Thumbnail grid ─────────────────────────────────────────────── */
+.miu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+}
+
+/* ── Single thumbnail item ──────────────────────────────────────── */
+.miu-item {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(231, 214, 195, 0.2);
+  border: 1.5px solid rgba(184, 151, 106, 0.2);
+  transition: border-color 0.15s, opacity 0.15s;
+}
+
+.miu-item--new {
+  cursor: grab;
+}
+
+.miu-item--new:active {
+  cursor: grabbing;
+}
+
+.miu-item--dragging {
+  opacity: 0.4;
+  border-color: #b8976a;
+}
+
+.miu-item--dragover {
+  border-color: #b8976a;
+  border-style: dashed;
+}
+
+.miu-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Remove button ──────────────────────────────────────────────── */
+.miu-remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(20, 12, 8, 0.72);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 0;
+}
+
+.miu-item:hover .miu-remove {
+  opacity: 1;
+}
+
+/* ── Drag handle ────────────────────────────────────────────────── */
+.miu-handle {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(20, 12, 8, 0.55);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  cursor: grab;
+}
+
+.miu-item--new:hover .miu-handle {
+  opacity: 1;
+}
+
+/* ── "Principale" badge ─────────────────────────────────────────── */
+.miu-badge {
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  background: linear-gradient(135deg, #b8976a, #a07850);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 20px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+/* ── Size indicator ─────────────────────────────────────────────── */
+.miu-size {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background: rgba(20, 12, 8, 0.55);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  border-radius: 10px;
+  pointer-events: none;
+  line-height: 1.5;
+}

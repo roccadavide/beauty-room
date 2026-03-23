@@ -1,21 +1,23 @@
 import { useDispatch, useSelector } from "react-redux";
-import { Container, Row, Col, ListGroup, Image, Button, Spinner } from "react-bootstrap";
+import { Container, Row, Col, Spinner } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
-import { Dash, Plus, Trash } from "react-bootstrap-icons";
 import { useState } from "react";
 import CheckoutModal from "./CheckoutModal";
 import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/modules/stripe.api";
 import { removeFromCart, updateCartQuantity } from "./slices/cart.slice";
 
 const CartPage = () => {
-  const { items, totalPrice } = useSelector(state => state.cart);
+  const items = useSelector(state => state.cart?.items ?? []);
+  const totalPrice = useSelector(state => state.cart?.totalPrice ?? 0);
   const { accessToken, user } = useSelector(state => state.auth);
   const [showCheckout, setShowCheckout] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [note, setNote] = useState("");
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // ---------- CHECKOUT UTENTE LOGGATO ----------
+  const hasNonProducts = items.some(i => i.type !== "product");
+
   const handleStripeCheckoutAuth = async () => {
     try {
       setLoading(true);
@@ -24,18 +26,12 @@ const CartPage = () => {
         customerSurname: user?.surname || "",
         customerEmail: user?.email || "",
         customerPhone: user?.phone || "",
-        pickupNote: "",
-        items: items.map(i => ({
-          productId: i.productId,
-          quantity: i.quantity,
-        })),
+        pickupNote: note,
+        // TODO: endpoint misto pacchetti — for now only product items go to Stripe
+        items: items
+          .filter(i => i.type === "product")
+          .map(i => ({ productId: i.productId, quantity: i.quantity })),
       };
-
-      // FIX-16: usa import.meta.env.DEV (Vite) invece di process.env
-      if (import.meta.env.DEV) {
-        console.debug("[checkout] endpoint: /checkout/create-session (auth)", { ...orderData, items: `[${orderData.items.length} items]` });
-      }
-
       const { url } = await createCheckoutSession(orderData);
       window.location.href = url;
     } catch (err) {
@@ -45,11 +41,10 @@ const CartPage = () => {
     }
   };
 
-  // ---------- CHECKOUT GUEST ----------
   const handleStripeCheckoutGuest = async orderData => {
     try {
       setLoading(true);
-      const res = await createCheckoutSessionGuest(orderData);
+      const res = await createCheckoutSessionGuest({ ...orderData, pickupNote: note });
       window.location.href = res.url;
     } catch (err) {
       alert("Errore durante il pagamento: " + err.message);
@@ -58,90 +53,142 @@ const CartPage = () => {
     }
   };
 
-  // ---------- LOGICA DEL PULSANTE ----------
   const handleProceed = () => {
     if (accessToken) handleStripeCheckoutAuth();
     else setShowCheckout(true);
   };
 
-  // ---------- UI ----------
   if (items.length === 0) {
     return (
-      <Container className="py-5 container-base flex-column">
-        <h2>🛒 Il tuo carrello è vuoto</h2>
-        <Link to="/prodotti">
-          <Button variant="dark" className="mt-3">
-            Vai ai prodotti
-          </Button>
-        </Link>
-      </Container>
+      <div className="cart-empty-page">
+        <Container>
+          <div className="cart-empty-inner">
+            <div className="cart-empty-icon">✦</div>
+            <h2 className="cart-empty-title">Il tuo carrello è vuoto</h2>
+            <p className="cart-empty-sub">Scopri i nostri prodotti e trattamenti selezionati</p>
+            <div className="cart-empty-ctas">
+              <Link to="/prodotti" className="cart-empty-btn">Esplora Prodotti</Link>
+              <Link to="/trattamenti" className="cart-empty-btn cart-empty-btn--outline">Vedi Trattamenti</Link>
+            </div>
+          </div>
+        </Container>
+      </div>
     );
   }
 
   return (
-    <Container className="py-5 cotainer-base flex-column">
-      <h2 className="mb-4">Il tuo carrello</h2>
+    <div className="cart-page">
+      <Container>
+        <div className="cart-header">
+          <span className="section-eyebrow">Il tuo</span>
+          <h1 className="cart-title">Carrello</h1>
+        </div>
 
-      <ListGroup variant="flush">
-        {items.map(item => (
-          <ListGroup.Item key={item.productId} className="py-3">
-            <Row className="align-items-center border rounded card-cart">
-              <Col xs={3} md={2}>
-                <Image src={item.image} alt={item.name} fluid rounded />
-              </Col>
+        <Row className="g-5">
+          <Col lg={7} xl={8}>
+            <div className="cart-items-list">
+              {items.map((item, idx) => (
+                <div key={item.id} className="cart-item" style={{ animationDelay: `${idx * 0.07}s` }}>
+                  <div
+                    className="cart-item-img"
+                    onClick={() => item.type === "product" && navigate(`/prodotti/${item.productId}`)}
+                  >
+                    <img src={item.image} alt={item.name} />
+                  </div>
+                  <div className="cart-item-info">
+                    <h3
+                      className="cart-item-name"
+                      onClick={() => item.type === "product" && navigate(`/prodotti/${item.productId}`)}
+                    >
+                      {item.name}
+                    </h3>
+                    <p className="cart-item-price-unit">€ {item.price.toFixed(2)} cad.</p>
+                    {item.type === "package" && (
+                      <span className="cart-item-type-pill">Pacchetto · {item.sessions} sed.</span>
+                    )}
+                    {item.type === "promotion" && (
+                      <span className="cart-item-type-pill">{item.discountLabel}</span>
+                    )}
+                    {item.type === "product" && item.stock && (
+                      <p className="cart-item-stock">{item.stock} disponibili</p>
+                    )}
+                  </div>
+                  <div className="cart-item-controls">
+                    {item.type === "product" ? (
+                      <div className="cart-qty-wrap">
+                        <button
+                          className="cart-qty-btn"
+                          onClick={() => dispatch(updateCartQuantity({ id: item.id, quantity: Math.max(1, item.quantity - 1) }))}
+                          aria-label="Riduci quantità"
+                        >−</button>
+                        <span className="cart-qty-num">{item.quantity}</span>
+                        <button
+                          className="cart-qty-btn"
+                          disabled={item.quantity >= item.stock}
+                          onClick={() => dispatch(updateCartQuantity({ id: item.id, quantity: item.quantity + 1 }))}
+                          aria-label="Aumenta quantità"
+                        >+</button>
+                      </div>
+                    ) : (
+                      <span className="cart-qty-num">× 1</span>
+                    )}
+                    <p className="cart-item-subtotal">€ {(item.price * item.quantity).toFixed(2)}</p>
+                  </div>
+                  <button
+                    className="cart-item-remove"
+                    onClick={() => dispatch(removeFromCart(item.id))}
+                    aria-label="Rimuovi dal carrello"
+                  >×</button>
+                </div>
+              ))}
+            </div>
 
-              <Col xs={9} md={4}>
-                <h5 onClick={() => navigate(`/prodotti/${item.productId}`)} className="cart-product-name" style={{ cursor: "pointer" }}>
-                  {item.name}
-                </h5>
-                <p className="text-muted mb-1">€ {item.price.toFixed(2)} cad.</p>
-                <p className="text-muted small">Disponibilità: {item.stock}</p>
-              </Col>
+            <div className="cart-note-wrap">
+              <label className="cart-note-label">Nota per il ritiro (opzionale)</label>
+              <textarea
+                className="cart-note-input"
+                rows={2}
+                placeholder="Es. orario preferito, richieste particolari..."
+                value={note}
+                onChange={e => setNote(e.target.value)}
+              />
+            </div>
+          </Col>
 
-              <Col xs={6} md={3} className="d-flex align-items-center gap-2">
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={() => dispatch(updateCartQuantity({ productId: item.productId, quantity: Math.max(1, item.quantity - 1) }))}
-                >
-                  <Dash size={20} />
-                </Button>
-
-                <span>{item.quantity}</span>
-
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  disabled={item.quantity >= item.stock}
-                  onClick={() => dispatch(updateCartQuantity({ productId: item.productId, quantity: item.quantity + 1 }))}
-                >
-                  <Plus size={20} />
-                </Button>
-              </Col>
-
-              <Col xs={4} md={2}>
-                <strong>€ {(item.price * item.quantity).toFixed(2)}</strong>
-              </Col>
-
-              <Col xs={2} md={1}>
-                <Button variant="outline-danger" size="sm" onClick={() => dispatch(removeFromCart(item.productId))}>
-                  <Trash size={24} />
-                </Button>
-              </Col>
-            </Row>
-          </ListGroup.Item>
-        ))}
-      </ListGroup>
-
-      <div className="d-flex justify-content-end mt-4">
-        <h4 className="cart-total">Totale: € {totalPrice.toFixed(2)}</h4>
-      </div>
-
-      <div className="d-flex justify-content-end mt-3">
-        <Button variant="success" size="lg" className="cart-checkout-btn" onClick={handleProceed} disabled={loading}>
-          {loading ? <Spinner animation="border" size="sm" /> : "Procedi al checkout"}
-        </Button>
-      </div>
+          <Col lg={5} xl={4}>
+            <div className="cart-summary">
+              <h3 className="cart-summary-title">Riepilogo ordine</h3>
+              <div className="cart-summary-rows">
+                {items.map(item => (
+                  <div key={item.id} className="cart-summary-row">
+                    <span>{item.name} ×{item.quantity}</span>
+                    <span>€ {(item.price * item.quantity).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="cart-summary-divider" />
+              <div className="cart-summary-total">
+                <span>Totale</span>
+                <span className="cart-total-price">€ {totalPrice.toFixed(2)}</span>
+              </div>
+              {hasNonProducts && (
+                <p className="cart-summary-notice">
+                  ⚠️ I pacchetti richiedono conferma telefonica. Sarai contattata dopo il pagamento.
+                </p>
+              )}
+              <p className="cart-summary-note">Ritiro in negozio · Pagamento sicuro</p>
+              <button
+                className="cart-checkout-btn"
+                onClick={handleProceed}
+                disabled={loading}
+              >
+                {loading ? <Spinner animation="border" size="sm" /> : "Procedi al pagamento"}
+              </button>
+              <Link to="/prodotti" className="cart-continue-link">← Continua lo shopping</Link>
+            </div>
+          </Col>
+        </Row>
+      </Container>
 
       <CheckoutModal
         show={showCheckout}
@@ -150,7 +197,7 @@ const CartPage = () => {
         totalPrice={totalPrice}
         cartItems={items}
       />
-    </Container>
+    </div>
   );
 };
 

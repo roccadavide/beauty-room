@@ -9,7 +9,7 @@ import ProductsPage from "./features/products/ProductsPage";
 import AboutDescription from "./features/about/AboutDescription";
 import MyProfile from "./features/profile/MyProfile";
 import BookingSuccessPage from "./features/bookings/BookingSuccessPage";
-import AllBookings from "./features/bookings/AllBookings";
+import MyArea from "./pages/user/MyArea";
 import ResultsPage from "./features/results/ResultsPage";
 import ScrollToTop from "./components/common/ScrollToTop";
 import PageTransition from "./components/common/PageTransition";
@@ -20,13 +20,12 @@ import ResultsPreview from "./features/results/ResultPreview";
 import ProductDetail from "./features/products/ProductDetails";
 import ServicePage from "./features/services/ServicePage";
 import ServiceDetail from "./features/services/ServiceDetails";
-import OffertePage from "./features/offerte/OffertePage";
+import OccasioniPage from "./features/occasioni/OccasioniPage";
 import Login from "./features/auth/Login";
 import Register from "./features/auth/Register";
 import CartPage from "./features/cart/CartPage";
 import OrderConfirmation from "./features/orders/OrderConfirmation";
 import MyOrders from "./features/orders/MyOrders";
-import MyBookings from "./features/bookings/MyBookings";
 import AllOrders from "./features/orders/AllOrders";
 import NavBar from "./components/layout/NavBar";
 import PrivateRoute from "./components/common/PrivateRoute";
@@ -233,10 +232,10 @@ function App() {
               }
             />
             <Route
-              path="/offerte"
+              path="/occasioni"
               element={
                 <PageTransition routeKey={location.pathname}>
-                  <OffertePage />
+                  <OccasioniPage />
                 </PageTransition>
               }
             />
@@ -372,11 +371,11 @@ function App() {
             />
 
             <Route
-              path="/prenotazioni"
+              path="/area-personale"
               element={
                 <PrivateRoute>
                   <PageTransition routeKey={location.pathname}>
-                    <MyBookings />
+                    <MyArea />
                   </PageTransition>
                 </PrivateRoute>
               }
@@ -394,16 +393,6 @@ function App() {
               }
             />
 
-            <Route
-              path="/prenotazioni/tutte"
-              element={
-                <PrivateRoute roles={["ADMIN"]}>
-                  <PageTransition routeKey={location.pathname}>
-                    <AllBookings />
-                  </PageTransition>
-                </PrivateRoute>
-              }
-            />
           </Routes>
         </AnimatePresence>
       </main>

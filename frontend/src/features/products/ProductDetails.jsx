@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
-import QuantitySelector from "../../components/layout/QuantitySelector";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchCategories } from "../../api/modules/categories.api";
+import { createCheckoutSession } from "../../api/modules/stripe.api";
+import { addToCart } from "../cart/slices/cart.slice";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
 
 const useInView = (options = { threshold: 0.15 }) => {
@@ -30,7 +32,12 @@ const ProductDetail = () => {
   const [error, setError] = useState(null);
   const [categories, setCategories] = useState([]);
   const [showFullDesc, setShowFullDesc] = useState(false);
+  const [qty, setQty] = useState(1);
+  const [addedFeedback, setAddedFeedback] = useState(false);
+  const [payLoading, setPayLoading] = useState(false);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { user, accessToken } = useSelector(s => s.auth);
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -72,6 +79,45 @@ const ProductDetail = () => {
   const [relatedRef, relatedVisible] = useInView();
   const [imageRef, imageVisible] = useInView();
 
+  const handleAddToCart = () => {
+    dispatch(addToCart({
+      id: product.productId,
+      type: "product",
+      productId: product.productId,
+      name: product.name,
+      price: product.price,
+      quantity: qty,
+      image: product.images?.[0],
+      stock: product.stock,
+    }));
+    setAddedFeedback(true);
+    setTimeout(() => setAddedFeedback(false), 1800);
+  };
+
+  const handlePayNow = async () => {
+    if (!accessToken) {
+      navigate("/login", { state: { from: `/prodotti/${product.productId}` } });
+      return;
+    }
+    try {
+      setPayLoading(true);
+      const orderData = {
+        customerName: user?.name || "",
+        customerSurname: user?.surname || "",
+        customerEmail: user?.email || "",
+        customerPhone: user?.phone || "",
+        pickupNote: "",
+        items: [{ productId: product.productId, quantity: qty }],
+      };
+      const { url } = await createCheckoutSession(orderData);
+      window.location.href = url;
+    } catch (err) {
+      alert("Errore: " + err.message);
+    } finally {
+      setPayLoading(false);
+    }
+  };
+
   if (loading)
     return (
       <Container className="pt-5 text-center">
@@ -89,13 +135,13 @@ const ProductDetail = () => {
   if (!product)
     return (
       <Container className="pt-5 text-center">
-        <p>Servizio non trovato.</p>
+        <p>Prodotto non trovato.</p>
       </Container>
     );
 
   return (
-    <Container fluid className="product-detail">
-      <Row className="justify-content-center align-items-start gap-5 g-5">
+    <Container fluid="xxl" className="product-detail">
+      <Row className="justify-content-center align-items-start g-4 g-md-5">
         {/* ▸ IMMAGINE */}
         <Col md={5} lg={5} className="d-flex justify-content-center">
           <div ref={imageRef} className={`detail-img-hero fade-slide ${imageVisible ? "visible" : ""}`}>
@@ -126,10 +172,43 @@ const ProductDetail = () => {
             <span className="detail-trust-pill">✓ Ritiro in negozio</span>
             <span className="detail-trust-pill">✓ Pagamenti sicuri</span>
             <span className="detail-trust-pill">✓ Nessun costo al ritiro</span>
-            <span className="detail-trust-pill">{product.stock} disponibili</span>
           </div>
 
-          <QuantitySelector product={product} />
+          {/* Selettore quantità */}
+          <div className="detail-qty-wrap">
+            <span className="so-label">Quantità</span>
+            <div className="detail-qty-controls">
+              <button
+                className="cart-qty-btn"
+                onClick={() => setQty(q => Math.max(1, q - 1))}
+                disabled={qty <= 1}
+              >−</button>
+              <span className="cart-qty-num">{qty}</span>
+              <button
+                className="cart-qty-btn"
+                onClick={() => setQty(q => Math.min(product.stock, q + 1))}
+                disabled={qty >= product.stock}
+              >+</button>
+            </div>
+          </div>
+
+          {/* Dual CTA */}
+          <div className="detail-cart-actions">
+            <button
+              className="detail-pay-btn"
+              onClick={handlePayNow}
+              disabled={payLoading || product.stock === 0}
+            >
+              {payLoading ? "..." : "Paga ora"}
+            </button>
+            <button
+              className={`detail-cart-btn${addedFeedback ? " added" : ""}`}
+              onClick={handleAddToCart}
+              disabled={product.stock === 0}
+            >
+              {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
+            </button>
+          </div>
 
           <div className="detail-divider" />
 
@@ -157,8 +236,8 @@ const ProductDetail = () => {
           </div>
           <RelatedCarousel
             items={relatedProducts}
-            getKey={(p) => p.productId}
-            renderCard={(p) => (
+            getKey={p => p.productId}
+            renderCard={p => (
               <div
                 className="related-card text-center"
                 onClick={() => navigate(`/prodotti/${p.productId}`)}

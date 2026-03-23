@@ -1,0 +1,188 @@
+/* ── MY AREA ── */
+
+.ma-page {
+  padding: 7rem 0 5rem;
+  min-height: 100vh;
+  background: #fffdf8;
+}
+
+/* Welcome header */
+.ma-welcome {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 2rem 1.5rem;
+  background: linear-gradient(135deg, #fef0d8 0%, #fdf5e8 60%, #fffdf8 100%);
+  border-radius: 22px;
+  border: 1px solid rgba(184, 151, 106, 0.18);
+  box-shadow: 0 8px 32px rgba(140, 109, 63, 0.08);
+  margin-bottom: 2.5rem;
+}
+
+.ma-welcome-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #b8976a, #8c6d3f);
+  display: grid;
+  place-items: center;
+  font-family: "SaolDisplay-Light", serif;
+  font-size: 1.8rem;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 6px 20px rgba(140, 109, 63, 0.3);
+}
+
+.ma-welcome-eyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: #b8976a;
+  margin: 0 0 0.25rem;
+  font-weight: 500;
+}
+
+.ma-welcome-name {
+  font-family: "SaolDisplay-Light", "EB Garamond", serif;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  color: #2a1b15;
+  margin: 0;
+  font-weight: 300;
+  line-height: 1.1;
+}
+
+.ma-stats {
+  margin-left: auto;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ma-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(184, 151, 106, 0.2);
+  border-radius: 14px;
+  padding: 0.75rem 1.25rem;
+  min-width: 80px;
+}
+
+.ma-stat-val {
+  font-family: "SaolDisplay-Light", serif;
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: #2a1b15;
+  line-height: 1;
+}
+
+.ma-stat-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #b8976a;
+  margin-top: 0.2rem;
+}
+
+/* Tabs */
+.ma-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(184, 151, 106, 0.15);
+  margin-bottom: 2rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ma-tabs::-webkit-scrollbar { display: none; }
+
+.ma-tab {
+  padding: 0.65rem 1.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #9e8272;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+
+.ma-tab:hover { color: #b8976a; }
+
+.ma-tab--active {
+  color: #2a1b15;
+  border-bottom-color: #b8976a;
+  font-weight: 600;
+}
+
+/* Section */
+.ma-section { padding-bottom: 2rem; }
+
+/* Order cards */
+.ma-order-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(184, 151, 106, 0.16);
+  padding: 1.1rem 1.4rem;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+  transition: all 0.25s;
+  box-shadow: 0 2px 10px rgba(140, 109, 63, 0.05);
+}
+
+.ma-order-card:hover {
+  box-shadow: 0 8px 24px rgba(140, 109, 63, 0.1);
+  border-color: rgba(184, 151, 106, 0.3);
+  transform: translateY(-1px);
+}
+
+.ma-order-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ma-order-num { font-weight: 600; color: #2a1b15; font-size: 0.9rem; margin: 0 0 0.15rem; }
+.ma-order-date { font-size: 0.78rem; color: #9e8272; margin: 0; }
+.ma-order-total { font-family: "SaolDisplay-Light", serif; font-size: 1.2rem; color: #2a1b15; }
+.ma-order-items-preview { font-size: 0.78rem; color: #b8976a; margin: 0.5rem 0 0; }
+
+.ma-status-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-radius: 20px;
+  padding: 0.22rem 0.65rem;
+}
+
+/* Empty */
+.ma-empty { text-align: center; padding: 3rem 1rem; color: #9e8272; }
+.ma-empty p { margin-bottom: 1.5rem; }
+
+.ma-cta-btn {
+  background: none;
+  border: none;
+  color: #b8976a;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  padding: 0.5rem;
+  transition: color 0.2s;
+}
+
+.ma-cta-btn:hover { color: #8c6d3f; }
+
+@media (max-width: 576px) {
+  .ma-welcome { flex-direction: column; text-align: center; }
+  .ma-stats { width: 100%; justify-content: center; }
+  .ma-welcome-avatar { margin: 0 auto; }
+}

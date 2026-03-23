@@ -8,7 +8,7 @@ const Footer = () => {
     <footer className="br-footer" aria-label="Footer">
       <Container className="br-footer__container">
         <Row className="gy-4 text-center text-md-start align-items-start">
-          <Col md={4} className="d-flex flex-column align-items-center align-items-md-start gap-2 justify-content-center">
+          <Col md={4} className="d-flex flex-column align-items-center gap-2 justify-content-center">
             <div className="br-footer__title">Beauty Room</div>
             <div className="br-footer__subtitle">Trucco permanente • Laser • Estetica avanzata</div>
 
@@ -40,7 +40,7 @@ const Footer = () => {
             </div>
           </Col>
 
-          <Col md={4} className="d-flex flex-column align-items-center align-items-md-start">
+          <Col md={4} className="d-flex flex-column align-items-center">
             <div className="br-footer__sectionTitle">Orari</div>
             <ul className="br-footer__list">
               <li>
@@ -68,35 +68,36 @@ const Footer = () => {
           </Col>
 
           <Col md={4} className="d-flex flex-column align-items-center align-items-md-start">
-            <div className="br-footer__sectionTitle">Seguici</div>
-
             <div className="br-footer__social">
-              <a
-                className="br-footer__socialBtn"
-                href="https://www.instagram.com/rossimichela.pmu"
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label="Instagram"
-              >
-                <Instagram size={22} />
-                <span>Instagram</span>
-              </a>
+              <div className="br-footer__sectionTitle">Seguici</div>
+              <div className="d-flex gap-4">
+                <a
+                  className="br-footer__socialBtn"
+                  href="https://www.instagram.com/rossimichela.pmu"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label="Instagram"
+                >
+                  <Instagram size={22} />
+                  <span>Instagram</span>
+                </a>
 
-              <a
-                className="br-footer__socialBtn"
-                href="https://www.facebook.com/rossimichela.pmu"
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label="Facebook"
-              >
-                <Facebook size={22} />
-                <span>Facebook</span>
-              </a>
+                <a
+                  className="br-footer__socialBtn"
+                  href="https://www.facebook.com/rossimichela.pmu"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label="Facebook"
+                >
+                  <Facebook size={22} />
+                  <span>Facebook</span>
+                </a>
 
-              <a className="br-footer__socialBtn" href="https://wa.me/393780921723" target="_blank" rel="noreferrer noopener" aria-label="WhatsApp">
-                <Whatsapp size={22} />
-                <span>WhatsApp</span>
-              </a>
+                <a className="br-footer__socialBtn" href="https://wa.me/393780921723" target="_blank" rel="noreferrer noopener" aria-label="WhatsApp">
+                  <Whatsapp size={22} />
+                  <span>WhatsApp</span>
+                </a>
+              </div>
             </div>
           </Col>
         </Row>

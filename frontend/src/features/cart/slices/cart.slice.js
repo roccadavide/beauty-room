@@ -1,60 +1,56 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { logout } from "../../auth/slices/auth.slice"; 
-
-const initialState = {
-  items: [],
-  totalQuantity: 0,
-  totalPrice: 0,
-};
+import { logout } from "../../auth/slices/auth.slice";
 
 function recalc(items) {
   const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
-  const totalPrice = items.reduce((sum, i) => sum + i.quantity * parseFloat(i.price || 0), 0);
+  const totalPrice = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   return { totalQuantity, totalPrice };
 }
 
 const cartSlice = createSlice({
   name: "cart",
-  initialState,
+  initialState: { items: [], totalQuantity: 0, totalPrice: 0 },
   reducers: {
-    addToCart: (state, action) => {
-      const payload = action.payload;
-      const qtyToAdd = payload.quantity ?? 1;
-      const existing = state.items.find(i => i.productId === payload.productId);
-
+    addToCart: (state, { payload }) => {
+      const existing = state.items.find(i => i.id === payload.id);
       if (existing) {
-        existing.quantity += qtyToAdd;
+        // Products: increment qty (respect stock)
+        if (existing.type === "product") {
+          existing.quantity = Math.min(
+            existing.quantity + (payload.quantity ?? 1),
+            existing.stock ?? 99
+          );
+        }
+        // Packages/promos: don't duplicate — already present
       } else {
-        state.items.push({ ...payload, quantity: qtyToAdd });
+        state.items.push({ ...payload, quantity: payload.quantity ?? 1 });
       }
-
       const { totalQuantity, totalPrice } = recalc(state.items);
       state.totalQuantity = totalQuantity;
       state.totalPrice = totalPrice;
     },
 
-    removeFromCart: (state, action) => {
-      const productId = action.payload;
-      state.items = state.items.filter(i => i.productId !== productId);
-
+    removeFromCart: (state, { payload }) => {
+      // payload = id (string)
+      state.items = state.items.filter(i => i.id !== payload);
       const { totalQuantity, totalPrice } = recalc(state.items);
       state.totalQuantity = totalQuantity;
       state.totalPrice = totalPrice;
     },
 
-    updateCartQuantity: (state, action) => {
-      const { productId, quantity } = action.payload;
-
-      if (quantity <= 0) {
-        state.items = state.items.filter(i => i.productId !== productId);
-      } else {
-        const item = state.items.find(i => i.productId === productId);
-        if (item) item.quantity = quantity;
+    updateCartQuantity: (state, { payload }) => {
+      // payload = { id, quantity }
+      const item = state.items.find(i => i.id === payload.id);
+      if (item && item.type === "product") {
+        if (payload.quantity <= 0) {
+          state.items = state.items.filter(i => i.id !== payload.id);
+        } else {
+          item.quantity = Math.min(payload.quantity, item.stock ?? 99);
+        }
+        const { totalQuantity, totalPrice } = recalc(state.items);
+        state.totalQuantity = totalQuantity;
+        state.totalPrice = totalPrice;
       }
-
-      const { totalQuantity, totalPrice } = recalc(state.items);
-      state.totalQuantity = totalQuantity;
-      state.totalPrice = totalPrice;
     },
 
     clearCart: state => {

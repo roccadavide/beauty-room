@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Form, Row, Col, Spinner } from "react-bootstrap";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import useLenisModalLock from "../../hooks/useLenisModalLock";
 
 const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) => {
   const [form, setForm] = useState({

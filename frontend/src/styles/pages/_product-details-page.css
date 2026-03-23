@@ -92,7 +92,106 @@
   letter-spacing: 0.02em;
 }
 
-/* CTA button (solo servizi) */
+/* ── Selettore quantità (prodotti) ── */
+.detail-qty-wrap {
+  margin-bottom: 1.25rem;
+}
+
+.detail-qty-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fef7ef;
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 30px;
+  padding: 0.3rem 0.6rem;
+}
+
+/* ── Dual CTA: Paga ora + Aggiungi al carrello ── */
+.detail-cart-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Paga ora — dark filled */
+.detail-pay-btn {
+  flex: 1;
+  min-width: 130px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #2e2118 0%, #1a110a 100%);
+  color: #f5e8d8;
+  border: none;
+  border-radius: 14px;
+  padding: 0.9rem 1.5rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.2s;
+  box-shadow: 0 4px 20px rgba(46, 33, 24, 0.25);
+  white-space: nowrap;
+}
+
+.detail-pay-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(46, 33, 24, 0.35);
+}
+
+.detail-pay-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Aggiungi al carrello — outline oro */
+.detail-cart-btn {
+  flex: 1;
+  min-width: 130px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: transparent;
+  color: #8c6d3f;
+  border: 1.5px solid #b8976a;
+  border-radius: 14px;
+  padding: 0.9rem 1.5rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.detail-cart-btn:hover:not(:disabled) {
+  background: #b8976a;
+  color: #fff;
+  border-color: #b8976a;
+  box-shadow: 0 6px 22px rgba(184, 151, 106, 0.4);
+  transform: translateY(-2px);
+}
+
+.detail-cart-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.detail-cart-btn.added {
+  background: linear-gradient(135deg, #b8976a 0%, #8c6d3f 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* CTA button (solo servizi — fallback senza opzioni) */
 .detail-cta-btn {
   display: inline-flex;
   align-items: center;
@@ -334,8 +433,16 @@
     font-size: 1.8rem;
   }
 
-  .detail-cta-btn {
+  .detail-cta-btn,
+  .detail-pay-btn,
+  .detail-cart-btn {
     width: 100%;
+    min-width: 0;
     justify-content: center;
+  }
+
+  .detail-cart-actions {
+    flex-direction: column;
+    gap: 0.65rem;
   }
 }

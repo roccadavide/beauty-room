@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Container, Spinner, Card, Badge, ListGroup, Row, Col, Image, Button } from "react-bootstrap";
+import { Container, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { Trash2Fill } from "react-bootstrap-icons";
-import DeleteOrderModal from "./DeleteOrderModal";
 import { useNavigate } from "react-router-dom";
+import DeleteOrderModal from "./DeleteOrderModal";
 import { deleteOrder, fetchMyOrders } from "../../api/modules/orders.api";
 import { fetchProductById } from "../../api/modules/products.api";
+
+const STATUS_LABELS = {
+  PAID:      { label: "Pagato",    color: "#2d6a4f", bg: "rgba(45,106,79,0.1)"    },
+  PENDING:   { label: "In attesa", color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
+  CANCELLED: { label: "Cancellato",color: "#c0392b", bg: "rgba(192,57,43,0.1)"    },
+  COMPLETED: { label: "Ritirato",  color: "#2e2118", bg: "rgba(46,33,24,0.08)"    },
+};
 
 const MyOrders = () => {
   const [myOrders, setMyOrders] = useState([]);
@@ -14,75 +20,37 @@ const MyOrders = () => {
   const [error, setError] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [expandedOrder, setExpandedOrder] = useState(null);
 
   const navigate = useNavigate();
-  const { accessToken } = useSelector(state => state.auth);
-
-  // ---------- FETCH ORDINI UTENTE ----------
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadData = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const res = await fetchMyOrders();
-        if (!cancelled) setMyOrders(res || []);
-      } catch (err) {
-        if (!cancelled) setError(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    if (!accessToken) {
-      setLoading(false);
-      setMyOrders([]);
-      return;
-    }
-
-    loadData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accessToken]);
-
-  // ---------- FETCH PRODOTTI LEGATI ----------
+  const { accessToken } = useSelector(s => s.auth);
   const requestedRef = useRef(new Set());
 
-  const getProduct = useCallback(
-    async id => {
-      if (products[id]) return products[id];
+  useEffect(() => {
+    if (!accessToken) { setLoading(false); return; }
+    let cancelled = false;
+    fetchMyOrders()
+      .then(res => { if (!cancelled) setMyOrders(res || []); })
+      .catch(err => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [accessToken]);
 
-      if (requestedRef.current.has(id)) return null;
-      requestedRef.current.add(id);
-
-      try {
-        const prod = await fetchProductById(id);
-        setProducts(prev => ({ ...prev, [id]: prod }));
-        return prod;
-      } catch (err) {
-        console.error("Errore caricamento prodotto", err);
-        requestedRef.current.delete(id);
-        return null;
-      }
-    },
-    [products]
-  );
+  const getProduct = useCallback(async id => {
+    if (products[id] || requestedRef.current.has(id)) return;
+    requestedRef.current.add(id);
+    try {
+      const prod = await fetchProductById(id);
+      setProducts(prev => ({ ...prev, [id]: prod }));
+    } catch {
+      requestedRef.current.delete(id);
+    }
+  }, [products]);
 
   useEffect(() => {
-    if (!myOrders?.length) return;
-
-    myOrders.forEach(order => {
-      order.orderItems?.forEach(item => {
-        if (item?.productId) getProduct(item.productId);
-      });
-    });
+    myOrders.forEach(o => o.orderItems?.forEach(i => { if (i?.productId) getProduct(i.productId); }));
   }, [myOrders, getProduct]);
 
-  // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
       await deleteOrder(id);
@@ -94,105 +62,143 @@ const MyOrders = () => {
     }
   };
 
-  // ---------- UI ----------
-  if (loading) {
-    return (
-      <Container className="text-center container-base">
-        <Spinner animation="border" role="status" />
+  if (loading) return (
+    <div className="mo-page">
+      <Container className="d-flex justify-content-center py-5">
+        <Spinner animation="border" />
       </Container>
-    );
-  }
+    </div>
+  );
 
-  if (error) {
-    return (
-      <Container className="container-base">
-        <p className="text-danger">{error}</p>
-      </Container>
-    );
-  }
+  if (error) return (
+    <div className="mo-page">
+      <Container><p className="text-danger mt-5">{error}</p></Container>
+    </div>
+  );
 
   return (
-    <Container className="py-5 container-base flex-column">
-      <h2 className="mb-4">📦 I miei ordini</h2>
+    <div className="mo-page">
+      <Container>
+        {/* Header */}
+        <div className="mo-header">
+          <span className="section-eyebrow">I tuoi acquisti</span>
+          <h1 className="mo-title">I miei ordini</h1>
+          <p className="mo-subtitle">
+            {myOrders.length > 0
+              ? `${myOrders.length} ordine${myOrders.length > 1 ? "i" : ""} trovato${myOrders.length > 1 ? "i" : ""}`
+              : "Nessun ordine ancora"}
+          </p>
+        </div>
 
-      {myOrders.length === 0 && <p>Non hai ancora effettuato ordini.</p>}
+        {/* Empty state */}
+        {myOrders.length === 0 && (
+          <div className="mo-empty">
+            <div className="mo-empty-icon">✦</div>
+            <h3>Ancora nessun acquisto</h3>
+            <p>Esplora i nostri prodotti e trattamenti</p>
+            <div className="d-flex gap-3 justify-content-center flex-wrap">
+              <button className="mo-empty-btn" onClick={() => navigate("/prodotti")}>Vai ai Prodotti</button>
+              <button className="mo-empty-btn mo-empty-btn--outline" onClick={() => navigate("/trattamenti")}>Vai ai Trattamenti</button>
+            </div>
+          </div>
+        )}
 
-      {myOrders.map(order => (
-        <Card key={order.orderId} className="mb-4 shadow-sm order-card w-100">
-          <Card.Body>
-            <Row>
-              <Col md={5} className="mb-5">
-                <h5>
-                  {order.customerName} {order.customerSurname}
-                </h5>
-                <small className="text-muted">{new Date(order.createdAt).toLocaleString()}</small>
-                <p className="mb-1">
-                  <strong>Email:</strong> {order.customerEmail}
-                </p>
-                <p className="mb-1">
-                  <strong>Telefono:</strong> {order.customerPhone}
-                </p>
-                {order.pickupNote && (
-                  <p className="mb-1">
-                    <strong>Note ritiro:</strong> {order.pickupNote}
-                  </p>
-                )}
-                <strong>STATUS:</strong> <Badge bg="secondary">{order.orderStatus}</Badge>
-              </Col>
+        {/* Order cards */}
+        <div className="mo-list">
+          {myOrders.map((order, idx) => {
+            const st = STATUS_LABELS[order.orderStatus] || STATUS_LABELS.PENDING;
+            const isExpanded = expandedOrder === order.orderId;
+            const total = order.orderItems?.reduce((s, i) => s + i.price * i.quantity, 0) || 0;
 
-              <Col md={7}>
-                <div className="d-flex justify-content-between">
-                  <h6>🛒 Prodotti:</h6>
-                  <Button
-                    variant="danger"
-                    className="rounded-circle d-flex justify-content-center align-items-center"
-                    onClick={e => {
-                      e.stopPropagation();
-                      setSelectedOrder(order);
-                      setDeleteModal(true);
-                    }}
-                  >
-                    <Trash2Fill />
-                  </Button>
+            return (
+              <div key={order.orderId} className="mo-card" style={{ animationDelay: `${idx * 0.06}s` }}>
+                {/* Card header */}
+                <div className="mo-card-header" onClick={() => setExpandedOrder(isExpanded ? null : order.orderId)}>
+                  <div className="mo-card-left">
+                    <div className="mo-order-num">Ordine #{order.orderId?.slice(-8).toUpperCase()}</div>
+                    <div className="mo-order-date">
+                      {new Date(order.createdAt).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}
+                    </div>
+                  </div>
+                  <div className="mo-card-right">
+                    <span className="mo-status-pill" style={{ color: st.color, background: st.bg }}>{st.label}</span>
+                    <span className="mo-total">€ {total.toFixed(2)}</span>
+                    <span className="mo-expand-icon">{isExpanded ? "−" : "+"}</span>
+                  </div>
                 </div>
-                <ListGroup variant="flush">
-                  {order.orderItems.map(item => {
-                    const product = products[item.productId];
+
+                {/* Thumbnail preview */}
+                <div className="mo-items-preview">
+                  {order.orderItems?.slice(0, 3).map(item => {
+                    const prod = products[item.productId];
                     return (
-                      <ListGroup.Item key={item.orderItemId} className="d-flex justify-content-between align-items-center">
-                        <span style={{ width: "100%" }}>
-                          <Row className="align-items-center border rounded card-cart">
-                            <Col xs={3} md={2}>
-                              {product ? (
-                                <Image src={product.images?.[0]} alt={product.name} fluid rounded />
-                              ) : (
-                                <div className="bg-light" style={{ height: "60px" }} />
-                              )}
-                            </Col>
-                            <Col xs={9} md={6}>
-                              <h6 onClick={() => navigate(`/prodotti/${product?.productId}`)} className="cart-product-name">
-                                {product ? product.name : "Caricamento..."}
-                              </h6>
-                              <p className="text-muted mb-1">€ {item.price.toFixed(2)} cad.</p>
-                              <small>Quantità: {item.quantity}</small>
-                            </Col>
-                            <Col className="text-end">
-                              <span>€ {(item.price * item.quantity).toFixed(2)}</span>
-                            </Col>
-                          </Row>
-                        </span>
-                      </ListGroup.Item>
+                      <div key={item.orderItemId} className="mo-item-thumb" title={prod?.name || "Prodotto"}>
+                        {prod?.images?.[0] ? (
+                          <img src={prod.images[0]} alt={prod.name} />
+                        ) : (
+                          <div className="mo-item-thumb-placeholder" />
+                        )}
+                      </div>
                     );
                   })}
-                </ListGroup>
-              </Col>
-            </Row>
-          </Card.Body>
-        </Card>
-      ))}
+                  {order.orderItems?.length > 3 && (
+                    <div className="mo-item-thumb mo-item-more">+{order.orderItems.length - 3}</div>
+                  )}
+                </div>
 
-      <DeleteOrderModal show={deleteModal} onHide={() => setDeleteModal(false)} order={selectedOrder} onConfirm={handleDeleteConfirm} />
-    </Container>
+                {/* Expandable detail */}
+                {isExpanded && (
+                  <div className="mo-detail-expanded">
+                    <div className="mo-detail-divider" />
+
+                    {order.orderItems?.map(item => {
+                      const prod = products[item.productId];
+                      return (
+                        <div
+                          key={item.orderItemId}
+                          className="mo-detail-item"
+                          onClick={() => prod && navigate(`/prodotti/${prod.productId}`)}
+                        >
+                          <div className="mo-detail-img">
+                            {prod?.images?.[0] ? <img src={prod.images[0]} alt={prod.name} /> : <div className="mo-detail-img-ph" />}
+                          </div>
+                          <div className="mo-detail-info">
+                            <p className="mo-detail-name">{prod?.name || "Prodotto"}</p>
+                            <p className="mo-detail-sub">Quantità: {item.quantity} · € {item.price.toFixed(2)} cad.</p>
+                          </div>
+                          <p className="mo-detail-subtotal">€ {(item.price * item.quantity).toFixed(2)}</p>
+                        </div>
+                      );
+                    })}
+
+                    <div className="mo-detail-footer">
+                      {order.pickupNote && (
+                        <p className="mo-detail-note">📋 {order.pickupNote}</p>
+                      )}
+                      <div className="mo-detail-actions">
+                        <button
+                          className="mo-delete-btn"
+                          onClick={e => { e.stopPropagation(); setSelectedOrder(order); setDeleteModal(true); }}
+                        >
+                          Elimina ordine
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Container>
+
+      <DeleteOrderModal
+        show={deleteModal}
+        onHide={() => setDeleteModal(false)}
+        order={selectedOrder}
+        onConfirm={handleDeleteConfirm}
+      />
+    </div>
   );
 };
 

@@ -4,6 +4,8 @@ import { createProduct, updateProduct } from "../../api/modules/products.api";
 import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import MultiImageUpload from "../../components/common/MultiImageUpload";
+import { buildMultipartForm } from "../../api/utils/multipart";
 
 const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => {
   const { accessToken } = useSelector(state => state.auth);
@@ -18,7 +20,8 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
     stock: "",
     categoryId: "",
   });
-  const [file, setFile] = useState(null);
+  const [newFiles, setNewFiles] = useState([]);
+  const [removedUrls, setRemovedUrls] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +34,8 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
       stock: "",
       categoryId: "",
     });
-    setFile(null);
+    setNewFiles([]);
+    setRemovedUrls([]);
     setErrors({});
   };
 
@@ -83,10 +87,6 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
     setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
   };
 
-  const handleFileChange = e => {
-    setFile(e.target.files[0]);
-  };
-
   const validateForm = () => {
     const newErrors = {};
     Object.keys(form).forEach(key => {
@@ -110,14 +110,17 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
         description: form.description,
         stock: parseInt(form.stock, 10),
         categoryId: form.categoryId,
+        removedImageUrls: removedUrls,
       };
+      const formData = buildMultipartForm(payload, newFiles);
 
       let savedProduct;
       if (isEdit) {
-        savedProduct = await updateProduct(product.productId, payload, file, accessToken);
+        savedProduct = await updateProduct(product.productId, formData);
       } else {
-        savedProduct = await createProduct(payload, file, accessToken);
-        resetForm();
+        savedProduct = await createProduct(formData);
+        setNewFiles([]);
+        setRemovedUrls([]);
       }
 
       onProductSaved(savedProduct);
@@ -204,13 +207,14 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
           <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
         </Form.Group>
 
-        <Form.Group>
-          <Form.Label>Immagine</Form.Label>
-          {isEdit && product.images?.length > 0 && !file && (
-            <small className="d-block text-muted mb-2">L'immagine attuale rimarrà se non ne carichi una nuova</small>
-          )}
-          <Form.Control type="file" accept="image/*" onChange={handleFileChange} />
-        </Form.Group>
+        <MultiImageUpload
+          files={newFiles}
+          existingUrls={(isEdit ? product?.images ?? [] : []).filter(u => !removedUrls.includes(u))}
+          onChange={setNewFiles}
+          onRemoveExisting={url => setRemovedUrls(prev => [...prev, url])}
+          label="Immagini"
+          maxFiles={8}
+        />
       </Form>
     </UnifiedDrawer>
   );

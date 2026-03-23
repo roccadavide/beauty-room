@@ -8,12 +8,14 @@ const QuantitySelector = ({ product }) => {
   const [quantity, setQuantity] = useState(1);
   const dispatch = useDispatch();
 
-  const existingItem = items.find(i => i.productId === product.productId);
+  const existingItem = items.find(i => i.id === product.productId);
   const currentQuantity = existingItem ? existingItem.quantity : 0;
 
   const handleAdd = () => {
     dispatch(
       addToCart({
+        id: product.productId,
+        type: "product",
         productId: product.productId,
         name: product.name,
         price: product.price,

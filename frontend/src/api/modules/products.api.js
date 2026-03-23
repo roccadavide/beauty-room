@@ -26,9 +26,8 @@ export const fetchProductById = async productId => {
 };
 
 // -------------------------- CREATE --------------------------
-export const createProduct = async (productData, file) => {
-  const formData = buildFormData(productData, file);
-
+// buildFormData rimosso — usa src/api/utils/multipart.js
+export const createProduct = async formData => {
   try {
     const { data } = await http.post(PRODUCT_ENDPOINTS.BASE, formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -41,9 +40,7 @@ export const createProduct = async (productData, file) => {
 };
 
 // -------------------------- UPDATE --------------------------
-export const updateProduct = async (productId, productData, file) => {
-  const formData = buildFormData(productData, file);
-
+export const updateProduct = async (productId, formData) => {
   try {
     const { data } = await http.put(PRODUCT_ENDPOINTS.BY_ID(productId), formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -66,17 +63,3 @@ export const deleteProduct = async productId => {
   }
 };
 
-// -------------------------- HELPERS --------------------------
-function buildFormData(productData, file) {
-  const formData = new FormData();
-  formData.append("data", new Blob([JSON.stringify(productData)], { type: "application/json" }));
-
-  if (file) {
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) throw new Error("Immagine troppo grande (max 5MB)");
-    if (!file.type.startsWith("image/")) throw new Error("File non valido: carica un'immagine");
-    formData.append("image", file);
-  }
-
-  return formData;
-}

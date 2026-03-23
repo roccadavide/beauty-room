@@ -28,7 +28,7 @@ const getTotalOriginalPrice = (promotion, products, services) => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 
-function OffertePage() {
+function OccasioniPage() {
   const { user, accessToken } = useSelector(state => state.auth);
   const [activeTab, setActiveTab] = useState("pacchetti");
 
@@ -139,9 +139,7 @@ function OffertePage() {
   const handlePkgSaved = saved => {
     setPackages(prev => {
       const exists = prev.some(p => p.optionId === saved.optionId);
-      return exists
-        ? prev.map(p => (p.optionId === saved.optionId ? saved : p))
-        : [...prev, saved];
+      return exists ? prev.map(p => (p.optionId === saved.optionId ? saved : p)) : [...prev, saved];
     });
     setOpenPkg(false);
     setEditingPkg(null);
@@ -171,7 +169,7 @@ function OffertePage() {
       {/* HEAD */}
       <div className="text-center mb-4">
         <span className="section-eyebrow">Convenienza</span>
-        <h1 className="of-page-title">Offerte</h1>
+        <h1 className="of-page-title">Occasioni</h1>
         <p className="section-subtitle">Pacchetti multi-seduta e promozioni attive per i nostri trattamenti.</p>
       </div>
 
@@ -190,13 +188,14 @@ function OffertePage() {
         <Container>
           {user?.role === "ADMIN" && (
             <div className="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
-              <p className="of-admin-note mb-0">
-                Puoi anche gestire i pacchetti dalle opzioni del singolo trattamento
-              </p>
+              <p className="of-admin-note mb-0">Puoi anche gestire i pacchetti dalle opzioni del singolo trattamento</p>
               <Button
                 variant="success"
                 className="d-flex align-items-center gap-2 rounded-pill px-3 shadow-sm"
-                onClick={() => { setEditingPkg(null); setOpenPkg(true); }}
+                onClick={() => {
+                  setEditingPkg(null);
+                  setOpenPkg(true);
+                }}
               >
                 <Plus /> Nuovo pacchetto
               </Button>
@@ -216,7 +215,10 @@ function OffertePage() {
           {user?.role === "ADMIN" && (
             <PackageDrawer
               show={openPkg}
-              onHide={() => { setOpenPkg(false); setEditingPkg(null); }}
+              onHide={() => {
+                setOpenPkg(false);
+                setEditingPkg(null);
+              }}
               onSaved={handlePkgSaved}
               onDeleted={handlePkgDeleted}
               services={allServices}
@@ -251,7 +253,10 @@ function OffertePage() {
                             size="sm"
                             variant="outline-secondary"
                             className="rounded-circle"
-                            onClick={() => { setEditingPkg(pkg); setOpenPkg(true); }}
+                            onClick={() => {
+                              setEditingPkg(pkg);
+                              setOpenPkg(true);
+                            }}
                           >
                             <PencilFill />
                           </Button>
@@ -395,4 +400,4 @@ function OffertePage() {
   );
 }
 
-export default OffertePage;
+export default OccasioniPage;

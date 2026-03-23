@@ -57,10 +57,10 @@ public class ServiceItemController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ServiceItemResponseDTO> createServiceItem(
             @Valid @RequestPart("data") NewServiceItemDTO payload,
-            @RequestPart(value = "image", required = false) MultipartFile image
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
         log.info("Richiesta creazione servizio '{}'", payload.title());
-        ServiceItemResponseDTO created = serviceItemService.saveServiceItem(payload, image);
+        ServiceItemResponseDTO created = serviceItemService.saveServiceItem(payload, images);
         return ResponseEntity.status(201).body(created);
     }
 
@@ -71,10 +71,10 @@ public class ServiceItemController {
     public ResponseEntity<ServiceItemResponseDTO> updateServiceItem(
             @PathVariable UUID serviceItemId,
             @Valid @RequestPart("data") NewServiceItemDTO payload,
-            @RequestPart(value = "image", required = false) MultipartFile image
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
         log.info("Richiesta aggiornamento servizio {}", serviceItemId);
-        ServiceItemResponseDTO updated = serviceItemService.updateServiceItem(serviceItemId, payload, image);
+        ServiceItemResponseDTO updated = serviceItemService.updateServiceItem(serviceItemId, payload, images);
         return ResponseEntity.ok(updated);
     }
 

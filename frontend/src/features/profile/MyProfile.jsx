@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Container, Row, Col, Card, Badge, Button, ListGroup } from "react-bootstrap";
+import { Container, Row, Col } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
+import { PersonCircle, EnvelopeFill, TelephoneFill, ShieldFillCheck, CalendarHeartFill, BagHeartFill } from "react-bootstrap-icons";
+import { useNavigate } from "react-router-dom";
 import EditProfileModal from "./EditProfileModal";
 import ChangePasswordModal from "./ChangePasswordModal";
 import { updateUser } from "../auth/slices/auth.slice";
@@ -10,118 +12,114 @@ const MyProfile = () => {
   const [openModal, setOpenModal] = useState(false);
   const [openPasswordModal, setOpenPasswordModal] = useState(false);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const name = user?.name || "Utente";
   const surname = user?.surname || "";
-  const email = user?.email || "-";
-  const phone = user?.phone || "-";
-  const role = user?.role || "USER";
-  const id = user?.id || "-";
+  const email = user?.email || "—";
+  const phone = user?.phone || "Non inserito";
+  const initials = `${(name?.[0] || "").toUpperCase()}${(surname?.[0] || "").toUpperCase()}`;
 
   const handleProfileUpdated = updatedUser => {
     dispatch(updateUser(updatedUser));
     setOpenModal(false);
   };
 
-  const initials = `${(name?.[0] || "").toUpperCase()}${(surname?.[0] || "").toUpperCase()}`;
-
-  const roleVariant = role === "ADMIN" ? "danger" : role === "CUSTOMER" ? "warning" : "secondary";
-
-  const copy = text => navigator.clipboard?.writeText(text);
-
   return (
-    <Container className="profile-container">
-      <Row className="justify-content-center">
-        <Col xs={12} lg={10} xl={8}>
-          <Card className="profile-card shadow-lg">
-            <div className="profile-hero">
-              <div className="avatar">
-                <span>{initials || "U"}</span>
+    <div className="mp-page">
+      <Container>
+        {/* HERO */}
+        <div className="mp-hero">
+          <div className="mp-avatar">{initials || "U"}</div>
+          <div className="mp-hero-text">
+            <p className="mp-eyebrow">Il tuo profilo</p>
+            <h1 className="mp-name">
+              {name} {surname}
+            </h1>
+            <p className="mp-member">Membro Beauty Room</p>
+          </div>
+        </div>
+
+        {/* INFO CARDS */}
+        <Row className="g-4 mb-4">
+          <Col md={6}>
+            <div className="mp-info-card">
+              <div className="mp-info-icon">
+                <EnvelopeFill />
               </div>
               <div>
-                <h2 className="mb-1 text-white">
-                  {name} {surname}
-                </h2>
-                <Badge bg={roleVariant} className="role-badge">
-                  {role}
-                </Badge>
+                <p className="mp-info-label">Email</p>
+                <p className="mp-info-value">{email}</p>
               </div>
             </div>
-
-            <Card.Body className="p-4">
-              <Row className="g-4">
-                <Col md={6}>
-                  <ListGroup className="profile-list">
-                    <ListGroup.Item className="d-flex align-items-center justify-content-between">
-                      <div>
-                        <div className="label">Email</div>
-                        <div className="value">{email}</div>
-                      </div>
-                      <div className="d-flex gap-2">
-                        <Button size="sm" variant="outline-secondary" onClick={() => copy(email)}>
-                          Copia
-                        </Button>
-                      </div>
-                    </ListGroup.Item>
-
-                    <ListGroup.Item className="d-flex align-items-center justify-content-between">
-                      <div>
-                        <div className="label">Telefono</div>
-                        <div className="value">{phone}</div>
-                      </div>
-                      <div className="d-flex gap-2">
-                        <Button size="sm" variant="outline-secondary" onClick={() => copy(phone)}>
-                          Copia
-                        </Button>
-                      </div>
-                    </ListGroup.Item>
-                  </ListGroup>
-                </Col>
-
-                <Col md={6}>
-                  <ListGroup className="profile-list">
-                    <ListGroup.Item className="d-flex align-items-center justify-content-between">
-                      <div>
-                        <div className="label">ID Utente</div>
-                        <div className="value monospace">{id}</div>
-                      </div>
-                      <Button size="sm" variant="outline-secondary" onClick={() => copy(id)}>
-                        Copia
-                      </Button>
-                    </ListGroup.Item>
-
-                    <ListGroup.Item className="d-flex align-items-center justify-content-between">
-                      <div>
-                        <div className="label">Ruolo</div>
-                        <div className="value">
-                          <Badge bg={roleVariant}>{role}</Badge>
-                        </div>
-                      </div>
-                    </ListGroup.Item>
-                  </ListGroup>
-                </Col>
-              </Row>
-
-              <div className="mt-4 d-flex flex-wrap justify-content-between gap-2">
-                <Button variant="primary" onClick={() => setOpenModal(true)}>
-                  Modifica profilo
-                </Button>
-                <Button variant="secondary" onClick={() => setOpenPasswordModal(true)}>
-                  Cambia password
-                </Button>
-                <Button variant="danger">
-                  <a href={`mailto:rossimichela.pmu@gmail.com?subject=Richiesta%20informazioni%20dal%20sito`} className="text-decoration-none text-white">
-                    Contatta supporto
-                  </a>
-                </Button>
+          </Col>
+          <Col md={6}>
+            <div className="mp-info-card">
+              <div className="mp-info-icon">
+                <TelephoneFill />
               </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+              <div>
+                <p className="mp-info-label">Telefono</p>
+                <p className="mp-info-value">{phone}</p>
+              </div>
+            </div>
+          </Col>
+        </Row>
+
+        {/* AZIONI */}
+        <Row className="g-3 mb-5">
+          <Col xs={12} sm={6} md={4}>
+            <button className="mp-action-btn" onClick={() => setOpenModal(true)}>
+              <PersonCircle className="mp-action-icon" />
+              <span>Modifica profilo</span>
+            </button>
+          </Col>
+          <Col xs={12} sm={6} md={4}>
+            <button className="mp-action-btn" onClick={() => setOpenPasswordModal(true)}>
+              <ShieldFillCheck className="mp-action-icon" />
+              <span>Cambia password</span>
+            </button>
+          </Col>
+          <Col xs={12} sm={6} md={4}>
+            <a href="mailto:rossimichela.pmu@gmail.com?subject=Richiesta%20informazioni%20dal%20sito" className="mp-action-btn mp-action-btn--gold">
+              <CalendarHeartFill className="mp-action-icon" />
+              <span>Contatta Michela</span>
+            </a>
+          </Col>
+        </Row>
+
+        {/* SEZIONE ATTIVITÀ */}
+        <div className="mp-section-title">
+          <span className="section-eyebrow">La tua attività</span>
+          <h2 className="mp-section-h2">I tuoi acquisti e prenotazioni</h2>
+        </div>
+        <Row className="g-4">
+          <Col md={6}>
+            <div className="mp-activity-card" onClick={() => navigate("/ordini")}>
+              <BagHeartFill className="mp-activity-icon" />
+              <div>
+                <p className="mp-activity-label">I miei ordini</p>
+                <p className="mp-activity-sub">Visualizza lo storico acquisti</p>
+              </div>
+              <span className="mp-activity-arrow">→</span>
+            </div>
+          </Col>
+          <Col md={6}>
+            <div className="mp-activity-card" onClick={() => (window.location.href = "/trattamenti")}>
+              <CalendarHeartFill className="mp-activity-icon" />
+              <div>
+                <p className="mp-activity-label">Prenota un trattamento</p>
+                <p className="mp-activity-sub">Scegli il tuo prossimo appuntamento</p>
+              </div>
+              <span className="mp-activity-arrow">→</span>
+            </div>
+          </Col>
+        </Row>
+      </Container>
+
       <EditProfileModal show={openModal} onHide={() => setOpenModal(false)} user={user} onProfileUpdated={handleProfileUpdated} />
-      <ChangePasswordModal show={openPasswordModal} onHide={() => setOpenPasswordModal(false)} userId={user.id} />
-    </Container>
+      <ChangePasswordModal show={openPasswordModal} onHide={() => setOpenPasswordModal(false)} userId={user?.id} />
+    </div>
   );
 };
 

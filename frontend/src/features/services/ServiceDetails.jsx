@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
 import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
+import { addToCart } from "../cart/slices/cart.slice";
 import BookingModal from "../bookings/BookingModal";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
 
@@ -28,16 +30,15 @@ const ServiceDetail = () => {
   const [categories, setCategories] = useState([]);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [open, setOpen] = useState(false);
-  // FIX-2: opzione selezionata dal cliente prima di aprire il modal
   const [selectedOption, setSelectedOption] = useState(null);
-  // FIX-2: gruppo attivo nel selettore (caso laser con più zone)
   const [activeGroup, setActiveGroup] = useState(null);
+  const [addedFeedback, setAddedFeedback] = useState(false);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   useEffect(() => {
     const loadServices = async () => {
       try {
-        // FIX-2: fetchServiceById garantisce il DTO completo con options[] popolato
         const [found, all, cats] = await Promise.all([
           fetchServiceById(serviceId),
           fetchServices(),
@@ -62,11 +63,11 @@ const ServiceDetail = () => {
   }, [categories]);
 
   const badgeColors = {
-    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary", //Trucco permanente
-    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success", //Piedi
-    "95b6d339-a765-4569-9aee-08107d27516b": "warning", //Mani
-    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info", //Corpo
-    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger", //Viso
+    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary",
+    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success",
+    "95b6d339-a765-4569-9aee-08107d27516b": "warning",
+    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info",
+    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger",
   };
 
   const related = useMemo(() => {
@@ -78,22 +79,37 @@ const ServiceDetail = () => {
   const [imgRef, imgVisible] = useInView();
   const [relatedRef, relatedVisible] = useInView();
 
-  // FIX-2: calcola gruppi distinti dalle opzioni attive
   const activeOptions = service?.options?.filter(o => o.active) ?? [];
   const optionGroups = useMemo(() => {
     const groups = [...new Set(activeOptions.map(o => o.optionGroup).filter(Boolean))];
-    return groups; // es. ["Gambe", "Ascelle", "Viso"] oppure [] se nessun gruppo
+    return groups;
   }, [activeOptions]);
   const hasGroups = optionGroups.length > 0;
-  // Opzioni visibili: se ci sono gruppi mostra solo quelle del gruppo attivo
   const visibleOptions = hasGroups && activeGroup
     ? activeOptions.filter(o => o.optionGroup === activeGroup)
     : hasGroups
-      ? [] // nessun gruppo ancora selezionato → non mostrare opzioni
+      ? []
       : activeOptions;
   const hasOptions = activeOptions.length > 0;
-  // Prezzo dinamico: usa il prezzo dell'opzione selezionata se presente
   const displayPrice = selectedOption?.price ?? service?.price;
+
+  const handleAddPackageToCart = () => {
+    if (!selectedOption) return;
+    dispatch(addToCart({
+      id: selectedOption.optionId,
+      type: "package",
+      optionId: selectedOption.optionId,
+      serviceId: service.serviceId,
+      name: `${service.title} — ${selectedOption.name}`,
+      price: selectedOption.price,
+      quantity: 1,
+      image: service.images?.[0],
+      sessions: selectedOption.sessions,
+      serviceName: service.title,
+    }));
+    setAddedFeedback(true);
+    setTimeout(() => setAddedFeedback(false), 1800);
+  };
 
   if (loading)
     return (
@@ -117,8 +133,8 @@ const ServiceDetail = () => {
     );
 
   return (
-    <Container fluid className="service-detail">
-      <Row className="justify-content-center align-items-start gap-1 g-5">
+    <Container fluid="xxl" className="service-detail">
+      <Row className="justify-content-center align-items-start g-4 g-md-5">
         {/* ▸ IMMAGINE */}
         <Col md={5} lg={5} className="d-flex justify-content-center">
           <div ref={imgRef} className={`detail-img-hero fade-slide ${imgVisible ? "visible" : ""}`}>
@@ -141,17 +157,15 @@ const ServiceDetail = () => {
           <div className="detail-accent-line" />
 
           <div className="detail-price-block">
-            {/* FIX-2: prezzo dinamico aggiornato in base all'opzione scelta */}
             <span className="detail-price">{displayPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
             <span className="detail-price-note">
               {selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}
             </span>
           </div>
 
-          {/* FIX-2: selettore opzioni — visibile solo se il servizio ha opzioni */}
+          {/* Selettore opzioni */}
           {hasOptions && (
             <div className="so-selector">
-              {/* Pill gruppi (caso laser: zone corpo) */}
               {hasGroups && (
                 <div className="so-groups">
                   <span className="so-label">Seleziona zona:</span>
@@ -173,7 +187,6 @@ const ServiceDetail = () => {
                 </div>
               )}
 
-              {/* Lista opzioni */}
               {visibleOptions.length > 0 && (
                 <div className="so-options">
                   <span className="so-label">{hasGroups ? "Seleziona pacchetto:" : "Seleziona opzione:"}</span>
@@ -209,14 +222,26 @@ const ServiceDetail = () => {
             <span className="detail-trust-pill">✓ Conferma immediata</span>
           </div>
 
-          {/* FIX-2: bottone disabilitato finché non è scelta un'opzione (quando esistono) */}
-          <button
-            className="detail-cta-btn"
-            onClick={() => setOpen(true)}
-            disabled={hasOptions && selectedOption === null}
-          >
-            {hasOptions && selectedOption === null ? "Scegli un'opzione" : "Prenota ora"}
-          </button>
+          {/* Dual CTA */}
+          <div className="detail-cart-actions">
+            <button
+              className="detail-pay-btn"
+              onClick={() => setOpen(true)}
+              disabled={hasOptions && selectedOption === null}
+            >
+              {hasOptions && selectedOption === null ? "Scegli un'opzione" : "Prenota ora"}
+            </button>
+
+            {hasOptions && (
+              <button
+                className={`detail-cart-btn${addedFeedback ? " added" : ""}`}
+                onClick={handleAddPackageToCart}
+                disabled={selectedOption === null}
+              >
+                {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
+              </button>
+            )}
+          </div>
 
           <div className="detail-divider" />
 
@@ -244,8 +269,8 @@ const ServiceDetail = () => {
           </div>
           <RelatedCarousel
             items={related}
-            getKey={(s) => s.serviceId}
-            renderCard={(s) => (
+            getKey={s => s.serviceId}
+            renderCard={s => (
               <div
                 className="related-card text-center"
                 onClick={() => navigate(`/trattamenti/${s.serviceId}`)}
@@ -264,7 +289,6 @@ const ServiceDetail = () => {
         </section>
       )}
 
-      {/* FIX-2: passa l'opzione scelta al modal */}
       <BookingModal
         show={open}
         onHide={() => setOpen(false)}

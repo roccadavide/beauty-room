@@ -91,15 +91,27 @@ public class ResultService {
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-        List<String> imageUrls = (images != null && !images.isEmpty())
-                ? uploadImagesIfPresent(images)
-                : found.getImages();
+
+        // Rimuovi URL segnalate per rimozione
+        List<String> currentImages = new ArrayList<>(found.getImages());
+        if (payload.removedImageUrls() != null && !payload.removedImageUrls().isEmpty()) {
+            for (String url : payload.removedImageUrls()) {
+                currentImages.remove(url);
+                // TODO: cancella da Cloudinary (richiede estrazione publicId dall'URL)
+                log.info("Immagine rimossa dalla lista del risultato: {}", url);
+            }
+        }
+
+        // Aggiungi nuove immagini
+        if (images != null && !images.isEmpty()) {
+            currentImages.addAll(uploadImagesIfPresent(images));
+        }
 
         found.setTitle(payload.title());
         found.setShortDescription(payload.shortDescription());
         found.setDescription(payload.description());
         found.setCategory(relatedCategory);
-        found.setImages(imageUrls);
+        found.setImages(currentImages);
 
         Result updated = resultRepository.save(found);
         log.info("Risultato '{}' (ID: {}) aggiornato (categoria: {})",

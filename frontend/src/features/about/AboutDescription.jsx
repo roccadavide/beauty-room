@@ -186,7 +186,8 @@ const AboutDescription = () => {
         <Container>
           <div className="text-center mb-5">
             <span className="section-eyebrow">Specializzazioni</span>
-            <h2 className="section-title">Cosa faccio meglio</h2>
+            <h2 className="section-title">I miei punti di forza</h2>
+            <p className="section-subtitle">Non esiste una formula magica. Esiste l'attenzione, la cura e la volontà di fare le cose per bene.</p>
           </div>
           <div className={`ab-chips ab-fade ab-fade--up ${visible["chips"] ? "ab-fade--in" : ""}`} data-key="chips" ref={reg("chips")}>
             {skills.map((s, i) => (
@@ -225,14 +226,14 @@ const AboutDescription = () => {
         <Container>
           <div className={`ab-cta-wrap ab-fade ab-fade--up ${visible["cta"] ? "ab-fade--in" : ""}`} data-key="cta" ref={reg("cta")}>
             <span className="section-eyebrow">Inizia il tuo percorso</span>
-            <h2 className="section-title">Prenota la tua prima visita</h2>
+            <h2 className="section-title w-50 mx-auto">Il tuo momento beauty ti aspetta!</h2>
             <p className="section-subtitle">Ti aspetto in Beauty Room per conoscerti e capire insieme quale trattamento fa per te.</p>
             <div className="ab-cta-btns">
-              <button className="ab-btn-primary" onClick={() => navigate("/prenotazione")}>
-                Prenota ora
-              </button>
               <button className="ab-btn-secondary" onClick={() => navigate("/trattamenti")}>
-                Scopri i trattamenti →
+                Scopri i trattamenti
+              </button>
+              <button className="ab-btn-primary" onClick={() => navigate("/prodotti")}>
+                Prodotti →
               </button>
             </div>
           </div>

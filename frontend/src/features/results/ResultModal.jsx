@@ -4,6 +4,8 @@ import { createResult, updateResult } from "../../api/modules/results.api";
 import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import MultiImageUpload from "../../components/common/MultiImageUpload";
+import { buildMultipartForm } from "../../api/utils/multipart";
 
 const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
   const { accessToken } = useSelector(state => state.auth);
@@ -17,7 +19,8 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
     date: "",
     categoryId: "",
   });
-  const [file, setFile] = useState(null);
+  const [newFiles, setNewFiles] = useState([]);
+  const [removedUrls, setRemovedUrls] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +32,8 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
       date: "",
       categoryId: "",
     });
-    setFile(null);
+    setNewFiles([]);
+    setRemovedUrls([]);
     setErrors({});
   };
 
@@ -75,10 +79,6 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
     setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
   };
 
-  const handleFileChange = e => {
-    setFile(e.target.files[0]);
-  };
-
   const validateForm = () => {
     const newErrors = {};
     Object.keys(form).forEach(key => {
@@ -101,14 +101,17 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
         description: form.description,
         date: form.date,
         categoryId: form.categoryId,
+        removedImageUrls: removedUrls,
       };
+      const formData = buildMultipartForm(payload, newFiles);
 
       let savedResult;
       if (isEdit) {
-        savedResult = await updateResult(result.resultId, payload, file, accessToken);
+        savedResult = await updateResult(result.resultId, formData);
       } else {
-        savedResult = await createResult(payload, file, accessToken);
-        resetForm();
+        savedResult = await createResult(formData);
+        setNewFiles([]);
+        setRemovedUrls([]);
       }
 
       onResultSaved(savedResult);
@@ -189,13 +192,14 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
           <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
         </Form.Group>
 
-        <Form.Group>
-          <Form.Label>Immagine</Form.Label>
-          {isEdit && result.images?.length > 0 && !file && (
-            <small className="d-block text-muted mb-2">L'immagine attuale rimarrà se non ne carichi una nuova</small>
-          )}
-          <Form.Control type="file" accept="image/*" onChange={handleFileChange} />
-        </Form.Group>
+        <MultiImageUpload
+          files={newFiles}
+          existingUrls={(isEdit ? result?.images ?? [] : []).filter(u => !removedUrls.includes(u))}
+          onChange={setNewFiles}
+          onRemoveExisting={url => setRemovedUrls(prev => [...prev, url])}
+          label="Immagini"
+          maxFiles={8}
+        />
       </Form>
     </UnifiedDrawer>
   );

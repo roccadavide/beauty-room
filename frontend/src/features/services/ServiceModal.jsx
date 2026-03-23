@@ -4,6 +4,8 @@ import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createService, updateService } from "../../api/modules/services.api";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import MultiImageUpload from "../../components/common/MultiImageUpload";
+import { buildMultipartForm } from "../../api/utils/multipart";
 
 const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => {
   const { accessToken } = useSelector(state => state.auth);
@@ -18,7 +20,8 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     durationMin: "",
     categoryId: "",
   });
-  const [file, setFile] = useState(null);
+  const [newFiles, setNewFiles] = useState([]);
+  const [removedUrls, setRemovedUrls] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +34,8 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
       durationMin: "",
       categoryId: "",
     });
-    setFile(null);
+    setNewFiles([]);
+    setRemovedUrls([]);
     setErrors({});
   };
 
@@ -83,10 +87,6 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
   };
 
-  const handleFileChange = e => {
-    setFile(e.target.files[0]);
-  };
-
   const validateForm = () => {
     const newErrors = {};
     Object.keys(form).forEach(key => {
@@ -110,14 +110,17 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         price: parseFloat(form.price),
         durationMin: parseInt(form.durationMin),
         categoryId: form.categoryId,
+        removedImageUrls: removedUrls,
       };
+      const formData = buildMultipartForm(payload, newFiles);
 
       let savedService;
       if (isEdit) {
-        savedService = await updateService(service.serviceId, payload, file, accessToken);
+        savedService = await updateService(service.serviceId, formData);
       } else {
-        savedService = await createService(payload, file, accessToken);
-        resetForm();
+        savedService = await createService(formData);
+        setNewFiles([]);
+        setRemovedUrls([]);
       }
 
       onServiceSaved(savedService);
@@ -203,13 +206,14 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
           <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
         </Form.Group>
 
-        <Form.Group>
-          <Form.Label>Immagine</Form.Label>
-          {isEdit && service.images?.length > 0 && !file && (
-            <small className="d-block text-muted mb-2">L'immagine attuale rimarrà se non ne carichi una nuova</small>
-          )}
-          <Form.Control type="file" accept="image/*" onChange={handleFileChange} />
-        </Form.Group>
+        <MultiImageUpload
+          files={newFiles}
+          existingUrls={(isEdit ? service?.images ?? [] : []).filter(u => !removedUrls.includes(u))}
+          onChange={setNewFiles}
+          onRemoveExisting={url => setRemovedUrls(prev => [...prev, url])}
+          label="Immagini"
+          maxFiles={8}
+        />
       </Form>
     </UnifiedDrawer>
   );

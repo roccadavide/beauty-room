@@ -1,8 +1,10 @@
 // Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
 import { useEffect, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
-import { createResult, updateResult, buildResultFormData } from "../../api/modules/results.api";
+import { createResult, updateResult } from "../../api/modules/results.api";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import MultiImageUpload from "../../components/common/MultiImageUpload";
+import { buildMultipartForm } from "../../api/utils/multipart";
 
 const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
   const isEdit = Boolean(result);
@@ -11,11 +13,11 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
   const [shortDescription, setShortDescription] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [files, setFiles] = useState([]);
+  const [newFiles, setNewFiles] = useState([]);
+  const [removedUrls, setRemovedUrls] = useState([]);
   const [errors, setErrors] = useState({});
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
-  const [replaceImages, setReplaceImages] = useState(false);
 
   // Populate form on open
   useEffect(() => {
@@ -25,25 +27,18 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
         setShortDescription(result.shortDescription || "");
         setDescription(result.description || "");
         setCategoryId(result.categoryId || "");
-        setFiles([]);
-        setReplaceImages(false);
       } else {
         setTitle("");
         setShortDescription("");
         setDescription("");
         setCategoryId("");
-        setFiles([]);
-        setReplaceImages(false);
       }
+      setNewFiles([]);
+      setRemovedUrls([]);
       setErrors({});
       setErrorMsg("");
     }
   }, [show, isEdit, result]);
-
-  const handleFiles = e => {
-    const selected = Array.from(e.target.files);
-    setFiles(selected);
-  };
 
   const validate = () => {
     const errs = {};
@@ -64,10 +59,8 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
     setLoading(true);
     setErrorMsg("");
     try {
-      const payload = { title, shortDescription, description, categoryId };
-      // Se editing senza nuovi file e senza replaceImages, non appendere immagini
-      const filesToSend = isEdit && !replaceImages ? [] : files;
-      const formData = buildResultFormData(payload, filesToSend);
+      const payload = { title, shortDescription, description, categoryId, removedImageUrls: removedUrls };
+      const formData = buildMultipartForm(payload, newFiles);
 
       const saved = isEdit ? await updateResult(result.resultId, formData) : await createResult(formData);
 
@@ -79,8 +72,6 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
       setLoading(false);
     }
   };
-
-  const existingImages = result?.images || [];
 
   return (
     <UnifiedDrawer
@@ -181,47 +172,14 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
           <Form.Control.Feedback type="invalid">{errors.description}</Form.Control.Feedback>
         </Form.Group>
 
-        <Form.Group className="rd-field">
-          <Form.Label>Immagini (Prima → Dopo)</Form.Label>
-          <small className="d-block text-muted mb-2">La prima immagine sarà il "Prima", la seconda il "Dopo"</small>
-
-          {isEdit && existingImages.length > 0 && (
-            <div className="rd-existing-wrap">
-              <div className="rd-preview-grid">
-                {existingImages.slice(0, 2).map((url, i) => (
-                  <div key={i} className="rd-preview-item">
-                    <img src={url} alt={i === 0 ? "Prima" : "Dopo"} className="rd-preview-img" />
-                    <span className="rd-preview-label">{i === 0 ? "Prima" : "Dopo"}</span>
-                  </div>
-                ))}
-              </div>
-              <Form.Check
-                type="checkbox"
-                id="rd-replace-check"
-                label="Sostituisci immagini"
-                checked={replaceImages}
-                onChange={e => setReplaceImages(e.target.checked)}
-                className="mt-2"
-              />
-            </div>
-          )}
-
-          {(!isEdit || replaceImages) && (
-            <>
-              <Form.Control type="file" multiple accept="image/*" onChange={handleFiles} />
-              {files.length > 0 && (
-                <div className="rd-preview-grid mt-2">
-                  {files.slice(0, 2).map((f, i) => (
-                    <div key={i} className="rd-preview-item">
-                      <img src={URL.createObjectURL(f)} alt={i === 0 ? "Prima" : "Dopo"} className="rd-preview-img" />
-                      <span className="rd-preview-label">{i === 0 ? "Prima" : "Dopo"}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </Form.Group>
+        <MultiImageUpload
+          files={newFiles}
+          existingUrls={(isEdit ? result?.images ?? [] : []).filter(u => !removedUrls.includes(u))}
+          onChange={setNewFiles}
+          onRemoveExisting={url => setRemovedUrls(prev => [...prev, url])}
+          label="Immagini (Prima → Dopo)"
+          maxFiles={2}
+        />
       </Form>
     </UnifiedDrawer>
   );

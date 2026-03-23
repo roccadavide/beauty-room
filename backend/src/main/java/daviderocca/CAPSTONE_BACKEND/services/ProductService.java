@@ -59,20 +59,20 @@ public class ProductService {
     // ---------------------------- CREATE ----------------------------
 
     @Transactional
-    public ProductResponseDTO saveProduct(NewProductDTO payload, MultipartFile image) {
+    public ProductResponseDTO saveProduct(NewProductDTO payload, List<MultipartFile> images) {
         if (productRepository.existsByName(payload.name())) {
             throw new BadRequestException("Esiste già un prodotto con questo nome!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-        List<String> images = uploadImageIfPresent(image);
+        List<String> imageUrls = uploadImagesIfPresent(images);
 
         Product newProduct = new Product(
                 payload.name(),
                 payload.price(),
                 payload.shortDescription(),
                 payload.description(),
-                images,
+                imageUrls,
                 payload.stock(),
                 relatedCategory
         );
@@ -87,7 +87,7 @@ public class ProductService {
     // ---------------------------- UPDATE ----------------------------
 
     @Transactional
-    public ProductResponseDTO updateProduct(UUID productId, NewProductDTO payload, MultipartFile image) {
+    public ProductResponseDTO updateProduct(UUID productId, NewProductDTO payload, List<MultipartFile> images) {
         Product found = productRepository.findByIdWithDetails(productId)
                 .orElseThrow(() -> new ResourceNotFoundException(productId));
 
@@ -97,12 +97,22 @@ public class ProductService {
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
 
-        // Aggiorna immagine solo se presente nel payload
-        if (image != null && !image.isEmpty()) {
-            List<String> images = uploadImageIfPresent(image);
-            found.setImages(new java.util.LinkedHashSet<>(images));
+        // Rimuovi URL segnalate per rimozione
+        LinkedHashSet<String> currentImages = new LinkedHashSet<>(found.getImages());
+        if (payload.removedImageUrls() != null && !payload.removedImageUrls().isEmpty()) {
+            for (String url : payload.removedImageUrls()) {
+                currentImages.remove(url);
+                // TODO: cancella da Cloudinary (richiede estrazione publicId dall'URL)
+                log.info("Immagine rimossa dalla lista del prodotto: {}", url);
+            }
         }
 
+        // Aggiungi nuove immagini
+        if (images != null && !images.isEmpty()) {
+            currentImages.addAll(uploadImagesIfPresent(images));
+        }
+
+        found.setImages(currentImages);
         found.setName(payload.name());
         found.setPrice(payload.price());
         found.setShortDescription(payload.shortDescription());
@@ -133,20 +143,23 @@ public class ProductService {
     }
 
     // ---------------------------- CLOUDINARY ----------------------------
-    private List<String> uploadImageIfPresent(MultipartFile image) {
-        List<String> images = new ArrayList<>();
-        if (image != null && !image.isEmpty()) {
+    private List<String> uploadImagesIfPresent(List<MultipartFile> files) {
+        List<String> urls = new ArrayList<>();
+        if (files == null) return urls;
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) continue;
             try {
                 Map uploadResult = cloudinary.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap());
-                images.add((String) uploadResult.get("url"));
-                log.info("Immagine caricata con successo su Cloudinary: {}", uploadResult.get("url"));
+                        .upload(file.getBytes(), ObjectUtils.emptyMap());
+                String url = (String) uploadResult.get("url");
+                urls.add(url);
+                log.info("Immagine caricata con successo su Cloudinary: {}", url);
             } catch (IOException e) {
                 log.error("Errore durante l'upload dell'immagine su Cloudinary", e);
                 throw new BadRequestException("Errore durante l'upload dell'immagine");
             }
         }
-        return images;
+        return urls;
     }
 
     // ---------------------------- CONVERTER ----------------------------

@@ -26,9 +26,8 @@ export const fetchServiceById = async serviceId => {
 };
 
 // -------------------------- CREATE --------------------------
-export const createService = async (serviceData, file) => {
-  const formData = buildFormData(serviceData, file);
-
+// buildFormData rimosso — usa src/api/utils/multipart.js
+export const createService = async formData => {
   try {
     const { data } = await http.post(SERVICE_ENDPOINTS.BASE, formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -41,9 +40,7 @@ export const createService = async (serviceData, file) => {
 };
 
 // -------------------------- UPDATE --------------------------
-export const updateService = async (serviceId, serviceData, file) => {
-  const formData = buildFormData(serviceData, file);
-
+export const updateService = async (serviceId, formData) => {
   try {
     const { data } = await http.put(SERVICE_ENDPOINTS.BY_ID(serviceId), formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -66,17 +63,3 @@ export const deleteService = async serviceId => {
   }
 };
 
-// -------------------------- HELPERS --------------------------
-function buildFormData(serviceData, file) {
-  const formData = new FormData();
-  formData.append("data", new Blob([JSON.stringify(serviceData)], { type: "application/json" }));
-
-  if (file) {
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) throw new Error("Immagine troppo grande (max 5MB)");
-    if (!file.type.startsWith("image/")) throw new Error("File non valido: carica un'immagine");
-    formData.append("image", file);
-  }
-
-  return formData;
-}

@@ -5,12 +5,11 @@
 
 .cli-page {
   width: 100%;
-  min-height: 100%;
+  min-height: 70vh;
   color: var(--ag-text);
   background:
     radial-gradient(900px 380px at 20% -10%, rgba(139, 94, 60, 0.08), transparent 55%),
-    radial-gradient(700px 340px at 90% 0%, rgba(231, 214, 195, 0.45), transparent 60%),
-    linear-gradient(180deg, var(--ag-bg), var(--ag-bg2));
+    radial-gradient(700px 340px at 90% 0%, rgba(231, 214, 195, 0.45), transparent 60%), linear-gradient(180deg, var(--ag-bg), var(--ag-bg2));
 }
 
 .cli-container {
@@ -148,7 +147,9 @@
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   box-shadow: 0 2px 10px rgba(37, 211, 102, 0.3);
   white-space: nowrap;
 }
@@ -327,7 +328,9 @@
   font-family: inherit;
   resize: vertical;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .cli-notes-textarea:focus {
@@ -356,7 +359,9 @@
   font-weight: 700;
   cursor: pointer;
   line-height: 1;
-  transition: filter 0.12s ease, transform 0.08s ease;
+  transition:
+    filter 0.12s ease,
+    transform 0.08s ease;
 }
 
 .cli-btn:disabled {
@@ -447,4 +452,3 @@
     align-self: flex-end;
   }
 }
-

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record NewProductDTO (
@@ -21,6 +22,8 @@ public record NewProductDTO (
                             @Positive(message = "Lo stock deve essere un numero positivo")
                             Integer stock,
                             @NotNull(message = "La categoria è obbligatoria")
-                            UUID categoryId
+                            UUID categoryId,
+                            // nullable — URL immagini da rimuovere (cleanup lista; Cloudinary TODO)
+                            List<String> removedImageUrls
 )
 {}

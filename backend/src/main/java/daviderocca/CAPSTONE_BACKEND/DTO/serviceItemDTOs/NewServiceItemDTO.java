@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Min;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record NewServiceItemDTO(
@@ -22,5 +23,7 @@ public record NewServiceItemDTO(
                                 @NotEmpty(message = "La descrizione non può essere vuota")
                                 String description,
                                 @NotNull(message = "La categoria è obbligatoria")
-                                UUID categoryId
+                                UUID categoryId,
+                                // nullable — URL immagini da rimuovere (cleanup lista; Cloudinary TODO)
+                                List<String> removedImageUrls
 ) {}

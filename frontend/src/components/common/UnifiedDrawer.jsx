@@ -3,13 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
 
-const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, children, footer }) => {
-  const [isDesktop, setIsDesktop] = useState(
-    () => typeof window !== "undefined" && window.innerWidth >= 768,
-  );
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 768);
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelActive, setPanelActive] = useState(false);
   const panelRef = useRef(null);
@@ -99,6 +96,15 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
     };
   }, [isDesktop]);
 
+  useEffect(() => {
+    if (!panelVisible || !panelRef.current) return;
+    const body = panelRef.current.querySelector(".ud-body");
+    if (!body) return;
+    const stopWheel = e => e.stopPropagation();
+    body.addEventListener("wheel", stopWheel, { passive: true });
+    return () => body.removeEventListener("wheel", stopWheel);
+  }, [panelVisible]);
+
   // Swipe-down-to-close — attached to the handle element
   const handleTouchStart = e => {
     swipeStartY.current = e.touches[0].clientY;
@@ -137,14 +143,7 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
         aria-label={title}
         onClick={e => e.stopPropagation()}
       >
-        {!isDesktop && (
-          <div
-            className="ud-handle"
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          />
-        )}
+        {!isDesktop && <div className="ud-handle" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} />}
 
         <header className="ud-header">
           <div className="ud-header__info">
@@ -158,7 +157,9 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
 
         {topSlot && <div className="ud-top-slot">{topSlot}</div>}
 
-        <div className="ud-body">{children}</div>
+        <div className="ud-body" data-lenis-prevent>
+          {children}
+        </div>
 
         {footer && <footer className="ud-footer">{footer}</footer>}
       </div>

@@ -135,13 +135,13 @@ public class ServiceItemService {
     // ---------------------------- CREATE ----------------------------
 
     @Transactional
-    public ServiceItemResponseDTO saveServiceItem(NewServiceItemDTO payload, MultipartFile image) {
+    public ServiceItemResponseDTO saveServiceItem(NewServiceItemDTO payload, List<MultipartFile> images) {
         if (serviceItemRepository.existsByTitle(payload.title())) {
             throw new BadRequestException("Esiste già un servizio con questo titolo!");
         }
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
-        List<String> images = uploadImageIfPresent(image);
+        List<String> imageUrls = uploadImagesIfPresent(images);
 
         ServiceItem newServiceItem = new ServiceItem(
                 payload.title(),
@@ -149,7 +149,7 @@ public class ServiceItemService {
                 payload.price(),
                 payload.shortDescription(),
                 payload.description(),
-                images,
+                imageUrls,
                 relatedCategory
         );
 
@@ -163,7 +163,7 @@ public class ServiceItemService {
     // ---------------------------- UPDATE ----------------------------
 
     @Transactional
-    public ServiceItemResponseDTO updateServiceItem(UUID serviceItemId, NewServiceItemDTO payload, MultipartFile image) {
+    public ServiceItemResponseDTO updateServiceItem(UUID serviceItemId, NewServiceItemDTO payload, List<MultipartFile> images) {
         ServiceItem found = findServiceItemById(serviceItemId);
 
         if (serviceItemRepository.existsByTitleAndServiceIdNot(payload.title(), serviceItemId)) {
@@ -172,11 +172,22 @@ public class ServiceItemService {
 
         Category relatedCategory = categoryService.findCategoryById(payload.categoryId());
 
-        if (image != null && !image.isEmpty()) {
-            List<String> images = uploadImageIfPresent(image);
-            found.setImages(new java.util.LinkedHashSet<>(images));
+        // Rimuovi URL segnalate per rimozione
+        LinkedHashSet<String> currentImages = new LinkedHashSet<>(found.getImages());
+        if (payload.removedImageUrls() != null && !payload.removedImageUrls().isEmpty()) {
+            for (String url : payload.removedImageUrls()) {
+                currentImages.remove(url);
+                // TODO: cancella da Cloudinary (richiede estrazione publicId dall'URL)
+                log.info("Immagine rimossa dalla lista del servizio: {}", url);
+            }
         }
 
+        // Aggiungi nuove immagini
+        if (images != null && !images.isEmpty()) {
+            currentImages.addAll(uploadImagesIfPresent(images));
+        }
+
+        found.setImages(currentImages);
         found.setTitle(payload.title());
         found.setDurationMin(payload.durationMin());
         found.setPrice(payload.price());
@@ -201,21 +212,23 @@ public class ServiceItemService {
     }
 
     // ---------------------------- CLOUDINARY ----------------------------
-    private List<String> uploadImageIfPresent(MultipartFile image) {
-        List<String> images = new ArrayList<>();
-        if (image != null && !image.isEmpty()) {
+    private List<String> uploadImagesIfPresent(List<MultipartFile> files) {
+        List<String> urls = new ArrayList<>();
+        if (files == null) return urls;
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) continue;
             try {
                 Map uploadResult = cloudinary.uploader()
-                        .upload(image.getBytes(), ObjectUtils.emptyMap());
+                        .upload(file.getBytes(), ObjectUtils.emptyMap());
                 String url = (String) uploadResult.get("url");
-                images.add(url);
+                urls.add(url);
                 log.info("Immagine caricata su Cloudinary: {}", url);
             } catch (IOException e) {
                 log.error("Errore durante l'upload dell'immagine su Cloudinary", e);
                 throw new BadRequestException("Errore durante l'upload dell'immagine");
             }
         }
-        return images;
+        return urls;
     }
 
     // ---------------------------- CONVERTER ----------------------------
