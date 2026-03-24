@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Container, Row, Col, Form, Button, Card, Badge, Spinner } from "react-bootstrap";
-import { Link, useNavigate } from "react-router-dom";
+import { Container, Row, Col, Button, Card, Badge, Spinner } from "react-bootstrap";
+import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import ServiceModal from "./ServiceModal";
 import DeleteServiceModal from "./DeleteServiceModal";
@@ -120,28 +120,40 @@ const ServicePage = () => {
 
   return (
     <Container fluid className="py-5 container-base flex-column">
-      <h1 className="text-center mb-3">Prenota un trattamento</h1>
+      <div className="sp-page-head">
+        <span className="section-eyebrow">Trattamenti</span>
+        <h1 className="sp-page-title">Prenota il tuo trattamento</h1>
+        <p className="section-subtitle">Scegli tra i nostri trattamenti professionali e prenota direttamente online.</p>
+      </div>
 
-      <div className="d-flex flex-wrap justify-content-center gap-2 mb-4">
-        <Button key="all" variant={cat === "all" ? "dark" : "outline-dark"} onClick={() => setCat("all")} className="rounded-pill px-3">
-          Tutti
-        </Button>
+      <div className="sp-filter-bar">
+        <button className={`sp-chip ${cat === "all" ? "sp-chip--active" : ""}`} onClick={() => setCat("all")}>
+          <span className="sp-chip-label">Tutti</span>
+        </button>
 
         {categories.map(c => (
-          <Button
+          <button
             key={c.categoryId}
-            variant={cat === c.categoryId ? "dark" : "outline-dark"}
+            className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`}
             onClick={() => setCat(c.categoryId)}
-            className="rounded-pill px-3"
           >
-            {c.label}
-          </Button>
+            <span className="sp-chip-label">{c.label}</span>
+          </button>
         ))}
       </div>
 
-      <Container className="mb-4">
-        <Form.Control placeholder="Cerca un servizio..." value={q} onChange={e => setQ(e.target.value)} />
-      </Container>
+      <div className="sp-search-wrap">
+        <svg className="sp-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
+        <input className="sp-search-input" placeholder="Cerca..." value={q} onChange={e => setQ(e.target.value)} />
+        {q && (
+          <button className="sp-search-clear" onClick={() => setQ("")} aria-label="Cancella">
+            ×
+          </button>
+        )}
+      </div>
 
       {user?.role === "ADMIN" && (
         <div className="mb-4 d-flex align-items-center justify-content-center">

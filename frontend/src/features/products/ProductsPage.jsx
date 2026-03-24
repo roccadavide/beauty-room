@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { Badge, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
+import { Badge, Button, Card, Col, Container, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { PencilFill, Plus, Trash2Fill } from "react-bootstrap-icons";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import DeleteProductModal from "./DeleteProductModal";
 import ProductModal from "./ProductModal";
 import { fetchCategories } from "../../api/modules/categories.api";
@@ -119,30 +119,42 @@ function ProductsPage() {
 
   return (
     <Container fluid className="py-5 container-base flex-column">
-      <h1 className="text-center mb-3">La mia selezione di prodotti</h1>
+      <div className="sp-page-head">
+        <span className="section-eyebrow">Prodotti</span>
+        <h1 className="sp-page-title">La mia selezione</h1>
+        <p className="section-subtitle">Prodotti selezionati con cura per prolungare i risultati dei tuoi trattamenti.</p>
+      </div>
 
-      <div className="d-flex flex-wrap justify-content-center gap-2 mb-4">
-        <Button key="all" variant={cat === "all" ? "dark" : "outline-dark"} onClick={() => setCat("all")} className="rounded-pill px-3">
-          Tutti
-        </Button>
+      <div className="sp-filter-bar">
+        <button className={`sp-chip ${cat === "all" ? "sp-chip--active" : ""}`} onClick={() => setCat("all")}>
+          <span className="sp-chip-label">Tutti</span>
+        </button>
 
         {categories
           .filter(c => c.label !== "Trucco Permanente")
           .map(c => (
-            <Button
+            <button
               key={c.categoryId}
-              variant={cat === c.categoryId ? "dark" : "outline-dark"}
+              className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`}
               onClick={() => setCat(c.categoryId)}
-              className="rounded-pill px-3"
             >
-              {c.label}
-            </Button>
+              <span className="sp-chip-label">{c.label}</span>
+            </button>
           ))}
       </div>
 
-      <Container className="mb-4">
-        <Form.Control placeholder="Cerca un prodotto..." value={q} onChange={e => setQ(e.target.value)} />
-      </Container>
+      <div className="sp-search-wrap">
+        <svg className="sp-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
+        <input className="sp-search-input" placeholder="Cerca..." value={q} onChange={e => setQ(e.target.value)} />
+        {q && (
+          <button className="sp-search-clear" onClick={() => setQ("")} aria-label="Cancella">
+            ×
+          </button>
+        )}
+      </div>
 
       {user?.role === "ADMIN" && (
         <div className="mb-4 d-flex align-items-center justify-content-center">

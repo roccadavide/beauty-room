@@ -113,7 +113,7 @@ function ResultsPage() {
 
   return (
     <Container fluid className="results-root px-3 px-md-4">
-      <div className="ra-page-head">
+      <div className="ra-page-head sp-page-head">
         <span className="section-eyebrow">Portfolio</span>
         <h1 className="ra-page-title">I miei risultati</h1>
         <p className="section-subtitle">
@@ -121,24 +121,18 @@ function ResultsPage() {
         </p>
       </div>
 
-      <div className="d-flex flex-wrap justify-content-center gap-2 mb-4">
-        <Button
-          key="all"
-          variant={cat === "all" ? "dark" : "outline-dark"}
-          onClick={() => setCat("all")}
-          className="rounded-pill px-3"
-        >
-          Tutti
-        </Button>
+      <div className="sp-filter-bar">
+        <button className={`sp-chip ${cat === "all" ? "sp-chip--active" : ""}`} onClick={() => setCat("all")}>
+          <span className="sp-chip-label">Tutti</span>
+        </button>
         {categories.map(c => (
-          <Button
+          <button
             key={c.categoryId}
-            variant={cat === c.categoryId ? "dark" : "outline-dark"}
+            className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`}
             onClick={() => setCat(c.categoryId)}
-            className="rounded-pill px-3"
           >
-            {c.label}
-          </Button>
+            <span className="sp-chip-label">{c.label}</span>
+          </button>
         ))}
       </div>
 

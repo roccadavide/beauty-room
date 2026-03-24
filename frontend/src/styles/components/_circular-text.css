@@ -1,0 +1,116 @@
+/* ─── CircularText — Editorial Beauty Badge ─────────────────────── */
+.circular-text-wrapper {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Cerchio rotante */
+.circular-text {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 50%;
+  -webkit-transform-origin: 50% 50%;
+}
+
+.circular-text span {
+  position: absolute;
+  display: inline-block;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  font-size: 10px;
+  font-family: "Petrona", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--card-gold, #b8976a);
+  text-align: center;
+  transition: all 0.5s cubic-bezier(0, 0, 0, 1);
+}
+
+/* Logo centrale */
+.circular-text-logo {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: contain;
+  z-index: 2;
+  /* Cerchio oro sottile intorno al logo */
+  box-shadow: 0 0 0 1px var(--card-gold, #b8976a);
+  padding: 8px;
+  background: var(--color-bg, #fffdf8);
+  transition: transform 0.4s ease;
+}
+
+.circular-text-wrapper:hover .circular-text-logo {
+  transform: scale(1.06);
+}
+
+/* ── Versione Hero: floating badge ── */
+.circular-badge-hero {
+  position: absolute;
+  bottom: -65px;
+  right: clamp(1.5rem, 5vw, 4rem);
+  z-index: 10;
+  filter: drop-shadow(0 4px 16px rgba(184, 151, 106, 0.18));
+}
+
+@media (max-width: 767px) {
+  .circular-badge-hero {
+    display: none;
+  }
+
+  /* Versione mobile: centrata sopra la sezione successiva */
+  .circular-badge-mobile-only {
+    display: flex !important;
+    margin: -65px auto 0;
+    position: relative;
+    z-index: 10;
+  }
+}
+
+@media (min-width: 768px) {
+  .circular-text-wrapper {
+    width: 180px;
+    height: 180px;
+  }
+  .circular-text span {
+    font-size: 11.5px;
+  }
+  .circular-text-logo {
+    width: 80px;
+    height: 80px;
+  }
+  .circular-badge-mobile-only {
+    display: none;
+  }
+}
+
+/* ── Posizionamento dentro ab-portrait-wrap (ChiSono) ── */
+.circular-badge-portrait {
+  position: absolute;
+  bottom: -1.25rem;
+  right: -1.5rem;
+  z-index: 3;
+  filter: drop-shadow(0 6px 20px rgba(184, 151, 106, 0.22));
+}
+
+@media (max-width: 767px) {
+  .circular-badge-portrait {
+    bottom: -1rem;
+    right: -0.5rem;
+    transform: scale(0.85);
+    transform-origin: bottom right;
+  }
+}

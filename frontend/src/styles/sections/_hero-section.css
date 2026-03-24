@@ -204,7 +204,7 @@
     margin-inline: 0;
     margin-bottom: 20px;
     border-radius: 16px;
-    padding: 18px 22px;
+    padding: 15px 22px;
   }
 
   .hero-title {
@@ -226,5 +226,11 @@
 @media (prefers-reduced-motion: reduce) {
   .hero-media {
     transform: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-inner {
+    transform: translateY(35px);
   }
 }

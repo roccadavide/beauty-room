@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Container, Row, Col } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
+import CountUp from "../../components/common/CountUp";
+import CircularText from "../../components/common/CircularText";
 
 const AboutDescription = () => {
   const navigate = useNavigate();
@@ -39,10 +41,10 @@ const AboutDescription = () => {
   ];
 
   const stats = [
-    { value: "5+", label: "anni di esperienza" },
-    { value: "500+", label: "clienti soddisfatte" },
-    { value: "20+", label: "trattamenti specializzati" },
-    { value: "♾", label: "passione ogni giorno" },
+    { numeric: 5, suffix: "+", label: "anni di esperienza" },
+    { numeric: 500, suffix: "+", label: "clienti soddisfatte" },
+    { numeric: 20, suffix: "+", label: "trattamenti specializzati" },
+    { numeric: null, symbol: "♾", label: "passione ogni giorno" },
   ];
 
   const skills = [
@@ -106,7 +108,16 @@ const AboutDescription = () => {
             <div className="ab-stats-grid">
               {stats.map((s, i) => (
                 <div className="ab-stat" key={i} style={{ "--delay": `${i * 0.1}s` }}>
-                  <span className="ab-stat__value">{s.value}</span>
+                  <span className="ab-stat__value">
+                    {s.numeric !== null ? (
+                      <>
+                        <CountUp from={0} to={s.numeric} duration={2} delay={i * 0.1} separator="" startWhen={true} />
+                        {s.suffix}
+                      </>
+                    ) : (
+                      s.symbol
+                    )}
+                  </span>
                   <span className="ab-stat__label">{s.label}</span>
                 </div>
               ))}
@@ -156,6 +167,9 @@ const AboutDescription = () => {
                   <img src="/chisono-michela.jpeg" alt="Beauty Room" />
                 </div>
                 <div className="ab-story-deco" />
+                <div className="circular-badge-portrait">
+                  <CircularText text="BEAUTY✦ROOM✦BEAUTY✦ROOM✦" spinDuration={18} onHover="slowDown" logoSrc="/logo.png" logoAlt="Beauty Room" />
+                </div>
               </div>
             </Col>
             <Col lg={7}>

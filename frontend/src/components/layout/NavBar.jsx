@@ -168,7 +168,14 @@ export default function NavBar() {
             <img src="/logo.png" alt="Beauty Room" width="150" height="104" fetchPriority="high" decoding="sync" />
           </Navbar.Brand>
 
-          <div className="toggler-cart-box d-lg-none ms-auto d-flex align-items-center gap-4">
+          <div className="toggler-cart-box d-lg-none ms-auto d-flex align-items-center gap-3">
+            {user?.role === "ADMIN" && (
+              <Link to="/admin/notifiche" className="notif-bell-link" aria-label={`Notifiche${unreadNotifs > 0 ? ` — ${unreadNotifs} non lette` : ""}`}>
+                <BellFill size={20} />
+                {unreadNotifs > 0 && <span className="notif-bell-badge">{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>}
+              </Link>
+            )}
+
             <Link to="/carrello" className="mobile-cart-icon-sm" aria-label="Carrello">
               <CartIcon />
             </Link>
@@ -199,14 +206,14 @@ export default function NavBar() {
             </Nav>
           </Navbar.Collapse>
 
-          {user?.role === "ADMIN" && (
-            <Link to="/admin/notifiche" className="notif-bell-link mx-3" aria-label={`Notifiche${unreadNotifs > 0 ? ` — ${unreadNotifs} non lette` : ""}`}>
-              <BellFill size={21} />
-              {unreadNotifs > 0 && <span className="notif-bell-badge">{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>}
-            </Link>
-          )}
-
           <div className="d-none d-lg-flex align-items-center gap-3 nav-icons-right">
+            {user?.role === "ADMIN" && (
+              <Link to="/admin/notifiche" className="notif-bell-link" aria-label={`Notifiche${unreadNotifs > 0 ? ` — ${unreadNotifs} non lette` : ""}`}>
+                <BellFill size={21} />
+                {unreadNotifs > 0 && <span className="notif-bell-badge">{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>}
+              </Link>
+            )}
+
             <Link to="/carrello" className="desktop-cart-btn me-3">
               <CartIcon />
             </Link>
@@ -287,17 +294,24 @@ export default function NavBar() {
         aria-label="Menu mobile"
         aria-hidden={!expanded}
       >
+        <div className="drawer-brand-head" onClick={() => navigate("/")}>
+          <div className="drawer-initials">BR</div>
+          <div>
+            <p className="drawer-brand-name">Beauty Room</p>
+            {user && <p className="drawer-greeting">Ciao {user.name}!</p>}
+          </div>
+        </div>
+
         <div className="drawer-scroll-wrapper">
           <div className="spacer-top"></div>
 
           <nav className="mobile-nav-list">
-            {LINKS.map(({ to, label }, index) => (
+            {LINKS.map(({ to, label }) => (
               <NavLink
                 key={to}
                 to={to}
                 onClick={closeMenu}
-                className="mobile-link-elegant"
-                style={{ animationDelay: `${index * 0.08}s` }}
+                className={({ isActive }) => `mobile-link-elegant${isActive ? " active" : ""}`}
                 tabIndex={expanded ? 0 : -1}
               >
                 <span className="deco-bar"></span>
@@ -326,10 +340,14 @@ export default function NavBar() {
                   aria-label="Menu profilo utente"
                 >
                   <div className="d-flex align-items-center gap-2">
-                    <PersonCircle size={24} className="gold-icon" />
-                    <span className="fw-bold">Ciao {user.name}!</span>
+                    <PersonCircle size={22} className="gold-icon" />
+                    <span style={{ color: "rgba(245,234,216,0.85)", fontWeight: 600, fontSize: "0.9rem" }}>Il mio profilo</span>
                   </div>
-                  {mobileProfileExpanded ? <ChevronUp /> : <ChevronDown />}
+                  {mobileProfileExpanded ? (
+                    <ChevronUp size={16} style={{ color: "rgba(245,234,216,0.5)" }} />
+                  ) : (
+                    <ChevronDown size={16} style={{ color: "rgba(245,234,216,0.5)" }} />
+                  )}
                 </div>
 
                 <div className={`user-submenu ${mobileProfileExpanded ? "expanded" : ""}`}>
@@ -368,7 +386,13 @@ export default function NavBar() {
                       </Link>
                     </>
                   )}
-                  <button type="button" onClick={handleLogoutClick} className="logout-btn-mobile" tabIndex={mobileProfileExpanded ? 0 : -1}>
+                  <button
+                    type="button"
+                    onClick={handleLogoutClick}
+                    className="logout-btn-mobile"
+                    tabIndex={mobileProfileExpanded ? 0 : -1}
+                    style={{ color: "rgba(220,100,80,0.8)" }}
+                  >
                     Esci
                   </button>
                 </div>
@@ -387,7 +411,8 @@ export default function NavBar() {
 
           <div className="mobile-footer-action">
             <Link to="/carrello" onClick={closeMenu} className="btn-cart-mobile" tabIndex={expanded ? 0 : -1}>
-              <span className="me-2">Vai al Carrello</span> <CartIcon />
+              <span>Vai al Carrello</span>
+              <CartIcon />
             </Link>
           </div>
 

@@ -157,6 +157,7 @@ export default function HeroSection({
           </MotionDiv>
         </MotionDiv>
       </Container>
+
     </section>
   );
 }

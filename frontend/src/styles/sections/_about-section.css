@@ -1,10 +1,9 @@
-/* ===== ABOUT SECTION reinvented ===== */
+/* ===== ABOUT SECTION ===== */
 
 .about-section {
   background: #fffdf8;
-  padding: 6rem 0;
+  padding: 5rem 0 9rem;
   position: relative;
-  overflow: hidden;
 }
 
 .about-container {
@@ -14,7 +13,7 @@
   gap: 2rem;
 }
 
-/* Immagine */
+/* ── Immagine ── */
 .about-img {
   width: 55%;
   border-radius: 20px;
@@ -39,12 +38,7 @@
 .about-img__shimmer {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    115deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.1) 50%,
-    transparent 70%
-  );
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
   transform: translateX(-100%);
   transition: transform 0.8s ease;
   pointer-events: none;
@@ -54,19 +48,17 @@
   transform: translateX(100%);
 }
 
-/* Box testo + spotlight */
+/* ── Box testo ── */
 .about-box {
   --box-translate: -50%;
   position: absolute;
-  right: 5%;
+  right: 10%;
   top: 50%;
   transform: translateY(var(--box-translate));
   width: 520px;
   max-width: 92%;
   border-radius: 22px;
   padding: 0;
-  background: linear-gradient(145deg, #fdf6ee 0%, #f5e8d4 100%);
-  overflow: hidden;
   transition: transform 0.4s ease;
 }
 
@@ -74,39 +66,37 @@
   transform: translateY(var(--box-translate)) translateY(-4px);
 }
 
-.about-spotlight-border {
+/* ── Golden arc — FUORI dall'inner, wrappa tutto ── */
+.about-box-ring {
   position: absolute;
-  inset: -2px;
-  border-radius: 24px;
+  inset: -3px;
+  border-radius: 25px;
   z-index: 0;
+  opacity: 0;
+  animation: aboutArcSpin 4.5s linear infinite;
+  animation-play-state: paused;
+  transition: opacity 0.9s ease;
+
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    transparent 60deg,
-    rgba(184, 151, 106, 0.85) 90deg,
-    rgba(232, 201, 138, 1) 120deg,
-    rgba(184, 151, 106, 0.85) 150deg,
-    transparent 180deg,
+    transparent 50deg,
+    rgba(140, 109, 63, 0) 70deg,
+    rgba(212, 175, 55, 0.9) 100deg,
+    rgba(255, 235, 150, 1) 130deg,
+    rgba(212, 175, 55, 0.9) 160deg,
+    rgba(140, 109, 63, 0) 180deg,
+    transparent 200deg,
     transparent 360deg
   );
-  animation: about-spotlight-spin 4s linear infinite;
-  opacity: 0;
-  transition: opacity 0.6s ease;
 }
 
-.about-box.in-view .about-spotlight-border {
+.about-box.in-view .about-box-ring {
   opacity: 1;
+  animation-play-state: running;
 }
 
-.about-spotlight-border::after {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  border-radius: 22px;
-  background: linear-gradient(145deg, #fdf6ee 0%, #f5e8d4 100%);
-}
-
-@keyframes about-spotlight-spin {
+@keyframes aboutArcSpin {
   from {
     transform: rotate(0deg);
   }
@@ -115,6 +105,7 @@
   }
 }
 
+/* ── Contenuto — copre il ring con il suo bg ── */
 .about-box__inner {
   position: relative;
   z-index: 1;
@@ -122,6 +113,10 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  background: linear-gradient(145deg, #fdf6ee 0%, #f5e8d4 100%);
+  border-radius: 22px;
+  /* stacca di 3px dal ring lasciandolo visibile */
+  margin: 3px;
 }
 
 .about-title {
@@ -163,7 +158,9 @@
   letter-spacing: 0.04em;
   text-decoration: none;
   box-shadow: 0 4px 20px rgba(46, 33, 24, 0.22);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
   position: relative;
   overflow: hidden;
 }
@@ -189,11 +186,13 @@
   opacity: 1;
 }
 
-/* Fade in scroll */
+/* ── Fade-in scroll ── */
 .fade-element {
   opacity: 0;
   transform: translateY(48px);
-  transition: opacity 0.9s ease-out, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    opacity 0.9s ease-out,
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
 
@@ -209,15 +208,25 @@
   transition-delay: 0.22s;
 }
 
-/* Tablet */
-@media (max-width: 1199px) and (min-width: 768px) {
+/* ── 992–1199px: orizzontale, immagine più grande ── */
+@media (max-width: 1199px) and (min-width: 992px) {
+  .about-section {
+    padding: 4rem 0 8rem;
+  }
+
+  .about-img {
+    width: 58%;
+  }
+
   .about-box {
-    width: 370px;
-    right: -3%;
+    width: 400px;
+    max-width: 50%;
+    right: 5%;
+    top: 50%;
   }
 
   .about-box__inner {
-    padding: 1.6rem 1.8rem;
+    padding: 1.7rem 1.9rem;
   }
 
   .about-title {
@@ -229,15 +238,12 @@
   }
 }
 
-@media (max-width: 1199px) and (min-width: 992px) {
-  .about-box {
-    top: 55%;
-    right: 10%;
+/* ── ≤991px: stacked ── */
+@media (max-width: 991px) {
+  .about-section {
+    padding: 3.5rem 0 5rem;
   }
-}
 
-/* Mobile */
-@media (max-width: 767px) {
   .about-container {
     flex-direction: column;
     align-items: stretch;
@@ -247,28 +253,68 @@
   .about-img {
     width: 100%;
     border-radius: 16px;
+    aspect-ratio: 4 / 3;
   }
 
   .about-box {
     position: relative;
-    top: -32px;
+    top: auto;
     right: auto;
     transform: none;
-    width: 100%;
-    margin: 0 auto;
+    width: 92%;
+    max-width: 92%;
+    margin: -36px auto 0;
+    --box-translate: 0;
   }
 
   .about-box:hover {
-    transform: none;
+    transform: translateY(-3px);
   }
 
   .about-box__inner {
-    padding: 1.5rem 1.4rem;
+    padding: 1.6rem 1.5rem;
   }
 
   .about-cta-btn {
     align-self: center;
     width: 100%;
     justify-content: center;
+  }
+
+  .about-box.in-view .about-box-ring {
+    animation-duration: 6s;
+  }
+}
+
+/* ── ≤575px ── */
+@media (max-width: 575px) {
+  .about-img {
+    aspect-ratio: 3 / 2;
+  }
+
+  .about-box {
+    width: 95%;
+    max-width: 95%;
+    margin-top: -28px;
+  }
+
+  .about-box__inner {
+    padding: 1.4rem 1.2rem;
+  }
+
+  .about-title {
+    font-size: 1.55rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .about-section {
+    height: 100vh;
+  }
+}
+
+@media (min-width: 992px) {
+  .about-section {
+    height: 89vh;
   }
 }

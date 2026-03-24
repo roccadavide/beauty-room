@@ -1,14 +1,7 @@
-import { useRef, useLayoutEffect, useState } from 'react';
-import {
-  motion,
-  useScroll,
-  useSpring,
-  useTransform,
-  useMotionValue,
-  useVelocity,
-  useAnimationFrame
-} from 'motion/react';
-import './ScrollVelocity.css';
+import { useRef, useLayoutEffect, useState } from "react";
+import { motion, useScroll, useSpring, useTransform, useMotionValue, useVelocity, useAnimationFrame } from "framer-motion";
+
+const MotionDiv = motion.div;
 
 function useElementWidth(ref) {
   const [width, setWidth] = useState(0);
@@ -17,8 +10,8 @@ function useElementWidth(ref) {
       if (ref.current) setWidth(ref.current.offsetWidth);
     }
     updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
   }, [ref]);
   return width;
 }
@@ -37,24 +30,17 @@ function VelocityText({
   const { scrollY } = useScroll(scrollOptions);
   const scrollVelocity = useVelocity(scrollY);
   const smoothVelocity = useSpring(scrollVelocity, { damping, stiffness });
-  const velocityFactor = useTransform(
-    smoothVelocity,
-    velocityMapping.input,
-    velocityMapping.output,
-    { clamp: false }
-  );
+  const velocityFactor = useTransform(smoothVelocity, velocityMapping.input, velocityMapping.output, { clamp: false });
 
   const copyRef = useRef(null);
   const copyWidth = useElementWidth(copyRef);
 
   function wrap(min, max, v) {
     const range = max - min;
-    return (((v - min) % range) + range) % range + min;
+    return ((((v - min) % range) + range) % range) + min;
   }
 
-  const x = useTransform(baseX, v =>
-    copyWidth === 0 ? '0px' : `${wrap(-copyWidth, 0, v)}px`
-  );
+  const x = useTransform(baseX, v => (copyWidth === 0 ? "0px" : `${wrap(-copyWidth, 0, v)}px`));
 
   const directionFactor = useRef(1);
   useAnimationFrame((_t, delta) => {
@@ -73,9 +59,9 @@ function VelocityText({
 
   return (
     <div className="sv-parallax">
-      <motion.div className="sv-scroller" style={{ x }}>
+      <MotionDiv className="sv-scroller" style={{ x }}>
         {spans}
-      </motion.div>
+      </MotionDiv>
     </div>
   );
 }

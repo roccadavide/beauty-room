@@ -9,7 +9,7 @@
 /* Fade laterale: il testo "esce" dai bordi */
 .sv-parallax::before,
 .sv-parallax::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   width: 140px;
@@ -29,7 +29,7 @@
 .sv-scroller {
   display: flex;
   white-space: nowrap;
-  font-family: 'Petrona', Georgia, serif;
+  font-family: "Petrona", Georgia, serif;
   font-size: 0.85rem;
   font-weight: 400;
   letter-spacing: 0.18em;
@@ -54,7 +54,7 @@
     padding: 2.5rem 0;
   }
   .sv-scroller {
-    font-size: 0.95rem;
+    font-size: 1.45rem;
     letter-spacing: 0.2em;
   }
 }

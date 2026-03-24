@@ -164,7 +164,13 @@ function App() {
                     <HeroSection />
                     <LaserSection />
                     <ServicesPreview />
-                    <Divider />
+                    <ScrollVelocity
+                      texts={["Laser · Laminazione · Permanent Make-Up · Skin Care ✦", "Risultati Reali · Professionalità · Benessere · La tua Bellezza ✦"]}
+                      velocity={50}
+                      damping={40}
+                      stiffness={300}
+                      numCopies={8}
+                    />
                     <ResultsPreview />
                     <Divider />
                     <TestimonialsSection />
@@ -426,7 +432,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-
           </Routes>
         </AnimatePresence>
       </main>
