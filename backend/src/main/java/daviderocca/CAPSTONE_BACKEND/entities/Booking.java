@@ -80,6 +80,9 @@ public class Booking {
     @Column(name="completed_at")
     private LocalDateTime completedAt;
 
+    @Column(name="review_request_sent_at")
+    private LocalDateTime reviewRequestSentAt;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_id", nullable = false)
     private ServiceItem service;

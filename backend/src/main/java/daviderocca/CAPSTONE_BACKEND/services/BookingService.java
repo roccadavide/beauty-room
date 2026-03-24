@@ -13,6 +13,7 @@ import daviderocca.CAPSTONE_BACKEND.entities.ServiceOption;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.entities.WorkingHours;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
+import daviderocca.CAPSTONE_BACKEND.enums.NotificationType;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
@@ -33,6 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -52,6 +54,7 @@ public class BookingService {
     private final CustomerService customerService;
     private final WorkingHoursRepository workingHoursRepository;
     private final ClosureRepository closureRepository;
+    private final AdminNotificationService notificationService;
 
     // FIX-1: chiave Stripe per il rimborso (field injection, non final per compatibilità con @Value)
     @Value("${stripe.secret}")
@@ -60,6 +63,9 @@ public class BookingService {
     private static final int HOLD_EXPIRE_MINUTES = 12;
 
     private static final List<BookingStatus> BLOCKING = List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
+
+    private static final DateTimeFormatter NOTIF_FMT =
+        DateTimeFormatter.ofPattern("dd/MM 'alle' HH:mm");
 
     // ============================ ADMIN LIST ============================
     @Transactional(readOnly = true)
@@ -217,6 +223,20 @@ public class BookingService {
                 saved.getBookingId(), saved.getStartTime(), saved.getEndTime(),
                 saved.getPackageCredit() != null ? saved.getPackageCredit().getPackageCreditId() : "none");
 
+        try {
+            String svc  = booking.getService() != null ? booking.getService().getTitle() : "Trattamento";
+            String when = booking.getStartTime().format(NOTIF_FMT);
+            notificationService.create(
+                NotificationType.NEW_BOOKING,
+                "Nuova prenotazione manuale 📋",
+                booking.getCustomerName() + " · " + svc + " · " + when,
+                saved.getBookingId(),
+                "BOOKING"
+            );
+        } catch (Exception e) {
+            log.warn("Notification skipped for manual booking: {}", e.getMessage());
+        }
+
         Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
                 .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
         return convertToDTO(hydrated);
@@ -317,6 +337,20 @@ public class BookingService {
         bookingRepository.save(booking);
 
         log.info("Booking confirmed (paid): bookingId={} email={}", bookingId, customerEmailFromStripe);
+
+        try {
+            String svc  = booking.getService() != null ? booking.getService().getTitle() : "Trattamento";
+            String when = booking.getStartTime().format(NOTIF_FMT);
+            notificationService.create(
+                NotificationType.NEW_BOOKING,
+                "Nuova prenotazione online 🗓",
+                booking.getCustomerName() + " · " + svc + " · " + when,
+                booking.getBookingId(),
+                "BOOKING"
+            );
+        } catch (Exception e) {
+            log.warn("Notification skipped for booking {}: {}", bookingId, e.getMessage());
+        }
     }
 
     @Transactional
@@ -585,6 +619,18 @@ public class BookingService {
         if (newStatus == BookingStatus.NO_SHOW) {
             found.setCanceledAt(LocalDateTime.now());
             found.setCancelReason("NO_SHOW");
+            try {
+                String when = found.getStartTime().format(NOTIF_FMT);
+                notificationService.create(
+                    NotificationType.NO_SHOW,
+                    "Cliente non presentata 👻",
+                    found.getCustomerName() + " · " + when,
+                    bookingId,
+                    "BOOKING"
+                );
+            } catch (Exception e) {
+                log.warn("Notification skipped for no-show {}: {}", bookingId, e.getMessage());
+            }
         }
 
         // FIX-23: rimosso blocco CANCELLED duplicato che sovrascriveva cancelReason senza utilità
@@ -643,6 +689,21 @@ public class BookingService {
 
         bookingRepository.save(found);
         log.info("Booking cancelled: id={} reason={}", bookingId, found.getCancelReason());
+
+        if (!admin) {
+            try {
+                String when = found.getStartTime().format(NOTIF_FMT);
+                notificationService.create(
+                    NotificationType.BOOKING_CANCELLED,
+                    "Prenotazione cancellata dal cliente ✕",
+                    found.getCustomerName() + " ha cancellato · " + when,
+                    found.getBookingId(),
+                    "BOOKING"
+                );
+            } catch (Exception e) {
+                log.warn("Notification skipped for cancellation {}: {}", bookingId, e.getMessage());
+            }
+        }
     }
 
     // ============================ ADMIN AGENDA ============================

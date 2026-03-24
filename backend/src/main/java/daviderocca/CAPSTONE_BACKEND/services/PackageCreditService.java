@@ -1,5 +1,6 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
+import daviderocca.CAPSTONE_BACKEND.DTO.packageDTOs.ActivePackageDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -286,5 +288,56 @@ public class PackageCreditService {
         return packageCreditRepository
                 .findTopByCustomerEmailIgnoreCaseAndServiceOptionOptionIdAndStatusOrderByPurchasedAtAsc(
                         email.trim().toLowerCase(), optionId, PackageCreditStatus.ACTIVE);
+    }
+
+    // =====================================================================
+    // VISTA GLOBALE ADMIN
+    // =====================================================================
+
+    @Transactional(readOnly = true)
+    public List<ActivePackageDTO> findAllActiveForAdmin() {
+        List<PackageCreditStatus> statuses = List.of(
+                PackageCreditStatus.ACTIVE,
+                PackageCreditStatus.EXPIRED
+        );
+
+        return packageCreditRepository
+                .findAllByStatusInOrderByExpiryDateAsc(statuses)
+                .stream()
+                .map(this::toActiveDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Long> getPackageKpis() {
+        return Map.of(
+                "active",    packageCreditRepository.countByStatus(PackageCreditStatus.ACTIVE),
+                "expired",   packageCreditRepository.countByStatus(PackageCreditStatus.EXPIRED),
+                "completed", packageCreditRepository.countByStatus(PackageCreditStatus.COMPLETED)
+        );
+    }
+
+    private ActivePackageDTO toActiveDTO(PackageCredit pc) {
+        String customerName  = null;
+        String customerPhone = null;
+
+        if (pc.getUser() != null) {
+            customerName  = pc.getUser().getName();
+            customerPhone = pc.getUser().getPhone();
+        }
+
+        return new ActivePackageDTO(
+                pc.getPackageCreditId(),
+                pc.getCustomerEmail(),
+                customerName,
+                customerPhone,
+                pc.getService() != null ? pc.getService().getTitle() : null,
+                pc.getServiceOption() != null ? pc.getServiceOption().getName() : null,
+                pc.getSessionsTotal(),
+                pc.getSessionsRemaining(),
+                pc.getStatus(),
+                pc.getPurchasedAt(),
+                pc.getExpiryDate()
+        );
     }
 }

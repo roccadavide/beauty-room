@@ -95,6 +95,18 @@ public class EmailOutboxService {
         );
     }
 
+    public void enqueueReviewRequest(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) return;
+
+        enqueueSafe(
+                EmailEventType.REVIEW_REQUEST,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                normalizeEmail(booking.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
     private void enqueueSafe(
             EmailEventType eventType,
             EmailAggregateType aggregateType,

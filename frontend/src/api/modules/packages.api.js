@@ -24,3 +24,9 @@ export const deletePackage = (optionId, token) =>
   http.delete(`/service-items/options/${optionId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+
+export const fetchActivePackages = () =>
+  http.get("/admin/packages").then(r => r.data);
+
+export const fetchPackageKpis = () =>
+  http.get("/admin/packages/kpis").then(r => r.data);

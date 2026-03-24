@@ -37,6 +37,7 @@ import ImpostazioniPage from "./components/admin/ImpostazioniPage";
 import ClientiPage from "./pages/admin/ClientiPage";
 import ReportPage from "./pages/admin/ReportPage";
 import PostItBoard from "./pages/admin/PostItBoard";
+import NotifichePage from "./pages/admin/NotifichePage";
 import { useDispatch } from "react-redux";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
@@ -366,6 +367,17 @@ function App() {
                 <PrivateRoute roles={["ADMIN"]}>
                   <PageTransition routeKey={location.pathname}>
                     <PostItBoard />
+                  </PageTransition>
+                </PrivateRoute>
+              }
+            />
+
+            <Route
+              path="/admin/notifiche"
+              element={
+                <PrivateRoute roles={["ADMIN"]}>
+                  <PageTransition routeKey={location.pathname}>
+                    <NotifichePage />
                   </PageTransition>
                 </PrivateRoute>
               }

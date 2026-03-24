@@ -57,4 +57,20 @@ public interface PackageCreditRepository extends JpaRepository<PackageCredit, UU
 
     // ---- lookup stripe (idempotenza webhook) ----
     Optional<PackageCredit> findByStripeSessionId(String stripeSessionId);
+
+    // ---- vista admin: tutti i pacchetti per status, ordinati per scadenza ----
+    @Query("""
+            SELECT pc FROM PackageCredit pc
+            LEFT JOIN FETCH pc.service
+            LEFT JOIN FETCH pc.serviceOption
+            LEFT JOIN FETCH pc.user
+            WHERE pc.status IN :statuses
+            ORDER BY pc.expiryDate ASC
+            """)
+    List<PackageCredit> findAllByStatusInOrderByExpiryDateAsc(
+            @Param("statuses") List<PackageCreditStatus> statuses
+    );
+
+    // ---- KPI: conta per status ----
+    long countByStatus(PackageCreditStatus status);
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Container, Nav, Navbar, NavDropdown, Modal, Button } from "react-bootstrap";
-import { PersonCircle, ChevronDown, ChevronUp, BoxArrowRight } from "react-bootstrap-icons";
+import { PersonCircle, ChevronDown, ChevronUp, BoxArrowRight, BellFill } from "react-bootstrap-icons";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import CartIcon from "../../features/cart/CartIcon";
@@ -9,6 +9,7 @@ import { logout } from "../../features/auth/slices/auth.slice";
 import { clearAccessToken } from "../../utils/token";
 import { logoutUser } from "../../api/modules/auth.api";
 import { fetchExpiringCount } from "../../api/modules/postits.api";
+import { fetchUnreadNotifCount } from "../../api/modules/notifications.api";
 
 const LINKS = [
   { to: "/trattamenti", label: "Trattamenti" },
@@ -25,6 +26,7 @@ export default function NavBar() {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [expiringPostIts, setExpiringPostIts] = useState(0);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
 
   const drawerRef = useRef(null);
   const togglerRef = useRef(null);
@@ -129,6 +131,17 @@ export default function NavBar() {
       .catch(() => {});
   }, [user]);
 
+  useEffect(() => {
+    if (!user || user.role !== "ADMIN") return;
+    const load = () =>
+      fetchUnreadNotifCount()
+        .then(c => setUnreadNotifs(c))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [user]);
+
   const closeMenu = useCallback(() => setExpanded(false), []);
 
   // Logout Modal
@@ -186,6 +199,13 @@ export default function NavBar() {
             </Nav>
           </Navbar.Collapse>
 
+          {user?.role === "ADMIN" && (
+            <Link to="/admin/notifiche" className="notif-bell-link mx-3" aria-label={`Notifiche${unreadNotifs > 0 ? ` — ${unreadNotifs} non lette` : ""}`}>
+              <BellFill size={21} />
+              {unreadNotifs > 0 && <span className="notif-bell-badge">{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>}
+            </Link>
+          )}
+
           <div className="d-none d-lg-flex align-items-center gap-3 nav-icons-right">
             <Link to="/carrello" className="desktop-cart-btn me-3">
               <CartIcon />
@@ -228,10 +248,12 @@ export default function NavBar() {
                       <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
                         Impostazioni
                       </NavDropdown.Item>
+                      <NavDropdown.Item as={Link} to="/admin/notifiche">
+                        Notifiche
+                        {unreadNotifs > 0 && <span className="nav-postit-badge">{unreadNotifs}</span>}
+                      </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to="/admin/post-it">
-                        Post-it{expiringPostIts > 0 && (
-                          <span className="nav-postit-badge">{expiringPostIts}</span>
-                        )}
+                        Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}
                       </NavDropdown.Item>
                     </>
                   )}
@@ -336,6 +358,10 @@ export default function NavBar() {
                       </Link>
                       <Link to="/admin/impostazioni" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         Impostazioni
+                      </Link>
+                      <Link to="/admin/notifiche" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                        Notifiche
+                        {unreadNotifs > 0 && <span className="nav-postit-badge">{unreadNotifs}</span>}
                       </Link>
                       <Link to="/admin/post-it" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}

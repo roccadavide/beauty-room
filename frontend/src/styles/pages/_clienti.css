@@ -452,3 +452,217 @@
     align-self: flex-end;
   }
 }
+
+/* ── Tab switcher ── */
+.cli-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #f0e8de;
+  padding-bottom: 0;
+}
+
+.cli-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #8d6e63;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px 4px 0 0;
+}
+
+.cli-tab:hover { color: #3e2723; }
+
+.cli-tab.is-active {
+  color: #3e2723;
+  border-bottom-color: #b8976a;
+  font-weight: 700;
+}
+
+.cli-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  background: #b8976a;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0 5px;
+}
+
+/* ── Pannello pacchetti globale ── */
+.cli-pkg-panel {
+  animation: fadeInUp 0.25s ease;
+}
+
+.cli-pkg-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.cli-pkg-ftab {
+  background: #fff;
+  border: 1.5px solid #e8ddd0;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: #6d4c41;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.cli-pkg-ftab:hover { border-color: #b8976a; }
+.cli-pkg-ftab.is-active {
+  background: #3e2723;
+  border-color: #3e2723;
+  color: #fff;
+}
+
+.cli-pkg-search {
+  flex: 1;
+  min-width: 180px;
+  max-width: 280px;
+  border: 1.5px solid #e8ddd0;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.cli-pkg-search:focus { border-color: #b8976a; }
+
+.cli-pkg-reload {
+  background: none;
+  border: 1.5px solid #e8ddd0;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: #8d6e63;
+  transition: all 0.2s;
+  padding: 0;
+}
+.cli-pkg-reload:hover { border-color: #b8976a; color: #3e2723; transform: rotate(90deg); }
+
+/* ── Card singola lista globale ── */
+.cli-pkg-global-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cli-pkg-global-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #fff;
+  border: 1.5px solid #f0e8de;
+  border-radius: 14px;
+  padding: 14px 18px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  flex-wrap: wrap;
+}
+
+.cli-pkg-global-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 16px rgba(0,0,0,0.06);
+}
+
+.cli-pkg-global-card.is-expired {
+  opacity: 0.65;
+  border-style: dashed;
+}
+
+.cli-pkg-global-left { flex: 1; min-width: 160px; }
+
+.cli-pkg-global-name {
+  font-weight: 600;
+  color: #3e2723;
+  font-size: 0.95rem;
+}
+
+.cli-pkg-option {
+  color: #8d6e63;
+  font-weight: 400;
+}
+
+.cli-pkg-global-customer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #6d4c41;
+  margin-top: 2px;
+}
+
+.cli-pkg-global-email {
+  font-size: 0.78rem;
+  color: #a08070;
+  margin-top: 1px;
+}
+
+.cli-wa-btn--sm {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.cli-pkg-global-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.cli-pkg-global-right {
+  display: flex;
+  align-items: center;
+  min-width: 120px;
+  justify-content: flex-end;
+}
+
+/* ── Tag scadenza ── */
+.pkg-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pkg-tag--ok       { background: rgba(45,106,79,0.1);    color: #2d6a4f; }
+.pkg-tag--expiring { background: rgba(184,151,106,0.15); color: #8c6d3f; }
+.pkg-tag--expired  { background: rgba(192,57,43,0.1);    color: #c0392b; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 575px) {
+  .cli-pkg-global-card { gap: 0.75rem; padding: 12px 14px; }
+  .cli-pkg-global-center { display: none; }
+  .cli-pkg-global-right { min-width: auto; }
+}

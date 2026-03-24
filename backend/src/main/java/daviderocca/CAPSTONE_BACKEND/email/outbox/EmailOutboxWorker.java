@@ -173,6 +173,7 @@ public class EmailOutboxWorker {
                 case PAID_CONFLICT -> templates.paidConflictAlert(b, null);
                 // FIX-6: template rimborso automatico per PAID_CONFLICT
                 case BOOKING_REFUNDED -> templates.bookingRefunded(b);
+                case REVIEW_REQUEST -> templates.reviewRequest(b);
                 default -> throw new IllegalArgumentException("Unsupported booking event: " + type);
             };
         }

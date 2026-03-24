@@ -128,4 +128,21 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Booking b WHERE b.bookingId = :id")
     Optional<Booking> findByIdForUpdate(@Param("id") UUID id);
+
+    /**
+     * Prenotazioni COMPLETED con completedAt tra from e to
+     * a cui non è ancora stata inviata la richiesta recensione.
+     */
+    @Query("""
+        SELECT b FROM Booking b
+        LEFT JOIN FETCH b.service
+        WHERE b.bookingStatus = daviderocca.CAPSTONE_BACKEND.enums.BookingStatus.COMPLETED
+        AND b.completedAt IS NOT NULL
+        AND b.completedAt BETWEEN :from AND :to
+        AND b.reviewRequestSentAt IS NULL
+        """)
+    List<Booking> findCompletedBetweenWithoutReviewRequest(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to
+    );
 }

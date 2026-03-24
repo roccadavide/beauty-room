@@ -44,6 +44,9 @@ public class EmailTemplateService {
     @Value("${app.brand.facebookUrl:https://www.facebook.com/rossimichela.pmu}")
     private String facebookUrl;
 
+    @Value("${app.google.review.url:https://g.page/r/PLACEHOLDER/review}")
+    private String googleReviewUrl;
+
     private static final DateTimeFormatter IT_DT =
             DateTimeFormatter.ofPattern("EEE dd MMM yyyy, HH:mm", Locale.ITALY);
 
@@ -505,6 +508,64 @@ public class EmailTemplateService {
                 .replace("\"", "&quot;");
     }
     private String escAttr(String s) { return esc(s).replace("'", "%27"); }
+
+    // ===================== REVIEW REQUEST =====================
+    public EmailContent reviewRequest(Booking b) {
+        String firstName = b.getCustomerName() != null
+                ? b.getCustomerName().split(" ")[0]
+                : "cara cliente";
+
+        String serviceTitle = b.getService() != null
+                ? b.getService().getTitle()
+                : "il tuo trattamento";
+
+        String subject = "Come ti sei trovata? \u2b50 \u2013 " + brandName;
+
+        String body = """
+          <h1 style="%s">Come ti sei trovata, %s?</h1>
+
+          <div style="font-family:Arial,sans-serif; font-size:24px; letter-spacing:6px; margin:14px 0 18px;">
+            \u2b50\u2b50\u2b50\u2b50\u2b50
+          </div>
+
+          <p style="%s">
+            Grazie per aver scelto <b>%s</b> per
+            <span style="color:%s; font-weight:700;">%s</span>.
+            La tua opinione \u00e8 preziosa e aiuta altre persone a trovarci.
+          </p>
+
+          <p style="%s">
+            Se sei rimasta soddisfatta, ci farebbe enormemente piacere leggere
+            una tua recensione — bastano due minuti:
+          </p>
+
+          <div style="margin-top:18px;">
+            %s
+          </div>
+
+          <p style="%s; margin-top:20px;">
+            Se invece c'\u00e8 qualcosa che potremmo migliorare, rispondi
+            direttamente a questa email — Michela legge tutto personalmente.
+          </p>
+          """.formatted(
+                h1Style(),
+                esc(firstName),
+                pStyle(), esc(brandName), GOLD, esc(serviceTitle),
+                pStyle(),
+                button("\u2728 Lascia la tua recensione", googleReviewUrl),
+                smallStyle()
+        );
+
+        String html = wrap(body);
+
+        String text = ("Ciao %s,\n\nGrazie per aver scelto %s per %s.\n\n"
+                + "Se sei rimasta soddisfatta, ci farebbe piacere leggere una tua recensione:\n%s\n\n"
+                + "Per qualsiasi feedback rispondi a questa email — Michela legge tutto personalmente.\n\n"
+                + "%s").formatted(
+                firstName, brandName, serviceTitle, googleReviewUrl, brandName);
+
+        return new EmailContent(subject, html, text);
+    }
 
     // ===================== PRODUCT BACK IN STOCK =====================
     public EmailContent productBackInStock(String customerName, String productName,

@@ -6,5 +6,6 @@ public enum EmailEventType {
     ORDER_PAID,
     PAID_CONFLICT,
     // FIX-6: notifica cliente rimborso automatico in caso di PAID_CONFLICT
-    BOOKING_REFUNDED
+    BOOKING_REFUNDED,
+    REVIEW_REQUEST
 }

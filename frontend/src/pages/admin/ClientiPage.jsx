@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Container, Spinner } from "react-bootstrap";
 import CustomerAutocomplete from "../../components/admin/CustomerAutocomplete";
 import { getCustomerSummary, updateCustomerNotes } from "../../api/modules/customer.api";
+import { fetchActivePackages, fetchPackageKpis } from "../../api/modules/packages.api";
 
 const STATUS_META = {
   PENDING: { label: "In attesa", tone: "pending" },
@@ -42,6 +43,20 @@ const openWhatsApp = phone => {
   const number = clean.startsWith("39") ? clean : `39${clean}`;
   window.open(`https://wa.me/${number}`, "_blank", "noopener,noreferrer");
 };
+
+function daysUntilExpiry(isoDate) {
+  if (!isoDate) return null;
+  const diff = new Date(isoDate) - new Date();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function expiryTag(isoDate) {
+  const days = daysUntilExpiry(isoDate);
+  if (days === null) return null;
+  if (days < 0)   return { label: "Scaduto",           cls: "pkg-tag pkg-tag--expired"  };
+  if (days <= 30) return { label: `Scade in ${days}g`, cls: "pkg-tag pkg-tag--expiring" };
+  return           { label: `Scade in ${days}g`,        cls: "pkg-tag pkg-tag--ok"       };
+}
 
 function ClientSummary({ customer, loading, error, onNotesChange }) {
   const [notes, setNotes] = useState(customer?.notes || "");
@@ -235,6 +250,14 @@ export default function ClientiPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [activeTab, setActiveTab]   = useState("clienti");
+  const [packages, setPackages]     = useState([]);
+  const [pkgKpis, setPkgKpis]       = useState(null);
+  const [pkgLoading, setPkgLoading] = useState(false);
+  const [pkgError, setPkgError]     = useState("");
+  const [pkgFilter, setPkgFilter]   = useState("ALL");
+  const [pkgSearch, setPkgSearch]   = useState("");
+
   const handleSelect = useCallback(async customer => {
     setSelected(customer);
     setDetail(null);
@@ -255,25 +278,224 @@ export default function ClientiPage() {
     setDetail(prev => (prev ? { ...prev, notes } : prev));
   }, []);
 
+  const loadPackages = useCallback(async () => {
+    if (packages.length > 0) return;
+    setPkgLoading(true);
+    setPkgError("");
+    try {
+      const [list, kpis] = await Promise.all([fetchActivePackages(), fetchPackageKpis()]);
+      setPackages(list);
+      setPkgKpis(kpis);
+    } catch (e) {
+      setPkgError(e.message || "Errore caricamento pacchetti.");
+    } finally {
+      setPkgLoading(false);
+    }
+  }, [packages.length]);
+
+  const handleTabChange = useCallback(tab => {
+    setActiveTab(tab);
+    if (tab === "pacchetti") loadPackages();
+  }, [loadPackages]);
+
   const summaryError = error || "";
 
   return (
     <div className="cli-page">
       <Container className="cli-container">
         <header className="cli-header">
-          <h1 className="cli-title">Clienti</h1>
-          <p className="cli-subtitle">Consulta lo storico, i pacchetti e le note delle clienti</p>
+          <h1 className="cli-title">Gestione</h1>
+          <p className="cli-subtitle">Clienti, pacchetti attivi e storico prenotazioni</p>
         </header>
 
-        <div className="cli-search-card">
-          <div className="cli-search-label">Cerca cliente</div>
-          <CustomerAutocomplete value={query} onChange={setQuery} onSelect={handleSelect} placeholder="Cerca per nome, telefono o email…" />
-          {!selected && <div className="cli-search-empty">Cerca una cliente per nome, telefono o email.</div>}
+        {/* ── Tab switcher ── */}
+        <div className="cli-tabs">
+          <button
+            className={`cli-tab ${activeTab === "clienti" ? "is-active" : ""}`}
+            onClick={() => handleTabChange("clienti")}
+            type="button"
+          >
+            👤 Clienti
+          </button>
+          <button
+            className={`cli-tab ${activeTab === "pacchetti" ? "is-active" : ""}`}
+            onClick={() => handleTabChange("pacchetti")}
+            type="button"
+          >
+            📦 Pacchetti attivi
+            {pkgKpis?.active > 0 && (
+              <span className="cli-tab-badge">{pkgKpis.active}</span>
+            )}
+          </button>
         </div>
 
-        <div className="cli-layout">
-          <ClientSummary customer={detail} loading={loading} error={summaryError} onNotesChange={handleNotesChange} />
-        </div>
+        {/* ── TAB: Clienti ── */}
+        {activeTab === "clienti" && (
+          <>
+            <div className="cli-search-card">
+              <div className="cli-search-label">Cerca cliente</div>
+              <CustomerAutocomplete
+                value={query}
+                onChange={setQuery}
+                onSelect={handleSelect}
+                placeholder="Cerca per nome, telefono o email…"
+              />
+              {!selected && (
+                <div className="cli-search-empty">
+                  Cerca una cliente per nome, telefono o email.
+                </div>
+              )}
+            </div>
+            <div className="cli-layout">
+              <ClientSummary
+                customer={detail}
+                loading={loading}
+                error={summaryError}
+                onNotesChange={handleNotesChange}
+              />
+            </div>
+          </>
+        )}
+
+        {/* ── TAB: Pacchetti ── */}
+        {activeTab === "pacchetti" && (
+          <div className="cli-pkg-panel">
+
+            {pkgKpis && (
+              <div className="cli-kpi-row mb-3">
+                <div className="cli-kpi cli-kpi--ok">
+                  <div className="cli-kpi-label">Pacchetti attivi</div>
+                  <div className="cli-kpi-value">{pkgKpis.active}</div>
+                </div>
+                <div className="cli-kpi cli-kpi--bad">
+                  <div className="cli-kpi-label">Scaduti</div>
+                  <div className="cli-kpi-value">{pkgKpis.expired}</div>
+                </div>
+                <div className="cli-kpi">
+                  <div className="cli-kpi-label">Completati</div>
+                  <div className="cli-kpi-value">{pkgKpis.completed}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="cli-pkg-filters">
+              {["ALL", "ACTIVE", "EXPIRING", "EXPIRED"].map(f => (
+                <button
+                  key={f}
+                  type="button"
+                  className={`cli-pkg-ftab ${pkgFilter === f ? "is-active" : ""}`}
+                  onClick={() => setPkgFilter(f)}
+                >
+                  {f === "ALL"      && "Tutti"}
+                  {f === "ACTIVE"   && "Attivi"}
+                  {f === "EXPIRING" && "⚠ In scadenza (≤30g)"}
+                  {f === "EXPIRED"  && "Scaduti"}
+                </button>
+              ))}
+              <input
+                className="cli-pkg-search"
+                placeholder="Cerca per email o servizio…"
+                value={pkgSearch}
+                onChange={e => setPkgSearch(e.target.value)}
+              />
+              <button
+                type="button"
+                className="cli-pkg-reload"
+                onClick={() => { setPackages([]); setPkgKpis(null); loadPackages(); }}
+                title="Ricarica"
+              >
+                ↻
+              </button>
+            </div>
+
+            {pkgLoading && (
+              <div className="d-flex justify-content-center py-5">
+                <Spinner animation="border" size="sm" />
+              </div>
+            )}
+
+            {pkgError && <div className="cli-error">{pkgError}</div>}
+
+            {!pkgLoading && !pkgError && (() => {
+              const filtered = packages.filter(p => {
+                const days = daysUntilExpiry(p.expiryDate);
+                const matchFilter =
+                  pkgFilter === "ALL"      ? true :
+                  pkgFilter === "ACTIVE"   ? (p.status === "ACTIVE" && (days === null || days > 30)) :
+                  pkgFilter === "EXPIRING" ? (p.status === "ACTIVE" && days !== null && days >= 0 && days <= 30) :
+                  pkgFilter === "EXPIRED"  ? p.status === "EXPIRED" :
+                  true;
+
+                const q = pkgSearch.toLowerCase();
+                const matchSearch = !q || (
+                  p.customerEmail?.toLowerCase().includes(q) ||
+                  p.customerName?.toLowerCase().includes(q) ||
+                  p.serviceName?.toLowerCase().includes(q) ||
+                  p.serviceOptionName?.toLowerCase().includes(q)
+                );
+
+                return matchFilter && matchSearch;
+              });
+
+              if (!filtered.length) return (
+                <div className="cli-empty-history" style={{ padding: "3rem 0", textAlign: "center" }}>
+                  Nessun pacchetto trovato.
+                </div>
+              );
+
+              return (
+                <div className="cli-pkg-global-list">
+                  {filtered.map(p => {
+                    const tag   = expiryTag(p.expiryDate);
+                    const ratio = p.sessionsTotal > 0 ? p.sessionsRemaining / p.sessionsTotal : 0;
+                    const pct   = Math.round(ratio * 100);
+                    let barCls  = "cli-pkg-bar-fill--good";
+                    if (p.sessionsRemaining <= 1) barCls = "cli-pkg-bar-fill--critical";
+                    else if (pct <= 50)           barCls = "cli-pkg-bar-fill--warn";
+
+                    return (
+                      <div key={p.packageCreditId} className={`cli-pkg-global-card ${p.status === "EXPIRED" ? "is-expired" : ""}`}>
+                        <div className="cli-pkg-global-left">
+                          <div className="cli-pkg-global-name">
+                            {p.serviceName || "Servizio"}
+                            {p.serviceOptionName && <span className="cli-pkg-option"> · {p.serviceOptionName}</span>}
+                          </div>
+                          <div className="cli-pkg-global-customer">
+                            {p.customerName || p.customerEmail}
+                            {p.customerPhone && (
+                              <button
+                                className="cli-wa-btn cli-wa-btn--sm"
+                                type="button"
+                                onClick={() => openWhatsApp(p.customerPhone)}
+                              >
+                                💬
+                              </button>
+                            )}
+                          </div>
+                          <div className="cli-pkg-global-email">{p.customerEmail}</div>
+                        </div>
+
+                        <div className="cli-pkg-global-center">
+                          <div className="cli-pkg-bar" style={{ width: "120px" }}>
+                            <div className={`cli-pkg-bar-fill ${barCls}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="cli-pkg-meta">
+                            {p.sessionsRemaining}/{p.sessionsTotal} sedute
+                          </div>
+                        </div>
+
+                        <div className="cli-pkg-global-right">
+                          {tag && <span className={tag.cls}>{tag.label}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
       </Container>
     </div>
   );
