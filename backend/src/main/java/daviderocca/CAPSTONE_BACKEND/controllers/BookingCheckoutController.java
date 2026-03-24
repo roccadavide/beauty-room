@@ -29,6 +29,7 @@ import jakarta.validation.Valid;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +45,9 @@ public class BookingCheckoutController {
 
     @Value("${app.front.url:http://localhost:5173}")
     private String frontUrl;
+
+    @Value("${booking.hold.expire-minutes:12}")
+    private int holdExpireMinutes;
 
     private final BookingService bookingService;
     private final ServiceItemService serviceItemService;
@@ -144,9 +148,18 @@ public class BookingCheckoutController {
         // 3) crea session Stripe
         String bookingId = hold.bookingId().toString();
 
+        // Minimo 30 minuti richiesto da Stripe.
+        // Usiamo il massimo tra (hold + 3 min buffer) e 30 min.
+        long sessionDurationSeconds = Math.max(
+                (holdExpireMinutes + 3) * 60L,
+                30 * 60L
+        );
+        long expiresAt = Instant.now().plusSeconds(sessionDurationSeconds).getEpochSecond();
+
         SessionCreateParams.Builder builder = SessionCreateParams.builder()
                 .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                 .setMode(SessionCreateParams.Mode.PAYMENT)
+                .setExpiresAt(expiresAt)
                 .setSuccessUrl(frontUrl + "/prenotazione-confermata?session_id={CHECKOUT_SESSION_ID}")
                 .setCancelUrl(
                         payload.promotionId() != null

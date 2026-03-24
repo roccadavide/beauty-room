@@ -256,6 +256,7 @@ public class ServiceItemService {
                 serviceItem.getDescription(),
                 new java.util.ArrayList<>(serviceItem.getImages()),
                 serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryId() : null,
+                serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryKey() : null,
                 optionDTOs
         );
     }

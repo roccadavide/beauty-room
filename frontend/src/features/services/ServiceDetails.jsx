@@ -67,11 +67,11 @@ const ServiceDetail = () => {
   }, [categories]);
 
   const badgeColors = {
-    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary",
-    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success",
-    "95b6d339-a765-4569-9aee-08107d27516b": "warning",
-    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info",
-    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger",
+    "laser":        "primary",
+    "viso":         "success",
+    "corpo":        "warning",
+    "unghie":       "info",
+    "sopracciglia": "danger",
   };
 
   const related = useMemo(() => {
@@ -148,7 +148,7 @@ const ServiceDetail = () => {
         {/* ▸ INFO */}
         <Col md={6} lg={5} className="detail-info fade-slide visible">
           <div className="detail-meta">
-            <Badge bg={badgeColors[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
+            <Badge bg={badgeColors[service.categoryKey] || "secondary"} className="text-uppercase detail-badge">
               {categoriesMap[service.categoryId] || "Senza categoria"}
             </Badge>
             <span className="detail-duration">⏱ {service.durationMin} min</span>

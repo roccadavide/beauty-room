@@ -13,5 +13,6 @@ public record ServiceItemResponseDTO(
         String description,
         List<String> images,
         UUID categoryId,
+        String categoryKey,
         List<ServiceOptionResponseDTO> options
 ) {}
