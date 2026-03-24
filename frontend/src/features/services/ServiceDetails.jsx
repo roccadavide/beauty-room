@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
@@ -21,6 +21,7 @@ const useInView = (options = { threshold: 0.15 }) => {
 
 const ServiceDetail = () => {
   const { serviceId } = useParams();
+  const location = useLocation();
   const [service, setService] = useState(null);
   const [allServices, setAllServices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +29,7 @@ const ServiceDetail = () => {
   const [categories, setCategories] = useState([]);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [open, setOpen] = useState(false);
+  const [prefill, setPrefill] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,6 +45,13 @@ const ServiceDetail = () => {
     }, 4000);
     return () => clearTimeout(t);
   }, [wasCancelled, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (location.state?.openBooking && location.state?.prefill) {
+      setPrefill(location.state.prefill);
+      setOpen(true);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const loadServices = async () => {
@@ -301,7 +310,13 @@ const ServiceDetail = () => {
         </section>
       )}
 
-      <BookingModal show={open} onHide={() => setOpen(false)} service={service} initialOptionId={selectedOption?.optionId ?? null} />
+      <BookingModal
+        show={open}
+        onHide={() => { setOpen(false); setPrefill(null); }}
+        service={service}
+        initialOptionId={selectedOption?.optionId ?? null}
+        prefill={prefill}
+      />
     </Container>
   );
 };

@@ -55,6 +55,7 @@ public class BookingService {
     private final WorkingHoursRepository workingHoursRepository;
     private final ClosureRepository closureRepository;
     private final AdminNotificationService notificationService;
+    private final WaitlistService waitlistService;
 
     // FIX-1: chiave Stripe per il rimborso (field injection, non final per compatibilità con @Value)
     @Value("${stripe.secret}")
@@ -653,6 +654,19 @@ public class BookingService {
         log.info("Booking status updated: id={} {} -> {} packageCredit={}",
                 updated.getBookingId(), old, newStatus,
                 updated.getPackageCredit() != null ? updated.getPackageCredit().getPackageCreditId() : "none");
+
+        if (newStatus == BookingStatus.CANCELLED) {
+            try {
+                waitlistService.notifyNextInQueue(
+                    updated.getService().getServiceId(),
+                    updated.getStartTime().toLocalDate(),
+                    updated.getStartTime().toLocalTime().truncatedTo(ChronoUnit.MINUTES)
+                );
+            } catch (Exception e) {
+                log.warn("Waitlist notification skipped on status change {}: {}", bookingId, e.getMessage());
+            }
+        }
+
         return convertToDTO(updated);
     }
 
@@ -703,6 +717,16 @@ public class BookingService {
             } catch (Exception e) {
                 log.warn("Notification skipped for cancellation {}: {}", bookingId, e.getMessage());
             }
+        }
+
+        try {
+            waitlistService.notifyNextInQueue(
+                found.getService().getServiceId(),
+                found.getStartTime().toLocalDate(),
+                found.getStartTime().toLocalTime().truncatedTo(ChronoUnit.MINUTES)
+            );
+        } catch (Exception e) {
+            log.warn("Waitlist notification skipped for booking {}: {}", bookingId, e.getMessage());
         }
     }
 

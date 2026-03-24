@@ -2,6 +2,7 @@ package daviderocca.CAPSTONE_BACKEND.email.templates;
 
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.Order;
+import daviderocca.CAPSTONE_BACKEND.entities.WaitlistEntry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -508,6 +509,62 @@ public class EmailTemplateService {
                 .replace("\"", "&quot;");
     }
     private String escAttr(String s) { return esc(s).replace("'", "%27"); }
+
+    // ===================== WAITLIST SLOT AVAILABLE =====================
+    public EmailContent waitlistSlotAvailable(WaitlistEntry entry, String bookingLink) {
+        String firstName = entry.getCustomerName() != null
+                ? entry.getCustomerName().split(" ")[0] : "cara cliente";
+        String serviceTitle = entry.getService() != null
+                ? entry.getService().getTitle() : "il tuo trattamento";
+        String dateStr = entry.getRequestedDate()
+                .format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.ITALIAN));
+        String timeStr = entry.getRequestedTime().toString().substring(0, 5);
+
+        String body = """
+          <h1 style="%s">Il tuo slot si è liberato! 🎉</h1>
+
+          <p style="%s">Ciao <b>%s</b>, ottima notizia:<br>
+          si è liberato uno slot per <b>%s</b>.</p>
+
+          <div style="background:#fef7ef; border:1px solid %s; border-radius:12px;
+                      padding:16px 20px; margin:18px 0; text-align:center;">
+            <div style="font-family:Arial,sans-serif; font-size:1rem; font-weight:600; color:%s;">%s</div>
+            <div style="font-family:Arial,sans-serif; font-size:1.3rem; font-weight:700; color:%s; margin-top:4px;">🕐 %s</div>
+          </div>
+
+          <p style="%s">Clicca qui sotto per prenotare — il link è riservato a te:</p>
+
+          <div style="margin-top:14px;">
+            %s
+          </div>
+
+          <div style="background:rgba(184,151,106,0.1); border-radius:8px; padding:10px 14px; margin-top:18px;
+                      font-family:Arial,sans-serif; font-size:12px; color:%s;">
+            ⏳ Hai <b>2 ore</b> per completare la prenotazione, dopodiché
+            lo slot sarà offerto alla persona successiva in lista.
+          </div>
+
+          <p style="%s; margin-top:16px;">
+            Se non sei più interessata, ignora questa email.
+          </p>
+          """.formatted(
+                h1Style(),
+                pStyle(), esc(firstName), esc(serviceTitle),
+                BORDER, TEXT, esc(dateStr), GOLD, esc(timeStr),
+                pStyle(),
+                button("✨ Prenota adesso", bookingLink),
+                MUTED,
+                smallStyle()
+        );
+
+        String html = wrap(body);
+
+        String text = ("Ciao %s,\n\nSi è liberato uno slot per %s!\n\nData: %s\nOra: %s\n\n"
+                + "Prenota qui (link valido 2 ore):\n%s\n\n%s")
+                .formatted(firstName, serviceTitle, dateStr, timeStr, bookingLink, brandName);
+
+        return new EmailContent("Slot disponibile! Prenota adesso — " + brandName, html, text);
+    }
 
     // ===================== REVIEW REQUEST =====================
     public EmailContent reviewRequest(Booking b) {

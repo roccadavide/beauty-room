@@ -559,3 +559,81 @@
   color: #b8976a;
 }
 
+/* ── Slot occupato ── */
+.bm-slot--occupied {
+  background: #f9f3ee;
+  color: #a08070;
+  border-color: #e0d5cb;
+  cursor: pointer;
+  position: relative;
+}
+.bm-slot--occupied:hover {
+  background: #fef7ef;
+  border-color: #b8976a;
+  color: #6d4c41;
+}
+.bm-slot__waitlist-hint {
+  display: block;
+  font-size: 0.65rem;
+  color: #b8976a;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* ── WaitlistModal ── */
+.wl-slot-info {
+  background: #fef7ef;
+  border: 1.5px solid #e8ddd0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 1.25rem;
+}
+.wl-slot-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #a08070;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.wl-slot-detail {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #3e2723;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.wl-slot-desc {
+  font-size: 0.85rem;
+  color: #6d4c41;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Success state ── */
+.wl-success {
+  text-align: center;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+.wl-success__icon  { font-size: 3rem; }
+.wl-success__title { font-family: "Petrona", Georgia, serif; font-size: 1.4rem; color: #3e2723; }
+.wl-success__text  { color: #6d4c41; font-size: 0.9rem; line-height: 1.6; }
+.wl-success__slot  {
+  display: flex;
+  gap: 1rem;
+  background: #fef7ef;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #3e2723;
+}
+

@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { fetchAvailabilities } from "../../api/modules/availabilities.api";
 import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest } from "../../api/modules/stripe.api";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import WaitlistModal from "../../components/common/WaitlistModal";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
@@ -107,6 +108,7 @@ const BookingModal = ({
   promoPrice = null,
   promotionId = null,
   promoProducts = [],
+  prefill = null,
 }) => {
   const { accessToken, user } = useSelector(state => state.auth);
 
@@ -121,6 +123,23 @@ const BookingModal = ({
   const [errors, setErrors] = useState({});
   // FIX-9: blocca doppio click su "Vai al pagamento"
   const [paying, setPaying] = useState(false);
+  const [waitlistSlot, setWaitlistSlot] = useState(null);
+
+  // Apply prefill from waitlist deep link
+  useEffect(() => {
+    if (!show || !prefill) return;
+    if (prefill.date) {
+      const parsed = new Date(prefill.date);
+      if (!Number.isNaN(parsed.getTime())) setDate(parsed);
+    }
+    setCustomer(prev => ({
+      ...prev,
+      name:  prefill.customerName  || prev.name,
+      email: prefill.customerEmail || prev.email,
+      phone: prefill.customerPhone || prev.phone,
+    }));
+    setStep(2);
+  }, [show, prefill]);
 
   const reset = () => {
     setStep(1);
@@ -130,6 +149,7 @@ const BookingModal = ({
     setErrors({});
     setError(null);
     setPaying(false);
+    setWaitlistSlot(null);
   };
 
   useEffect(() => {
@@ -286,6 +306,7 @@ const BookingModal = ({
   );
 
   return (
+    <>
     <UnifiedDrawer
       show={show}
       onHide={handleClose}
@@ -324,17 +345,25 @@ const BookingModal = ({
             </div>
           )}
           <div className="bm-slots">
-            {slots.map(s => (
-              <button
-                key={s.start}
-                type="button"
-                className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""}`}
-                onClick={() => setSlot(s)}
-              >
-                {s.start}
-                <span className="bm-slot__end">– {s.end}</span>
-              </button>
-            ))}
+            {slots.map(s => {
+              const isOccupied = s.available === false;
+              return (
+                <button
+                  key={s.start}
+                  type="button"
+                  className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
+                  onClick={() => {
+                    if (isOccupied) setWaitlistSlot(s);
+                    else setSlot(s);
+                  }}
+                  title={isOccupied ? "Slot occupato — clicca per lista d'attesa" : undefined}
+                >
+                  {isOccupied ? "🔒 " : ""}{s.start}
+                  <span className="bm-slot__end">– {s.end}</span>
+                  {isOccupied && <span className="bm-slot__waitlist-hint">Lista d'attesa</span>}
+                </button>
+              );
+            })}
           </div>
           {slots.length === 0 && !loadingSlots && (
             <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>
@@ -533,6 +562,15 @@ const BookingModal = ({
         </div>
       )}
     </UnifiedDrawer>
+
+    <WaitlistModal
+      show={!!waitlistSlot}
+      onHide={() => setWaitlistSlot(null)}
+      service={service}
+      date={date}
+      slot={waitlistSlot}
+    />
+    </>
   );
 };
 

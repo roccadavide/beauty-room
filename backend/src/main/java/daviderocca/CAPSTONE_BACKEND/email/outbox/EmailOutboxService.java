@@ -4,6 +4,7 @@ import daviderocca.CAPSTONE_BACKEND.email.events.EmailAggregateType;
 import daviderocca.CAPSTONE_BACKEND.email.events.EmailEventType;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.Order;
+import daviderocca.CAPSTONE_BACKEND.entities.WaitlistEntry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -91,6 +92,18 @@ public class EmailOutboxService {
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
                 to,
+                LocalDateTime.now()
+        );
+    }
+
+    public void enqueueWaitlistNotification(WaitlistEntry entry) {
+        if (entry == null || entry.getId() == null) return;
+
+        enqueueSafe(
+                EmailEventType.WAITLIST_SLOT_AVAILABLE,
+                EmailAggregateType.BOOKING,
+                entry.getId(),
+                normalizeEmail(entry.getCustomerEmail()),
                 LocalDateTime.now()
         );
     }

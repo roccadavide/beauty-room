@@ -45,10 +45,12 @@ import { clearAccessToken } from "./utils/token";
 import { logoutUser } from "./api/modules/auth.api";
 import Map from "./components/layout/Map";
 import BookingConfirmation from "./features/bookings/BookingConfirmation";
+import WaitlistPage from "./features/bookings/WaitlistPage";
 import PrivacyPolicy from "./components/legal/PrivacyPolicy";
 import CookiePolicy from "./components/legal/CookiePolicy";
 import TermsAndConditions from "./components/legal/TermsAndConditions";
 import LaserSection from "./components/laser/LaserSection";
+import ScrollVelocity from "./components/common/ScrollVelocity";
 
 function App() {
   const location = useLocation();
@@ -278,6 +280,14 @@ function App() {
               element={
                 <PageTransition routeKey={location.pathname}>
                   <BookingConfirmation />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/prenotazione/waitlist"
+              element={
+                <PageTransition routeKey={location.pathname}>
+                  <WaitlistPage />
                 </PageTransition>
               }
             />

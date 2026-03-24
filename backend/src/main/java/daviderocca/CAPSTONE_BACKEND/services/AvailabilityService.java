@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -82,11 +83,29 @@ public class AvailabilityService {
 
         List<TimeRange> free = subtractBookings(openRanges, bookings, date);
 
-        List<AvailabilitySlotDTO> slots = generateSlots(free, durationMin, stepMin).stream()
-                .map(r -> new AvailabilitySlotDTO(r.start().format(HHMM), r.end().format(HHMM)))
+        List<AvailabilitySlotDTO> freeSlots = generateSlots(free, durationMin, stepMin).stream()
+                .map(r -> new AvailabilitySlotDTO(r.start().format(HHMM), r.end().format(HHMM), true))
                 .toList();
 
-        return new AvailabilityResponseDTO(serviceId, date, stepMin, slots);
+        // Build occupied slots from bookings, skipping any start time already covered by a free slot
+        Set<String> freeStarts = freeSlots.stream()
+                .map(AvailabilitySlotDTO::start)
+                .collect(Collectors.toSet());
+
+        List<AvailabilitySlotDTO> occupiedSlots = bookings.stream()
+                .filter(b -> b.getStartTime() != null && b.getEndTime() != null)
+                .map(b -> new AvailabilitySlotDTO(
+                        b.getStartTime().toLocalTime().format(HHMM),
+                        b.getEndTime().toLocalTime().format(HHMM),
+                        false))
+                .filter(s -> !freeStarts.contains(s.start()))
+                .toList();
+
+        List<AvailabilitySlotDTO> allSlots = new ArrayList<>(freeSlots);
+        allSlots.addAll(occupiedSlots);
+        allSlots.sort(Comparator.comparing(AvailabilitySlotDTO::start));
+
+        return new AvailabilityResponseDTO(serviceId, date, stepMin, allSlots);
     }
 
     // =========================
@@ -258,7 +277,7 @@ public class AvailabilityService {
     private List<AvailabilitySlotDTO> toDTO(List<TimeRange> ranges) {
         if (ranges == null || ranges.isEmpty()) return List.of();
         return ranges.stream()
-                .map(r -> new AvailabilitySlotDTO(r.start().format(HHMM), r.end().format(HHMM)))
+                .map(r -> new AvailabilitySlotDTO(r.start().format(HHMM), r.end().format(HHMM), true))
                 .toList();
     }
 

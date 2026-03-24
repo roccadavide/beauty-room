@@ -118,6 +118,10 @@ public class SecConfig {
                         // STOCK ALERT — pubblica, non richiede auth
                         .requestMatchers(HttpMethod.POST, "/products/*/stock-alerts").permitAll()
 
+                        // WAITLIST — iscrizione e risoluzione token pubbliche
+                        .requestMatchers(HttpMethod.POST, "/waitlist").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/waitlist/token/*").permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)

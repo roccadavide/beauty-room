@@ -7,10 +7,13 @@ import daviderocca.CAPSTONE_BACKEND.email.templates.EmailContent;
 import daviderocca.CAPSTONE_BACKEND.email.templates.EmailTemplateService;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.Order;
+import daviderocca.CAPSTONE_BACKEND.entities.WaitlistEntry;
 import daviderocca.CAPSTONE_BACKEND.repositories.BookingRepository;
 import daviderocca.CAPSTONE_BACKEND.repositories.OrderRepository;
+import daviderocca.CAPSTONE_BACKEND.repositories.WaitlistRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -28,11 +31,15 @@ import java.util.UUID;
 public class EmailOutboxWorker {
 
     private final EmailOutboxRepository outboxRepo;
-    private final BookingRepository bookingRepo;
-    private final OrderRepository orderRepo;
+    private final BookingRepository     bookingRepo;
+    private final OrderRepository       orderRepo;
+    private final WaitlistRepository    waitlistRepo;
 
-    private final MailgunSender mailgunSender;
-    private final EmailTemplateService templates;
+    private final MailgunSender         mailgunSender;
+    private final EmailTemplateService  templates;
+
+    @Value("${app.front.url:http://localhost:5173}")
+    private String frontUrl;
 
     private final String lockOwner = resolveLockOwner();
 
@@ -186,6 +193,16 @@ public class EmailOutboxWorker {
                 case ORDER_PAID -> templates.orderPaid(o);
                 default -> throw new IllegalArgumentException("Unsupported order event: " + type);
             };
+        }
+
+        if (type == EmailEventType.WAITLIST_SLOT_AVAILABLE) {
+            WaitlistEntry entry = waitlistRepo.findById(e.getAggregateId()).orElse(null);
+            if (entry == null) {
+                log.warn("WaitlistEntry not found for outbox id={}", e.getId());
+                throw new SkipEmailException("WaitlistEntry not found: " + e.getAggregateId());
+            }
+            String link = frontUrl + "/prenotazione/waitlist?token=" + entry.getToken();
+            return templates.waitlistSlotAvailable(entry, link);
         }
 
         throw new IllegalArgumentException("Unsupported aggregate: " + agg);

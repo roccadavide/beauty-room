@@ -1,0 +1,66 @@
+/* ─── ScrollVelocity — Editorial Beauty ─────────────────────────── */
+.sv-parallax {
+  position: relative;
+  overflow: hidden;
+  padding: 2rem 0;
+  background: transparent;
+}
+
+/* Fade laterale: il testo "esce" dai bordi */
+.sv-parallax::before,
+.sv-parallax::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 140px;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+.sv-parallax::before {
+  left: 0;
+  background: linear-gradient(to right, var(--color-bg, #fffdf8), transparent);
+}
+.sv-parallax::after {
+  right: 0;
+  background: linear-gradient(to left, var(--color-bg, #fffdf8), transparent);
+}
+
+.sv-scroller {
+  display: flex;
+  white-space: nowrap;
+  font-family: 'Petrona', Georgia, serif;
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--card-gold, #b8976a);
+  opacity: 0.75;
+  will-change: transform;
+}
+
+.sv-scroller span {
+  flex-shrink: 0;
+  padding-right: 0.5em;
+}
+
+/* Separatore visivo tra le due righe */
+.sv-parallax + .sv-parallax {
+  padding-top: 0;
+}
+
+@media (min-width: 768px) {
+  .sv-parallax {
+    padding: 2.5rem 0;
+  }
+  .sv-scroller {
+    font-size: 0.95rem;
+    letter-spacing: 0.2em;
+  }
+}
+
+/* Wrapper esterno che raggruppa le due righe */
+.sv-section-wrapper {
+  background: transparent;
+  overflow: hidden;
+}
