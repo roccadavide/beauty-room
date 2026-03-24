@@ -107,7 +107,10 @@ public class PaymentController {
     }
 
     @GetMapping("/order-summary")
-    public ResponseEntity<OrderSummaryDTO> getOrderSummary(@RequestParam("session_id") String sessionId) throws StripeException {
+    public ResponseEntity<OrderSummaryDTO> getOrderSummary(
+            @RequestParam("session_id") String sessionId,
+            @AuthenticationPrincipal User currentUser
+    ) throws StripeException {
         Session session = Session.retrieve(sessionId);
 
         boolean isPaid = "paid".equalsIgnoreCase(session.getPaymentStatus());
@@ -119,6 +122,14 @@ public class PaymentController {
 
         UUID orderId = UUID.fromString(orderIdStr);
         OrderResponseDTO order = orderService.findOrderByIdAndConvert(orderId);
+
+        // Verifica owner solo per utenti autenticati
+        // Gli ospiti (guest) accedono liberamente per opacità del session_id
+        if (currentUser != null
+                && order.userId() != null
+                && !order.userId().equals(currentUser.getUserId())) {
+            return ResponseEntity.status(403).build();
+        }
 
         OrderSummaryDTO dto = OrderSummaryDTO.from(
                 order,

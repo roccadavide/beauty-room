@@ -51,6 +51,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
             // FIX-7: rate limit su endpoint booking checkout (max 10 per IP ogni 5 min)
             } else if (path.startsWith("/checkout/bookings/")) {
                 bucket = config.resolveCheckoutBookingBucket(ip);
+            // FIX-W4: rate limit su endpoint order checkout prodotti
+            } else if (path.startsWith("/checkout/create-session")) {
+                bucket = config.resolveCheckoutBookingBucket(ip);
             }
 
             if (bucket == null) {
