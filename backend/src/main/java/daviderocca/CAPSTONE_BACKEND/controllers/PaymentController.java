@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -151,7 +152,9 @@ public class PaymentController {
                             .setPriceData(
                                     SessionCreateParams.LineItem.PriceData.builder()
                                             .setCurrency("eur")
-                                            .setUnitAmount(item.price().movePointRight(2).longValue())
+                                            .setUnitAmount(item.price().setScale(2, RoundingMode.HALF_UP)
+                                                                       .movePointRight(2)
+                                                                       .longValueExact())
                                             .setProductData(
                                                     SessionCreateParams.LineItem.PriceData.ProductData.builder()
                                                             .setName("Prodotto")

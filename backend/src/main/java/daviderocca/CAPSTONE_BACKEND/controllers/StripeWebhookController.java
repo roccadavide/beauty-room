@@ -322,15 +322,43 @@ public class StripeWebhookController {
             return;
         }
 
-        String orderIdStr = intent.getMetadata() != null ? intent.getMetadata().get("orderId") : null;
-        if (orderIdStr == null) {
-            log.info("payment_intent.payment_failed: non è ordine (ok ignorare)");
+        Map<String, String> metadata = intent.getMetadata();
+
+        // ── ORDINE ──
+        String orderIdStr = metadata != null ? metadata.get("orderId") : null;
+        if (orderIdStr != null) {
+            UUID orderId = UUID.fromString(orderIdStr);
+            orderService.updateOrderStatus(orderId, OrderStatus.FAILED);
+            log.warn("Pagamento fallito per ordine {}", orderId);
             return;
         }
 
-        UUID orderId = UUID.fromString(orderIdStr);
-        orderService.updateOrderStatus(orderId, OrderStatus.FAILED);
-        log.warn("Pagamento fallito per ordine {}", orderId);
+        // ── BOOKING ──
+        String bookingIdStr = metadata != null ? metadata.get("bookingId") : null;
+        if (bookingIdStr != null) {
+            UUID bookingId = UUID.fromString(bookingIdStr);
+            try {
+                Booking booking = bookingService.findBookingById(bookingId);
+                if (booking.getBookingStatus() == BookingStatus.PENDING_PAYMENT) {
+                    booking.setBookingStatus(BookingStatus.CANCELLED);
+                    booking.setCanceledAt(LocalDateTime.now());
+                    booking.setCancelReason("PAYMENT_FAILED");
+                    booking.setExpiresAt(null);
+                    bookingService.save(booking);
+                    log.warn("Pagamento fallito → booking {} cancellato (PAYMENT_FAILED)",
+                            bookingId);
+                } else {
+                    log.info("payment_intent.payment_failed: booking {} già in stato {}, skip",
+                            bookingId, booking.getBookingStatus());
+                }
+            } catch (Exception e) {
+                log.error("Errore gestione payment_failed per booking {}: {}",
+                        bookingId, e.getMessage());
+            }
+            return;
+        }
+
+        log.info("payment_intent.payment_failed: nessun orderId/bookingId nei metadata, skip");
     }
 
     private void handleChargeRefunded(Event event) {

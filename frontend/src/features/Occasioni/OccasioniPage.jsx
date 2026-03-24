@@ -18,8 +18,12 @@ import { fetchServices } from "../../api/modules/services.api";
 
 const getDiscountedPrice = (original, discountType, discountValue) => {
   if (!original || !discountType || !discountValue) return original;
-  if (discountType === "PERCENTAGE") return original - (original * discountValue) / 100;
-  if (discountType === "FIXED") return original - discountValue;
+  if (discountType === "PERCENTAGE")
+    return original - (original * discountValue) / 100;
+  if (discountType === "FIXED")
+    return Math.max(0, original - discountValue);
+  if (discountType === "PRICE_OVERRIDE")
+    return Number(discountValue);
   return original;
 };
 

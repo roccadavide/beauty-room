@@ -1,4 +1,3 @@
-// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
 import { useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
