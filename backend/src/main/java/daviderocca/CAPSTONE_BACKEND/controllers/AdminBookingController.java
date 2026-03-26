@@ -5,6 +5,7 @@ import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.AdminBookingCardDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NextAvailableSlotDTO;
+import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.User;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import daviderocca.CAPSTONE_BACKEND.services.BookingService;
@@ -117,6 +118,19 @@ public class AdminBookingController {
     ) {
         log.info("ADMIN | update status bookingId={} -> {}", id, status);
         return ResponseEntity.ok(bookingService.updateBookingStatus(id, status, currentUser));
+    }
+
+    @PatchMapping("/{id}/padding")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> updatePadding(
+            @PathVariable UUID id,
+            @RequestParam(required = false) Integer minutes,
+            @AuthenticationPrincipal User currentUser) {
+
+        Booking booking = bookingService.findBookingById(id);
+        booking.setPaddingMinutes(minutes != null && minutes > 0 ? minutes : null);
+        bookingService.save(booking);
+        return ResponseEntity.noContent().build();
     }
 
     // UPDATE BOOKING (sposta orario / cambia servizio / note)

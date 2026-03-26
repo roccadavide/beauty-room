@@ -39,5 +39,6 @@ public record NewBookingDTO(
         BigDecimal promoPrice,
 
         /** ID promozione — usato per il metadata Stripe e per validazione futura. */
-        UUID promotionId
+        UUID promotionId,
+        Integer paddingMinutes
 ) {}

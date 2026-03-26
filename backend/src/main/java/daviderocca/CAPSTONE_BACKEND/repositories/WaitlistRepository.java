@@ -2,6 +2,7 @@ package daviderocca.CAPSTONE_BACKEND.repositories;
 
 import daviderocca.CAPSTONE_BACKEND.entities.WaitlistEntry;
 import daviderocca.CAPSTONE_BACKEND.enums.WaitlistStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
@@ -36,4 +37,7 @@ public interface WaitlistRepository extends JpaRepository<WaitlistEntry, UUID> {
 
     /** Recupero tramite token */
     Optional<WaitlistEntry> findByToken(String token);
+
+    @EntityGraph(attributePaths = {"service"})
+    Optional<WaitlistEntry> findById(UUID id);
 }

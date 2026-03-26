@@ -483,6 +483,143 @@ body.modal-open {
   padding: 6px 12px !important;
 }
 
+.ag-padding-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0 0;
+  border-top: 1px solid rgba(111, 74, 47, 0.07);
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.ag-padding-row__label {
+  font-size: 0.74rem;
+  color: var(--ag-muted);
+  flex: 1;
+  min-width: 120px;
+}
+.ag-padding-row__btn {
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(111, 74, 47, 0.2);
+  background: rgba(231, 214, 195, 0.4);
+  color: var(--ag-text);
+  cursor: pointer;
+}
+.ag-padding-row__blocked {
+  font-size: 0.7rem;
+  color: rgba(35, 26, 20, 0.35);
+  font-style: italic;
+}
+.ag-padding-row__controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.ag-padding-row__step {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid rgba(111, 74, 47, 0.2);
+  background: rgba(231, 214, 195, 0.4);
+  color: var(--ag-text);
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.ag-padding-row__step:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.ag-padding-row__val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: center;
+}
+.ag-padding-row__cancel {
+  background: none;
+  border: none;
+  color: var(--ag-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+/* ── Inline padding bar ── */
+.ag-padding-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 2px;
+  border-top: 1px solid rgba(111, 74, 47, 0.07);
+  margin-top: 4px;
+}
+.ag-padding-bar__label {
+  font-size: 0.76rem;
+  color: var(--ag-muted);
+  flex: 1;
+}
+.ag-padding-bar__edit {
+  font-size: 0.72rem !important;
+  padding: 3px 10px !important;
+}
+.ag-padding-bar__blocked {
+  font-size: 0.72rem;
+  color: rgba(35, 26, 20, 0.35);
+  font-style: italic;
+}
+
+/* ── Padding editor (expanded) ── */
+.ag-padding-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 4px;
+  border-top: 1px solid rgba(111, 74, 47, 0.1);
+  margin-top: 4px;
+}
+.ag-padding-editor__label {
+  font-size: 0.74rem;
+  color: var(--ag-muted);
+}
+.ag-padding-editor__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ag-padding-editor__stepper {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(111, 74, 47, 0.2);
+  background: rgba(231, 214, 195, 0.4);
+  color: var(--ag-text);
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ag-padding-editor__stepper:hover:not(:disabled) {
+  background: rgba(231, 214, 195, 0.7);
+}
+.ag-padding-editor__stepper:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.ag-padding-editor__val {
+  font-size: 0.88rem;
+  font-weight: 700;
+  min-width: 32px;
+  text-align: center;
+  color: var(--ag-text);
+}
+
 /* Status pill */
 .ag-pill {
   font-size: 0.78rem;
@@ -921,9 +1058,6 @@ body.modal-open {
 }
 
 @media (max-width: 1100px) {
-  .ag-item {
-    /* già flex column di default */
-  }
   .ag-item__actions {
     justify-content: flex-start;
   }

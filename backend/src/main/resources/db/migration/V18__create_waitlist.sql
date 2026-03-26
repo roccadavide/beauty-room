@@ -14,7 +14,7 @@ CREATE TABLE waitlist_entries (
 
     CONSTRAINT pk_waitlist PRIMARY KEY (id),
     CONSTRAINT fk_waitlist_service
-        FOREIGN KEY (service_id) REFERENCES service_items(service_id) ON DELETE CASCADE,
+        FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
     CONSTRAINT chk_waitlist_status
         CHECK (status IN ('WAITING','NOTIFIED','BOOKED','EXPIRED'))
 );

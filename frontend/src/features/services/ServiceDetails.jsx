@@ -76,11 +76,11 @@ const ServiceDetail = () => {
   }, [categories]);
 
   const badgeColors = {
-    "laser":        "primary",
-    "viso":         "success",
-    "corpo":        "warning",
-    "unghie":       "info",
-    "sopracciglia": "danger",
+    laser: "primary",
+    viso: "success",
+    corpo: "warning",
+    unghie: "info",
+    sopracciglia: "danger",
   };
 
   const related = useMemo(() => {
@@ -157,7 +157,7 @@ const ServiceDetail = () => {
         {/* ▸ INFO */}
         <Col md={6} lg={5} className="detail-info fade-slide visible">
           <div className="detail-meta">
-            <Badge bg={badgeColors[service.categoryKey] || "secondary"} className="text-uppercase detail-badge">
+            <Badge bg={badgeColors[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
               {categoriesMap[service.categoryId] || "Senza categoria"}
             </Badge>
             <span className="detail-duration">⏱ {service.durationMin} min</span>
@@ -312,7 +312,10 @@ const ServiceDetail = () => {
 
       <BookingModal
         show={open}
-        onHide={() => { setOpen(false); setPrefill(null); }}
+        onHide={() => {
+          setOpen(false);
+          setPrefill(null);
+        }}
         service={service}
         initialOptionId={selectedOption?.optionId ?? null}
         prefill={prefill}

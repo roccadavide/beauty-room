@@ -57,7 +57,6 @@ public class BookingService {
     private final AdminNotificationService notificationService;
     private final WaitlistService waitlistService;
 
-    // FIX-1: chiave Stripe per il rimborso (field injection, non final per compatibilità con @Value)
     @Value("${stripe.secret}")
     private String stripeSecretKey;
 
@@ -96,7 +95,6 @@ public class BookingService {
         if (currentUser == null || currentUser.getUserId() == null) {
             throw new UnauthorizedException("Utente non autenticato.");
         }
-
         return bookingRepository.findByUserIdOrderByStartTimeDesc(currentUser.getUserId())
                 .stream()
                 .map(this::convertToDTO)
@@ -113,7 +111,7 @@ public class BookingService {
                 .toList();
     }
 
-    // ============================ HOLD CREATE (used by Stripe checkout) ============================
+    // ============================ HOLD CREATE (Stripe checkout) ============================
     @Transactional
     public BookingResponseDTO createHoldBooking(NewBookingDTO payload, User currentUserOrNull) {
 
@@ -128,23 +126,13 @@ public class BookingService {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
 
-        String name = safeTrim(payload.customerName(), "Nome cliente obbligatorio");
+        String name  = safeTrim(payload.customerName(), "Nome cliente obbligatorio");
         String phone = safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio");
         String email = safeTrim(payload.customerEmail(), "Email cliente obbligatoria").toLowerCase();
 
         User user = (currentUserOrNull != null && currentUserOrNull.getUserId() != null) ? currentUserOrNull : null;
 
-        Booking booking = new Booking(
-                name,
-                email,
-                phone,
-                start,
-                end,
-                payload.notes(),
-                serviceItem,
-                option,
-                user
-        );
+        Booking booking = new Booking(name, email, phone, start, end, payload.notes(), serviceItem, option, user);
 
         booking.setBookingStatus(BookingStatus.PENDING_PAYMENT);
         booking.setExpiresAt(LocalDateTime.now().plusMinutes(HOLD_EXPIRE_MINUTES));
@@ -167,6 +155,7 @@ public class BookingService {
         return bookingRepository.save(booking);
     }
 
+    // ============================ MANUAL ADMIN CREATE ============================
     @Transactional
     public BookingResponseDTO createManualConfirmedBookingAsAdmin(NewBookingDTO payload, User currentUser) {
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni manuali.");
@@ -174,7 +163,7 @@ public class BookingService {
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
 
         LocalDateTime start = payload.startTime().truncatedTo(ChronoUnit.MINUTES);
-        LocalDateTime end = start.plusMinutes(serviceItem.getDurationMin());
+        LocalDateTime end   = start.plusMinutes(serviceItem.getDurationMin());
 
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
 
@@ -194,19 +183,27 @@ public class BookingService {
                 null
         );
 
-        // collegamento pacchetto (opzionale)
         if (payload.packageCreditId() != null) {
             PackageCredit pc = packageCreditService.findById(payload.packageCreditId());
             booking.setPackageCredit(pc);
             packageCreditService.validateBookingWithPackage(booking);
         }
 
-        booking.setBookingStatus(BookingStatus.CONFIRMED);   // manuale = confermata
-        booking.setPaidAt(null);                             // no Stripe
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setPaidAt(null);
         booking.setStripeSessionId(null);
         booking.setExpiresAt(null);
 
-        // ── Link booking to customer registry (best-effort, never blocks booking creation) ──
+        // FIX B4: rimossa notifica per prenotazioni manuali admin.
+        // L'admin sa già cosa ha creato — solo le prenotazioni online (webhook Stripe)
+        // generano notifiche. Il blocco notificationService.create(...) è stato rimosso.
+
+        // FEATURE paddingMinutes: buffer post-trattamento impostabile dall'admin
+        if (payload.paddingMinutes() != null && payload.paddingMinutes() > 0) {
+            booking.setPaddingMinutes(payload.paddingMinutes());
+        }
+
+        // Link booking to customer registry (best-effort, never blocks booking creation)
         try {
             Customer customer = customerService.findOrCreate(
                     booking.getCustomerName(),
@@ -220,23 +217,10 @@ public class BookingService {
         }
 
         Booking saved = bookingRepository.save(booking);
-        log.info("Manual booking created by admin: id={} start={} end={} packageCredit={}",
+        log.info("Manual booking created by admin: id={} start={} end={} padding={}min packageCredit={}",
                 saved.getBookingId(), saved.getStartTime(), saved.getEndTime(),
+                saved.getPaddingMinutes(),
                 saved.getPackageCredit() != null ? saved.getPackageCredit().getPackageCreditId() : "none");
-
-        try {
-            String svc  = booking.getService() != null ? booking.getService().getTitle() : "Trattamento";
-            String when = booking.getStartTime().format(NOTIF_FMT);
-            notificationService.create(
-                NotificationType.NEW_BOOKING,
-                "Nuova prenotazione manuale 📋",
-                booking.getCustomerName() + " · " + svc + " · " + when,
-                saved.getBookingId(),
-                "BOOKING"
-            );
-        } catch (Exception e) {
-            log.warn("Notification skipped for manual booking: {}", e.getMessage());
-        }
 
         Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
                 .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
@@ -248,27 +232,19 @@ public class BookingService {
         if (stripeSessionId == null || stripeSessionId.trim().isEmpty()) {
             throw new BadRequestException("stripeSessionId non valido.");
         }
-
         Booking booking = findBookingById(bookingId);
-
         if (booking.getBookingStatus() != BookingStatus.PENDING_PAYMENT) {
             log.warn("attachStripeSession ignored: bookingId={} status={}", bookingId, booking.getBookingStatus());
             return;
         }
-
         booking.setStripeSessionId(stripeSessionId.trim());
         bookingRepository.save(booking);
-
         log.info("Stripe session attached to booking: bookingId={} sessionId={}", bookingId, stripeSessionId);
     }
 
     @Transactional
     public void confirmPaidBookingFromWebhook(Booking booking, String customerEmailFromStripe) {
-
-        // idempotenza
-        if (booking.getBookingStatus() == BookingStatus.CONFIRMED || booking.getBookingStatus() == BookingStatus.COMPLETED) {
-            return;
-        }
+        if (booking.getBookingStatus() == BookingStatus.CONFIRMED || booking.getBookingStatus() == BookingStatus.COMPLETED) return;
 
         if (customerEmailFromStripe != null && booking.getCustomerEmail() != null) {
             String a = booking.getCustomerEmail().trim().toLowerCase();
@@ -288,13 +264,8 @@ public class BookingService {
     public boolean hasBlockingConflictExcluding(Booking booking) {
         if (booking == null) return true;
         if (booking.getStartTime() == null || booking.getEndTime() == null) return true;
-
         List<Booking> overlaps = bookingRepository.lockOverlappingBookingsByStatusesExcluding(
-                booking.getBookingId(),
-                booking.getStartTime(),
-                booking.getEndTime(),
-                BLOCKING
-        );
+                booking.getBookingId(), booking.getStartTime(), booking.getEndTime(), BLOCKING);
         return !overlaps.isEmpty();
     }
 
@@ -302,19 +273,14 @@ public class BookingService {
     public void markBookingAsPaidAndConfirm(UUID bookingId, String customerEmailFromStripe) {
         Booking booking = findBookingById(bookingId);
 
-        // idempotenza
         if (booking.getBookingStatus() == BookingStatus.CONFIRMED || booking.getBookingStatus() == BookingStatus.COMPLETED) {
             log.warn("Webhook confirm ignored: bookingId={} status={}", bookingId, booking.getBookingStatus());
             return;
         }
-
-        // se è stata cancellata/scaduta nel frattempo
         if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
             log.warn("Webhook paid on CANCELLED booking: bookingId={}", bookingId);
             return;
         }
-
-        // se hold scaduto ma non ancora processato dallo scheduler: blocca conferma
         if (booking.getExpiresAt() != null && booking.getExpiresAt().isBefore(LocalDateTime.now())) {
             booking.setBookingStatus(BookingStatus.CANCELLED);
             booking.setCanceledAt(LocalDateTime.now());
@@ -327,18 +293,16 @@ public class BookingService {
         if (customerEmailFromStripe != null && booking.getCustomerEmail() != null) {
             String a = booking.getCustomerEmail().trim().toLowerCase();
             String b = customerEmailFromStripe.trim().toLowerCase();
-            if (!a.equals(b)) {
-                log.warn("Email mismatch bookingId={} dbEmail={} stripeEmail={}", bookingId, a, b);
-            }
+            if (!a.equals(b)) log.warn("Email mismatch bookingId={} dbEmail={} stripeEmail={}", bookingId, a, b);
         }
 
         booking.setBookingStatus(BookingStatus.CONFIRMED);
         booking.setPaidAt(LocalDateTime.now());
         booking.setExpiresAt(null);
         bookingRepository.save(booking);
-
         log.info("Booking confirmed (paid): bookingId={} email={}", bookingId, customerEmailFromStripe);
 
+        // Notifica SOLO per prenotazioni online (webhook Stripe)
         try {
             String svc  = booking.getService() != null ? booking.getService().getTitle() : "Trattamento";
             String when = booking.getStartTime().format(NOTIF_FMT);
@@ -358,16 +322,13 @@ public class BookingService {
     public int expirePendingBookings() {
         LocalDateTime now = LocalDateTime.now();
         List<Booking> expired = bookingRepository.findByBookingStatusAndExpiresAtBefore(BookingStatus.PENDING_PAYMENT, now);
-
         for (Booking b : expired) {
             if (b.getBookingStatus() != BookingStatus.PENDING_PAYMENT) continue;
-
             b.setBookingStatus(BookingStatus.CANCELLED);
             b.setCanceledAt(now);
             b.setCancelReason("EXPIRED");
             b.setExpiresAt(null);
         }
-
         bookingRepository.saveAll(expired);
         if (!expired.isEmpty()) log.info("Expired bookings: {}", expired.size());
         return expired.size();
@@ -386,12 +347,10 @@ public class BookingService {
             if (wh == null || wh.isClosed()) continue;
 
             List<LocalTime[]> openRanges = new ArrayList<>();
-            if (wh.getMorningStart() != null && wh.getMorningEnd() != null) {
+            if (wh.getMorningStart() != null && wh.getMorningEnd() != null)
                 openRanges.add(new LocalTime[]{wh.getMorningStart(), wh.getMorningEnd()});
-            }
-            if (wh.getAfternoonStart() != null && wh.getAfternoonEnd() != null) {
+            if (wh.getAfternoonStart() != null && wh.getAfternoonEnd() != null)
                 openRanges.add(new LocalTime[]{wh.getAfternoonStart(), wh.getAfternoonEnd()});
-            }
             if (openRanges.isEmpty()) continue;
 
             List<Closure> closures = closureRepository.findByDate(day);
@@ -408,31 +367,28 @@ public class BookingService {
 
             for (LocalTime[] range : openRanges) {
                 LocalTime rangeStart = range[0];
-                LocalTime rangeEnd = range[1];
+                LocalTime rangeEnd   = range[1];
 
                 if (i == 0 && rangeEnd.isBefore(afterTime)) continue;
-                if (i == 0 && rangeStart.isBefore(afterTime)) {
-                    rangeStart = afterTime;
-                }
-
+                if (i == 0 && rangeStart.isBefore(afterTime)) rangeStart = afterTime;
                 if (!rangeStart.isBefore(rangeEnd)) continue;
 
                 List<LocalTime[]> booked = new ArrayList<>();
 
                 for (Booking b : dayBookings) {
                     LocalTime bs = b.getStartTime().toLocalTime();
-                    LocalTime be = b.getEndTime().toLocalTime();
-                    if (be.isAfter(rangeStart) && bs.isBefore(rangeEnd)) {
+                    // FEATURE: applica paddingMinutes anche nel finder slot successivo
+                    int padding = (b.getPaddingMinutes() != null && b.getPaddingMinutes() > 0) ? b.getPaddingMinutes() : 0;
+                    LocalTime be = b.getEndTime().toLocalTime().plusMinutes(padding);
+                    if (be.isAfter(rangeStart) && bs.isBefore(rangeEnd))
                         booked.add(new LocalTime[]{bs, be});
-                    }
                 }
 
                 for (LocalTime[] ci : closureIntervals) {
                     LocalTime cs = ci[0];
                     LocalTime ce = ci[1];
-                    if (ce.isAfter(rangeStart) && cs.isBefore(rangeEnd)) {
+                    if (ce.isAfter(rangeStart) && cs.isBefore(rangeEnd))
                         booked.add(new LocalTime[]{cs, ce});
-                    }
                 }
 
                 booked = booked.stream()
@@ -443,18 +399,11 @@ public class BookingService {
                 for (LocalTime[] interval : booked) {
                     LocalTime bs = interval[0];
                     LocalTime be = interval[1];
-                    if (be.isBefore(cursor) || !bs.isAfter(rangeStart) && !be.isAfter(cursor)) {
-                        continue;
-                    }
+                    if (be.isBefore(cursor) || !bs.isAfter(rangeStart) && !be.isAfter(cursor)) continue;
                     if (bs.isAfter(cursor)) {
                         long gapMin = Duration.between(cursor, bs).toMinutes();
                         if (gapMin >= durationMin) {
-                            return new NextAvailableSlotDTO(
-                                    day,
-                                    cursor,
-                                    cursor.plusMinutes(durationMin),
-                                    (int) gapMin
-                            );
+                            return new NextAvailableSlotDTO(day, cursor, cursor.plusMinutes(durationMin), (int) gapMin);
                         }
                     }
                     if (be.isAfter(cursor)) {
@@ -466,20 +415,15 @@ public class BookingService {
                 if (cursor.isBefore(rangeEnd)) {
                     long tailGap = Duration.between(cursor, rangeEnd).toMinutes();
                     if (tailGap >= durationMin) {
-                        return new NextAvailableSlotDTO(
-                                day,
-                                cursor,
-                                cursor.plusMinutes(durationMin),
-                                (int) tailGap
-                        );
+                        return new NextAvailableSlotDTO(day, cursor, cursor.plusMinutes(durationMin), (int) tailGap);
                     }
                 }
             }
         }
-
         return null;
     }
 
+    // ============================ HARD DELETE ============================
     @Transactional
     public void hardDeleteBooking(UUID bookingId, User currentUser) {
         if (!isAdmin(currentUser)) {
@@ -488,8 +432,13 @@ public class BookingService {
 
         Booking found = findBookingById(bookingId);
 
-        // Block hard delete for Stripe-paid bookings — refund must be handled first
-        if (found.getStripeSessionId() != null) {
+        // FIX B3: blocca la delete solo se la prenotazione è pagata online E non ancora cancellata.
+        // Se è già CANCELLED il rimborso è stato gestito (o non c'era pagamento online):
+        // la delete è sempre sicura in quel caso.
+        boolean isPaidOnline = found.getStripeSessionId() != null;
+        boolean isCancelled  = found.getBookingStatus() == BookingStatus.CANCELLED;
+
+        if (isPaidOnline && !isCancelled) {
             throw new BadRequestException(
                     "Questa prenotazione è stata pagata online. Gestisci prima il rimborso prima di eliminarla."
             );
@@ -500,7 +449,6 @@ public class BookingService {
     }
 
     // ============================ REFUND (ADMIN) ============================
-    // FIX-1: rimborso Stripe per prenotazioni pagate online
     @Transactional(rollbackFor = StripeException.class)
     public void refundBooking(UUID bookingId) throws StripeException {
         Booking booking = bookingRepository.findByIdForUpdate(bookingId)
@@ -515,39 +463,30 @@ public class BookingService {
 
         Stripe.apiKey = stripeSecretKey;
 
-        // Recupera il payment_intent dalla sessione Stripe
         Session stripeSession = Session.retrieve(booking.getStripeSessionId());
         String paymentIntentId = stripeSession.getPaymentIntent();
         if (paymentIntentId == null || paymentIntentId.isBlank()) {
             throw new BadRequestException("Nessun payment_intent trovato per la sessione Stripe di questa prenotazione.");
         }
 
-        // Crea il rimborso su Stripe
-        RefundCreateParams refundParams = RefundCreateParams.builder()
-                .setPaymentIntent(paymentIntentId)
-                .build();
-        Refund.create(refundParams);
+        Refund.create(RefundCreateParams.builder().setPaymentIntent(paymentIntentId).build());
 
-        // Aggiorna lo stato del booking a CANCELLED
         booking.setBookingStatus(BookingStatus.CANCELLED);
         booking.setCanceledAt(LocalDateTime.now());
         booking.setCancelReason("ADMIN_REFUND");
         booking.setExpiresAt(null);
         bookingRepository.save(booking);
 
-        log.info("FIX-1 | Booking refunded and cancelled: bookingId={} stripeSession={}",
-                bookingId, booking.getStripeSessionId());
+        log.info("Booking refunded and cancelled: bookingId={} stripeSession={}", bookingId, booking.getStripeSessionId());
     }
 
     // ============================ UPDATE (ADMIN/OWNER) ============================
     @Transactional
     public BookingResponseDTO updateBooking(UUID bookingId, NewBookingDTO payload, User currentUser) {
-
         Booking found = findBookingById(bookingId);
 
         boolean admin = isAdmin(currentUser);
         if (!admin) {
-            // owner only if linked to user
             if (currentUser == null || currentUser.getUserId() == null) throw new UnauthorizedException("Utente non autenticato.");
             if (found.getUser() == null || !found.getUser().getUserId().equals(currentUser.getUserId())) {
                 throw new UnauthorizedException("Non puoi modificare una prenotazione non tua.");
@@ -557,15 +496,13 @@ public class BookingService {
         if (found.getBookingStatus() == BookingStatus.CANCELLED || found.getBookingStatus() == BookingStatus.COMPLETED) {
             throw new BadRequestException("Non puoi modificare una prenotazione già " + found.getBookingStatus());
         }
-
         if (!admin && found.getBookingStatus() == BookingStatus.CONFIRMED) {
             throw new BadRequestException("Prenotazione già confermata: contatta il centro per modifiche.");
         }
 
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
-
         LocalDateTime start = normalizeStart(payload.startTime());
-        LocalDateTime end = start.plusMinutes(serviceItem.getDurationMin());
+        LocalDateTime end   = start.plusMinutes(serviceItem.getDurationMin());
 
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
 
@@ -579,22 +516,24 @@ public class BookingService {
         found.setServiceOption(option);
         found.setNotes(payload.notes());
 
-        // admin può cambiare anche i dati cliente
         if (admin) {
             found.setCustomerName(safeTrim(payload.customerName(), "Nome cliente obbligatorio"));
             found.setCustomerEmail(safeTrim(payload.customerEmail(), "Email cliente obbligatoria").toLowerCase());
             found.setCustomerPhone(safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio"));
+            // FEATURE paddingMinutes: aggiornabile anche in edit
+            if (payload.paddingMinutes() != null) {
+                found.setPaddingMinutes(payload.paddingMinutes() > 0 ? payload.paddingMinutes() : null);
+            }
         }
 
         Booking updated = bookingRepository.save(found);
-        log.info("Booking updated: id={} status={}", updated.getBookingId(), updated.getBookingStatus());
+        log.info("Booking updated: id={} status={} padding={}min", updated.getBookingId(), updated.getBookingStatus(), updated.getPaddingMinutes());
         return convertToDTO(updated);
     }
 
     // ============================ ADMIN: STATUS ============================
     @Transactional
     public BookingResponseDTO updateBookingStatus(UUID bookingId, BookingStatus newStatus, User currentUser) {
-
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può aggiornare lo stato della prenotazione.");
         if (newStatus == null) throw new BadRequestException("Status non valido.");
 
@@ -602,16 +541,13 @@ public class BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException(bookingId));
         BookingStatus old = found.getBookingStatus();
 
-        // Idempotenza: nessuna azione se lo stato è già quello richiesto
         if (old == newStatus) {
-            log.info("Booking status update no-op (idempotente): id={} status={}", bookingId, newStatus);
+            log.info("Booking status update no-op: id={} status={}", bookingId, newStatus);
             return convertToDTO(found);
         }
         if (old == BookingStatus.CANCELLED) throw new BadRequestException("Prenotazione CANCELLED: non modificabile.");
 
-        if (newStatus == BookingStatus.COMPLETED) {
-            found.setCompletedAt(LocalDateTime.now());
-        }
+        if (newStatus == BookingStatus.COMPLETED) found.setCompletedAt(LocalDateTime.now());
         if (newStatus == BookingStatus.CANCELLED) {
             found.setCanceledAt(LocalDateTime.now());
             found.setCancelReason("ADMIN_CANCEL");
@@ -634,19 +570,11 @@ public class BookingService {
             }
         }
 
-        // FIX-23: rimosso blocco CANCELLED duplicato che sovrascriveva cancelReason senza utilità
-
-        // --- gestione pacchetto: scalatura/rollback seduta ---
-        boolean wasCompleted  = (old == BookingStatus.COMPLETED);
+        boolean wasCompleted    = (old == BookingStatus.COMPLETED);
         boolean willBeCompleted = (newStatus == BookingStatus.COMPLETED);
 
-        if (!wasCompleted && willBeCompleted) {
-            // transizione verso COMPLETED → scala una seduta
-            packageCreditService.consumeSessionForBooking(found);
-        } else if (wasCompleted && !willBeCompleted) {
-            // rollback da COMPLETED → ripristina la seduta
-            packageCreditService.restoreSessionForBooking(found);
-        }
+        if (!wasCompleted && willBeCompleted)  packageCreditService.consumeSessionForBooking(found);
+        else if (wasCompleted && !willBeCompleted) packageCreditService.restoreSessionForBooking(found);
 
         found.setBookingStatus(newStatus);
         Booking updated = bookingRepository.save(found);
@@ -673,7 +601,6 @@ public class BookingService {
     // ============================ CANCEL (SOFT) ============================
     @Transactional
     public void cancelBooking(UUID bookingId, User currentUser, String reason) {
-
         Booking found = findBookingById(bookingId);
 
         boolean admin = isAdmin(currentUser);
@@ -682,8 +609,6 @@ public class BookingService {
             if (found.getUser() == null || !found.getUser().getUserId().equals(currentUser.getUserId())) {
                 throw new UnauthorizedException("Non puoi cancellare una prenotazione non tua.");
             }
-
-            // regola 24h
             if (found.getStartTime().isBefore(LocalDateTime.now().plusHours(24))) {
                 throw new BadRequestException("Puoi cancellare la prenotazione solo fino a 24 ore prima.");
             }
@@ -691,7 +616,6 @@ public class BookingService {
 
         if (found.getBookingStatus() == BookingStatus.CANCELLED) return;
         if (found.getBookingStatus() == BookingStatus.COMPLETED) throw new BadRequestException("Non puoi cancellare una prenotazione COMPLETED.");
-
         if (found.getBookingStatus() == BookingStatus.CONFIRMED && found.getStripeSessionId() != null) {
             throw new BadRequestException("Questa prenotazione è stata pagata online. Gestisci prima il rimborso.");
         }
@@ -735,7 +659,7 @@ public class BookingService {
     public List<AdminBookingCardDTO> getAgendaDay(LocalDate date) {
         if (date == null) throw new BadRequestException("Data non valida.");
         LocalDateTime from = date.atStartOfDay();
-        LocalDateTime to = date.plusDays(1).atStartOfDay();
+        LocalDateTime to   = date.plusDays(1).atStartOfDay();
         return bookingRepository.findAgendaRangeWithDetails(from, to).stream()
                 .map(this::toAdminCard)
                 .toList();
@@ -745,18 +669,16 @@ public class BookingService {
     public List<AdminBookingCardDTO> getAgendaRange(LocalDate fromDate, LocalDate toDateExclusive) {
         if (fromDate == null || toDateExclusive == null) throw new BadRequestException("Range non valido.");
         if (!fromDate.isBefore(toDateExclusive)) throw new BadRequestException("Range non valido (from < to).");
-
         LocalDateTime from = fromDate.atStartOfDay();
-        LocalDateTime to = toDateExclusive.atStartOfDay();
-
+        LocalDateTime to   = toDateExclusive.atStartOfDay();
         return bookingRepository.findAgendaRangeWithDetails(from, to).stream()
                 .map(this::toAdminCard)
                 .toList();
     }
 
+    // FEATURE paddingMinutes: esposto nel DTO card dell'agenda
     private AdminBookingCardDTO toAdminCard(Booking b) {
         var pkg = b.getPackageCredit();
-
         return new AdminBookingCardDTO(
                 b.getBookingId(),
                 b.getStartTime(),
@@ -774,7 +696,8 @@ public class BookingService {
                 pkg != null ? pkg.getSessionsRemaining() : null,
                 pkg != null ? pkg.getSessionsTotal() : null,
                 pkg != null ? pkg.getStatus() : null,
-                b.getStripeSessionId()
+                b.getStripeSessionId(),
+                b.getPaddingMinutes()   // FEATURE: buffer minuti extra
         );
     }
 
@@ -782,7 +705,6 @@ public class BookingService {
     private LocalDateTime normalizeStart(LocalDateTime startTime) {
         LocalDateTime start = requireNotNull(startTime, "La data e ora di inizio non può essere nulla")
                 .truncatedTo(ChronoUnit.MINUTES);
-
         LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES);
         if (start.isBefore(now)) throw new BadRequestException("L'orario di inizio non può essere nel passato.");
         return start;
@@ -790,16 +712,12 @@ public class BookingService {
 
     private ServiceOption resolveAndValidateOption(UUID optionId, ServiceItem serviceItem) {
         if (optionId == null) return null;
-
         ServiceOption option = serviceOptionRepository.findById(optionId)
                 .orElseThrow(() -> new BadRequestException("Opzione servizio non trovata."));
-
         if (!option.getService().getServiceId().equals(serviceItem.getServiceId())) {
             throw new BadRequestException("L'opzione selezionata non appartiene al servizio scelto.");
         }
-        if (!option.isActive()) {
-            throw new BadRequestException("L'opzione selezionata non è attiva.");
-        }
+        if (!option.isActive()) throw new BadRequestException("L'opzione selezionata non è attiva.");
         return option;
     }
 
@@ -829,7 +747,6 @@ public class BookingService {
                 booking.getService() != null ? booking.getService().getServiceId() : null,
                 booking.getServiceOption() != null ? booking.getServiceOption().getOptionId() : null,
                 booking.getUser() != null ? booking.getUser().getUserId() : null,
-                // FIX-18: titolo del servizio per evitare UUID grezzo in BookingSuccessPage
                 booking.getService() != null ? booking.getService().getTitle() : null
         );
     }

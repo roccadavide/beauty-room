@@ -55,7 +55,6 @@ public class BookingCheckoutController {
     private final PromotionRepository promotionRepository;
     private final ProductRepository productRepository;
 
-    // FIX-24: Stripe.apiKey impostato una sola volta a startup invece che per ogni chiamata
     @PostConstruct
     public void init() {
         Stripe.apiKey = this.stripeSecretKey;
@@ -69,6 +68,8 @@ public class BookingCheckoutController {
 
         if (currentUser == null) throw new BadRequestException("Utente non autenticato.");
 
+        // FIX: aggiunto null come paddingMinutes (11° argomento).
+        // Il flow Stripe non usa paddingMinutes — è un campo solo admin.
         NewBookingDTO dto = new NewBookingDTO(
                 payload.customerName(),
                 currentUser.getEmail(),
@@ -79,7 +80,8 @@ public class BookingCheckoutController {
                 payload.serviceOptionId(),
                 null,                   // packageCreditId non applicabile nel flow Stripe
                 payload.promoPrice(),   // propaga prezzo promo
-                payload.promotionId()   // propaga id promo
+                payload.promotionId(),  // propaga id promo
+                null                    // paddingMinutes: non applicabile nel flow Stripe
         );
 
         return createStripeSessionForBooking(dto, currentUser);
@@ -107,23 +109,18 @@ public class BookingCheckoutController {
         BigDecimal amount;
         if (payload.promoPrice() != null && payload.promotionId() != null) {
 
-            // 1. Verifica che la promozione esista (con collections caricate)
             Promotion promo = promotionRepository.findByIdWithDetails(payload.promotionId())
                     .orElseThrow(() -> new BadRequestException("Promozione non trovata."));
 
-            // 2. Verifica che sia attiva
             if (!promo.isCurrentlyActive()) {
                 throw new BadRequestException("Promozione non più attiva.");
             }
 
-            // 3. Calcola il prezzo corretto lato server
             BigDecimal serverPrice = computeServerPromoPrice(promo, service, option);
             if (serverPrice == null || serverPrice.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BadRequestException("Promozione non applicabile a questo servizio.");
             }
 
-            // 4. Verifica che il prezzo inviato dal client non sia inferiore
-            //    al 99% del prezzo server (tollera 1% per floating point)
             BigDecimal minimumAcceptable = serverPrice.multiply(
                     BigDecimal.valueOf(0.99)).setScale(2, RoundingMode.HALF_UP);
             if (payload.promoPrice().compareTo(minimumAcceptable) < 0) {
@@ -132,11 +129,9 @@ public class BookingCheckoutController {
                 throw new BadRequestException("Prezzo promozionale non valido.");
             }
 
-            // 5. Usa SEMPRE il prezzo calcolato server-side, mai il valore del client
             amount = serverPrice;
 
         } else if (payload.promoPrice() != null && payload.promotionId() == null) {
-            // promoPrice senza promotionId → rifiuta
             throw new BadRequestException("promotionId obbligatorio se promoPrice è presente.");
         } else {
             amount = (option != null ? option.getPrice() : service.getPrice());
@@ -148,8 +143,6 @@ public class BookingCheckoutController {
         // 3) crea session Stripe
         String bookingId = hold.bookingId().toString();
 
-        // Minimo 30 minuti richiesto da Stripe.
-        // Usiamo il massimo tra (hold + 3 min buffer) e 30 min.
         long sessionDurationSeconds = Math.max(
                 (holdExpireMinutes + 3) * 60L,
                 30 * 60L
@@ -175,14 +168,13 @@ public class BookingCheckoutController {
             builder.putMetadata("promotionId", payload.promotionId().toString());
         }
 
-        builder
-                .setPaymentIntentData(
-                        SessionCreateParams.PaymentIntentData.builder()
-                                .putMetadata("bookingId", bookingId)
-                                .putMetadata("serviceId", service.getServiceId().toString())
-                                .putMetadata("sessionsTotal", String.valueOf(sessionsTotal))
-                                .build()
-                );
+        builder.setPaymentIntentData(
+                SessionCreateParams.PaymentIntentData.builder()
+                        .putMetadata("bookingId", bookingId)
+                        .putMetadata("serviceId", service.getServiceId().toString())
+                        .putMetadata("sessionsTotal", String.valueOf(sessionsTotal))
+                        .build()
+        );
 
         builder.addLineItem(
                 SessionCreateParams.LineItem.builder()
@@ -214,8 +206,6 @@ public class BookingCheckoutController {
         return resp;
     }
 
-    // FIX-8: validazione owner per utenti autenticati — gli ospiti (guest) accedono liberamente
-    // perché l'endpoint è protect strutturalmente dalla casualità del session_id Stripe
     @GetMapping("/booking-summary")
     public ResponseEntity<BookingSummaryDTO> getBookingSummary(
             @RequestParam("session_id") String sessionId,
@@ -233,7 +223,6 @@ public class BookingCheckoutController {
         UUID bookingId = UUID.fromString(bookingIdStr);
         BookingResponseDTO booking = bookingService.findBookingByIdAndConvert(bookingId);
 
-        // FIX-8: se l'utente è autenticato, il booking deve appartenergli
         if (currentUser != null && booking.userId() != null
                 && !booking.userId().equals(currentUser.getUserId())) {
             return ResponseEntity.status(403).build();
@@ -252,21 +241,14 @@ public class BookingCheckoutController {
         return ResponseEntity.ok(dto);
     }
 
-    /**
-     * Calcola il prezzo promozionale lato server.
-     * Replica la stessa logica del frontend per evitare discrepanze.
-     * Restituisce null se la promo non è applicabile al servizio.
-     */
     private BigDecimal computeServerPromoPrice(
             Promotion promo,
             ServiceItem service,
             ServiceOption option) {
 
-        // Prezzo base del servizio (option se presente, altrimenti service)
         BigDecimal servicePrice = option != null ? option.getPrice() : service.getPrice();
         if (servicePrice == null) return null;
 
-        // Calcola il totale originale (servizi + prodotti inclusi nella promo)
         BigDecimal serviceTotal = promo.getServices().stream()
                 .filter(s -> s.getServiceId().equals(service.getServiceId()))
                 .findFirst()
@@ -280,7 +262,6 @@ public class BookingCheckoutController {
         BigDecimal grandTotal = serviceTotal.add(productTotal);
         if (grandTotal.compareTo(BigDecimal.ZERO) <= 0) return null;
 
-        // Applica lo sconto
         BigDecimal discounted;
         switch (promo.getDiscountType()) {
             case PERCENTAGE -> discounted = grandTotal.subtract(

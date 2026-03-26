@@ -23,5 +23,7 @@ public record AdminBookingCardDTO(
         Integer sessionsRemaining,
         Integer sessionsTotal,
         PackageCreditStatus packageStatus,
-        String stripeSessionId
+        String stripeSessionId,
+        // Buffer minuti extra impostato dall'admin (puo' essere null).
+        Integer paddingMinutes
 ) {}

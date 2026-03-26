@@ -53,6 +53,17 @@ export const updateBooking = async (id, payload) => {
   }
 };
 
+export const patchBookingPadding = async (id, minutes) => {
+  try {
+    const params = minutes != null && minutes > 0 ? { minutes } : {};
+    await http.patch(`/admin/bookings/${id}/padding`, null, { params });
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore aggiornamento buffer.";
+    throw new Error(message);
+  }
+};
+
 export const deleteBooking = async id => {
   try {
     await http.delete(AGENDA_ENDPOINTS.BOOKING_BY_ID(id));

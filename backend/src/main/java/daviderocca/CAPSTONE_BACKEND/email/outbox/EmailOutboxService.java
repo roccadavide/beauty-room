@@ -101,7 +101,7 @@ public class EmailOutboxService {
 
         enqueueSafe(
                 EmailEventType.WAITLIST_SLOT_AVAILABLE,
-                EmailAggregateType.BOOKING,
+                EmailAggregateType.WAITLIST,
                 entry.getId(),
                 normalizeEmail(entry.getCustomerEmail()),
                 LocalDateTime.now()

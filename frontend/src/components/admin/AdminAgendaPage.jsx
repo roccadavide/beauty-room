@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
-import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot } from "../../api/modules/adminAgenda.api";
+import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot, patchBookingPadding } from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
 import WeeklyCalendar from "./WeeklyCalendar";
@@ -55,13 +55,10 @@ function TimelineDay({ dateISO, data }) {
   const viewWindow = useMemo(() => {
     const fallback = { startMin: 8 * 60, endMin: 20 * 60 };
     if (!data?.openRanges?.length) return fallback;
-
     const minStart = Math.min(...data.openRanges.map(r => minutes(r.start)));
     const maxEnd = Math.max(...data.openRanges.map(r => minutes(r.end)));
-
     const startMin = clamp(minStart - 30, 0, 24 * 60);
     const endMin = clamp(maxEnd + 30, 0, 24 * 60);
-
     if (endMin - startMin < 6 * 60) return fallback;
     return { startMin, endMin };
   }, [data]);
@@ -72,12 +69,9 @@ function TimelineDay({ dateISO, data }) {
     const start = minutes(slot.start);
     const end = minutes(slot.end);
     if (end <= viewWindow.startMin || start >= viewWindow.endMin) return null;
-
     const top = toPct(Math.max(start, viewWindow.startMin));
     const height = toPct(Math.min(end, viewWindow.endMin)) - top;
-
     const cls = kind === "open" ? "ag-tl-block ag-tl-open" : kind === "closure" ? "ag-tl-block ag-tl-closure" : "ag-tl-block ag-tl-booking";
-
     return <div key={`${kind}-${idx}`} className={cls} style={{ top: `${top}%`, height: `${Math.max(height, 0)}%` }} />;
   };
 
@@ -86,9 +80,7 @@ function TimelineDay({ dateISO, data }) {
     const startHour = Math.ceil(viewWindow.startMin / 60);
     const endHour = Math.floor(viewWindow.endMin / 60);
     for (let h = startHour; h <= endHour; h++) {
-      const m = h * 60;
-      const pct = toPct(m);
-      marks.push({ h, pct });
+      marks.push({ h, pct: toPct(h * 60) });
     }
     return marks;
   }, [toPct, viewWindow.endMin, viewWindow.startMin]);
@@ -96,10 +88,7 @@ function TimelineDay({ dateISO, data }) {
   useEffect(() => {
     const timelineEl = timelineRef.current;
     const lineEl = nowLineRef.current;
-
-    if (!timelineEl || !lineEl || !data) {
-      return;
-    }
+    if (!timelineEl || !lineEl || !data) return;
 
     const todayISO = toISODate(new Date());
     const isToday = dateISO === todayISO;
@@ -117,15 +106,10 @@ function TimelineDay({ dateISO, data }) {
 
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const { startMin, endMin } = viewWindow;
+      if (!Number.isFinite(startMin) || !Number.isFinite(endMin) || endMin <= startMin) return;
 
-      const start = viewWindow.startMin;
-      const end = viewWindow.endMin;
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
-
-      const clampedMinutes = clamp(currentMinutes, start, end);
-      const totalMinutes = end - start;
-      const ratio = (clampedMinutes - start) / totalMinutes;
-
+      const ratio = (clamp(currentMinutes, startMin, endMin) - startMin) / (endMin - startMin);
       const y = ratio * containerHeight;
 
       lineEl.style.opacity = "1";
@@ -133,18 +117,11 @@ function TimelineDay({ dateISO, data }) {
 
       if (!hasAutoScrolledRef.current) {
         hasAutoScrolledRef.current = true;
-
         const lineRect = lineEl.getBoundingClientRect();
         const lineCenter = lineRect.top + lineRect.height / 2;
         const viewportCenter = window.innerHeight / 2;
         const delta = lineCenter - viewportCenter;
-
-        if (Math.abs(delta) > 16) {
-          window.scrollBy({
-            top: delta,
-            behavior: "smooth",
-          });
-        }
+        if (Math.abs(delta) > 16) window.scrollBy({ top: delta, behavior: "smooth" });
       }
     };
 
@@ -153,19 +130,15 @@ function TimelineDay({ dateISO, data }) {
       cancelAnimationFrame(frameId);
       frameId = requestAnimationFrame(updatePosition);
     };
-
     scheduleUpdate();
-
     const intervalId = window.setInterval(scheduleUpdate, 60 * 1000);
-
     window.addEventListener("resize", scheduleUpdate);
-
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener("resize", scheduleUpdate);
       cancelAnimationFrame(frameId);
     };
-  }, [dateISO, data, viewWindow.endMin, viewWindow.startMin]);
+  }, [dateISO, data, viewWindow]);
 
   if (!data) {
     return (
@@ -187,7 +160,6 @@ function TimelineDay({ dateISO, data }) {
           <div className="ag-title">Timeline</div>
           <div className="ag-subtitle">{dateISO}</div>
         </div>
-
         <div ref={timelineRef} className="ag-timeline">
           <div className="ag-timeline__labels">
             {hourMarks.map(m => (
@@ -196,20 +168,16 @@ function TimelineDay({ dateISO, data }) {
               </div>
             ))}
           </div>
-
           <div className="ag-timeline__col">
             {hourMarks.map(m => (
               <div key={m.h} className="ag-gridline" style={{ top: `${m.pct}%` }} />
             ))}
-
             {data.openRanges?.map((s, i) => renderBlock(s, "open", i))}
             {data.closureRanges?.map((s, i) => renderBlock(s, "closure", i))}
             {data.bookingRanges?.map((s, i) => renderBlock(s, "booking", i))}
-
             <div ref={nowLineRef} className="ag-nowline" aria-hidden="true" />
           </div>
         </div>
-
         <div className="ag-legend">
           <span className="ag-dot ag-dot--open" /> Open
           <span className="ag-dot ag-dot--closure" /> Chiusure
@@ -230,7 +198,6 @@ export default function AdminAgendaPage() {
 
   const [err, setErr] = useState("");
   const [errDetails, setErrDetails] = useState(null);
-
   const [loading, setLoading] = useState(false);
 
   const [services, setServices] = useState([]);
@@ -240,19 +207,27 @@ export default function AdminAgendaPage() {
   const [statusFilter, setStatusFilter] = useState(() => new Set());
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState("create"); // create | edit
+  const [modalMode, setModalMode] = useState("create");
   const [selected, setSelected] = useState(null);
 
-  const [viewMode, setViewMode] = useState("day"); // "day" | "week"
+  const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
   const [confirmModal, setConfirmModal] = useState(null);
   const [openSalePanel, setOpenSalePanel] = useState(null);
+  const [paddingEditing, setPaddingEditing] = useState(null); // bookingId in edit
+  const [paddingSaving, setPaddingSaving] = useState(null); // bookingId in saving
+  const [paddingDraft, setPaddingDraft] = useState(0); // valore locale mentre si edita
   const [nextSlotDuration, setNextSlotDuration] = useState(60);
   const [nextSlotResult, setNextSlotResult] = useState(null);
   const [nextSlotLoading, setNextSlotLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleteCountdown, setDeleteCountdown] = useState(5);
   const deleteIntervalRef = useRef(null);
+
+  // FIX B2: traccia se il cambio data è stato causato da una ricerca slot.
+  // Senza questo ref, l'effect su dateISO azzera nextSlotResult appena
+  // la ricerca cambia la data, rendendo "Ancora →" inutilizzabile.
+  const dateChangedBySearchRef = useRef(false);
 
   const dayStrip = useMemo(() => {
     const base = fromISODateLocal(dateISO);
@@ -266,7 +241,6 @@ export default function AdminAgendaPage() {
     try {
       const list = await fetchServices();
       const arr = Array.isArray(list) ? list : (list?.content ?? []);
-
       const norm = arr
         .map(s => ({
           serviceId: s.serviceId ?? s.id,
@@ -276,7 +250,6 @@ export default function AdminAgendaPage() {
           options: s.options ?? s.serviceOptions ?? s.serviceOptionList ?? [],
         }))
         .filter(s => s.serviceId);
-
       setServices(norm);
     } catch (e) {
       setServicesErr(e.message);
@@ -287,11 +260,9 @@ export default function AdminAgendaPage() {
     setErr("");
     setErrDetails(null);
     setLoading(true);
-
     try {
       const [tl, bk] = await Promise.all([getTimelineDay(dateISO), getBookingsDay(dateISO)]);
       setTimeline(tl);
-
       const sorted = (bk || []).slice().sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
       setBookings(sorted);
     } catch (e) {
@@ -304,14 +275,12 @@ export default function AdminAgendaPage() {
   useEffect(() => {
     loadServices();
   }, [loadServices]);
-
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const filtered = useMemo(() => {
     let result = bookings;
-
     const needle = q.trim().toLowerCase();
     if (needle) {
       result = result.filter(b => {
@@ -319,7 +288,6 @@ export default function AdminAgendaPage() {
         return hay.includes(needle);
       });
     }
-
     if (statusFilter.size > 0) {
       result = result.filter(b => {
         const s = b.status;
@@ -330,7 +298,6 @@ export default function AdminAgendaPage() {
         return false;
       });
     }
-
     return result;
   }, [bookings, q, statusFilter]);
 
@@ -346,33 +313,52 @@ export default function AdminAgendaPage() {
     return counts;
   }, [bookings]);
 
+  // Per ogni booking calcola il gap massimo disponibile prima del prossimo appuntamento
+  const paddingMaxMap = useMemo(() => {
+    const map = new Map();
+    const active = filtered.filter(b => b.status !== "CANCELLED");
+    active.forEach((b, i) => {
+      const nextActive = active.find((nb, ni) => ni > i && nb.status !== "CANCELLED");
+      if (nextActive) {
+        const gap = Math.floor((new Date(nextActive.startTime) - new Date(b.endTime)) / 60000);
+        map.set(b.bookingId, Math.max(0, gap));
+      } else {
+        map.set(b.bookingId, 120); // nessun booking dopo: max 120 min
+      }
+    });
+    return map;
+  }, [filtered]);
+
   const kpi = useMemo(() => {
     const active = bookings.filter(b => b.status !== "CANCELLED");
     const count = active.length;
-
     const bookedMin = active.reduce((sum, b) => {
       const s = new Date(b.startTime).getTime();
       const e = new Date(b.endTime).getTime();
-      const m = Math.max(0, Math.round((e - s) / 60000));
-      return sum + m;
+      return sum + Math.max(0, Math.round((e - s) / 60000));
     }, 0);
-
     const openMin = (timeline?.openRanges || []).reduce((sum, r) => sum + Math.max(0, minutes(r.end) - minutes(r.start)), 0);
     const occ = openMin > 0 ? Math.round((bookedMin / openMin) * 100) : 0;
-
     const priceMap = new Map(services.map(s => [String(s.serviceId), Number(s.price)]));
     const revenue = active.reduce((sum, b) => {
       const p = priceMap.get(String(b.serviceId));
       return sum + (Number.isFinite(p) ? p : 0);
     }, 0);
     const revenueKnown = active.some(b => Number.isFinite(priceMap.get(String(b.serviceId))));
-
     return { count, bookedMin, openMin, occ, revenue, revenueKnown };
   }, [bookings, timeline, services]);
 
+  // FIX B2: azzerare nextSlotResult solo se il cambio data è stato manuale,
+  // NON se è stato causato da searchNextSlot (altrimenti "Ancora →" si rompe)
   useEffect(() => {
     setStatusFilter(new Set());
-    setNextSlotResult(null);
+    if (dateChangedBySearchRef.current) {
+      dateChangedBySearchRef.current = false;
+      // Data cambiata da ricerca slot: NON azzeriamo il risultato
+    } else {
+      // Data cambiata manualmente: azzeriamo
+      setNextSlotResult(null);
+    }
   }, [dateISO]);
 
   const openCreate = () => {
@@ -398,24 +384,32 @@ export default function AdminAgendaPage() {
     }
   };
 
+  const savePadding = async (bookingId, minutes) => {
+    setPaddingSaving(bookingId);
+    try {
+      await patchBookingPadding(bookingId, minutes);
+      await refresh();
+      setPaddingEditing(null);
+    } catch (e) {
+      setErr(e.message || "Errore aggiornamento buffer.");
+    } finally {
+      setPaddingSaving(null);
+    }
+  };
+
   const removeBooking = booking => {
-    // se c'è già una delete pendente, eseguo subito quella precedente
     if (pendingDelete) {
       clearTimeout(pendingDelete.timer);
       if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
-      deleteBooking(pendingDelete.booking.bookingId).catch(() => {
-        // se il delete immediato fallisce, non facciamo rollback dell'altra (era già fuori UI)
-      });
+      deleteBooking(pendingDelete.booking.bookingId).catch(() => {});
       setPendingDelete(null);
       setDeleteCountdown(5);
     }
 
-    // 1. rimuovo subito dalla UI
     setBookings(prev => prev.filter(b => b.bookingId !== booking.bookingId));
     setConfirmModal(null);
-
-    // 2. countdown visivo
     setDeleteCountdown(5);
+
     if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
     deleteIntervalRef.current = setInterval(() => {
       setDeleteCountdown(prev => {
@@ -427,7 +421,6 @@ export default function AdminAgendaPage() {
       });
     }, 1000);
 
-    // 3. schedulo DELETE reale dopo 5s
     const timer = setTimeout(async () => {
       if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
       setPendingDelete(null);
@@ -437,11 +430,7 @@ export default function AdminAgendaPage() {
         await deleteBooking(booking.bookingId);
         await refresh();
       } catch (e) {
-        // rollback
-        setBookings(prev => {
-          const restored = [...prev, booking];
-          return restored.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-        });
+        setBookings(prev => [...prev, booking].sort((a, b) => new Date(a.startTime) - new Date(b.startTime)));
         setErr(e?.normalized?.message || e.message || "Errore durante l'eliminazione.");
         setErrDetails(e?.normalized || null);
       } finally {
@@ -456,10 +445,7 @@ export default function AdminAgendaPage() {
     if (!pendingDelete) return;
     clearTimeout(pendingDelete.timer);
     if (deleteIntervalRef.current) clearInterval(deleteIntervalRef.current);
-    setBookings(prev => {
-      const restored = [...prev, pendingDelete.booking];
-      return restored.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-    });
+    setBookings(prev => [...prev, pendingDelete.booking].sort((a, b) => new Date(a.startTime) - new Date(b.startTime)));
     setPendingDelete(null);
     setDeleteCountdown(5);
   };
@@ -481,14 +467,12 @@ export default function AdminAgendaPage() {
   const submitModal = async payload => {
     setErr("");
     setErrDetails(null);
-
     try {
       if (modalMode === "edit" && selected?.bookingId) {
         await updateBooking(selected.bookingId, payload);
       } else {
         await createAdminBooking(payload);
       }
-
       setModalOpen(false);
       setSelected(null);
       await refresh();
@@ -504,17 +488,13 @@ export default function AdminAgendaPage() {
     setSelected(booking);
     setModalOpen(true);
   };
-
-  const handleWeekDayClick = dateISO => {
-    setDate(fromISODateLocal(dateISO));
+  const handleWeekDayClick = iso => {
+    setDate(fromISODateLocal(iso));
     setViewMode("day");
   };
-
-  const handleSlotClick = (dateISO, hour) => {
-    const pad = n => String(n).padStart(2, "0");
-    const startTime = `${dateISO}T${pad(hour)}:00`;
+  const handleSlotClick = (iso, hour) => {
     setModalMode("create");
-    setSelected({ startTime });
+    setSelected({ startTime: `${iso}T${pad2(hour)}:00` });
     setModalOpen(true);
   };
 
@@ -526,13 +506,10 @@ export default function AdminAgendaPage() {
       return next;
     });
   };
-
-  const clearStatusFilters = () => {
-    setStatusFilter(new Set());
-  };
-
+  const clearStatusFilters = () => setStatusFilter(new Set());
   const hasStatusFilter = statusFilter.size > 0;
 
+  // FIX B2: imposta il ref PRIMA di cambiare la data
   const searchNextSlot = async (afterISO = null) => {
     setNextSlotLoading(true);
     setNextSlotResult(null);
@@ -540,6 +517,7 @@ export default function AdminAgendaPage() {
       const res = await getNextAvailableSlot(nextSlotDuration, afterISO);
       setNextSlotResult(res);
       if (res?.found && res.slot?.date) {
+        dateChangedBySearchRef.current = true; // ← FIX B2: segnala che il cambio data è nostro
         setDate(fromISODateLocal(res.slot.date));
         setViewMode("day");
       }
@@ -552,10 +530,9 @@ export default function AdminAgendaPage() {
 
   const searchNextSlotAgain = () => {
     if (!nextSlotResult?.found || !nextSlotResult.slot) return;
-    const { date, slotEnd } = nextSlotResult.slot;
-    if (!date || !slotEnd) return;
-    const afterISO = `${date}T${slotEnd.slice(0, 5)}:00`;
-    searchNextSlot(afterISO);
+    const { date: slotDate, slotEnd } = nextSlotResult.slot;
+    if (!slotDate || !slotEnd) return;
+    searchNextSlot(`${slotDate}T${slotEnd.slice(0, 5)}:00`);
   };
 
   useEffect(() => {
@@ -596,23 +573,19 @@ export default function AdminAgendaPage() {
                 <button className="ag-iconbtn" onClick={() => setDate(d => addDays(d, -7))} title="Settimana precedente">
                   ‹
                 </button>
-
                 <div className="ag-strip__days">
                   {dayStrip.map(d => {
                     const iso = toISODate(d);
                     const isActive = iso === dateISO;
                     const dow = d.toLocaleDateString("it-IT", { weekday: "short" });
-                    const dd = d.getDate();
-
                     return (
                       <button key={iso} className={`ag-daychip ${isActive ? "is-active" : ""}`} onClick={() => setDate(d)} type="button">
                         <span className="ag-daychip__dow">{dow}</span>
-                        <span className="ag-daychip__dd">{dd}</span>
+                        <span className="ag-daychip__dd">{d.getDate()}</span>
                       </button>
                     );
                   })}
                 </div>
-
                 <button className="ag-iconbtn" onClick={() => setDate(d => addDays(d, 7))} title="Settimana successiva">
                   ›
                 </button>
@@ -628,7 +601,6 @@ export default function AdminAgendaPage() {
                 <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => setDate(d => addDays(d, 1))}>
                   Giorno dopo →
                 </Button>
-
                 <div className="ms-auto">
                   <Form.Control className="ag-date" type="date" value={dateISO} onChange={e => setDate(fromISODateLocal(e.target.value))} />
                 </div>
@@ -667,15 +639,7 @@ export default function AdminAgendaPage() {
                       }}
                     />
                   </div>
-
-                  <button
-                    type="button"
-                    className="ag-btn ag-btn--soft ag-nextslot__search"
-                    disabled={nextSlotLoading}
-                    onClick={() => {
-                      searchNextSlot(null);
-                    }}
-                  >
+                  <button type="button" className="ag-btn ag-btn--soft ag-nextslot__search" disabled={nextSlotLoading} onClick={() => searchNextSlot(null)}>
                     {nextSlotLoading ? "…" : "🔍 Prossima"}
                   </button>
                 </div>
@@ -685,19 +649,14 @@ export default function AdminAgendaPage() {
                     {nextSlotResult.found && nextSlotResult.slot ? (
                       <>
                         <span className="ag-nextslot__result-text">
-                          📅{" "}
-                          <b>
-                            {new Date(nextSlotResult.slot.date).toLocaleDateString("it-IT", {
-                              weekday: "long",
-                              day: "numeric",
-                              month: "long",
-                            })}
-                          </b>
+                          📅 <b>{new Date(nextSlotResult.slot.date).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</b>
                           {" dalle "}
                           <b>{nextSlotResult.slot.slotStart?.slice(0, 5)}</b>
                           {" – "}
                           <span className="ag-nextslot__avail">{nextSlotResult.slot.availableMin} min liberi</span>
                         </span>
+                        {/* FIX B2: "Ancora →" ora funziona perché dateChangedBySearchRef
+                            impedisce il reset di nextSlotResult quando cambia dateISO */}
                         <button type="button" className="ag-btn ag-btn--ghost ag-nextslot__more" disabled={nextSlotLoading} onClick={searchNextSlotAgain}>
                           Ancora →
                         </button>
@@ -705,10 +664,9 @@ export default function AdminAgendaPage() {
                           type="button"
                           className="ag-btn ag-btn--primary ag-nextslot__more"
                           onClick={() => {
-                            const { date, slotStart } = nextSlotResult.slot;
-                            const time = slotStart?.slice(0, 5);
+                            const { date: slotDate, slotStart } = nextSlotResult.slot;
                             setModalMode("create");
-                            setSelected({ startTime: `${date}T${time}` });
+                            setSelected({ startTime: `${slotDate}T${slotStart?.slice(0, 5)}` });
                             setModalOpen(true);
                           }}
                         >
@@ -716,9 +674,7 @@ export default function AdminAgendaPage() {
                         </button>
                       </>
                     ) : (
-                      <span className="ag-nextslot__result-text ag-muted">
-                        {nextSlotResult.error ? nextSlotResult.error : "Nessuno slot disponibile nei prossimi 90 giorni."}
-                      </span>
+                      <span className="ag-nextslot__result-text ag-muted">{nextSlotResult.error || "Nessuno slot disponibile nei prossimi 90 giorni."}</span>
                     )}
                   </div>
                 )}
@@ -764,7 +720,6 @@ export default function AdminAgendaPage() {
                   {servicesErr}
                 </Alert>
               )}
-
               {err && (
                 <Alert variant="danger" className="mt-3 mb-0">
                   <div className="fw-semibold">{err}</div>
@@ -792,7 +747,6 @@ export default function AdminAgendaPage() {
                     {viewMode === "day" ? `${dateISO} · ${filtered.length}${hasStatusFilter ? ` di ${bookings.length}` : ""} risultati` : "Vista settimana"}
                   </div>
                 </div>
-
                 {viewMode === "day" && (
                   <div className="d-flex gap-2 align-items-center">
                     <Form.Control className="ag-search" placeholder="Cerca cliente, telefono, servizio…" value={q} onChange={e => setQ(e.target.value)} />
@@ -809,42 +763,22 @@ export default function AdminAgendaPage() {
                     <span>Tutti</span>
                     <span className="ag-filter-count">{bookings.length}</span>
                   </button>
-
-                  <button
-                    type="button"
-                    className={`ag-filter-pill pill--pending ${statusFilter.has("PENDING") ? "is-active" : ""}`}
-                    onClick={() => toggleStatus("PENDING")}
-                  >
-                    <span>In attesa</span>
-                    <span className="ag-filter-count">{statusCounts.pending}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`ag-filter-pill pill--confirmed ${statusFilter.has("CONFIRMED") ? "is-active" : ""}`}
-                    onClick={() => toggleStatus("CONFIRMED")}
-                  >
-                    <span>Confermati</span>
-                    <span className="ag-filter-count">{statusCounts.confirmed}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`ag-filter-pill pill--completed ${statusFilter.has("COMPLETED") ? "is-active" : ""}`}
-                    onClick={() => toggleStatus("COMPLETED")}
-                  >
-                    <span>Completati</span>
-                    <span className="ag-filter-count">{statusCounts.completed}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`ag-filter-pill pill--cancelled ${statusFilter.has("CANCELLED") ? "is-active" : ""}`}
-                    onClick={() => toggleStatus("CANCELLED")}
-                  >
-                    <span>Cancellati</span>
-                    <span className="ag-filter-count">{statusCounts.cancelled}</span>
-                  </button>
+                  {[
+                    ["PENDING", "In attesa", "pending", statusCounts.pending],
+                    ["CONFIRMED", "Confermati", "confirmed", statusCounts.confirmed],
+                    ["COMPLETED", "Completati", "completed", statusCounts.completed],
+                    ["CANCELLED", "Cancellati", "cancelled", statusCounts.cancelled],
+                  ].map(([key, label, cls, count]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`ag-filter-pill pill--${cls} ${statusFilter.has(key) ? "is-active" : ""}`}
+                      onClick={() => toggleStatus(key)}
+                    >
+                      <span>{label}</span>
+                      <span className="ag-filter-count">{count}</span>
+                    </button>
+                  ))}
                 </div>
               )}
 
@@ -868,8 +802,20 @@ export default function AdminAgendaPage() {
                             <div className="ag-item__timeMain">
                               {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
                             </div>
+                            {/* FEATURE paddingMinutes: mostra il buffer nella card */}
                             <div className="ag-item__timeSub">
                               {Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
+                              {b.paddingMinutes > 0 &&
+                                (() => {
+                                  const realEnd = new Date(new Date(b.endTime).getTime() + b.paddingMinutes * 60000);
+                                  const hh = String(realEnd.getHours()).padStart(2, "0");
+                                  const mm = String(realEnd.getMinutes()).padStart(2, "0");
+                                  return (
+                                    <span style={{ marginLeft: 5, opacity: 0.7, fontSize: "0.72rem" }}>
+                                      → finisce alle {hh}:{mm} (+{b.paddingMinutes}′)
+                                    </span>
+                                  );
+                                })()}
                             </div>
                           </div>
                           <StatusPill status={b.status} />
@@ -877,7 +823,6 @@ export default function AdminAgendaPage() {
 
                         <div className="ag-item__body">
                           <div className="ag-item__name">{b.customerName}</div>
-
                           <div className="ag-item__meta">
                             <span className="ag-muted">{b.customerPhone}</span>
                             {b.customerPhone && (
@@ -897,7 +842,6 @@ export default function AdminAgendaPage() {
                             <span className="ag-dotsep">•</span>
                             <span className="ag-muted">{b.customerEmail}</span>
                           </div>
-
                           <div className="ag-item__service">
                             <span className="ag-service">{b.serviceTitle || "—"}</span>
                             {b.optionName ? <span className="ag-option"> · {b.optionName}</span> : null}
@@ -907,23 +851,9 @@ export default function AdminAgendaPage() {
                                 const remaining = Number.isFinite(b.sessionsRemaining) ? b.sessionsRemaining : null;
                                 const total = Number.isFinite(b.sessionsTotal) ? b.sessionsTotal : null;
                                 const status = b.packageStatus || "ACTIVE";
-
-                                let variant = "active";
-                                let title = "";
-
-                                if (status === "EXPIRED") {
-                                  variant = "expired";
-                                } else if (remaining === 0) {
-                                  variant = "done";
-                                } else if (remaining === 1) {
-                                  variant = "last";
-                                  title = "Ultima seduta!";
-                                } else if (remaining > 1) {
-                                  variant = "active";
-                                }
-
+                                let variant = status === "EXPIRED" ? "expired" : remaining === 0 ? "done" : remaining === 1 ? "last" : "active";
                                 return (
-                                  <span className={`ag-pkg-indicator ag-pkg-indicator--${variant}`} title={title}>
+                                  <span className={`ag-pkg-indicator ag-pkg-indicator--${variant}`} title={remaining === 1 ? "Ultima seduta!" : ""}>
                                     📦 {remaining ?? "?"}/{total ?? "?"}
                                   </span>
                                 );
@@ -937,13 +867,11 @@ export default function AdminAgendaPage() {
                               Modifica
                             </Button>
                           )}
-
                           {(b.status === "PENDING" || b.status === "PENDING_PAYMENT") && (
                             <Button className="ag-btn ag-btn--primary" size="sm" onClick={() => changeStatus(b.bookingId, "CONFIRMED")}>
                               Conferma
                             </Button>
                           )}
-
                           {b.status === "CONFIRMED" && (
                             <>
                               <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
@@ -954,13 +882,11 @@ export default function AdminAgendaPage() {
                               </Button>
                             </>
                           )}
-
                           {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
                             <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
                               Annulla
                             </Button>
                           )}
-
                           <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
                             Elimina
                           </Button>
@@ -973,12 +899,93 @@ export default function AdminAgendaPage() {
                           </Button>
                         </div>
 
-                        {openSalePanel === b.bookingId && (
-                          <BookingSalePanel
-                            bookingId={b.bookingId}
-                            onClose={() => setOpenSalePanel(null)}
-                          />
-                        )}
+                        {b.status !== "CANCELLED" &&
+                          b.status !== "COMPLETED" &&
+                          (() => {
+                            const maxPad = paddingMaxMap.get(b.bookingId) ?? 120;
+                            const currentPad = b.paddingMinutes ?? 0;
+                            const isEditing = paddingEditing === b.bookingId;
+                            const isSaving = paddingSaving === b.bookingId;
+
+                            return (
+                              <div className="ag-padding-row">
+                                {!isEditing ? (
+                                  <>
+                                    <span className="ag-padding-row__label">{currentPad > 0 ? `⏱ +${currentPad}′ buffer` : "⏱ Nessun buffer"}</span>
+                                    {maxPad > 0 ? (
+                                      <button
+                                        type="button"
+                                        className="ag-padding-row__btn"
+                                        onClick={() => {
+                                          setPaddingDraft(b.paddingMinutes ?? 0);
+                                          setPaddingEditing(b.bookingId);
+                                        }}
+                                      >
+                                        {currentPad > 0 ? "Modifica" : "+ Buffer"}
+                                      </button>
+                                    ) : (
+                                      <span className="ag-padding-row__blocked">Slot pieno — nessun buffer possibile</span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="ag-padding-row__label">Buffer (max {maxPad}′)</span>
+                                    <div className="ag-padding-row__controls">
+                                      {[0, 15, 30, 45]
+                                        .filter(p => p <= maxPad)
+                                        .map(p => (
+                                          <button
+                                            key={p}
+                                            type="button"
+                                            disabled={isSaving}
+                                            className={`ag-nextslot__chip ${paddingDraft === p ? "is-active" : ""}`}
+                                            onClick={() => setPaddingDraft(p)}
+                                          >
+                                            {p === 0 ? "Nessuno" : `+${p}′`}
+                                          </button>
+                                        ))}
+                                      <button
+                                        type="button"
+                                        className="ag-padding-row__step"
+                                        disabled={paddingDraft <= 0 || isSaving}
+                                        onClick={() => setPaddingDraft(v => Math.max(0, v - 5))}
+                                      >
+                                        −
+                                      </button>
+                                      <span className="ag-padding-row__val">{paddingDraft}′</span>
+                                      <button
+                                        type="button"
+                                        className="ag-padding-row__step"
+                                        disabled={paddingDraft >= maxPad || isSaving}
+                                        onClick={() => setPaddingDraft(v => Math.min(maxPad, v + 5))}
+                                      >
+                                        +
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ag-padding-row__btn"
+                                        disabled={isSaving}
+                                        onClick={() => savePadding(b.bookingId, paddingDraft)}
+                                        style={{ marginLeft: 4 }}
+                                      >
+                                        {isSaving ? <Spinner size="sm" animation="border" /> : "Conferma"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ag-padding-row__cancel"
+                                        disabled={isSaving}
+                                        onClick={() => setPaddingEditing(null)}
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                        {openSalePanel === b.bookingId && <BookingSalePanel bookingId={b.bookingId} onClose={() => setOpenSalePanel(null)} />}
                       </div>
                     ))}
 
@@ -992,8 +999,7 @@ export default function AdminAgendaPage() {
                       </div>
                     )}
                   </div>
-
-                  <div className="ag-footnote mt-2">Tip: “Modifica” apre la scheda completa. Per i walk-in puoi creare velocemente senza email.</div>
+                  <div className="ag-footnote mt-2">Tip: "Modifica" apre la scheda completa. Per i walk-in puoi creare velocemente senza email.</div>
                 </>
               )}
             </Card.Body>
@@ -1018,9 +1024,7 @@ export default function AdminAgendaPage() {
               )}
             </div>
             {confirmModal.type === "delete" && confirmModal.stripeSessionId && (
-              <div className="ag-confirm-warning">
-                ⚠️ Questa prenotazione è stata pagata online. Eliminandola non verrà emesso alcun rimborso automatico — gestiscilo separatamente.
-              </div>
+              <div className="ag-confirm-warning">⚠️ Questa prenotazione è stata pagata online. Eliminandola non verrà emesso alcun rimborso automatico.</div>
             )}
             {confirmModal.type === "delete" && confirmModal.booking?.status === "COMPLETED" && confirmModal.booking?.packageCreditId && (
               <div className="ag-confirm-warning">
@@ -1034,11 +1038,8 @@ export default function AdminAgendaPage() {
               <button
                 className={`ag-btn ${confirmModal.type === "delete" ? "ag-btn--danger" : "ag-btn--ghost"}`}
                 onClick={() => {
-                  if (confirmModal.type === "delete") {
-                    removeBooking(confirmModal.booking);
-                  } else {
-                    changeStatus(confirmModal.bookingId, "CANCELLED");
-                  }
+                  if (confirmModal.type === "delete") removeBooking(confirmModal.booking);
+                  else changeStatus(confirmModal.bookingId, "CANCELLED");
                   setConfirmModal(null);
                 }}
               >
