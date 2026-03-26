@@ -83,12 +83,11 @@ public class Booking {
     @Column(name="review_request_sent_at")
     private LocalDateTime reviewRequestSentAt;
 
-    /**
-     * Minuti buffer post-trattamento (solo admin).
-     * Non altera endTime in DB — usato da AvailabilityService per bloccare lo slot successivo.
-     */
     @Column(name = "padding_minutes")
-    private Integer paddingMinutes;
+    private Integer paddingMinutes; 
+
+    @Column(name = "created_by_admin", nullable = false)
+    private boolean createdByAdmin = false;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_id", nullable = false)

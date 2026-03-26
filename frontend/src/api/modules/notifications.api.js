@@ -11,3 +11,13 @@ export const markNotifAsRead = id =>
 
 export const markAllNotifsAsRead = () =>
   http.post("/admin/notifications/mark-all-read").then(r => r.data);
+
+// Elimina una singola notifica
+export async function deleteNotification(id) {
+  await http.delete(`/api/notifications/${id}`);
+}
+
+// Elimina notifiche passate oltre N giorni (default 60)
+export async function deleteStalePastNotifications(days = 60) {
+  await http.delete(`/api/notifications/stale`, { params: { days } });
+}

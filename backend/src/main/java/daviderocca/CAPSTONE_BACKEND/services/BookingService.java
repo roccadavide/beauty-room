@@ -133,6 +133,7 @@ public class BookingService {
         User user = (currentUserOrNull != null && currentUserOrNull.getUserId() != null) ? currentUserOrNull : null;
 
         Booking booking = new Booking(name, email, phone, start, end, payload.notes(), serviceItem, option, user);
+        booking.setCreatedByAdmin(false);
 
         booking.setBookingStatus(BookingStatus.PENDING_PAYMENT);
         booking.setExpiresAt(LocalDateTime.now().plusMinutes(HOLD_EXPIRE_MINUTES));
@@ -193,6 +194,7 @@ public class BookingService {
         booking.setPaidAt(null);
         booking.setStripeSessionId(null);
         booking.setExpiresAt(null);
+        booking.setCreatedByAdmin(true);
 
         // FIX B4: rimossa notifica per prenotazioni manuali admin.
         // L'admin sa già cosa ha creato — solo le prenotazioni online (webhook Stripe)
@@ -302,19 +304,21 @@ public class BookingService {
         bookingRepository.save(booking);
         log.info("Booking confirmed (paid): bookingId={} email={}", bookingId, customerEmailFromStripe);
 
-        // Notifica SOLO per prenotazioni online (webhook Stripe)
-        try {
-            String svc  = booking.getService() != null ? booking.getService().getTitle() : "Trattamento";
-            String when = booking.getStartTime().format(NOTIF_FMT);
-            notificationService.create(
-                NotificationType.NEW_BOOKING,
-                "Nuova prenotazione online 🗓",
-                booking.getCustomerName() + " · " + svc + " · " + when,
-                booking.getBookingId(),
-                "BOOKING"
-            );
-        } catch (Exception e) {
-            log.warn("Notification skipped for booking {}: {}", bookingId, e.getMessage());
+        // Notifica SOLO per prenotazioni online (webhook Stripe) non create manualmente da admin
+        if (!booking.isCreatedByAdmin()) {
+            try {
+                String svc  = booking.getService() != null ? booking.getService().getTitle() : "Trattamento";
+                String when = booking.getStartTime().format(NOTIF_FMT);
+                notificationService.create(
+                    NotificationType.NEW_BOOKING,
+                    "Nuova prenotazione online 🗓",
+                    booking.getCustomerName() + " · " + svc + " · " + when,
+                    booking.getBookingId(),
+                    "BOOKING"
+                );
+            } catch (Exception e) {
+                log.warn("Notification skipped for booking {}: {}", bookingId, e.getMessage());
+            }
         }
     }
 

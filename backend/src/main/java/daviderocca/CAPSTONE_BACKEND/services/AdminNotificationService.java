@@ -11,6 +11,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityNotFoundException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -62,6 +63,23 @@ public class AdminNotificationService {
     @Transactional
     public int markAllAsRead() {
         return repo.markAllAsRead();
+    }
+
+    @Transactional
+    public void deleteById(UUID id) {
+        if (!repo.existsById(id)) {
+            throw new EntityNotFoundException("Notifica non trovata: " + id);
+        }
+        repo.deleteById(id);
+    }
+
+    @Transactional
+    public int deleteOlderThan(int days) {
+        if (days <= 0) {
+            throw new IllegalArgumentException("days deve essere > 0");
+        }
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
+        return repo.deleteOlderThan(cutoff);
     }
 
     private NotificationDTO toDTO(AdminNotification n) {
