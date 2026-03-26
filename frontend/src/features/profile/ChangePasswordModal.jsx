@@ -70,23 +70,13 @@ const ChangePasswordModal = ({ show, onHide, userId }) => {
       <Form className="d-flex flex-column gap-3">
         <Form.Group>
           <Form.Label>Vecchia password *</Form.Label>
-          <Form.Control
-            type="password"
-            value={form.oldPassword}
-            onChange={e => handleChange("oldPassword", e.target.value)}
-            isInvalid={!!errors.oldPassword}
-          />
+          <Form.Control type="password" value={form.oldPassword} onChange={e => handleChange("oldPassword", e.target.value)} isInvalid={!!errors.oldPassword} />
           <Form.Control.Feedback type="invalid">{errors.oldPassword}</Form.Control.Feedback>
         </Form.Group>
 
         <Form.Group>
           <Form.Label>Nuova password *</Form.Label>
-          <Form.Control
-            type="password"
-            value={form.newPassword}
-            onChange={e => handleChange("newPassword", e.target.value)}
-            isInvalid={!!errors.newPassword}
-          />
+          <Form.Control type="password" value={form.newPassword} onChange={e => handleChange("newPassword", e.target.value)} isInvalid={!!errors.newPassword} />
           <Form.Control.Feedback type="invalid">{errors.newPassword}</Form.Control.Feedback>
         </Form.Group>
 

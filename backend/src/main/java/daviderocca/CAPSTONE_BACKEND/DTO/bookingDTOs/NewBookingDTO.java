@@ -30,15 +30,8 @@ public record NewBookingDTO(
         UUID serviceId,
 
         UUID serviceOptionId,
-
-        /** Opzionale: se presente la prenotazione viene collegata al pacchetto. */
         UUID packageCreditId,
-
-        /** Prezzo promozionale totale (servizio + prodotti inclusi).
-         *  Se presente e > 0, sovrascrive il prezzo standard su Stripe. */
         BigDecimal promoPrice,
-
-        /** ID promozione — usato per il metadata Stripe e per validazione futura. */
         UUID promotionId,
         Integer paddingMinutes
 ) {}

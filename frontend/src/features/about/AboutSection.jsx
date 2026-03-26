@@ -15,7 +15,7 @@ const AboutSection = () => {
           }
         });
       },
-      { threshold: 0.35 },
+      { threshold: 0.25 },
     );
 
     if (boxRef.current) observer.observe(boxRef.current);
@@ -33,6 +33,7 @@ const AboutSection = () => {
         </div>
 
         <div ref={boxRef} className="about-box fade-element stagger-2">
+          <div className="about-box-ring" aria-hidden="true" />
           <div className="about-box__inner">
             <span className="section-eyebrow">La mia storia</span>
             <h2 className="about-title">

@@ -1,4 +1,3 @@
-// Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Col, Form, Row, Spinner } from "react-bootstrap";
 import { getAvailSlotsForServiceDay } from "../../api/modules/adminAgenda.api";
@@ -18,7 +17,6 @@ const normalizeDateTimeLocal = v => {
 const WALKIN_MARKER = "@beautyroom.local";
 const isWalkInEmail = email => !email || email.includes(WALKIN_MARKER);
 
-/** Tiny inline status pill reused inside the customer history panel. */
 const PILL_META = {
   PENDING: { label: "In attesa", tone: "pending" },
   PENDING_PAYMENT: { label: "Attesa pagamento", tone: "pending" },
@@ -44,14 +42,11 @@ const EMPTY_FORM = {
   notes: "",
   serviceId: "",
   serviceOptionId: null,
-  /**
-   * customerId is FRONTEND-ONLY state.
-   * It is NOT sent in the booking payload.
-   * It is only used to fetch the customer summary panel.
-   * The backend resolves / creates the customer via findOrCreate(name, phone, email).
-   */
   customerId: null,
+  paddingMinutes: 0, // FEATURE: minuti extra buffer post-trattamento (solo admin)
 };
+
+const PADDING_PRESETS = [0, 15, 20, 30, 45, 60];
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function BookingModal({ show, onHide, mode = "create", initial, services, onSubmit }) {
@@ -62,12 +57,10 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
   const [errors, setErrors] = useState({});
   const [walkIn, setWalkIn] = useState(true);
 
-  // customer summary panel
   const [customerDetail, setCustomerDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailErr, setDetailErr] = useState("");
 
-  // availability slots
   const [availLoading, setAvailLoading] = useState(false);
   const [availErr, setAvailErr] = useState("");
   const [slots, setSlots] = useState([]);
@@ -75,7 +68,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
   const [serviceSearch, setServiceSearch] = useState("");
   const [serviceCatFilter, setServiceCatFilter] = useState("all");
 
-  // ── Reset form on open / initial change ─────────────────────────────────
+  // ── Reset on open ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!show) return;
     setSubmitted(false);
@@ -94,7 +87,8 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
         notes: initial.notes ?? "",
         serviceId: initial.serviceId ?? "",
         serviceOptionId: initial.serviceOptionId ?? initial.optionId ?? null,
-        customerId: null, // pre-feature bookings have no registry link yet
+        customerId: null,
+        paddingMinutes: initial.paddingMinutes ?? 0, // FEATURE: ripopola il buffer in edit
       });
       setWalkIn(!isEdit);
     } else {
@@ -105,7 +99,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     setServiceCatFilter("all");
   }, [show, initial, isEdit]);
 
-  // ── Fetch customer detail when customerId is set ─────────────────────────
+  // ── Fetch customer detail ────────────────────────────────────────────────
   useEffect(() => {
     if (!form.customerId) {
       setCustomerDetail(null);
@@ -199,11 +193,8 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     }
   }, [form.serviceId, form.startTime]);
 
-  // ── Customer name handlers ────────────────────────────────────────────────
   const handleCustomerNameChange = useCallback(
     text => {
-      // If user is manually typing after having selected a customer,
-      // break the link so the summary panel disappears.
       setForm(f => ({ ...f, customerName: text, customerId: null }));
       if (submitted) setTimeout(() => validate(), 0);
     },
@@ -216,14 +207,10 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
         ...f,
         customerName: customer.fullName,
         customerPhone: customer.phone ?? f.customerPhone,
-        // fill email only if it's a real address and not walk-in mode
         customerEmail: customer.email && !isWalkInEmail(customer.email) && !walkIn ? customer.email : f.customerEmail,
         customerId: customer.customerId,
       }));
-      // auto-switch off walk-in when customer has a real email
-      if (customer.email && !isWalkInEmail(customer.email)) {
-        setWalkIn(false);
-      }
+      if (customer.email && !isWalkInEmail(customer.email)) setWalkIn(false);
     },
     [walkIn],
   );
@@ -233,8 +220,6 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     setSubmitted(true);
     if (!validate()) return;
 
-    // customerId is intentionally excluded from the payload:
-    // the backend resolves / creates the Customer via findOrCreate(name, phone, email).
     const payload = {
       customerName: form.customerName,
       customerEmail: form.customerEmail,
@@ -243,6 +228,8 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
       notes: form.notes,
       serviceId: String(form.serviceId),
       serviceOptionId: form.serviceOptionId ? String(form.serviceOptionId) : null,
+      // FEATURE paddingMinutes: inviato solo se > 0, altrimenti null
+      paddingMinutes: form.paddingMinutes > 0 ? form.paddingMinutes : null,
     };
 
     if (walkIn && !payload.customerEmail?.trim()) {
@@ -257,6 +244,9 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     if (!submitted) return;
     setTimeout(() => validate(), 0);
   };
+
+  // ── Padding preset handler ───────────────────────────────────────────────
+  const setPadding = v => setForm(f => ({ ...f, paddingMinutes: v }));
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -283,7 +273,6 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
             <div className="ag-section__title">Dettagli cliente</div>
             <Form noValidate>
               <Row className="g-2">
-                {/* Nome — autocomplete */}
                 <Col md={6}>
                   <Form.Group className="mb-2">
                     <Form.Label>Nome *</Form.Label>
@@ -298,7 +287,6 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                   </Form.Group>
                 </Col>
 
-                {/* Telefono */}
                 <Col md={6}>
                   <Form.Group className="mb-2">
                     <Form.Label>Telefono *</Form.Label>
@@ -313,7 +301,6 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                 </Col>
               </Row>
 
-              {/* Email + walk-in toggle */}
               <Form.Group className="mb-2">
                 <div className="d-flex align-items-center justify-content-between">
                   <Form.Label className="mb-0">Email {walkIn ? "" : "*"}</Form.Label>
@@ -347,7 +334,6 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                 {walkIn && <div className="ag-help">Per i walk-in generiamo una email tecnica (il backend spesso la richiede).</div>}
               </Form.Group>
 
-              {/* Note */}
               <Form.Group>
                 <Form.Label>Note</Form.Label>
                 <Form.Control
@@ -378,7 +364,6 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
 
                 {customerDetail && !detailLoading && (
                   <>
-                    {/* Active packages */}
                     {customerDetail.activePackages?.length > 0 && (
                       <div className="mb-2">
                         <div className="ag-customer-panel__label">Pacchetti attivi</div>
@@ -403,7 +388,6 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                       </div>
                     )}
 
-                    {/* Recent bookings */}
                     {customerDetail.recentBookings?.length > 0 && (
                       <div>
                         <div className="ag-customer-panel__label">Ultimi appuntamenti</div>
@@ -508,7 +492,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                 {submitted && errors.serviceId && <div className="invalid-feedback d-block">{errors.serviceId}</div>}
               </Form.Group>
 
-              {serviceOptions.length > 0 ? (
+              {serviceOptions.length > 0 && (
                 <Form.Group className="mb-2">
                   <Form.Label>Opzione</Form.Label>
                   <Form.Select value={form.serviceOptionId ?? ""} onChange={e => onChange("serviceOptionId", e.target.value || null)}>
@@ -520,7 +504,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                     ))}
                   </Form.Select>
                 </Form.Group>
-              ) : null}
+              )}
 
               <Form.Group className="mb-2">
                 <Form.Label>Inizio *</Form.Label>
@@ -534,6 +518,40 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                 <div className="ag-help">La fine la calcola il backend in base alla durata del servizio.</div>
               </Form.Group>
 
+              {/* ── FEATURE: paddingMinutes ─────────────────────────── */}
+              <Form.Group className="mb-2">
+                <Form.Label className="small" style={{ color: "var(--ag-muted)" }}>
+                  Buffer post-trattamento
+                  <span style={{ marginLeft: 5, opacity: 0.55, fontSize: "0.78rem" }}>(tempo extra che blocca lo slot successivo)</span>
+                </Form.Label>
+                <div className="d-flex align-items-center flex-wrap gap-1">
+                  {PADDING_PRESETS.map(m => (
+                    <button key={m} type="button" className={`ag-nextslot__chip ${form.paddingMinutes === m ? "is-active" : ""}`} onClick={() => setPadding(m)}>
+                      {m === 0 ? "Nessuno" : `+${m}′`}
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    className="ag-nextslot__custom"
+                    min={0}
+                    max={120}
+                    step={5}
+                    value={!PADDING_PRESETS.includes(form.paddingMinutes) ? form.paddingMinutes : ""}
+                    placeholder="…′"
+                    onChange={e => {
+                      const v = parseInt(e.target.value, 10);
+                      if (!Number.isNaN(v) && v >= 0 && v <= 120) setPadding(v);
+                    }}
+                  />
+                </div>
+                {form.paddingMinutes > 0 && (
+                  <div className="ag-help mt-1">
+                    ⏱ Lo slot successivo sarà bloccato per altri <strong>{form.paddingMinutes} min</strong> dopo la fine del trattamento.
+                  </div>
+                )}
+              </Form.Group>
+              {/* ─────────────────────────────────────────────────────── */}
+
               <div className="d-flex gap-2 flex-wrap mt-1">
                 <Button className="ag-btn ag-btn--soft" size="sm" disabled={!form.serviceId || !form.startTime} onClick={fetchAvailSlots} type="button">
                   Suggerisci slot liberi
@@ -541,6 +559,7 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                 {selectedService?.durationMin && (
                   <span className="ag-mini">
                     Durata: <b>{selectedService.durationMin} min</b>
+                    {form.paddingMinutes > 0 && <span style={{ marginLeft: 4, opacity: 0.65 }}>+{form.paddingMinutes}′ buffer</span>}
                   </span>
                 )}
               </div>
@@ -562,13 +581,15 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
                     {slots.slice(0, 30).map((s, i) => (
                       <button
                         key={`${s.start}-${i}`}
-                        className="ag-slot"
+                        className={`ag-slot ${s.available === false ? "ag-slot--occupied" : ""}`}
                         type="button"
+                        disabled={s.available === false}
                         onClick={() => {
                           const dateISO = form.startTime.slice(0, 10);
                           onChange("startTime", `${dateISO}T${s.start}`);
                         }}
                       >
+                        {s.available === false ? "🔒 " : ""}
                         {s.start} – {s.end}
                       </button>
                     ))}
