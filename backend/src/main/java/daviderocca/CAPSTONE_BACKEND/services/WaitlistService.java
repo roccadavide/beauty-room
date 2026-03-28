@@ -44,6 +44,7 @@ public class WaitlistService {
             throw new BadRequestException("Data e ora obbligatorie.");
 
         var service = serviceItemService.findServiceItemById(req.serviceId());
+        serviceItemService.assertServiceActive(service);
 
         String email = req.customerEmail().trim().toLowerCase();
 

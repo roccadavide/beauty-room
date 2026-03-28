@@ -1,0 +1,108 @@
+/* ── AdminToggle component ─────────────────────────────────────────────── */
+
+.admin-toggle {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-toggle__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Spinner while loading */
+.admin-toggle__spinner {
+  width: 16px !important;
+  height: 16px !important;
+  border-width: 2px !important;
+  color: var(--card-gold, #b8976a);
+  flex-shrink: 0;
+}
+
+/* Override Bootstrap form-switch colors */
+.admin-toggle__switch {
+  cursor: pointer;
+  width: 2.1em !important;
+  height: 1.1em !important;
+  margin-top: 0 !important;
+  flex-shrink: 0;
+}
+
+.admin-toggle__switch:checked {
+  background-color: var(--card-gold, #b8976a) !important;
+  border-color: var(--card-gold-deep, #8c6d3f) !important;
+}
+
+.admin-toggle__switch:focus {
+  box-shadow: 0 0 0 0.2rem rgba(184, 151, 106, 0.3) !important;
+  border-color: var(--card-gold, #b8976a) !important;
+}
+
+.admin-toggle__switch:not(:checked) {
+  background-color: #dee2e6 !important;
+  border-color: #ced4da !important;
+}
+
+/* Status badge */
+.admin-toggle__badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.admin-toggle__badge--active {
+  background: #d4edda;
+  color: #2d6a4f;
+}
+
+.admin-toggle__badge--inactive {
+  background: #e9ecef;
+  color: #6c757d;
+}
+
+/* Inline error */
+.admin-toggle__error {
+  font-size: 0.62rem;
+  color: #dc3545;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: at-fade-in 0.15s ease;
+}
+
+@keyframes at-fade-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Corner wrapper (absolute top-right inside a card) ─────────────────── */
+
+.admin-card-toggle-corner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+  padding: 5px 8px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Inactive card visual effect (admin-only class) ────────────────────── */
+
+.admin-entity--inactive {
+  opacity: 0.52;
+  outline: 2px dashed #adb5bd;
+  outline-offset: -1px;
+  filter: grayscale(18%);
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}

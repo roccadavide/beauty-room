@@ -38,6 +38,9 @@ public class ServiceItem {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String description;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "service_images", joinColumns = @JoinColumn(name = "service_id"))
     @Column(name = "image_url")

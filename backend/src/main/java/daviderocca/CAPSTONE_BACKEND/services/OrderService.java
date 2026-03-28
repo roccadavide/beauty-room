@@ -119,6 +119,9 @@ public class OrderService {
 
         for (NewOrderItemDTO itemDTO : payload.items()) {
             Product product = productService.findProductById(itemDTO.productId());
+            if (!product.isActive()) {
+                throw new BadRequestException("Prodotto non disponibile: " + product.getName());
+            }
 
             if (product.getStock() < itemDTO.quantity()) {
                 throw new BadRequestException("Stock insufficiente per il prodotto: " + product.getName());

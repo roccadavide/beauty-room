@@ -1,6 +1,8 @@
 /* TESTIMONIALS SECTION */
 .testimonial-card {
-  background: #f6debc;
+  background: #fef4e8;
+  border: 1px solid rgba(184, 151, 106, 0.22);
+  box-shadow: 0 4px 20px rgba(46, 33, 24, 0.07);
   border-radius: 20px;
   transition:
     opacity 0.35s ease,

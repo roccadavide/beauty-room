@@ -15,6 +15,7 @@ public interface ServiceOptionRepository extends JpaRepository<ServiceOption, UU
             JOIN FETCH so.service si
             WHERE so.sessions > 1
             AND so.active = true
+            AND si.active = true
             ORDER BY si.title ASC, so.sessions ASC
             """)
     List<ServiceOption> findActivePackages();

@@ -17,6 +17,8 @@ import java.util.UUID;
 @Repository
 public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
 
+    List<Promotion> findByActiveTrue();
+
     @Query("""
        SELECT p FROM Promotion p
        WHERE p.active = true
@@ -33,6 +35,10 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
     @EntityGraph(attributePaths = {"products", "services", "categories"})
     @Query("select p from Promotion p")
     Page<Promotion> findAllWithDetails(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"products", "services", "categories"})
+    @Query("select p from Promotion p where p.active = true")
+    Page<Promotion> findAllActiveWithDetails(Pageable pageable);
 
     @EntityGraph(attributePaths = {"products", "services", "categories"})
     @Query("""

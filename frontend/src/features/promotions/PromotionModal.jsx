@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Col, Form, Modal, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createPromotion, updatePromotion } from "../../api/modules/promotions.api";
+import MultiImageUpload from "../../components/common/MultiImageUpload";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
 
 const DISCOUNT_TYPES = [
@@ -43,8 +44,8 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
   const isEdit = Boolean(promotion);
 
   const [form, setForm] = useState(initialForm);
-  const [bannerImage, setBannerImage] = useState(null);
-  const [cardImage, setCardImage] = useState(null);
+  const [bannerFiles, setBannerFiles] = useState([]);
+  const [cardFiles, setCardFiles] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -73,8 +74,8 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
     } else {
       setForm(initialForm);
     }
-    setBannerImage(null);
-    setCardImage(null);
+    setBannerFiles([]);
+    setCardFiles([]);
     setErrors({});
   }, [isEdit, promotion, show]);
 
@@ -173,7 +174,7 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
 
     try {
       setLoading(true);
-      const files = { bannerImage, cardImage };
+      const files = { bannerImage: bannerFiles[0] ?? null, cardImage: cardFiles[0] ?? null };
       const saved = isEdit ? await updatePromotion(promotion.promotionId, payload, files, accessToken) : await createPromotion(payload, files, accessToken);
       onSaved(saved);
       onHide();
@@ -371,19 +372,25 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
             )}
 
             <Col md={6}>
-              <Form.Group>
-                <Form.Label>Banner immagine (grande)</Form.Label>
-                <Form.Control type="file" accept="image/*" onChange={e => setBannerImage(e.target.files[0])} />
-                {isEdit && promotion.bannerImageUrl && !bannerImage && <small className="text-muted d-block mt-1">Immagine attuale mantenuta</small>}
-              </Form.Group>
+              <MultiImageUpload
+                files={bannerFiles}
+                existingUrls={isEdit && promotion.bannerImageUrl && bannerFiles.length === 0 ? [promotion.bannerImageUrl] : []}
+                onChange={setBannerFiles}
+                onRemoveExisting={() => setBannerFiles([])}
+                label="Banner immagine (16:9 — grande)"
+                maxFiles={1}
+              />
             </Col>
 
             <Col md={6}>
-              <Form.Group>
-                <Form.Label>Card immagine (mostrata nella lista promozioni)</Form.Label>
-                <Form.Control type="file" accept="image/*" onChange={e => setCardImage(e.target.files[0])} />
-                {isEdit && promotion.cardImageUrl && !cardImage && <small className="text-muted d-block mt-1">Immagine attuale mantenuta</small>}
-              </Form.Group>
+              <MultiImageUpload
+                files={cardFiles}
+                existingUrls={isEdit && promotion.cardImageUrl && cardFiles.length === 0 ? [promotion.cardImageUrl] : []}
+                onChange={setCardFiles}
+                onRemoveExisting={() => setCardFiles([])}
+                label="Card immagine (4:3 — lista promozioni)"
+                maxFiles={1}
+              />
             </Col>
           </Row>
         </Form>

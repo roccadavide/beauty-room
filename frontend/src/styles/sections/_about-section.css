@@ -57,7 +57,7 @@
   transform: translateY(var(--box-translate));
   width: 520px;
   max-width: 92%;
-  border-radius: 22px;
+  border-radius: 24px;
   padding: 0;
   transition: transform 0.4s ease;
 }
@@ -66,46 +66,60 @@
   transform: translateY(var(--box-translate)) translateY(-4px);
 }
 
-/* ── Golden arc — FUORI dall'inner, wrappa tutto ── */
-.about-box-ring {
-  position: absolute;
-  inset: -3px;
-  border-radius: 25px;
-  z-index: 0;
-  opacity: 0;
-  animation: aboutArcSpin 4.5s linear infinite;
-  animation-play-state: paused;
-  transition: opacity 0.9s ease;
+/* ── Spinning border wrapper ─────────────────────────────────────────
+   Tecnica corretta per bordo animato:
+   1. Il wrapper ha border-radius + overflow:hidden → taglia tutto ciò che esce
+   2. ::before è un quadrato 200%×200% centrato con conic-gradient
+   3. Ruotando il ::before, il punto luce percorre tutto il perimetro
+   4. about-box__inner riempie l'interno con il suo bg, lasciando
+      visibili solo i 2px di "padding" del wrapper = il bordo animato
+──────────────────────────────────────────────────────────────────── */
 
+.about-box-border {
+  position: relative;
+  border-radius: 24px;
+  padding: 2px; /* spessore del bordo visibile */
+  overflow: hidden;
+  background: rgba(184, 151, 106, 0.12); /* colore base del bordo a riposo */
+}
+
+.about-box-border::before {
+  content: "";
+  position: absolute;
+  /* 200%×200% centrato: copre tutti i bordi mentre ruota */
+  width: 200%;
+  height: 200%;
+  top: -50%;
+  left: -50%;
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    transparent 50deg,
-    rgba(140, 109, 63, 0) 70deg,
-    rgba(212, 175, 55, 0.9) 100deg,
-    rgba(255, 235, 150, 1) 130deg,
-    rgba(212, 175, 55, 0.9) 160deg,
-    rgba(140, 109, 63, 0) 180deg,
-    transparent 200deg,
-    transparent 360deg
+    transparent 330deg,
+    rgba(184, 151, 106, 0.3) 340deg,
+    rgba(212, 175, 55, 0.85) 350deg,
+    rgba(255, 245, 180, 1) 355deg,
+    rgba(212, 175, 55, 0.85) 360deg
   );
+  animation: aboutBorderSpin 7s linear infinite;
+  /* parte in pausa, parte solo quando in-view */
+  animation-play-state: paused;
+  opacity: 0;
+  transition: opacity 1s ease;
 }
 
-.about-box.in-view .about-box-ring {
-  opacity: 1;
+/* Attiva quando about-box entra nel viewport */
+.about-box.in-view .about-box-border::before {
   animation-play-state: running;
+  opacity: 1;
 }
 
-@keyframes aboutArcSpin {
-  from {
-    transform: rotate(0deg);
-  }
+@keyframes aboutBorderSpin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* ── Contenuto — copre il ring con il suo bg ── */
+/* ── Contenuto interno ── */
 .about-box__inner {
   position: relative;
   z-index: 1;
@@ -114,9 +128,7 @@
   flex-direction: column;
   gap: 0;
   background: linear-gradient(145deg, #fdf6ee 0%, #f5e8d4 100%);
-  border-radius: 22px;
-  /* stacca di 3px dal ring lasciandolo visibile */
-  margin: 3px;
+  border-radius: 22px; /* 2px meno del wrapper → lascia il bordo visibile */
 }
 
 .about-title {
@@ -208,31 +220,26 @@
   transition-delay: 0.22s;
 }
 
-/* ── 992–1199px: orizzontale, immagine più grande ── */
+/* ── 992–1199px ── */
 @media (max-width: 1199px) and (min-width: 992px) {
   .about-section {
     padding: 4rem 0 8rem;
   }
-
   .about-img {
     width: 58%;
   }
-
   .about-box {
     width: 400px;
     max-width: 50%;
     right: 5%;
     top: 50%;
   }
-
   .about-box__inner {
     padding: 1.7rem 1.9rem;
   }
-
   .about-title {
     font-size: 1.5rem;
   }
-
   .about-text {
     font-size: 0.88rem;
   }
@@ -280,10 +287,6 @@
     width: 100%;
     justify-content: center;
   }
-
-  .about-box.in-view .about-box-ring {
-    animation-duration: 6s;
-  }
 }
 
 /* ── ≤575px ── */
@@ -301,20 +304,19 @@
   .about-box__inner {
     padding: 1.4rem 1.2rem;
   }
-
   .about-title {
     font-size: 1.55rem;
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 992px) {
   .about-section {
-    height: 100vh;
+    height: 79vh;
   }
 }
 
-@media (min-width: 992px) {
+@media (min-width: 1199px) {
   .about-section {
-    height: 100vh;
+    height: 90vh;
   }
 }

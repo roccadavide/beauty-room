@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Col, Container, Row, Spinner } from "react-bootstrap";
+import { Col, Container, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { PencilFill, Plus } from "react-bootstrap-icons";
+import { EditButton } from "../../components/common/AdminActionButtons";
+import AdminAddButton from "../../components/common/AdminAddButton";
+import AdminToggle from "../../components/common/AdminToggle";
 import PromotionDrawer from "./PromotionDrawer";
 import PackageDrawer from "./PackageDrawer";
 import BookingModal from "../bookings/BookingModal";
@@ -38,7 +40,7 @@ const getTotalOriginalPrice = (promotion, products, services) => {
 function OccasioniPage() {
   const navigate = useNavigate();
   const { user, accessToken } = useSelector(state => state.auth);
-  const [activeTab, setActiveTab] = useState("pacchetti");
+  const [activeTab, setActiveTab] = useState("promozioni");
 
   // Pacchetti
   const [packages, setPackages] = useState([]);
@@ -228,11 +230,11 @@ function OccasioniPage() {
 
       {/* TAB BAR */}
       <div className="of-tab-bar">
-        <button className={`of-tab${activeTab === "pacchetti" ? " of-tab--active" : ""}`} onClick={() => setActiveTab("pacchetti")}>
-          Pacchetti
-        </button>
         <button className={`of-tab${activeTab === "promozioni" ? " of-tab--active" : ""}`} onClick={() => setActiveTab("promozioni")}>
           Promozioni
+        </button>
+        <button className={`of-tab${activeTab === "pacchetti" ? " of-tab--active" : ""}`} onClick={() => setActiveTab("pacchetti")}>
+          Pacchetti
         </button>
       </div>
 
@@ -242,16 +244,13 @@ function OccasioniPage() {
           {user?.role === "ADMIN" && (
             <div className="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
               <p className="of-admin-note mb-0">Puoi anche gestire i pacchetti dalle opzioni del singolo trattamento</p>
-              <Button
-                variant="success"
-                className="d-flex align-items-center gap-2 rounded-pill px-3 shadow-sm"
+              <AdminAddButton
+                label="Nuovo pacchetto"
                 onClick={() => {
                   setEditingPkg(null);
                   setOpenPkg(true);
                 }}
-              >
-                <Plus /> Nuovo pacchetto
-              </Button>
+              />
             </div>
           )}
 
@@ -284,7 +283,7 @@ function OccasioniPage() {
               <h2 className="of-service-group-title">{serviceName}</h2>
               <div className="of-pkg-grid">
                 {group.items.map(pkg => (
-                  <div key={pkg.optionId} className="of-pkg-card">
+                  <div key={pkg.optionId} className={`of-pkg-card${user?.role === "ADMIN" && !(pkg.active ?? true) ? " admin-entity--inactive" : ""}`}>
                     <div className="of-pkg-sessions-badge">{pkg.sessions} sedute</div>
                     <div className="of-pkg-body">
                       <div className="of-pkg-accent" />
@@ -302,17 +301,17 @@ function OccasioniPage() {
                       </Link>
                       {user?.role === "ADMIN" && (
                         <div className="of-pkg-admin-actions">
-                          <Button
-                            size="sm"
-                            variant="outline-secondary"
-                            className="rounded-circle"
-                            onClick={() => {
-                              setEditingPkg(pkg);
-                              setOpenPkg(true);
-                            }}
-                          >
-                            <PencilFill />
-                          </Button>
+                          <div onClick={e => e.stopPropagation()}>
+                            <AdminToggle
+                              entityId={pkg.optionId}
+                              isActive={pkg.active ?? true}
+                              endpoint="/service-items/options"
+                              onToggleSuccess={newVal =>
+                                setPackages(prev => prev.map(p => p.optionId === pkg.optionId ? { ...p, active: newVal } : p))
+                              }
+                            />
+                          </div>
+                          <EditButton onClick={() => { setEditingPkg(pkg); setOpenPkg(true); }} />
                         </div>
                       )}
                     </div>
@@ -329,16 +328,13 @@ function OccasioniPage() {
         <Container>
           {user?.role === "ADMIN" && (
             <div className="mb-4 d-flex justify-content-end">
-              <Button
-                variant="success"
-                className="d-flex align-items-center gap-2 shadow-sm rounded-pill px-3"
+              <AdminAddButton
+                label="Nuova promozione"
                 onClick={() => {
                   setEditingPromotion(null);
                   setOpenPromo(true);
                 }}
-              >
-                <Plus /> Nuova promozione
-              </Button>
+              />
             </div>
           )}
 
@@ -377,6 +373,9 @@ function OccasioniPage() {
                       setDeleteModal(true);
                     }}
                     onClick={promo => setDrawerPromo(promo)}
+                    onToggle={(id, newVal) =>
+                      setAllPromos(prev => prev.map(pr => pr.promotionId === id ? { ...pr, active: newVal } : pr))
+                    }
                   />
                 </div>
               );

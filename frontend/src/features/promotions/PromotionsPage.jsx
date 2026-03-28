@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Badge, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
+import { Badge, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { PencilFill, Plus, Trash2Fill } from "react-bootstrap-icons";
+import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import { fetchPromotions, deletePromotion } from "../../api/modules/promotions.api";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchServices } from "../../api/modules/services.api";
 import PromotionModal from "./PromotionModal";
 import DeletePromotionModal from "./DeletePromotionModal";
+import AdminAddButton from "../../components/common/AdminAddButton";
+import AdminToggle from "../../components/common/AdminToggle";
 
 const getDiscountedPrice = (original, discountType, discountValue) => {
   if (!original || !discountType || !discountValue) return original;
@@ -27,6 +29,7 @@ const getTotalOriginalPrice = (promotion, products, services) => {
 
 function PromotionsPage() {
   const { user, accessToken } = useSelector(state => state.auth);
+  const isAdmin = user?.role === "ADMIN";
 
   const [allPromos, setAllPromos] = useState([]);
   const [q, setQ] = useState("");
@@ -151,11 +154,9 @@ function PromotionsPage() {
               <option value="MIXED">Misto</option>
             </Form.Select>
           </Col>
-          {user?.role === "ADMIN" && (
+          {isAdmin && (
             <Col xs="12" md="3" className="d-flex justify-content-md-end">
-              <Button variant="success" onClick={handleCreate} className="d-flex align-items-center gap-2 shadow-sm">
-                <Plus /> Nuova promozione
-              </Button>
+              <AdminAddButton onClick={handleCreate} label="Nuova promozione" />
             </Col>
           )}
         </Row>
@@ -176,7 +177,7 @@ function PromotionsPage() {
                 <Card
                   data-id={p.promotionId}
                   ref={el => (cardsRef.current[idx] = el)}
-                  className={`promo-card border-0 rounded-4 shadow-lg overflow-hidden position-relative ${visibleMap[p.promotionId] ? "visible" : ""}`}
+                  className={`promo-card border-0 rounded-4 shadow-lg overflow-hidden position-relative ${visibleMap[p.promotionId] ? "visible" : ""}${isAdmin && !(p.active ?? true) ? " admin-entity--inactive" : ""}`}
                 >
                   <div className="promo-img-wrapper position-relative">
                     <Card.Img src={img} alt={p.title} className="promo-img" />
@@ -184,6 +185,18 @@ function PromotionsPage() {
                   </div>
 
                   <Card.Body className="text-center d-flex flex-column justify-content-between p-4">
+                    {isAdmin && (
+                      <div className="d-flex justify-content-center mb-3" onClick={e => e.stopPropagation()}>
+                        <AdminToggle
+                          entityId={p.promotionId}
+                          isActive={p.active ?? true}
+                          endpoint="/promotions"
+                          onToggleSuccess={newVal =>
+                            setAllPromos(prev => prev.map(pr => pr.promotionId === p.promotionId ? { ...pr, active: newVal } : pr))
+                          }
+                        />
+                      </div>
+                    )}
                     <div>
                       <Card.Title className="fw-bold fs-5 mb-1">{p.title}</Card.Title>
                       {p.subtitle && <p className="text-muted small mb-3">{p.subtitle}</p>}
@@ -206,22 +219,10 @@ function PromotionsPage() {
                         {p.startDate ? new Date(p.startDate).toLocaleDateString() : ""} {p.endDate ? `→ ${new Date(p.endDate).toLocaleDateString()}` : ""}
                       </small>
 
-                      {user?.role === "ADMIN" && (
+                      {isAdmin && (
                         <div className="d-flex gap-2 justify-content-center mt-3">
-                          <Button size="sm" variant="outline-secondary" className="rounded-circle" onClick={() => handleEdit(p)}>
-                            <PencilFill />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline-danger"
-                            className="rounded-circle"
-                            onClick={() => {
-                              setSelectedPromotion(p);
-                              setDeleteModal(true);
-                            }}
-                          >
-                            <Trash2Fill />
-                          </Button>
+                          <EditButton onClick={() => handleEdit(p)} />
+                          <DeleteButton onClick={() => { setSelectedPromotion(p); setDeleteModal(true); }} />
                         </div>
                       )}
                     </div>
@@ -235,7 +236,7 @@ function PromotionsPage() {
         {filtered.length === 0 && <p className="text-center text-muted mt-4">Nessuna promozione trovata.</p>}
       </Container>
 
-      {user?.role === "ADMIN" && (
+      {isAdmin && (
         <>
           <PromotionModal
             show={open}

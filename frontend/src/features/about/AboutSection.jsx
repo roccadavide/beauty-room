@@ -33,22 +33,27 @@ const AboutSection = () => {
         </div>
 
         <div ref={boxRef} className="about-box fade-element stagger-2">
-          <div className="about-box-ring" aria-hidden="true" />
-          <div className="about-box__inner">
-            <span className="section-eyebrow">La mia storia</span>
-            <h2 className="about-title">
-              Il mio sogno,
-              <br />
-              la tua bellezza
-            </h2>
-            <div className="about-accent-line" />
-            <p className="about-text">
-              Beauty Room non è solo un centro estetico — è il posto dove la passione di Michela per il benessere diventa cura concreta per ogni persona che
-              entra. Scopri chi c&apos;è dietro ogni trattamento.
-            </p>
-            <Link to="/chisono" className="about-cta-btn">
-              Ascolta la mia storia →
-            </Link>
+          {/* 
+            about-box-border: wrapper con overflow:hidden che taglia
+            il ::before rotante → effetto striscia oro sul bordo 
+          */}
+          <div className="about-box-border">
+            <div className="about-box__inner">
+              <span className="section-eyebrow">La mia storia</span>
+              <h2 className="about-title">
+                Il mio sogno,
+                <br />
+                la tua bellezza
+              </h2>
+              <div className="about-accent-line" />
+              <p className="about-text">
+                Beauty Room non è solo un centro estetico — è il posto dove la passione di Michela per il benessere diventa cura concreta per ogni persona che
+                entra. Scopri chi c&apos;è dietro ogni trattamento.
+              </p>
+              <Link to="/chisono" className="about-cta-btn">
+                Ascolta la mia storia →
+              </Link>
+            </div>
           </div>
         </div>
       </div>

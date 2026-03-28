@@ -9,11 +9,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, UUID> {
+
+    List<Product> findByActiveTrue();
 
     boolean existsByName(String name);
 
@@ -30,4 +33,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @EntityGraph(attributePaths = {"images", "category"})
     @Query("select p from Product p")
     Page<Product> findAllWithDetails(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"images", "category"})
+    @Query("select p from Product p where p.active = true")
+    Page<Product> findAllActiveWithDetails(Pageable pageable);
 }

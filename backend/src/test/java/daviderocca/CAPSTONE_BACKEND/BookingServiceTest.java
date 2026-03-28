@@ -93,6 +93,7 @@ class BookingServiceTest {
         setFieldReflectively(svc, "serviceId", serviceId);
         svc.setDurationMin(30);
         svc.setTitle("Test Service");
+        svc.setActive(true);
 
         ServiceOption opt = new ServiceOption();
         opt.setOptionId(optionId);

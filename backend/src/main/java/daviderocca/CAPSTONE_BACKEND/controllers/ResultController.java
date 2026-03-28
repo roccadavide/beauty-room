@@ -78,4 +78,11 @@ public class ResultController {
         resultService.deleteResult(resultId);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{resultId}/toggle-active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> toggleActive(@PathVariable UUID resultId) {
+        resultService.toggleActive(resultId);
+        return ResponseEntity.ok().build();
+    }
 }

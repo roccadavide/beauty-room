@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { Container, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { Plus } from "react-bootstrap-icons";
 import ResultCard from "./ResultCard";
+import AdminAddButton from "../../components/common/AdminAddButton";
 import ResultDrawer from "./ResultDrawer";
 import DeleteResultModal from "./DeleteResultModal";
 import { deleteResult, fetchResults } from "../../api/modules/results.api";
@@ -92,16 +92,13 @@ export default function ResultsPage() {
 
           {/* + Nuovo risultato — in cima, visibile solo ad admin */}
           {isAdmin && (
-            <button
-              className="rp-add-btn"
+            <AdminAddButton
+              label="Nuovo risultato"
               onClick={() => {
                 setEditingResult(null);
                 setOpen(true);
               }}
-            >
-              <Plus size={16} />
-              Nuovo risultato
-            </button>
+            />
           )}
         </div>
 
@@ -142,6 +139,9 @@ export default function ResultsPage() {
                     setSelectedResult(r);
                     setDeleteModal(true);
                   }}
+                  onToggle={(id, newVal) =>
+                    setAllResults(prev => prev.map(r => r.resultId === id ? { ...r, active: newVal } : r))
+                  }
                 />
                 {idx < filtered.length - 1 && <DiamondDivider />}
               </div>

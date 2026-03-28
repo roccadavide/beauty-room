@@ -116,6 +116,7 @@ public class BookingService {
     public BookingResponseDTO createHoldBooking(NewBookingDTO payload, User currentUserOrNull) {
 
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
+        serviceItemService.assertServiceActive(serviceItem);
 
         LocalDateTime start = normalizeStart(payload.startTime());
         LocalDateTime end = start.plusMinutes(serviceItem.getDurationMin());
@@ -162,6 +163,7 @@ public class BookingService {
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni manuali.");
 
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
+        serviceItemService.assertServiceActive(serviceItem);
 
         LocalDateTime start = payload.startTime().truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(serviceItem.getDurationMin());
@@ -505,6 +507,7 @@ public class BookingService {
         }
 
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
+        serviceItemService.assertServiceActive(serviceItem);
         LocalDateTime start = normalizeStart(payload.startTime());
         LocalDateTime end   = start.plusMinutes(serviceItem.getDurationMin());
 

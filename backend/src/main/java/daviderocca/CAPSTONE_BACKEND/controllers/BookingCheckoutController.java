@@ -100,6 +100,7 @@ public class BookingCheckoutController {
 
         // 2) calcola prezzo: option.price se presente, altrimenti service.price
         ServiceItem service = serviceItemService.findServiceItemById(payload.serviceId());
+        serviceItemService.assertServiceActive(service);
         ServiceOption option = null;
         if (payload.serviceOptionId() != null) {
             option = serviceOptionRepository.findById(payload.serviceOptionId())

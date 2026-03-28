@@ -12,5 +12,6 @@ public record ProductResponseDTO(
         String description,
         List<String> images,
         int stock,
-        UUID categoryId
+        UUID categoryId,
+        boolean active
 ) {}

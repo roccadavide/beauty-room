@@ -112,4 +112,18 @@ public class ServiceItemController {
         serviceItemService.deleteServiceItem(serviceItemId);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{serviceItemId}/toggle-active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> toggleActive(@PathVariable UUID serviceItemId) {
+        serviceItemService.toggleActive(serviceItemId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/options/{optionId}/toggle-active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> toggleOptionActive(@PathVariable UUID optionId) {
+        serviceItemService.toggleOptionActive(optionId);
+        return ResponseEntity.ok().build();
+    }
 }

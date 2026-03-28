@@ -11,5 +11,8 @@ public record ResultResponseDTO(
         String description,
         List<String> images,
         UUID categoryId,
+        boolean active,
+        UUID linkedServiceId,
+        String linkedServiceName,
         LocalDateTime createdAt
 ) {}

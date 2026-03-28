@@ -41,7 +41,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public Page<ProductResponseDTO> findAllProducts(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<Product> page = productRepository.findAllWithDetails(pageable);
+        Page<Product> page = productRepository.findAllActiveWithDetails(pageable);
         List<ProductResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
@@ -56,6 +56,9 @@ public class ProductService {
     public ProductResponseDTO findProductByIdAndConvert(UUID productId) {
         Product product = productRepository.findByIdWithDetails(productId)
                 .orElseThrow(() -> new ResourceNotFoundException(productId));
+        if (!product.isActive()) {
+            throw new ResourceNotFoundException(productId);
+        }
         return convertToDTO(product);
     }
 
@@ -79,6 +82,7 @@ public class ProductService {
                 payload.stock(),
                 relatedCategory
         );
+        newProduct.setActive(payload.active() == null || payload.active());
 
         Product saved = productRepository.save(newProduct);
         log.info("Prodotto '{}' (ID: {}) creato con categoria '{}'",
@@ -124,6 +128,9 @@ public class ProductService {
         found.setDescription(payload.description());
         found.setStock(payload.stock());
         found.setCategory(relatedCategory);
+        if (payload.active() != null) {
+            found.setActive(payload.active());
+        }
 
         Product updated = productRepository.save(found);
         log.info("Prodotto '{}' (ID: {}) aggiornato correttamente (categoria: {})",
@@ -149,6 +156,13 @@ public class ProductService {
 
         productRepository.delete(found);
         log.info("Prodotto '{}' (ID: {}) eliminato correttamente.", found.getName(), found.getProductId());
+    }
+
+    @Transactional
+    public void toggleActive(UUID id) {
+        Product entity = productRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(id));
+        entity.setActive(!entity.isActive());
+        productRepository.save(entity);
     }
 
     // ---------------------------- CLOUDINARY ----------------------------
@@ -181,7 +195,8 @@ public class ProductService {
                 product.getDescription(),
                 new java.util.ArrayList<>(product.getImages()),
                 product.getStock(),
-                product.getCategory() != null ? product.getCategory().getCategoryId() : null
+                product.getCategory() != null ? product.getCategory().getCategoryId() : null,
+                product.isActive()
         );
     }
 }

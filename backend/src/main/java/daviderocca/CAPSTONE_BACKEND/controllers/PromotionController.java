@@ -92,4 +92,11 @@ public class PromotionController {
         promotionService.deletePromotion(promotionId);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{promotionId}/toggle-active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> toggleActive(@PathVariable UUID promotionId) {
+        promotionService.toggleActive(promotionId);
+        return ResponseEntity.ok().build();
+    }
 }

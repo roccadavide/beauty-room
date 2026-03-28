@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { createResult, updateResult } from "../../api/modules/results.api";
+import { fetchServices } from "../../api/modules/services.api";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import MultiImageUpload from "../../components/common/MultiImageUpload";
 import { buildMultipartForm } from "../../api/utils/multipart";
@@ -13,11 +14,20 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
   const [shortDescription, setShortDescription] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [linkedServiceId, setLinkedServiceId] = useState("");
+  const [services, setServices] = useState([]);
   const [newFiles, setNewFiles] = useState([]);
   const [removedUrls, setRemovedUrls] = useState([]);
   const [errors, setErrors] = useState({});
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Load services list once on mount
+  useEffect(() => {
+    fetchServices()
+      .then(data => setServices(Array.isArray(data) ? data : data.content ?? []))
+      .catch(() => {});
+  }, []);
 
   // Populate form on open
   useEffect(() => {
@@ -27,11 +37,13 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
         setShortDescription(result.shortDescription || "");
         setDescription(result.description || "");
         setCategoryId(result.categoryId || "");
+        setLinkedServiceId(result.linkedServiceId || "");
       } else {
         setTitle("");
         setShortDescription("");
         setDescription("");
         setCategoryId("");
+        setLinkedServiceId("");
       }
       setNewFiles([]);
       setRemovedUrls([]);
@@ -59,7 +71,14 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
     setLoading(true);
     setErrorMsg("");
     try {
-      const payload = { title, shortDescription, description, categoryId, removedImageUrls: removedUrls };
+      const payload = {
+        title,
+        shortDescription,
+        description,
+        categoryId,
+        linkedServiceId: linkedServiceId || null,
+        removedImageUrls: removedUrls,
+      };
       const formData = buildMultipartForm(payload, newFiles);
 
       const saved = isEdit ? await updateResult(result.resultId, formData) : await createResult(formData);
@@ -134,6 +153,25 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
             ))}
           </Form.Select>
           <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
+        </Form.Group>
+
+        <Form.Group className="rd-field">
+          <Form.Label>Trattamento collegato <span className="text-muted fw-normal">(opzionale)</span></Form.Label>
+          <Form.Select
+            value={linkedServiceId}
+            onChange={e => setLinkedServiceId(e.target.value)}
+            className="rd-select-service"
+          >
+            <option value="">— Nessuno —</option>
+            {services.map(s => (
+              <option key={s.serviceId} value={s.serviceId}>
+                {s.title}
+              </option>
+            ))}
+          </Form.Select>
+          <Form.Text className="text-muted" style={{ fontSize: "0.75rem" }}>
+            Se collegato, nella card pubblica apparirà un link al trattamento.
+          </Form.Text>
         </Form.Group>
 
         <Form.Group className="rd-field">

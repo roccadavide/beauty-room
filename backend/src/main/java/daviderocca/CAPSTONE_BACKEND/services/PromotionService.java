@@ -38,7 +38,7 @@ public class PromotionService {
     @Transactional(readOnly = true)
     public Page<PromotionResponseDTO> findAllPromotions(int pageNumber, int pageSize, String sortBy) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, sortBy));
-        Page<Promotion> page = promotionRepository.findAllWithDetails(pageable);
+        Page<Promotion> page = promotionRepository.findAllActiveWithDetails(pageable);
         List<PromotionResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
@@ -130,6 +130,13 @@ public class PromotionService {
         Promotion found = findById(promotionId);
         promotionRepository.delete(found);
         log.info("Promozione '{}' (ID: {}) eliminata correttamente.", found.getTitle(), found.getPromotionId());
+    }
+
+    @Transactional
+    public void toggleActive(UUID id) {
+        Promotion entity = promotionRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(id));
+        entity.setActive(!entity.isActive());
+        promotionRepository.save(entity);
     }
 
     // ---------------------------- VALIDATION ----------------------------

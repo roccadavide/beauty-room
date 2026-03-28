@@ -14,5 +14,6 @@ public record ServiceItemResponseDTO(
         List<String> images,
         UUID categoryId,
         String categoryKey,
+        boolean active,
         List<ServiceOptionResponseDTO> options
 ) {}

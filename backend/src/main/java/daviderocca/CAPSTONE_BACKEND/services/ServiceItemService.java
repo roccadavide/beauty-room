@@ -44,6 +44,7 @@ public class ServiceItemService {
     public List<PackageResponseDTO> getActivePackages() {
         return serviceOptionRepository.findActivePackages()
                 .stream()
+                .filter(so -> so.getService() != null && so.getService().isActive())
                 .map(so -> {
                     ServiceItem si = so.getService();
                     String imageUrl = (si.getImages() == null || si.getImages().isEmpty())
@@ -58,7 +59,8 @@ public class ServiceItemService {
                             so.getSessions(),
                             so.getPrice(),
                             so.getOptionGroup(),
-                            so.getGender()
+                            so.getGender(),
+                            so.isActive()
                     );
                 })
                 .toList();
@@ -114,7 +116,7 @@ public class ServiceItemService {
     @Transactional(readOnly = true)
     public Page<ServiceItemResponseDTO> findAllServiceItems(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<ServiceItem> page = serviceItemRepository.findAllWithDetails(pageable);
+        Page<ServiceItem> page = serviceItemRepository.findAllActiveWithDetails(pageable);
         List<ServiceItemResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
@@ -125,10 +127,22 @@ public class ServiceItemService {
                 .orElseThrow(() -> new ResourceNotFoundException(serviceItemId));
     }
 
+    /**
+     * Prenotazioni, disponibilità, checkout: il servizio deve essere attivo.
+     */
+    public void assertServiceActive(ServiceItem serviceItem) {
+        if (!serviceItem.isActive()) {
+            throw new BadRequestException("Il servizio non è disponibile.");
+        }
+    }
+
     @Transactional(readOnly = true)
     public ServiceItemResponseDTO findServiceItemByIdAndConvert(UUID serviceItemId) {
         ServiceItem serviceItem = serviceItemRepository.findByIdWithDetails(serviceItemId)
                 .orElseThrow(() -> new ResourceNotFoundException(serviceItemId));
+        if (!serviceItem.isActive()) {
+            throw new ResourceNotFoundException(serviceItemId);
+        }
         return convertToDTO(serviceItem);
     }
 
@@ -152,6 +166,8 @@ public class ServiceItemService {
                 imageUrls,
                 relatedCategory
         );
+
+        newServiceItem.setActive(payload.active() == null || payload.active());
 
         ServiceItem saved = serviceItemRepository.save(newServiceItem);
         log.info("Servizio '{}' (ID: {}) creato (categoria: {})",
@@ -194,6 +210,9 @@ public class ServiceItemService {
         found.setShortDescription(payload.shortDescription());
         found.setDescription(payload.description());
         found.setCategory(relatedCategory);
+        if (payload.active() != null) {
+            found.setActive(payload.active());
+        }
 
         ServiceItem updated = serviceItemRepository.save(found);
         log.info("Servizio '{}' (ID: {}) aggiornato (categoria: {})",
@@ -209,6 +228,21 @@ public class ServiceItemService {
         ServiceItem found = findServiceItemById(serviceItemId);
         serviceItemRepository.delete(found);
         log.info("Servizio '{}' (ID: {}) eliminato correttamente.", found.getTitle(), found.getServiceId());
+    }
+
+    @Transactional
+    public void toggleActive(UUID id) {
+        ServiceItem entity = serviceItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(id));
+        entity.setActive(!entity.isActive());
+        serviceItemRepository.save(entity);
+    }
+
+    @Transactional
+    public void toggleOptionActive(UUID optionId) {
+        ServiceOption opt = serviceOptionRepository.findById(optionId)
+                .orElseThrow(() -> new ResourceNotFoundException(optionId));
+        opt.setActive(!opt.isActive());
+        serviceOptionRepository.save(opt);
     }
 
     // ---------------------------- CLOUDINARY ----------------------------
@@ -257,6 +291,7 @@ public class ServiceItemService {
                 new java.util.ArrayList<>(serviceItem.getImages()),
                 serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryId() : null,
                 serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryKey() : null,
+                serviceItem.isActive(),
                 optionDTOs
         );
     }

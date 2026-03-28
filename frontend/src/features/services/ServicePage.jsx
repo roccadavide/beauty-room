@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Container, Row, Col, Button, Card, Badge, Spinner } from "react-bootstrap";
+import { Container, Row, Col, Card, Badge, Spinner } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import ServiceModal from "./ServiceModal";
 import DeleteServiceModal from "./DeleteServiceModal";
-import { PencilFill, Trash2Fill, Plus } from "react-bootstrap-icons";
+import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
+import AdminAddButton from "../../components/common/AdminAddButton";
+import AdminToggle from "../../components/common/AdminToggle";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices } from "../../api/modules/services.api";
 
@@ -23,6 +25,7 @@ const ServicePage = () => {
   const [editingService, setEditingService] = useState(null);
 
   const { user, accessToken } = useSelector(state => state.auth);
+  const isAdmin = user?.role === "ADMIN";
 
   const navigate = useNavigate();
 
@@ -155,16 +158,9 @@ const ServicePage = () => {
         )}
       </div>
 
-      {user?.role === "ADMIN" && (
+      {isAdmin && (
         <div className="mb-4 d-flex align-items-center justify-content-center">
-          <Button
-            variant="success"
-            className="rounded-circle d-flex align-items-center justify-content-center"
-            style={{ width: "3rem", height: "3rem" }}
-            onClick={handleCreate}
-          >
-            <Plus />
-          </Button>
+          <AdminAddButton onClick={handleCreate} label="Nuovo servizio" />
         </div>
       )}
 
@@ -172,7 +168,19 @@ const ServicePage = () => {
         <Row className="g-4 g-xl-5">
           {filtered.map(s => (
             <Col key={s.serviceId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
-              <Card className="br-card beauty-service-card h-100" onClick={() => navigate(`/trattamenti/${s.serviceId}`)}>
+              <Card className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`} onClick={() => navigate(`/trattamenti/${s.serviceId}`)}>
+                {isAdmin && (
+                  <div className="admin-card-toggle-corner" onClick={e => e.stopPropagation()}>
+                    <AdminToggle
+                      entityId={s.serviceId}
+                      isActive={s.active ?? true}
+                      endpoint="/service-items"
+                      onToggleSuccess={newVal =>
+                        setAllServices(prev => prev.map(svc => svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc))
+                      }
+                    />
+                  </div>
+                )}
                 <div className="bsc-img-wrap">
                   <Card.Img src={s.images?.[0]} alt={s.title} />
                   <div className="bsc-img-overlay">
@@ -191,29 +199,10 @@ const ServicePage = () => {
                   <Card.Text className="flex-grow-1">{s.shortDescription}</Card.Text>
                   <div className="d-flex justify-content-between align-items-center mt-2">
                     <span className="bsc-price">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                    {user?.role === "ADMIN" && (
+                    {isAdmin && (
                       <div className="d-flex gap-2 ms-auto">
-                        <Button
-                          variant="secondary"
-                          className="rounded-circle d-flex justify-content-center align-items-center"
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleEdit(s);
-                          }}
-                        >
-                          <PencilFill />
-                        </Button>
-                        <Button
-                          variant="danger"
-                          className="rounded-circle d-flex justify-content-center align-items-center"
-                          onClick={e => {
-                            e.stopPropagation();
-                            setSelectedService(s);
-                            setDeleteModal(true);
-                          }}
-                        >
-                          <Trash2Fill />
-                        </Button>
+                        <EditButton onClick={() => handleEdit(s)} />
+                        <DeleteButton onClick={() => { setSelectedService(s); setDeleteModal(true); }} />
                       </div>
                     )}
                   </div>
@@ -224,7 +213,7 @@ const ServicePage = () => {
         </Row>
       </Container>
 
-      {user?.role === "ADMIN" && (
+      {isAdmin && (
         <>
           <ServiceModal
             show={open}

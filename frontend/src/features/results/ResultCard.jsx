@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Button } from "react-bootstrap";
-import { PencilFill, Trash2Fill } from "react-bootstrap-icons";
+import { Link } from "react-router-dom";
+import AdminToggle from "../../components/common/AdminToggle";
+import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 
 /**
  * ResultCard — layout editoriale alternato Prima/Dopo
@@ -12,8 +13,9 @@ import { PencilFill, Trash2Fill } from "react-bootstrap-icons";
  *   isAdmin       → bool
  *   onEdit        → fn(result)
  *   onDelete      → fn(result)
+ *   onToggle      → fn(resultId, newActiveValue)
  */
-export default function ResultCard({ result, categoryLabel, index, isAdmin, onEdit, onDelete }) {
+export default function ResultCard({ result, categoryLabel, index, isAdmin, onEdit, onDelete, onToggle }) {
   const rowRef = useRef(null);
   const [visible, setVisible] = useState(false);
   const isEven = index % 2 === 0;
@@ -71,40 +73,45 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
         <div className="rc-accent-line" />
         <h3 className="rc-title">{result.title}</h3>
         <p className="rc-desc">{result.shortDescription}</p>
+
+        {result.linkedServiceId && (
+          <Link
+            to={`/trattamenti/${result.linkedServiceId}`}
+            className="rc-service-link"
+            onClick={e => e.stopPropagation()}
+          >
+            Scopri il trattamento →
+          </Link>
+        )}
+
         {isAdmin && (
-          <div className="rc-admin-actions">
-            <Button
-              variant="outline-secondary"
-              size="sm"
-              className="rc-admin-btn"
-              onClick={e => {
-                e.stopPropagation();
-                onEdit(result);
-              }}
-              title="Modifica"
-            >
-              <PencilFill size={12} />
-            </Button>
-            <Button
-              variant="outline-danger"
-              size="sm"
-              className="rc-admin-btn"
-              onClick={e => {
-                e.stopPropagation();
-                onDelete(result);
-              }}
-              title="Elimina"
-            >
-              <Trash2Fill size={12} />
-            </Button>
-          </div>
+          <>
+            {onToggle && (
+              <div className="rc-admin-toggle" onClick={e => e.stopPropagation()}>
+                <AdminToggle
+                  entityId={result.resultId}
+                  isActive={result.active ?? true}
+                  endpoint="/results"
+                  onToggleSuccess={newVal => onToggle(result.resultId, newVal)}
+                />
+              </div>
+            )}
+            <div className="rc-admin-actions">
+              <EditButton onClick={() => onEdit(result)} />
+              <DeleteButton onClick={() => onDelete(result)} />
+            </div>
+          </>
         )}
       </div>
     </div>
   );
 
   return (
-    <div ref={rowRef} className={`rc-row ${visible ? "rc-row--visible" : ""} ${isEven ? "rc-row--even" : "rc-row--odd"}`} data-index={index}>
+    <div
+      ref={rowRef}
+      className={`rc-row ${visible ? "rc-row--visible" : ""} ${isEven ? "rc-row--even" : "rc-row--odd"}${isAdmin && !(result.active ?? true) ? " admin-entity--inactive" : ""}`}
+      data-index={index}
+    >
       {/* Desktop: alterna immagini/testo. Mobile: sempre immagini sopra, testo sotto */}
       <div className="rc-row__desktop">
         {isEven ? (

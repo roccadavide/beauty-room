@@ -18,6 +18,10 @@ public record NewResultDTO(
         String description,
         @NotNull(message = "La categoria è obbligatoria")
         UUID categoryId,
+        /** opzionale — servizio collegato (before/after) */
+        UUID linkedServiceId,
+        /** null = default true in persistenza */
+        Boolean active,
         // nullable — URL immagini da rimuovere (cleanup lista; Cloudinary TODO)
         List<String> removedImageUrls
 ) {}

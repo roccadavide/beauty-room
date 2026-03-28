@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
-import { Badge, Button, Card, Col, Container, Row, Spinner } from "react-bootstrap";
+import { Badge, Card, Col, Container, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { PencilFill, Plus, Trash2Fill } from "react-bootstrap-icons";
+import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import { useNavigate } from "react-router-dom";
 import DeleteProductModal from "./DeleteProductModal";
 import ProductModal from "./ProductModal";
+import AdminAddButton from "../../components/common/AdminAddButton";
+import AdminToggle from "../../components/common/AdminToggle";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteProduct, fetchProducts } from "../../api/modules/products.api";
 
@@ -23,6 +25,7 @@ function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState(null);
 
   const { user, accessToken } = useSelector(state => state.auth);
+  const isAdmin = user?.role === "ADMIN";
 
   const navigate = useNavigate();
 
@@ -156,16 +159,9 @@ function ProductsPage() {
         )}
       </div>
 
-      {user?.role === "ADMIN" && (
+      {isAdmin && (
         <div className="mb-4 d-flex align-items-center justify-content-center">
-          <Button
-            variant="success"
-            className="rounded-circle d-flex align-items-center justify-content-center"
-            style={{ width: "3rem", height: "3rem" }}
-            onClick={handleCreate}
-          >
-            <Plus />
-          </Button>
+          <AdminAddButton onClick={handleCreate} label="Nuovo prodotto" />
         </div>
       )}
 
@@ -174,9 +170,21 @@ function ProductsPage() {
           {filtered.map(p => (
             <Col key={p.productId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
               <Card
-                className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}`}
+                className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}${isAdmin && !(p.active ?? true) ? " admin-entity--inactive" : ""}`}
                 onClick={() => navigate(`/prodotti/${p.productId}`)}
               >
+                {isAdmin && (
+                  <div className="admin-card-toggle-corner" onClick={e => e.stopPropagation()}>
+                    <AdminToggle
+                      entityId={p.productId}
+                      isActive={p.active ?? true}
+                      endpoint="/products"
+                      onToggleSuccess={newVal =>
+                        setAllProducts(prev => prev.map(pr => pr.productId === p.productId ? { ...pr, active: newVal } : pr))
+                      }
+                    />
+                  </div>
+                )}
                 <div className="bpc-img-wrap">
                   <Card.Img src={p.images?.[0]} alt={p.name} />
                   {p.stock === 0 && (
@@ -198,29 +206,10 @@ function ProductsPage() {
                   <div className="d-flex justify-content-between align-items-center mt-2">
                     <span className="bpc-price">{p.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
                     {p.stock === 0 && <span className="bpc-out-pill">Non disponibile</span>}
-                    {user?.role === "ADMIN" && (
+                    {isAdmin && (
                       <div className="d-flex gap-2 ms-auto">
-                        <Button
-                          variant="secondary"
-                          className="rounded-circle d-flex justify-content-center align-items-center"
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleEdit(p);
-                          }}
-                        >
-                          <PencilFill />
-                        </Button>
-                        <Button
-                          variant="danger"
-                          className="rounded-circle d-flex justify-content-center align-items-center"
-                          onClick={e => {
-                            e.stopPropagation();
-                            setSelectedProduct(p);
-                            setDeleteModal(true);
-                          }}
-                        >
-                          <Trash2Fill />
-                        </Button>
+                        <EditButton onClick={() => handleEdit(p)} />
+                        <DeleteButton onClick={() => { setSelectedProduct(p); setDeleteModal(true); }} />
                       </div>
                     )}
                   </div>
@@ -231,7 +220,7 @@ function ProductsPage() {
         </Row>
       </Container>
 
-      {user?.role === "ADMIN" && (
+      {isAdmin && (
         <>
           <ProductModal
             show={open}

@@ -78,4 +78,11 @@ public class ProductController {
         productService.deleteProduct(productId);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{productId}/toggle-active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> toggleActive(@PathVariable UUID productId) {
+        productService.toggleActive(productId);
+        return ResponseEntity.ok().build();
+    }
 }

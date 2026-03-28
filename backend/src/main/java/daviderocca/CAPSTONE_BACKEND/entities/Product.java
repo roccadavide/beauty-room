@@ -47,6 +47,9 @@ public class Product {
     @Column(nullable = false)
     private int stock;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
     @ManyToMany(mappedBy = "products", fetch = FetchType.LAZY)
     private Set<Promotion> promotions = new HashSet<>();
 

@@ -64,6 +64,7 @@ public class AvailabilityService {
         validateInputs(serviceId, date);
 
         ServiceItem service = serviceItemService.findServiceItemById(serviceId);
+        serviceItemService.assertServiceActive(service);
         int durationMin = service.getDurationMin();
         if (durationMin <= 0) throw new BadRequestException("Durata servizio non valida.");
 

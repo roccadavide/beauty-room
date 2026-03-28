@@ -295,10 +295,42 @@
   margin: 0;
 }
 
+/* ── CTA "Scopri il trattamento" ─────────────── */
+
+.rc-service-link {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 14px;
+  border: 1px solid var(--card-gold, #b8976a);
+  color: var(--card-gold, #b8976a);
+  background: transparent;
+  border-radius: 20px;
+  font-family: Montserrat, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+.rc-service-link:hover {
+  background: var(--card-gold, #b8976a);
+  color: #fff;
+  text-decoration: none;
+}
+
+/* ── Admin toggle row ────────────────────────── */
+
+.rc-admin-toggle {
+  margin-top: 1.25rem;
+}
+
 .rc-admin-actions {
   display: flex;
   gap: 8px;
-  margin-top: 1.5rem;
+  margin-top: 0.75rem;
 }
 
 .rc-admin-btn {

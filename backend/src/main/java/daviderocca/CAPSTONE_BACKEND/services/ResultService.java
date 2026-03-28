@@ -6,9 +6,11 @@ import daviderocca.CAPSTONE_BACKEND.DTO.resultDTOs.NewResultDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.resultDTOs.ResultResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Category;
 import daviderocca.CAPSTONE_BACKEND.entities.Result;
+import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.ResultRepository;
+import daviderocca.CAPSTONE_BACKEND.repositories.ServiceItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -26,6 +28,8 @@ public class ResultService {
 
     private final ResultRepository resultRepository;
 
+    private final ServiceItemRepository serviceItemRepository;
+
     private final CategoryService categoryService;
 
     private final Cloudinary cloudinary;
@@ -35,7 +39,7 @@ public class ResultService {
     @Transactional(readOnly = true)
     public Page<ResultResponseDTO> findAllResults(int pageNumber, int pageSize, String sort) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<Result> page = resultRepository.findAllWithDetails(pageable);
+        Page<Result> page = resultRepository.findAllActiveWithDetails(pageable);
         List<ResultResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
@@ -50,6 +54,9 @@ public class ResultService {
     public ResultResponseDTO findResultByIdAndConvert(UUID resultId) {
         Result result = resultRepository.findByIdWithDetails(resultId)
                 .orElseThrow(() -> new ResourceNotFoundException(resultId));
+        if (!result.isActive()) {
+            throw new ResourceNotFoundException(resultId);
+        }
         return convertToDTO(result);
     }
 
@@ -71,6 +78,8 @@ public class ResultService {
                 imageUrls,
                 relatedCategory
         );
+        newResult.setActive(payload.active() == null || payload.active());
+        applyLinkedService(newResult, payload.linkedServiceId());
 
         Result saved = resultRepository.save(newResult);
         log.info("Risultato '{}' (ID: {}) creato con categoria '{}'",
@@ -112,6 +121,10 @@ public class ResultService {
         found.setDescription(payload.description());
         found.setCategory(relatedCategory);
         found.setImages(currentImages);
+        if (payload.active() != null) {
+            found.setActive(payload.active());
+        }
+        applyLinkedService(found, payload.linkedServiceId());
 
         Result updated = resultRepository.save(found);
         log.info("Risultato '{}' (ID: {}) aggiornato (categoria: {})",
@@ -127,6 +140,23 @@ public class ResultService {
         Result found = findResultById(resultId);
         resultRepository.delete(found);
         log.info("Risultato '{}' (ID: {}) eliminato con successo.", found.getTitle(), found.getResultId());
+    }
+
+    @Transactional
+    public void toggleActive(UUID id) {
+        Result entity = resultRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(id));
+        entity.setActive(!entity.isActive());
+        resultRepository.save(entity);
+    }
+
+    private void applyLinkedService(Result result, UUID linkedServiceId) {
+        if (linkedServiceId != null) {
+            ServiceItem linked = serviceItemRepository.findById(linkedServiceId)
+                    .orElseThrow(() -> new ResourceNotFoundException(linkedServiceId));
+            result.setLinkedService(linked);
+        } else {
+            result.setLinkedService(null);
+        }
     }
 
     // ---------------------------- CLOUDINARY ----------------------------
@@ -158,6 +188,9 @@ public class ResultService {
                 result.getDescription(),
                 result.getImages(),
                 result.getCategory() != null ? result.getCategory().getCategoryId() : null,
+                result.isActive(),
+                result.getLinkedService() != null ? result.getLinkedService().getServiceId() : null,
+                result.getLinkedService() != null ? result.getLinkedService().getTitle() : null,
                 result.getCreatedAt()
         );
     }

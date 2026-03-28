@@ -1,0 +1,44 @@
+/* ── AdminAddButton — design system button per azioni admin "nuovo/aggiungi" ─ */
+
+.admin-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--card-gold-deep, #8c6d3f);
+  color: #fff;
+  border: none;
+  border-radius: 30px;
+  padding: 10px 22px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    transform 0.2s,
+    box-shadow 0.25s;
+  white-space: nowrap;
+}
+
+.admin-add-btn:hover {
+  background: var(--card-gold, #b8976a);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(184, 151, 106, 0.3);
+}
+
+.admin-add-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.admin-add-btn:focus-visible {
+  outline: 2px solid var(--card-gold, #b8976a);
+  outline-offset: 3px;
+}
+
+.admin-add-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}

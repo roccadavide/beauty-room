@@ -1,4 +1,6 @@
 import PromoCountdown from "./PromoCountdown";
+import AdminToggle from "../../components/common/AdminToggle";
+import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 
 export default function PromoCard({
   promo,
@@ -8,6 +10,7 @@ export default function PromoCard({
   onEdit,
   onDelete,
   onClick,
+  onToggle,
 }) {
   const isExpired = promo.endDate && new Date(promo.endDate) < new Date();
   const discount =
@@ -23,7 +26,7 @@ export default function PromoCard({
 
   return (
     <div
-      className={`promo-card-new${isExpired && !isAdmin ? " promo-card-new--hidden" : ""}${isExpired ? " promo-card-new--expired" : ""}`}
+      className={`promo-card-new${isExpired && !isAdmin ? " promo-card-new--hidden" : ""}${isExpired ? " promo-card-new--expired" : ""}${isAdmin && !(promo.active ?? true) ? " admin-entity--inactive" : ""}`}
       onClick={() => onClick(promo)}
     >
       <div className="pcn-img-wrap">
@@ -85,26 +88,18 @@ export default function PromoCard({
 
         {isAdmin && (
           <div className="pcn-admin-row">
-            <button
-              className="pcn-admin-btn"
-              title="Modifica"
-              onClick={e => {
-                e.stopPropagation();
-                onEdit(promo);
-              }}
-            >
-              ✏
-            </button>
-            <button
-              className="pcn-admin-btn pcn-admin-btn--danger"
-              title="Elimina"
-              onClick={e => {
-                e.stopPropagation();
-                onDelete(promo);
-              }}
-            >
-              🗑
-            </button>
+            {onToggle && (
+              <div onClick={e => e.stopPropagation()} style={{ marginBottom: "8px" }}>
+                <AdminToggle
+                  entityId={promo.promotionId}
+                  isActive={promo.active ?? true}
+                  endpoint="/promotions"
+                  onToggleSuccess={newVal => onToggle(promo.promotionId, newVal)}
+                />
+              </div>
+            )}
+            <EditButton onClick={() => onEdit(promo)} />
+            <DeleteButton onClick={() => onDelete(promo)} />
             {isExpired && (
               <button
                 className="pcn-cta-btn pcn-cta-btn--ghost"

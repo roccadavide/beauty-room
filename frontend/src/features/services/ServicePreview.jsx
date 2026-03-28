@@ -2,23 +2,41 @@ import { useEffect, useState, useMemo } from "react";
 import { Container, Row, Col, Card, Badge, Button, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Plus, PencilFill, Trash2Fill } from "react-bootstrap-icons";
+import { Plus } from "react-bootstrap-icons";
+import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import ServiceModal from "./ServiceModal";
 import DeleteServiceModal from "./DeleteServiceModal";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices } from "../../api/modules/services.api";
 
+const STORAGE_KEY = "michela_featured_services";
+const MAX_FEATURED = 5;
 const FEATURED_SERVICE_IDS = [
   "268a5ef7-82ec-470f-ae6c-0598147f5dce", // Pelo Pelo
   "9c31f234-1699-476f-bcf5-2926faf56fa9", // Laminazione ciglia
   "785c6c1a-f392-4fca-92d2-9bf33752353a", // Translucent Lips, effetto sfumato
 ];
 
+function loadFeaturedServices() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFeaturedServices(ids) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+}
+
 const ServicesPreview = () => {
-  const [services, setServices] = useState([]);
+  const [allServices, setAllServices] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [featuredIds, setFeaturedIds] = useState(loadFeaturedServices);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [open, setOpen] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
@@ -35,8 +53,18 @@ const ServicesPreview = () => {
       try {
         const [allServices, cats] = await Promise.all([fetchServices(), fetchCategories()]);
         setCategories(cats);
-        const featured = allServices.filter(s => FEATURED_SERVICE_IDS.includes(s.serviceId));
-        setServices(featured);
+        setAllServices(allServices);
+
+        const stored = loadFeaturedServices();
+        if (stored.length === 0 && allServices.length > 0) {
+          const defaults = allServices
+            .filter(s => FEATURED_SERVICE_IDS.includes(s.serviceId))
+            .slice(0, MAX_FEATURED)
+            .map(s => s.serviceId);
+          const fallback = defaults.length > 0 ? defaults : allServices.slice(0, Math.min(3, allServices.length)).map(s => s.serviceId);
+          saveFeaturedServices(fallback);
+          setFeaturedIds(fallback);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -55,11 +83,36 @@ const ServicesPreview = () => {
     return map;
   }, [categories]);
 
+  const services = useMemo(() => featuredIds.map(id => allServices.find(s => s.serviceId === id)).filter(Boolean), [featuredIds, allServices]);
+
+  const searchableServices = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return allServices;
+    return allServices.filter(s => {
+      const title = s.title?.toLowerCase() ?? "";
+      const desc = s.shortDescription?.toLowerCase() ?? "";
+      return title.includes(q) || desc.includes(q);
+    });
+  }, [allServices, searchTerm]);
+
+  const toggleFeatured = id => {
+    setFeaturedIds(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : prev.length >= MAX_FEATURED ? prev : [...prev, id];
+      saveFeaturedServices(next);
+      return next;
+    });
+  };
+
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
     try {
       await deleteService(id, accessToken);
-      setServices(prev => prev.filter(s => s.serviceId !== id));
+      setAllServices(prev => prev.filter(s => s.serviceId !== id));
+      setFeaturedIds(prev => {
+        const next = prev.filter(x => x !== id);
+        saveFeaturedServices(next);
+        return next;
+      });
       setDeleteModal(false);
       setSelectedService(null);
     } catch (err) {
@@ -82,9 +135,9 @@ const ServicesPreview = () => {
   // ---------- UPDATE OR CREATE ----------
   const handleServiceSaved = updatedService => {
     if (editingService) {
-      setServices(prev => prev.map(s => (s.serviceId === updatedService.serviceId ? updatedService : s)));
+      setAllServices(prev => prev.map(s => (s.serviceId === updatedService.serviceId ? updatedService : s)));
     } else {
-      setServices(prev => [...prev, updatedService]);
+      setAllServices(prev => [...prev, updatedService]);
     }
     setOpen(false);
     setEditingService(null);
@@ -124,14 +177,51 @@ const ServicesPreview = () => {
       <Container>
         {/* Header centrato */}
         <div className="sp-head">
-          <span className="sp-eyebrow">I nostri trattamenti</span>
+          <span className="sp-eyebrow">I miei trattamenti</span>
           {/* FIX-20: sp-title/sp-subtitle → section-title/section-subtitle (identici, unificati) */}
           <h2 className="section-title">Scelti per te da Michela</h2>
-          <p className="section-subtitle">
-            Una selezione dei trattamenti più amati, per un look curato
-            e risultati visibili fin dalla prima seduta.
-          </p>
+          <p className="section-subtitle">Una selezione dei trattamenti più amati, per un look curato e risultati visibili fin dalla prima seduta.</p>
+          {user?.role === "ADMIN" && (
+            <button className="rprev-picker-toggle" onClick={() => setPickerOpen(p => !p)}>
+              {pickerOpen ? "✕ Chiudi selezione" : "⭐ Scegli i trattamenti in evidenza"}
+            </button>
+          )}
         </div>
+
+        {user?.role === "ADMIN" && pickerOpen && (
+          <div className="rprev-picker">
+            <p className="rprev-picker__hint">
+              Seleziona fino a {MAX_FEATURED} trattamenti da mostrare in home.
+              <span className="rprev-picker__count">
+                {" "}
+                ({featuredIds.length}/{MAX_FEATURED})
+              </span>
+            </p>
+            <div className="mb-3">
+              <input type="text" className="form-control" placeholder="Cerca trattamento..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            </div>
+            <div className="rprev-picker__grid">
+              {searchableServices.map(s => {
+                const isFeatured = featuredIds.includes(s.serviceId);
+                const isDisabled = !isFeatured && featuredIds.length >= MAX_FEATURED;
+                return (
+                  <button
+                    key={s.serviceId}
+                    className={`rprev-picker__item ${isFeatured ? "is-featured" : ""} ${isDisabled ? "is-disabled" : ""}`}
+                    onClick={() => !isDisabled && toggleFeatured(s.serviceId)}
+                    title={isDisabled ? `Massimo ${MAX_FEATURED} trattamenti` : isFeatured ? "Rimuovi dall'evidenza" : "Metti in evidenza"}
+                  >
+                    <div className="rprev-picker__thumb">
+                      {s.images?.[0] ? <img src={s.images[0]} alt={s.title} /> : <span className="rprev-picker__no-img">◆</span>}
+                      <span className="rprev-picker__star">{isFeatured ? "★" : "☆"}</span>
+                    </div>
+                    <span className="rprev-picker__name">{s.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Carousel wrapper */}
         <div className="sp-track-wrapper">
@@ -146,42 +236,24 @@ const ServicesPreview = () => {
                   onKeyDown={e => e.key === "Enter" && navigate(`/trattamenti/${s.serviceId}`)}
                 >
                   <div className="sp-card__img-wrap">
-                    {s.images?.[0] ? (
-                      <img src={s.images[0]} alt={s.title} />
-                    ) : (
-                      <div className="sp-card__img-placeholder" />
-                    )}
+                    {s.images?.[0] ? <img src={s.images[0]} alt={s.title} /> : <div className="sp-card__img-placeholder" />}
                     <div className="sp-card__overlay">
                       <span className="sp-card__duration">{s.durationMin} min</span>
                       <h3 className="sp-card__title">{s.title}</h3>
                       <p className="sp-card__desc">{s.shortDescription}</p>
-                      <span className="sp-card__price">
-                        {s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                      </span>
+                      <span className="sp-card__price">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
                     </div>
                   </div>
 
                   {user?.role === "ADMIN" && (
                     <div className="sp-card__admin" onClick={e => e.stopPropagation()}>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="rounded-circle"
-                        onClick={() => handleEdit(s)}
-                      >
-                        <PencilFill />
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        className="rounded-circle"
+                      <EditButton onClick={() => handleEdit(s)} />
+                      <DeleteButton
                         onClick={() => {
                           setSelectedService(s);
                           setDeleteModal(true);
                         }}
-                      >
-                        <Trash2Fill />
-                      </Button>
+                      />
                     </div>
                   )}
                 </div>
@@ -210,11 +282,7 @@ const ServicesPreview = () => {
         </div>
 
         <div className="sp-footer">
-          <button
-            type="button"
-            className="sp-cta-btn"
-            onClick={() => navigate("/trattamenti")}
-          >
+          <button type="button" className="sp-cta-btn" onClick={() => navigate("/trattamenti")}>
             Scopri tutti i trattamenti →
           </button>
 
@@ -237,12 +305,7 @@ const ServicesPreview = () => {
               service={editingService}
               onServiceSaved={handleServiceSaved}
             />
-            <DeleteServiceModal
-              show={deleteModal}
-              onHide={() => setDeleteModal(false)}
-              service={selectedService}
-              onConfirm={handleDeleteConfirm}
-            />
+            <DeleteServiceModal show={deleteModal} onHide={() => setDeleteModal(false)} service={selectedService} onConfirm={handleDeleteConfirm} />
           </>
         )}
       </Container>

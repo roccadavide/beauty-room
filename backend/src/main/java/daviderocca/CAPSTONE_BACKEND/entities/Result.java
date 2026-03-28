@@ -11,7 +11,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Setter
-@ToString(exclude = "category")
+@ToString(exclude = {"category", "linkedService"})
 public class Result {
 
     @Id
@@ -37,6 +37,13 @@ public class Result {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
+
+    @Column(nullable = false)
+    private boolean active = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id")
+    private ServiceItem linkedService;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

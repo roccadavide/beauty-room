@@ -12,5 +12,6 @@ public record PackageResponseDTO(
         int sessions,
         BigDecimal price,
         String optionGroup,
-        String gender
+        String gender,
+        boolean active
 ) {}
