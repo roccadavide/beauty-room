@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Col, Form, Row, Spinner } from "react-bootstrap";
 import { getAvailSlotsForServiceDay } from "../../api/modules/adminAgenda.api";
 import { getCustomerSummary } from "../../api/modules/customer.api";
+import CustomSelect from "../common/CustomSelect";
+import DateTimeField from "../common/DateTimeField";
 import UnifiedDrawer from "../common/UnifiedDrawer";
 import CustomerAutocomplete from "./CustomerAutocomplete";
 
@@ -159,6 +161,17 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
     if (!Array.isArray(raw)) return [];
     return raw.filter(o => o?.active !== false);
   }, [selectedService]);
+
+  const serviceOptionSelectOptions = useMemo(
+    () => [
+      { value: "", label: "Nessuna" },
+      ...serviceOptions.map(o => ({
+        value: String(o.optionId ?? o.id),
+        label: o.name,
+      })),
+    ],
+    [serviceOptions],
+  );
 
   const ensureWalkInEmail = useCallback(() => {
     const d = new Date();
@@ -494,27 +507,25 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
 
               {serviceOptions.length > 0 && (
                 <Form.Group className="mb-2">
-                  <Form.Label>Opzione</Form.Label>
-                  <Form.Select value={form.serviceOptionId ?? ""} onChange={e => onChange("serviceOptionId", e.target.value || null)}>
-                    <option value="">Nessuna</option>
-                    {serviceOptions.map(o => (
-                      <option key={o.optionId ?? o.id} value={o.optionId ?? o.id}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </Form.Select>
+                  <CustomSelect
+                    label="Opzione"
+                    options={serviceOptionSelectOptions}
+                    value={form.serviceOptionId ?? ""}
+                    onChange={v => onChange("serviceOptionId", v || null)}
+                    placeholder="Nessuna"
+                  />
                 </Form.Group>
               )}
 
               <Form.Group className="mb-2">
-                <Form.Label>Inizio *</Form.Label>
-                <Form.Control
-                  type="datetime-local"
+                <DateTimeField
+                  label="Inizio *"
+                  mode="datetime"
                   value={form.startTime}
-                  onChange={e => onChange("startTime", e.target.value)}
-                  isInvalid={submitted && !!errors.startTime}
+                  onChange={v => onChange("startTime", v)}
+                  error={submitted && errors.startTime ? errors.startTime : null}
+                  placeholder="Seleziona data e ora"
                 />
-                <Form.Control.Feedback type="invalid">{errors.startTime}</Form.Control.Feedback>
                 <div className="ag-help">La fine la calcola il backend in base alla durata del servizio.</div>
               </Form.Group>
 

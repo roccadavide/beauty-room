@@ -44,4 +44,8 @@ public class ServiceOption {
     @Column(name = "option_group", length = 80)
     private String optionGroup;
 
+    /** Badge attivi in formato JSON array string, es. ["new","sale"] oppure null. */
+    @Column(length = 500)
+    private String badges;
+
 }

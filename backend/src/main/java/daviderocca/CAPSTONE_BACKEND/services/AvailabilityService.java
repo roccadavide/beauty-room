@@ -3,6 +3,7 @@ package daviderocca.CAPSTONE_BACKEND.services;
 import daviderocca.CAPSTONE_BACKEND.DTO.availabilityDTOs.AvailabilityResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.availabilityDTOs.AvailabilitySlotDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.availabilityDTOs.DayTimelineDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.availabilityDTOs.PublicNextSlotDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.Closure;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -97,7 +99,55 @@ public class AvailabilityService {
     }
 
     // ==========================================================================
-    // 2) ADMIN DAY TIMELINE
+    // 2) PUBLIC — next available slot for a service
+    // ==========================================================================
+
+    /**
+     * Cerca il primo slot disponibile per il servizio a partire da fromDate.
+     * Itera giorno per giorno per un massimo di 60 giorni.
+     * Riusa interamente getServiceAvailabilities per la logica di business.
+     *
+     * @param fromTime  HH:mm opzionale — se presente, nel giorno fromDate salta tutti
+     *                  gli slot il cui startTime è <= fromTime, permettendo di trovare
+     *                  lo slot successivo nella stessa giornata senza ricominciare dal mattino.
+     *                  Ignorato per i giorni successivi a fromDate.
+     */
+    @Transactional(readOnly = true)
+    public Optional<PublicNextSlotDTO> findNextAvailableSlotForService(UUID serviceId, LocalDate fromDate, String fromTime) {
+        LocalDate start = (fromDate != null && !fromDate.isBefore(LocalDate.now()))
+                ? fromDate
+                : LocalDate.now();
+
+        // Parsing fromTime — null se assente o malformato
+        LocalTime afterTime = null;
+        if (fromTime != null && fromTime.matches("\\d{2}:\\d{2}")) {
+            afterTime = LocalTime.parse(fromTime, HHMM);
+        }
+        final LocalTime afterTimeFinal = afterTime;
+
+        for (int i = 0; i < 60; i++) {
+            LocalDate day = start.plusDays(i);
+            // Il filtro orario si applica solo al primo giorno
+            final boolean applyTimeFilter = (i == 0 && afterTimeFinal != null);
+            try {
+                AvailabilityResponseDTO resp = getServiceAvailabilities(serviceId, day);
+                Optional<AvailabilitySlotDTO> first = resp.slots().stream()
+                        .filter(AvailabilitySlotDTO::available)
+                        .filter(s -> !applyTimeFilter ||
+                                LocalTime.parse(s.start(), HHMM).isAfter(afterTimeFinal))
+                        .findFirst();
+                if (first.isPresent()) {
+                    return Optional.of(new PublicNextSlotDTO(day, first.get().start(), first.get().end()));
+                }
+            } catch (BadRequestException e) {
+                // giorno chiuso o non configurato: prosegui
+            }
+        }
+        return Optional.empty();
+    }
+
+    // ==========================================================================
+    // 3) ADMIN DAY TIMELINE
     // ==========================================================================
 
     @Transactional(readOnly = true)

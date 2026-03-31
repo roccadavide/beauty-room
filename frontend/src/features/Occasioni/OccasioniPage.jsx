@@ -11,6 +11,7 @@ import BookingModal from "../bookings/BookingModal";
 import DeletePromotionModal from "../promotions/DeletePromotionModal";
 import PromoCard from "./PromoCard";
 import PromoDetailDrawer from "./PromoDetailDrawer";
+import { BadgeFlags } from "../../components/common/BadgeFlag";
 import { fetchPackages } from "../../api/modules/packages.api";
 import { fetchPromotions, deletePromotion } from "../../api/modules/promotions.api";
 import { fetchProducts } from "../../api/modules/products.api";
@@ -283,7 +284,8 @@ function OccasioniPage() {
               <h2 className="of-service-group-title">{serviceName}</h2>
               <div className="of-pkg-grid">
                 {group.items.map(pkg => (
-                  <div key={pkg.optionId} className={`of-pkg-card${user?.role === "ADMIN" && !(pkg.active ?? true) ? " admin-entity--inactive" : ""}`}>
+                  <div key={pkg.optionId} className={`of-pkg-card${user?.role === "ADMIN" && !(pkg.active ?? true) ? " admin-entity--inactive" : ""}`} style={{ position: "relative" }}>
+                    <BadgeFlags badges={pkg?.badges ?? []} />
                     <div className="of-pkg-sessions-badge">{pkg.sessions} sedute</div>
                     <div className="of-pkg-body">
                       <div className="of-pkg-accent" />

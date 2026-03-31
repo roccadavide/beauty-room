@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Container, Spinner } from "react-bootstrap";
 import { getReport } from "../../api/modules/report.api";
+import DateTimeField from "../../components/common/DateTimeField";
 
 const MONTH_LABELS = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
@@ -210,13 +211,11 @@ function ReportPage() {
 
         <section className="rep-filters">
           <div className="rep-filters-row">
-            <div className="rep-filter-group">
-              <label className="rep-filter-label">Da</label>
-              <input type="date" className="rep-filter-input" value={from} onChange={e => setFrom(e.target.value)} />
+            <div className="rep-filter-group rep-filter-group--dtf">
+              <DateTimeField label="Da" mode="date" value={from} onChange={setFrom} placeholder="Da data" className="rep-dtf" />
             </div>
-            <div className="rep-filter-group">
-              <label className="rep-filter-label">A</label>
-              <input type="date" className="rep-filter-input" value={to} onChange={e => setTo(e.target.value)} />
+            <div className="rep-filter-group rep-filter-group--dtf">
+              <DateTimeField label="A" mode="date" value={to} onChange={setTo} placeholder="A data" className="rep-dtf" />
             </div>
           </div>
           <div className="rep-filter-actions">

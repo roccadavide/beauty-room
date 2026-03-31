@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Col, Form, Modal, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createPromotion, updatePromotion } from "../../api/modules/promotions.api";
+import CustomSelect from "../../components/common/CustomSelect";
+import DateTimeField from "../../components/common/DateTimeField";
 import MultiImageUpload from "../../components/common/MultiImageUpload";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
 
@@ -83,13 +85,6 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
     setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
-  };
-
-  const handleMultiSelect = (field, options) => {
-    const values = Array.from(options)
-      .filter(o => o.selected)
-      .map(o => o.value);
-    setForm(prev => ({ ...prev, [field]: values }));
   };
 
   const validateField = (field, value) => {
@@ -264,28 +259,36 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Data inizio</Form.Label>
-                <Form.Control type="date" value={form.startDate || ""} onChange={e => handleChange("startDate", e.target.value)} />
+                <DateTimeField
+                  label="Data inizio"
+                  mode="date"
+                  value={form.startDate || ""}
+                  onChange={v => handleChange("startDate", v)}
+                  placeholder="Seleziona data"
+                />
               </Form.Group>
             </Col>
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Data fine</Form.Label>
-                <Form.Control type="date" value={form.endDate || ""} onChange={e => handleChange("endDate", e.target.value)} isInvalid={!!errors.endDate} />
-                <Form.Control.Feedback type="invalid">{errors.endDate}</Form.Control.Feedback>
+                <DateTimeField
+                  label="Data fine"
+                  mode="date"
+                  value={form.endDate || ""}
+                  onChange={v => handleChange("endDate", v)}
+                  error={errors.endDate || null}
+                  placeholder="Seleziona data"
+                />
               </Form.Group>
             </Col>
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Tipo di sconto</Form.Label>
-                <Form.Select value={form.discountType} onChange={e => handleChange("discountType", e.target.value)}>
-                  {DISCOUNT_TYPES.map(o => (
-                    <option key={o.v} value={o.v}>
-                      {o.l}
-                    </option>
-                  ))}
-                </Form.Select>
+                <CustomSelect
+                  label="Tipo di sconto"
+                  options={DISCOUNT_TYPES.map(o => ({ value: o.v, label: o.l }))}
+                  value={form.discountType}
+                  onChange={v => handleChange("discountType", v)}
+                />
               </Form.Group>
             </Col>
 
@@ -329,29 +332,27 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Ambito</Form.Label>
-                <Form.Select value={form.scope} onChange={e => handleChange("scope", e.target.value)} isInvalid={!!errors.scope}>
-                  {SCOPES.map(s => (
-                    <option key={s.v} value={s.v}>
-                      {s.l}
-                    </option>
-                  ))}
-                </Form.Select>
-                <Form.Control.Feedback type="invalid">{errors.scope}</Form.Control.Feedback>
+                <CustomSelect
+                  label="Ambito"
+                  options={SCOPES.map(s => ({ value: s.v, label: s.l }))}
+                  value={form.scope}
+                  onChange={v => handleChange("scope", v)}
+                  error={errors.scope || null}
+                  isInvalid={!!errors.scope}
+                />
               </Form.Group>
             </Col>
 
             {(form.scope === "PRODUCTS" || form.scope === "MIXED") && (
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Prodotti inclusi</Form.Label>
-                  <Form.Select multiple value={form.productIds} onChange={e => handleMultiSelect("productIds", e.target.options)}>
-                    {products.map(p => (
-                      <option key={p.productId} value={p.productId}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </Form.Select>
+                  <CustomSelect
+                    multiple
+                    label="Prodotti inclusi"
+                    options={products.map(p => ({ value: p.productId, label: p.name }))}
+                    value={form.productIds}
+                    onChange={v => handleChange("productIds", v)}
+                  />
                 </Form.Group>
               </Col>
             )}
@@ -359,14 +360,13 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
             {(form.scope === "SERVICES" || form.scope === "MIXED") && (
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Servizi inclusi</Form.Label>
-                  <Form.Select multiple value={form.serviceIds} onChange={e => handleMultiSelect("serviceIds", e.target.options)}>
-                    {services.map(s => (
-                      <option key={s.serviceId} value={s.serviceId}>
-                        {s.title}
-                      </option>
-                    ))}
-                  </Form.Select>
+                  <CustomSelect
+                    multiple
+                    label="Servizi inclusi"
+                    options={services.map(s => ({ value: s.serviceId, label: s.title }))}
+                    value={form.serviceIds}
+                    onChange={v => handleChange("serviceIds", v)}
+                  />
                 </Form.Group>
               </Col>
             )}

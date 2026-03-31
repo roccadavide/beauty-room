@@ -12,6 +12,7 @@ import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceOption;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
+import daviderocca.CAPSTONE_BACKEND.util.BadgesUtil;
 import daviderocca.CAPSTONE_BACKEND.repositories.ServiceItemRepository;
 import daviderocca.CAPSTONE_BACKEND.repositories.ServiceOptionRepository;
 import lombok.RequiredArgsConstructor;
@@ -60,7 +61,8 @@ public class ServiceItemService {
                             so.getPrice(),
                             so.getOptionGroup(),
                             so.getGender(),
-                            so.isActive()
+                            so.isActive(),
+                            BadgesUtil.fromJson(so.getBadges())
                     );
                 })
                 .toList();
@@ -80,6 +82,7 @@ public class ServiceItemService {
         opt.setGender(dto.gender());
         opt.setActive(dto.active());
         opt.setService(si);
+        opt.setBadges(BadgesUtil.toJson(BadgesUtil.validate(dto.badges())));
         return toOptionDTO(serviceOptionRepository.save(opt));
     }
 
@@ -93,6 +96,7 @@ public class ServiceItemService {
         opt.setOptionGroup(dto.optionGroup());
         opt.setGender(dto.gender());
         opt.setActive(dto.active());
+        opt.setBadges(BadgesUtil.toJson(BadgesUtil.validate(dto.badges())));
         return toOptionDTO(serviceOptionRepository.save(opt));
     }
 
@@ -107,7 +111,8 @@ public class ServiceItemService {
     private ServiceOptionResponseDTO toOptionDTO(ServiceOption o) {
         return new ServiceOptionResponseDTO(
                 o.getOptionId(), o.getName(), o.getPrice(),
-                o.getSessions(), o.getGender(), o.isActive(), o.getOptionGroup()
+                o.getSessions(), o.getGender(), o.isActive(), o.getOptionGroup(),
+                BadgesUtil.fromJson(o.getBadges())
         );
     }
 
@@ -168,6 +173,7 @@ public class ServiceItemService {
         );
 
         newServiceItem.setActive(payload.active() == null || payload.active());
+        newServiceItem.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
 
         ServiceItem saved = serviceItemRepository.save(newServiceItem);
         log.info("Servizio '{}' (ID: {}) creato (categoria: {})",
@@ -213,6 +219,7 @@ public class ServiceItemService {
         if (payload.active() != null) {
             found.setActive(payload.active());
         }
+        found.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
 
         ServiceItem updated = serviceItemRepository.save(found);
         log.info("Servizio '{}' (ID: {}) aggiornato (categoria: {})",
@@ -277,7 +284,8 @@ public class ServiceItemService {
                         o.getGender(),
                         o.isActive(),
                         // FIX-2: includi optionGroup nel DTO
-                        o.getOptionGroup()
+                        o.getOptionGroup(),
+                        BadgesUtil.fromJson(o.getBadges())
                 ))
                 .toList();
 
@@ -292,7 +300,8 @@ public class ServiceItemService {
                 serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryId() : null,
                 serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryKey() : null,
                 serviceItem.isActive(),
-                optionDTOs
+                optionDTOs,
+                BadgesUtil.fromJson(serviceItem.getBadges())
         );
     }
 }

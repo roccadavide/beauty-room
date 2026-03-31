@@ -8,6 +8,7 @@ import ServiceModal from "./ServiceModal";
 import DeleteServiceModal from "./DeleteServiceModal";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices } from "../../api/modules/services.api";
+import { BadgeFlags } from "../../components/common/BadgeFlag";
 
 const STORAGE_KEY = "michela_featured_services";
 const MAX_FEATURED = 5;
@@ -126,12 +127,6 @@ const ServicesPreview = () => {
     setOpen(true);
   };
 
-  // ---------- CREATE ----------
-  const handleCreate = () => {
-    setEditingService(null);
-    setOpen(true);
-  };
-
   // ---------- UPDATE OR CREATE ----------
   const handleServiceSaved = updatedService => {
     if (editingService) {
@@ -244,9 +239,10 @@ const ServicesPreview = () => {
                       <span className="sp-card__price">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
                     </div>
                   </div>
+                  <BadgeFlags badges={s?.badges ?? []} />
 
                   {user?.role === "ADMIN" && (
-                    <div className="sp-card__admin" onClick={e => e.stopPropagation()}>
+                    <div className="sp-card-actions" onClick={e => e.stopPropagation()}>
                       <EditButton onClick={() => handleEdit(s)} />
                       <DeleteButton
                         onClick={() => {
@@ -285,12 +281,6 @@ const ServicesPreview = () => {
           <button type="button" className="sp-cta-btn" onClick={() => navigate("/trattamenti")}>
             Scopri tutti i trattamenti →
           </button>
-
-          {user?.role === "ADMIN" && (
-            <Button variant="light" className="sp-admin-add" onClick={handleCreate}>
-              <Plus /> Aggiungi
-            </Button>
-          )}
         </div>
 
         {user?.role === "ADMIN" && (

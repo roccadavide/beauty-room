@@ -3,7 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Col, Form, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createPromotion, updatePromotion } from "../../api/modules/promotions.api";
+import CustomSelect from "../../components/common/CustomSelect";
+import DateTimeField from "../../components/common/DateTimeField";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import { BadgesPicker } from "../../components/common/BadgeFlag";
 import ServiceProductSelector from "./ServiceProductSelector";
 
 const ImageUploadZone = ({ current, onFile, aspectHint }) => {
@@ -71,6 +74,7 @@ const initialForm = {
   productIds: [],
   serviceIds: [],
   categoryIds: [],
+  badges: [],
 };
 
 const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion }) => {
@@ -104,6 +108,7 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
           productIds: promotion.productIds ?? [],
           serviceIds: promotion.serviceIds ?? [],
           categoryIds: promotion.categoryIds ?? [],
+          badges: promotion.badges ?? [],
         });
       } else {
         setForm(initialForm);
@@ -177,6 +182,7 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
       productIds: form.productIds,
       serviceIds: form.serviceIds,
       categoryIds: form.categoryIds,
+      badges: form.badges?.length > 0 ? form.badges : null,
     };
   }, [form]);
 
@@ -254,27 +260,35 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
           </Col>
           <Col md={6}>
             <Form.Group>
-              <Form.Label>Data inizio</Form.Label>
-              <Form.Control type="date" value={form.startDate || ""} onChange={e => handleChange("startDate", e.target.value)} />
+              <DateTimeField
+                label="Data inizio"
+                mode="date"
+                value={form.startDate || ""}
+                onChange={v => handleChange("startDate", v)}
+                placeholder="Seleziona data"
+              />
             </Form.Group>
           </Col>
           <Col md={6}>
             <Form.Group>
-              <Form.Label>Data fine</Form.Label>
-              <Form.Control type="date" value={form.endDate || ""} onChange={e => handleChange("endDate", e.target.value)} isInvalid={!!errors.endDate} />
-              <Form.Control.Feedback type="invalid">{errors.endDate}</Form.Control.Feedback>
+              <DateTimeField
+                label="Data fine"
+                mode="date"
+                value={form.endDate || ""}
+                onChange={v => handleChange("endDate", v)}
+                error={errors.endDate || null}
+                placeholder="Seleziona data"
+              />
             </Form.Group>
           </Col>
           <Col md={6}>
             <Form.Group>
-              <Form.Label>Tipo di sconto</Form.Label>
-              <Form.Select value={form.discountType} onChange={e => handleChange("discountType", e.target.value)}>
-                {DISCOUNT_TYPES.map(o => (
-                  <option key={o.v} value={o.v}>
-                    {o.l}
-                  </option>
-                ))}
-              </Form.Select>
+              <CustomSelect
+                label="Tipo di sconto"
+                options={DISCOUNT_TYPES.map(o => ({ value: o.v, label: o.l }))}
+                value={form.discountType}
+                onChange={v => handleChange("discountType", v)}
+              />
             </Form.Group>
           </Col>
           <Col md={6}>
@@ -305,15 +319,14 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
           </Col>
           <Col md={12}>
             <Form.Group>
-              <Form.Label>A chi si applica</Form.Label>
-              <Form.Select value={form.scope} onChange={e => handleChange("scope", e.target.value)} isInvalid={!!errors.scope}>
-                {SCOPES.map(s => (
-                  <option key={s.v} value={s.v}>
-                    {s.l}
-                  </option>
-                ))}
-              </Form.Select>
-              <Form.Control.Feedback type="invalid">{errors.scope}</Form.Control.Feedback>
+              <CustomSelect
+                label="A chi si applica"
+                options={SCOPES.map(s => ({ value: s.v, label: s.l }))}
+                value={form.scope}
+                onChange={v => handleChange("scope", v)}
+                error={errors.scope || null}
+                isInvalid={!!errors.scope}
+              />
             </Form.Group>
           </Col>
           {form.scope !== "GLOBAL" && (
@@ -336,6 +349,12 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
           <Col md={12} className="mt-2">
             <p className="form-label mb-2">Immagine banner (16:9 — header drawer)</p>
             <ImageUploadZone current={isEdit ? promotion.bannerImageUrl : null} onFile={file => setBannerImage(file)} aspectHint="16:9" />
+          </Col>
+
+          <Col md={12}>
+            <Form.Group>
+              <BadgesPicker value={form.badges ?? []} onChange={v => handleChange("badges", v)} />
+            </Form.Group>
           </Col>
         </Row>
       </Form>

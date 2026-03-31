@@ -52,7 +52,7 @@
   background: #fdfaf6;
   border: 1px solid rgba(180, 148, 106, 0.22);
   border-radius: 20px;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   transition:
     transform 0.3s ease,
@@ -67,7 +67,8 @@
 .of-pkg-sessions-badge {
   position: absolute;
   top: 14px;
-  right: 14px;
+  left: 14px;
+  right: auto;
   background: var(--card-gold, #b8976a);
   color: #fff;
   font-size: 0.72rem;
@@ -327,7 +328,7 @@
   background: #fdfaf6;
   border: 1px solid rgba(184, 151, 106, 0.22);
   border-radius: 22px;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   cursor: pointer;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -349,6 +350,7 @@
   overflow: hidden;
   background: #e8ddd3;
   flex-shrink: 0;
+  border-radius: 22px 22px 0 0;
 }
 .pcn-img-wrap img {
   width: 100%;
@@ -371,7 +373,7 @@
 .pcn-badge-discount {
   position: absolute;
   top: 12px;
-  right: 12px;
+  right: 90px;
   background: var(--card-gold, #b8976a);
   color: #fff;
   font-size: 0.73rem;
@@ -416,6 +418,7 @@
   flex-direction: column;
   gap: 0.28rem;
   flex: 1;
+  border-radius: 0 0 20px 20px;
 }
 .pcn-eyebrow {
   font-size: 0.66rem;

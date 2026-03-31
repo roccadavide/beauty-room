@@ -78,8 +78,14 @@
 }
 
 @keyframes at-fade-in {
-  from { opacity: 0; transform: translateY(-2px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Corner wrapper (absolute top-right inside a card) ─────────────────── */
@@ -104,5 +110,7 @@
   outline: 2px dashed #adb5bd;
   outline-offset: -1px;
   filter: grayscale(18%);
-  transition: opacity 0.25s ease, filter 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    filter 0.25s ease;
 }

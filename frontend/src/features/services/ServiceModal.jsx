@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createService, updateService } from "../../api/modules/services.api";
+import CustomSelect from "../../components/common/CustomSelect";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import MultiImageUpload from "../../components/common/MultiImageUpload";
+import { BadgesPicker } from "../../components/common/BadgeFlag";
 import { buildMultipartForm } from "../../api/utils/multipart";
 
 const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => {
@@ -21,8 +23,11 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
   });
   const [newFiles, setNewFiles] = useState([]);
   const [removedUrls, setRemovedUrls] = useState([]);
+  const [badges, setBadges] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  const categoryOptions = useMemo(() => categories.map(c => ({ value: c.categoryId, label: c.label })), [categories]);
 
   const resetForm = () => {
     setForm({
@@ -35,6 +40,7 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     });
     setNewFiles([]);
     setRemovedUrls([]);
+    setBadges([]);
     setErrors({});
   };
 
@@ -49,6 +55,7 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
           durationMin: service.durationMin || "",
           categoryId: service.categoryId || "",
         });
+        setBadges(service.badges ?? []);
       } else {
         resetForm();
       }
@@ -115,6 +122,7 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         durationMin: parseInt(form.durationMin),
         categoryId: form.categoryId,
         removedImageUrls: removedUrls,
+        badges: badges.length > 0 ? badges : null,
       };
 
       const formData = buildMultipartForm(payload, newFiles);
@@ -200,16 +208,19 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         </Form.Group>
 
         <Form.Group>
-          <Form.Label>Categoria *</Form.Label>
-          <Form.Select value={form.categoryId} onChange={e => handleChange("categoryId", e.target.value)} isInvalid={!!errors.categoryId}>
-            <option value="">-- Seleziona una categoria --</option>
-            {categories.map(c => (
-              <option key={c.categoryId} value={c.categoryId}>
-                {c.label}
-              </option>
-            ))}
-          </Form.Select>
-          <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
+          <CustomSelect
+            label="Categoria *"
+            options={categoryOptions}
+            value={form.categoryId}
+            onChange={v => handleChange("categoryId", v)}
+            placeholder="-- Seleziona una categoria --"
+            error={errors.categoryId || null}
+            isInvalid={!!errors.categoryId}
+          />
+        </Form.Group>
+
+        <Form.Group>
+          <BadgesPicker value={badges} onChange={setBadges} />
         </Form.Group>
 
         <MultiImageUpload

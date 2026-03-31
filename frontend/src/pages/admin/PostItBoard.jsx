@@ -4,6 +4,7 @@ import {
   fetchPostIts, createPostIt, updatePostIt,
   togglePostItDone, deletePostIt
 } from "../../api/modules/postits.api";
+import DateTimeField from "../../components/common/DateTimeField";
 import "../../styles/pages/_postit.css";
 
 const PALETTE = [
@@ -279,13 +280,14 @@ export default function PostItBoard() {
               </div>
 
               <div className="pib-form-row">
-                <div className="pib-form-field">
-                  <label className="pib-form-label">Scadenza</label>
-                  <input
-                    className="pib-form-input"
-                    type="date"
+                <div className="pib-form-field pib-form-field--dtf">
+                  <DateTimeField
+                    label="Scadenza"
+                    mode="date"
                     value={form.dueDate}
-                    onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                    onChange={v => setForm(f => ({ ...f, dueDate: v }))}
+                    placeholder="Seleziona data"
+                    className="pib-dtf"
                   />
                 </div>
                 <div className="pib-form-field">

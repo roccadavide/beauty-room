@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Badge, Button, Card, Col, Container, Form, Modal, Row, Tab, Tabs, Table } from "react-bootstrap";
 import * as adminAgendaApi from "../../api/modules/adminAgenda.api";
+import DateTimeField from "../common/DateTimeField";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -52,8 +53,13 @@ function ClosureModal({ show, onHide, initial, onSave }) {
       <Modal.Body>
         <Form className="d-grid gap-2">
           <Form.Group>
-            <Form.Label>Data</Form.Label>
-            <Form.Control type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            <DateTimeField
+              label="Data"
+              mode="date"
+              value={form.date}
+              onChange={v => setForm(f => ({ ...f, date: v }))}
+              placeholder="Seleziona data"
+            />
           </Form.Group>
 
           <Form.Check type="switch" label="Intera giornata" checked={form.fullDay} onChange={e => setForm(f => ({ ...f, fullDay: e.target.checked }))} />
@@ -62,14 +68,24 @@ function ClosureModal({ show, onHide, initial, onSave }) {
             <Row>
               <Col>
                 <Form.Group>
-                  <Form.Label>Start</Form.Label>
-                  <Form.Control type="time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
+                  <DateTimeField
+                    label="Start"
+                    mode="time"
+                    value={form.startTime}
+                    onChange={v => setForm(f => ({ ...f, startTime: v }))}
+                    placeholder="—:—"
+                  />
                 </Form.Group>
               </Col>
               <Col>
                 <Form.Group>
-                  <Form.Label>End</Form.Label>
-                  <Form.Control type="time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
+                  <DateTimeField
+                    label="End"
+                    mode="time"
+                    value={form.endTime}
+                    onChange={v => setForm(f => ({ ...f, endTime: v }))}
+                    placeholder="—:—"
+                  />
                 </Form.Group>
               </Col>
             </Row>
@@ -126,14 +142,24 @@ function WorkingHoursModal({ show, onHide, wh, onSave }) {
               <Row>
                 <Col>
                   <Form.Group>
-                    <Form.Label>Mattina start</Form.Label>
-                    <Form.Control type="time" value={form.morningStart} onChange={e => setForm(f => ({ ...f, morningStart: e.target.value }))} />
+                    <DateTimeField
+                      label="Mattina start"
+                      mode="time"
+                      value={form.morningStart}
+                      onChange={v => setForm(f => ({ ...f, morningStart: v }))}
+                      placeholder="—:—"
+                    />
                   </Form.Group>
                 </Col>
                 <Col>
                   <Form.Group>
-                    <Form.Label>Mattina end</Form.Label>
-                    <Form.Control type="time" value={form.morningEnd} onChange={e => setForm(f => ({ ...f, morningEnd: e.target.value }))} />
+                    <DateTimeField
+                      label="Mattina end"
+                      mode="time"
+                      value={form.morningEnd}
+                      onChange={v => setForm(f => ({ ...f, morningEnd: v }))}
+                      placeholder="—:—"
+                    />
                   </Form.Group>
                 </Col>
               </Row>
@@ -141,14 +167,24 @@ function WorkingHoursModal({ show, onHide, wh, onSave }) {
               <Row>
                 <Col>
                   <Form.Group>
-                    <Form.Label>Pomeriggio start</Form.Label>
-                    <Form.Control type="time" value={form.afternoonStart} onChange={e => setForm(f => ({ ...f, afternoonStart: e.target.value }))} />
+                    <DateTimeField
+                      label="Pomeriggio start"
+                      mode="time"
+                      value={form.afternoonStart}
+                      onChange={v => setForm(f => ({ ...f, afternoonStart: v }))}
+                      placeholder="—:—"
+                    />
                   </Form.Group>
                 </Col>
                 <Col>
                   <Form.Group>
-                    <Form.Label>Pomeriggio end</Form.Label>
-                    <Form.Control type="time" value={form.afternoonEnd} onChange={e => setForm(f => ({ ...f, afternoonEnd: e.target.value }))} />
+                    <DateTimeField
+                      label="Pomeriggio end"
+                      mode="time"
+                      value={form.afternoonEnd}
+                      onChange={v => setForm(f => ({ ...f, afternoonEnd: v }))}
+                      placeholder="—:—"
+                    />
                   </Form.Group>
                 </Col>
               </Row>

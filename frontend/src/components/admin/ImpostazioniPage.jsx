@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Container } from "react-bootstrap";
 import * as api from "../../api/modules/impostazioni.api";
+import DateTimeField from "../common/DateTimeField";
 
 /* ============================================================
    CONSTANTS
@@ -145,22 +146,24 @@ function DayCard({ wh, onSave }) {
           <div className="imp-slot-label">Mattina</div>
           <div className="imp-time-row">
             <div className="imp-time-group">
-              <label className="imp-time-label">Dalle</label>
-              <input
-                type="time"
-                className="imp-time-input"
+              <DateTimeField
+                className="imp-dtf-time"
+                label="Dalle"
+                mode="time"
                 value={form.morningStart}
-                onChange={e => setField("morningStart", e.target.value)}
+                onChange={v => setField("morningStart", v)}
+                placeholder="—:—"
               />
             </div>
             <span className="imp-time-sep">→</span>
             <div className="imp-time-group">
-              <label className="imp-time-label">Alle</label>
-              <input
-                type="time"
-                className="imp-time-input"
+              <DateTimeField
+                className="imp-dtf-time"
+                label="Alle"
+                mode="time"
                 value={form.morningEnd}
-                onChange={e => setField("morningEnd", e.target.value)}
+                onChange={v => setField("morningEnd", v)}
+                placeholder="—:—"
               />
             </div>
           </div>
@@ -188,22 +191,24 @@ function DayCard({ wh, onSave }) {
               <div className="imp-slot-label">Pomeriggio</div>
               <div className="imp-time-row">
                 <div className="imp-time-group">
-                  <label className="imp-time-label">Dalle</label>
-                  <input
-                    type="time"
-                    className="imp-time-input"
+                  <DateTimeField
+                    className="imp-dtf-time"
+                    label="Dalle"
+                    mode="time"
                     value={form.afternoonStart}
-                    onChange={e => setField("afternoonStart", e.target.value)}
+                    onChange={v => setField("afternoonStart", v)}
+                    placeholder="—:—"
                   />
                 </div>
                 <span className="imp-time-sep">→</span>
                 <div className="imp-time-group">
-                  <label className="imp-time-label">Alle</label>
-                  <input
-                    type="time"
-                    className="imp-time-input"
+                  <DateTimeField
+                    className="imp-dtf-time"
+                    label="Alle"
+                    mode="time"
                     value={form.afternoonEnd}
-                    onChange={e => setField("afternoonEnd", e.target.value)}
+                    onChange={v => setField("afternoonEnd", v)}
+                    placeholder="—:—"
                   />
                 </div>
               </div>
@@ -283,13 +288,14 @@ function ClosureForm({ initial, todayISO, onSave, onCancel }) {
       {/* Date */}
       <div className="imp-form-row">
         <div className="imp-form-group imp-form-group--full">
-          <label className="imp-form-label">Data</label>
-          <input
-            type="date"
-            className="imp-form-input"
-            min={todayISO}
+          <DateTimeField
+            className="imp-dtf-date"
+            label="Data"
+            mode="date"
+            minDate={todayISO}
             value={form.date}
-            onChange={e => setField("date", e.target.value)}
+            onChange={v => setField("date", v)}
+            placeholder="Seleziona data"
           />
         </div>
       </div>
@@ -310,21 +316,23 @@ function ClosureForm({ initial, todayISO, onSave, onCancel }) {
       {!form.fullDay && (
         <div className="imp-form-row imp-form-row--times">
           <div className="imp-form-group">
-            <label className="imp-form-label">Dalle</label>
-            <input
-              type="time"
-              className="imp-time-input"
+            <DateTimeField
+              className="imp-dtf-time"
+              label="Dalle"
+              mode="time"
               value={form.startTime}
-              onChange={e => setField("startTime", e.target.value)}
+              onChange={v => setField("startTime", v)}
+              placeholder="—:—"
             />
           </div>
           <div className="imp-form-group">
-            <label className="imp-form-label">Alle</label>
-            <input
-              type="time"
-              className="imp-time-input"
+            <DateTimeField
+              className="imp-dtf-time"
+              label="Alle"
+              mode="time"
               value={form.endTime}
-              onChange={e => setField("endTime", e.target.value)}
+              onChange={v => setField("endTime", v)}
+              placeholder="—:—"
             />
           </div>
         </div>

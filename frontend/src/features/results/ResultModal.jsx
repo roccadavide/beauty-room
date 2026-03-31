@@ -1,7 +1,9 @@
 import { Form, Spinner } from "react-bootstrap";
 import { createResult, updateResult } from "../../api/modules/results.api";
 import { useSelector } from "react-redux";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import CustomSelect from "../../components/common/CustomSelect";
+import DateTimeField from "../../components/common/DateTimeField";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 
 const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
@@ -19,6 +21,8 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
   const [file, setFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  const categoryOptions = useMemo(() => categories.map(c => ({ value: c.categoryId, label: c.label })), [categories]);
 
   const resetForm = () => {
     setForm({
@@ -170,22 +174,26 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
         </Form.Group>
 
         <Form.Group>
-          <Form.Label>Data *</Form.Label>
-          <Form.Control type="date" value={form.date} onChange={e => handleChange("date", e.target.value)} isInvalid={!!errors.date} />
-          <Form.Control.Feedback type="invalid">{errors.date}</Form.Control.Feedback>
+          <DateTimeField
+            label="Data *"
+            mode="date"
+            value={form.date}
+            onChange={v => handleChange("date", v)}
+            error={errors.date || null}
+            placeholder="Seleziona data"
+          />
         </Form.Group>
 
         <Form.Group>
-          <Form.Label>Categoria *</Form.Label>
-          <Form.Select value={form.categoryId} onChange={e => handleChange("categoryId", e.target.value)} isInvalid={!!errors.categoryId}>
-            <option value="">-- Seleziona una categoria --</option>
-            {categories.map(c => (
-              <option key={c.categoryId} value={c.categoryId}>
-                {c.label}
-              </option>
-            ))}
-          </Form.Select>
-          <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
+          <CustomSelect
+            label="Categoria *"
+            options={categoryOptions}
+            value={form.categoryId}
+            onChange={v => handleChange("categoryId", v)}
+            placeholder="-- Seleziona una categoria --"
+            error={errors.categoryId || null}
+            isInvalid={!!errors.categoryId}
+          />
         </Form.Group>
 
         <Form.Group>

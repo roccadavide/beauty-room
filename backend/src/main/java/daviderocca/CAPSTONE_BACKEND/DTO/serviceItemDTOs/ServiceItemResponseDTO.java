@@ -15,5 +15,6 @@ public record ServiceItemResponseDTO(
         UUID categoryId,
         String categoryKey,
         boolean active,
-        List<ServiceOptionResponseDTO> options
+        List<ServiceOptionResponseDTO> options,
+        List<String> badges
 ) {}

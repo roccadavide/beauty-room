@@ -9,6 +9,7 @@ import AdminAddButton from "../../components/common/AdminAddButton";
 import AdminToggle from "../../components/common/AdminToggle";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices } from "../../api/modules/services.api";
+import { BadgeFlags } from "../../components/common/BadgeFlag";
 
 const ServicePage = () => {
   const [cat, setCat] = useState("all");
@@ -135,11 +136,7 @@ const ServicePage = () => {
         </button>
 
         {categories.map(c => (
-          <button
-            key={c.categoryId}
-            className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`}
-            onClick={() => setCat(c.categoryId)}
-          >
+          <button key={c.categoryId} className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`} onClick={() => setCat(c.categoryId)}>
             <span className="sp-chip-label">{c.label}</span>
           </button>
         ))}
@@ -150,7 +147,7 @@ const ServicePage = () => {
           <circle cx="11" cy="11" r="8" />
           <path d="M21 21l-4.35-4.35" />
         </svg>
-        <input className="sp-search-input" placeholder="Cerca..." value={q} onChange={e => setQ(e.target.value)} />
+        <input className="sp-search-input" placeholder="Cerca trattamento..." value={q} onChange={e => setQ(e.target.value)} />
         {q && (
           <button className="sp-search-clear" onClick={() => setQ("")} aria-label="Cancella">
             ×
@@ -168,16 +165,17 @@ const ServicePage = () => {
         <Row className="g-4 g-xl-5">
           {filtered.map(s => (
             <Col key={s.serviceId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
-              <Card className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`} onClick={() => navigate(`/trattamenti/${s.serviceId}`)}>
+              <Card
+                className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`}
+                onClick={() => navigate(`/trattamenti/${s.serviceId}`)}
+              >
                 {isAdmin && (
-                  <div className="admin-card-toggle-corner" onClick={e => e.stopPropagation()}>
+                  <div className="admin-card-toggle-corner" style={{ left: 10, right: "auto" }} onClick={e => e.stopPropagation()}>
                     <AdminToggle
                       entityId={s.serviceId}
                       isActive={s.active ?? true}
                       endpoint="/service-items"
-                      onToggleSuccess={newVal =>
-                        setAllServices(prev => prev.map(svc => svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc))
-                      }
+                      onToggleSuccess={newVal => setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)))}
                     />
                   </div>
                 )}
@@ -187,6 +185,7 @@ const ServicePage = () => {
                     <span className="bsc-duration">{s.durationMin} min</span>
                   </div>
                 </div>
+                <BadgeFlags badges={s?.badges ?? []} />
                 <Card.Body className="d-flex flex-column">
                   <div className="bsc-accent-line" />
                   <Card.Title className="bsc-title mb-1">{s.title}</Card.Title>
@@ -202,7 +201,12 @@ const ServicePage = () => {
                     {isAdmin && (
                       <div className="d-flex gap-2 ms-auto">
                         <EditButton onClick={() => handleEdit(s)} />
-                        <DeleteButton onClick={() => { setSelectedService(s); setDeleteModal(true); }} />
+                        <DeleteButton
+                          onClick={() => {
+                            setSelectedService(s);
+                            setDeleteModal(true);
+                          }}
+                        />
                       </div>
                     )}
                   </div>

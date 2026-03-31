@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Spinner } from "react-bootstrap";
+import DateTimeField from "../../components/common/DateTimeField";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
+import { useClosedDays } from "../../hooks/useClosedDays";
 import { fetchMyBookings } from "../../api/modules/bookings.api";
 
 const pad2 = n => String(n).padStart(2, "0");
@@ -51,6 +53,19 @@ export default function PayNowModal({
   const [pickupSpecific, setPickupSpecific] = useState("");
 
   useLenisModalLock(show);
+
+  const { closedDates, closedWeekdays, isClosed } = useClosedDays();
+  const disabledDates = useMemo(() => {
+    const dates = [];
+    const today = new Date();
+    for (let i = 0; i < 90; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const iso = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      if (isClosed(iso)) dates.push(iso);
+    }
+    return dates;
+  }, [closedDates, closedWeekdays, isClosed]);
 
   useEffect(() => {
     if (!show) return;
@@ -159,7 +174,6 @@ export default function PayNowModal({
 
   const onChange = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const todayISO = new Date().toISOString().split("T")[0];
   const totalStr = (product?.price * qty).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
 
   return (
@@ -302,14 +316,15 @@ export default function PayNowModal({
         {(pickupMode === "custom" || futureBookings.length === 0) && !bookingsLoading && (
           <div className="pnm-custom-pickup">
             <div className="pnm-field">
-              <label className="pnm-label">Data preferita (opzionale)</label>
-              <input
-                className="pnm-input"
-                type="date"
-                min={todayISO}
+              <DateTimeField
+                label="Data preferita (opzionale)"
+                mode="date"
                 value={pickupDate}
-                onChange={e => setPickupDate(e.target.value)}
+                onChange={iso => setPickupDate(iso)}
+                minDate={new Date()}
+                disabledDates={disabledDates}
                 disabled={loading}
+                placeholder="Scegli un giorno"
               />
             </div>
 
@@ -337,19 +352,17 @@ export default function PayNowModal({
               />
             )}
 
-            {!pickupDate && (
-              <div className="pnm-field mt-2">
-                <label className="pnm-label">Nota per il ritiro (opzionale)</label>
-                <textarea
-                  className="pnm-input pnm-textarea"
-                  rows={2}
-                  placeholder="Es. Passo domani pomeriggio, grazie!"
-                  value={form.pickupNote}
-                  onChange={e => onChange("pickupNote", e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-            )}
+            <div className="pnm-field mt-2">
+              <label className="pnm-label">Nota per il ritiro (opzionale)</label>
+              <textarea
+                className="pnm-input pnm-textarea"
+                rows={2}
+                placeholder="Es. Passo domani pomeriggio, grazie!"
+                value={form.pickupNote}
+                onChange={e => onChange("pickupNote", e.target.value)}
+                disabled={loading}
+              />
+            </div>
           </div>
         )}
       </div>

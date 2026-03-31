@@ -12,6 +12,8 @@
     border-color 0.35s ease;
   cursor: pointer;
   position: relative;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .beauty-product-card::before {
@@ -29,6 +31,7 @@
   transform: translateY(-6px);
   box-shadow: 0 16px 40px rgba(59, 33, 18, 0.12);
   border-color: rgba(180, 148, 106, 0.55);
+  border-radius: 20px;
 }
 
 .beauty-product-card:hover::before {
@@ -41,6 +44,7 @@
   overflow: hidden;
   background: var(--card-warm-bg, #f5ede3);
   position: relative;
+  border-radius: 20px 20px 0 0;
 }
 
 .bpc-img-wrap img {
@@ -49,6 +53,8 @@
   object-fit: cover;
   transition: transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1);
   display: block;
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 .beauty-product-card:hover .bpc-img-wrap img {
@@ -74,6 +80,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  border-radius: 0 0 19px 19px;
+}
+
+.beauty-product-card .admin-card-toggle-corner {
+  left: 10px;
+  right: auto;
 }
 
 .bpc-accent-line {

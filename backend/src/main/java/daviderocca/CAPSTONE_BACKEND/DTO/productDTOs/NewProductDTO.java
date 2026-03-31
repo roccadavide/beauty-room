@@ -26,6 +26,8 @@ public record NewProductDTO (
                             /** null = default true in persistenza */
                             Boolean active,
                             // nullable — URL immagini da rimuovere (cleanup lista; Cloudinary TODO)
-                            List<String> removedImageUrls
+                            List<String> removedImageUrls,
+                            /** Badge attivi, es. ["new","sale"]. Valori ammessi: new, sale, promo, limited, bestseller, coming_soon */
+                            List<String> badges
 )
 {}

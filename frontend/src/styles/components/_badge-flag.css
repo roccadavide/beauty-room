@@ -1,0 +1,149 @@
+/* ════════════════════════════════════════════════════════
+   BadgeFlag — pennant orizzontale sul bordo destro della card
+   ════════════════════════════════════════════════════════ */
+
+.badge-flags {
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 16px;
+  width: 76px;
+  pointer-events: none;
+}
+
+/* Nastro orizzontale: lato destro a filo card, punta a sinistra */
+.badge-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 76px;
+  height: 24px;
+  margin: 0;
+  padding: 0 6px 0 16px;
+  clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 14px 50%);
+  box-shadow: -3px 1px 10px rgba(0, 0, 0, 0.22);
+  user-select: none;
+}
+
+.badge-flag__text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: "Montserrat", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.badge-flag--sale {
+  background-color: var(--card-gold, #b8976a);
+}
+.badge-flag--promo {
+  background-color: var(--card-gold-deep, #8c6d3f);
+}
+.badge-flag--new {
+  background-color: #2d6a4f;
+  animation: pennantWave 2.8s ease-in-out infinite;
+  transform-origin: right center;
+}
+.badge-flag--limited {
+  background-color: #6b3a2a;
+}
+.badge-flag--bestseller {
+  background-color: #1a1a2e;
+}
+.badge-flag--bestseller .badge-flag__text {
+  color: #f5e6c8;
+}
+.badge-flag--coming_soon {
+  background-color: #4a4a6a;
+}
+
+@keyframes pennantWave {
+  0%,
+  100% {
+    transform: skewY(0deg) scaleY(1);
+  }
+  25% {
+    transform: skewY(-2deg) scaleY(0.97);
+  }
+  75% {
+    transform: skewY(1.5deg) scaleY(1.02);
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+     BadgesPicker — griglia checkbox-pill per form admin
+     ════════════════════════════════════════════════════════ */
+
+.badges-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.badges-picker__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(35, 26, 20, 0.75);
+  margin: 0;
+}
+
+.badges-picker__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.badges-picker__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1.5px solid rgba(184, 151, 106, 0.4);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  color: rgba(35, 26, 20, 0.8);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+  line-height: 1;
+}
+
+.badges-picker__pill:hover {
+  border-color: rgba(184, 151, 106, 0.7);
+  background: rgba(184, 151, 106, 0.08);
+}
+
+.badges-picker__pill--active {
+  background: var(--card-gold, #b8976a);
+  border-color: var(--card-gold, #b8976a);
+  color: #fff;
+  font-weight: 700;
+}
+
+.badges-picker__pill--active:hover {
+  background: var(--card-gold, #b8976a);
+  filter: brightness(1.08);
+}
+
+.badges-picker__check {
+  font-size: 10px;
+  line-height: 1;
+}

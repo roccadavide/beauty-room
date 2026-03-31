@@ -1,0 +1,149 @@
+/* ===== NextSlotBanner ===== */
+
+.nsb {
+  background: rgba(184, 151, 106, 0.08);
+  border: 1.5px solid rgba(184, 151, 106, 0.25);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Top row: icon + text + button ── */
+.nsb__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nsb__icon {
+  flex-shrink: 0;
+  color: #b8976a;
+  opacity: 0.85;
+}
+
+.nsb__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nsb__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #b8976a;
+  font-family: "Montserrat", sans-serif;
+}
+
+.nsb__date {
+  font-size: 0.97rem;
+  font-weight: 700;
+  color: #2e2118;
+  font-family: "Petrona", Georgia, serif;
+  line-height: 1.2;
+}
+
+.nsb__time {
+  font-size: 0.82rem;
+  color: #7a6555;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 500;
+}
+
+.nsb__cta {
+  flex-shrink: 0;
+  padding: 0.45rem 1rem;
+  border: none;
+  border-radius: 999px;
+  background: #b8976a;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  font-family: "Montserrat", sans-serif;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+  white-space: nowrap;
+}
+
+.nsb__cta:hover {
+  background: #a07f58;
+  transform: translateY(-1px);
+}
+
+/* ── "Cerca un altro orario" link ── */
+.nsb__next {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.78rem;
+  color: #b8976a;
+  font-family: "Montserrat", sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.nsb__next:hover {
+  color: #8c6d3f;
+  text-decoration: underline;
+}
+
+/* ── Not found ── */
+.nsb__empty {
+  font-size: 0.83rem;
+  color: #9e8c82;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* ── Skeleton shimmer ── */
+.nsb--skeleton .nsb__top {
+  align-items: center;
+}
+
+.nsb-skel {
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(184, 151, 106, 0.12) 25%, rgba(184, 151, 106, 0.22) 50%, rgba(184, 151, 106, 0.12) 75%);
+  background-size: 200% 100%;
+  animation: nsb-shimmer 1.4s infinite ease-in-out;
+}
+
+.nsb-skel--label {
+  height: 10px;
+  width: 110px;
+  margin-bottom: 6px;
+}
+.nsb-skel--date {
+  height: 16px;
+  width: 160px;
+  margin-bottom: 5px;
+}
+.nsb-skel--time {
+  height: 12px;
+  width: 90px;
+}
+.nsb-skel--btn {
+  height: 32px;
+  width: 110px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+@keyframes nsb-shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}

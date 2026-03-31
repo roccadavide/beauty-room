@@ -30,20 +30,30 @@
   justify-content: center;
 }
 
-/* ── Page header ────────────────────────────── */
+/* ── Page header (admin: titolo sx + bottone dx) ── */
 
-.ra-page-head {
-  text-align: center;
-  padding: 5rem 0 2.5rem;
+.rp-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 3.5rem 0 2rem;
+  flex-wrap: wrap;
 }
 
 .ra-page-title {
   font-family: "SaolDisplay-Light", "Cormorant Garamond", serif;
-  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  font-size: clamp(2rem, 4.5vw, 3rem);
   color: var(--results-text);
   letter-spacing: 0.5px;
   font-weight: 300;
-  margin: 0.5rem 0 0.75rem;
+  margin: 0.35rem 0 0.6rem;
+}
+
+/* ── Vecchio header centrato (mantenuto per compatibilità) ── */
+.ra-page-head {
+  text-align: center;
+  padding: 5rem 0 2.5rem;
 }
 
 /* ── Add button — in cima, vicino all'header ── */
@@ -74,26 +84,32 @@
   box-shadow: 0 6px 20px rgba(184, 151, 106, 0.3);
 }
 
-/* ── Sticky filters ──────────────────────────── */
-
-.rp-filters-sticky {
-  position: sticky;
-  top: 68px;
-  z-index: 20;
-  background: rgba(255, 253, 249, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 0.75rem 0;
-  margin-bottom: 3rem;
-  border-bottom: 1px solid var(--results-border);
+/* ── Filtri categoria (riutilizza sp-filter-bar + sp-chip) ── */
+/* spacing coerente con prodotti */
+.results-root .sp-filter-bar {
+  margin-bottom: 1rem;
 }
 
-/* ── Cards list ─────────────────────────────── */
+/* ── Search bar scoped ai risultati ─────────── */
+.rp-search-wrap {
+  margin-bottom: 2rem;
+}
 
+/* ── ResultCard occupa l'intera altezza della colonna grid ── */
+.results-root .rc-row {
+  width: 100%;
+}
+
+/* ── Cards list — lista verticale piena larghezza ─────── */
 .rp-list {
   display: flex;
   flex-direction: column;
+  gap: 12px;
   padding-bottom: 2rem;
+}
+
+.rp-list > * {
+  width: 100%;
 }
 
 /* ── Diamond divider ─────────────────────────── */

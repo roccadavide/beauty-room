@@ -22,7 +22,9 @@
   padding: 20px 16px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.18s, background 0.18s;
+  transition:
+    border-color 0.18s,
+    background 0.18s;
   user-select: none;
 }
 
@@ -82,7 +84,9 @@
 }
 
 @keyframes miu-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Limit reached ──────────────────────────────────────────────── */
@@ -107,7 +111,9 @@
   overflow: hidden;
   background: rgba(231, 214, 195, 0.2);
   border: 1.5px solid rgba(184, 151, 106, 0.2);
-  transition: border-color 0.15s, opacity 0.15s;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
 }
 
 .miu-item--new {

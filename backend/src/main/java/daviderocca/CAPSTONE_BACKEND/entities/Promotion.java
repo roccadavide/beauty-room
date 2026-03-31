@@ -71,6 +71,10 @@ public class Promotion {
     @Column(nullable = false)
     private boolean active = true;
 
+    /** Badge attivi in formato JSON array string, es. ["new","sale"] oppure null. */
+    @Column(length = 500)
+    private String badges;
+
     @Column(name = "online_only")
     private boolean onlineOnly = false;
 

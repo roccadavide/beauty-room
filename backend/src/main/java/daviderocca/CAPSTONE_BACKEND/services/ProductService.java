@@ -8,6 +8,7 @@ import daviderocca.CAPSTONE_BACKEND.entities.Category;
 import daviderocca.CAPSTONE_BACKEND.entities.Product;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
+import daviderocca.CAPSTONE_BACKEND.util.BadgesUtil;
 import daviderocca.CAPSTONE_BACKEND.repositories.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -83,6 +84,7 @@ public class ProductService {
                 relatedCategory
         );
         newProduct.setActive(payload.active() == null || payload.active());
+        newProduct.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
 
         Product saved = productRepository.save(newProduct);
         log.info("Prodotto '{}' (ID: {}) creato con categoria '{}'",
@@ -131,6 +133,7 @@ public class ProductService {
         if (payload.active() != null) {
             found.setActive(payload.active());
         }
+        found.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
 
         Product updated = productRepository.save(found);
         log.info("Prodotto '{}' (ID: {}) aggiornato correttamente (categoria: {})",
@@ -196,7 +199,8 @@ public class ProductService {
                 new java.util.ArrayList<>(product.getImages()),
                 product.getStock(),
                 product.getCategory() != null ? product.getCategory().getCategoryId() : null,
-                product.isActive()
+                product.isActive(),
+                BadgesUtil.fromJson(product.getBadges())
         );
     }
 }

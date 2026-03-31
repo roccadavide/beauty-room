@@ -344,6 +344,10 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.pib-dtf .dtf-trigger {
+  font-size: 0.88rem;
+}
+
 .pib-form-input:focus {
   outline: none;
   border-color: #b8976a;

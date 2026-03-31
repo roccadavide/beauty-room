@@ -122,6 +122,56 @@ body.modal-open {
   border-color: rgba(139, 94, 60, 0.35) !important;
 }
 
+.ag-toolbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+
+.ag-toolbar-nav__btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.ag-date-wrap {
+  flex: 0 1 190px;
+  min-width: 120px;
+  max-width: 220px;
+  margin-left: auto;
+}
+
+/* right-anchor il dropdown nell'agenda toolbar */
+.ag-date-dtf .dtf-dropdown {
+  left: auto;
+  right: 0;
+  min-width: 320px;
+}
+
+.ag-date-dtf .dtf-trigger {
+  font-size: 0.85rem;
+  min-height: 2.35rem;
+}
+
+@media (max-width: 575px) {
+  .ag-toolbar-nav {
+    flex-wrap: wrap;
+  }
+  .ag-date-wrap {
+    flex: 1 1 auto;
+    max-width: 100%;
+    margin-left: 0;
+  }
+  .ag-date-dtf .dtf-dropdown {
+    left: 0;
+    right: 0;
+    min-width: unset;
+  }
+}
+
 /* Buttons */
 .ag-btn {
   border-radius: 12px !important;
@@ -309,6 +359,64 @@ body.modal-open {
 .ag-tl-booking {
   background: var(--ag-booking);
   border: 1px solid rgba(111, 74, 47, 0.22);
+  overflow: hidden;
+}
+
+/* Clickable booking block */
+.ag-tl-booking--clickable {
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ag-tl-booking--clickable:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 10px rgba(111, 74, 47, 0.25);
+}
+.ag-tl-booking--selected {
+  box-shadow: 0 0 0 2px rgba(184, 151, 106, 0.85) inset !important;
+  filter: brightness(1.08) !important;
+}
+
+/* Labels dentro il blocco booking */
+.ag-tl-booking__label {
+  padding: 3px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  height: 100%;
+  overflow: hidden;
+}
+.ag-tl-booking__label--compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+}
+.ag-tl-booking__service {
+  font-family: "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(35, 26, 20, 0.92);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.ag-tl-booking__customer {
+  font-family: "Montserrat", sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(35, 26, 20, 0.72);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.ag-tl-booking__dot {
+  font-size: 10px;
+  opacity: 0.45;
+  flex-shrink: 0;
 }
 
 /* Current time indicator (today only) */
@@ -370,6 +478,17 @@ body.modal-open {
 
 .ag-item:hover {
   box-shadow: 0 4px 16px rgba(111, 74, 47, 0.1);
+}
+.ag-item--highlighted {
+  border-left: 3px solid #b8976a !important;
+  background: rgba(184, 151, 106, 0.10) !important;
+  transition:
+    border-left-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.2s ease !important;
+}
+.ag-item--highlighted:hover {
+  box-shadow: 0 4px 18px rgba(184, 151, 106, 0.22) !important;
 }
 
 .ag-item__header {
@@ -833,57 +952,6 @@ body.modal-open {
 .ag-dialog__body .mb-2,
 .ag-section {
   overflow: visible;
-}
-
-/* ── Custom Select ─────────────────────────────────────────── */
-.ag-custom-select__trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  text-align: left;
-  user-select: none;
-}
-.ag-custom-select__placeholder {
-  color: rgba(35, 26, 20, 0.45);
-}
-.ag-custom-select__arrow {
-  font-size: 0.8rem;
-  color: var(--ag-muted);
-  flex-shrink: 0;
-  margin-left: 8px;
-}
-.ag-custom-select__menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 9999; /* sopra tutto, anche il panel */
-  background: #fff;
-  border: 1px solid rgba(111, 74, 47, 0.22);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(35, 26, 20, 0.12);
-  list-style: none;
-  margin: 0;
-  padding: 4px;
-  max-height: 220px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.ag-custom-select__option {
-  padding: 9px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  color: var(--ag-text);
-  transition: background 0.1s ease;
-}
-.ag-custom-select__option:hover {
-  background: rgba(231, 214, 195, 0.55);
-}
-.ag-custom-select__option.is-selected {
-  background: rgba(139, 94, 60, 0.14);
-  font-weight: 700;
 }
 
 /* ── Service search nel BookingModal ── */

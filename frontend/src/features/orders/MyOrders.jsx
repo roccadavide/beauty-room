@@ -7,10 +7,10 @@ import { deleteOrder, fetchMyOrders } from "../../api/modules/orders.api";
 import { fetchProductById } from "../../api/modules/products.api";
 
 const STATUS_LABELS = {
-  PAID:      { label: "Pagato",    color: "#2d6a4f", bg: "rgba(45,106,79,0.1)"    },
-  PENDING:   { label: "In attesa", color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
-  CANCELLED: { label: "Cancellato",color: "#c0392b", bg: "rgba(192,57,43,0.1)"    },
-  COMPLETED: { label: "Ritirato",  color: "#2e2118", bg: "rgba(46,33,24,0.08)"    },
+  PAID: { label: "Pagato", color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
+  PENDING: { label: "In attesa", color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
+  CANCELLED: { label: "Cancellato", color: "#c0392b", bg: "rgba(192,57,43,0.1)" },
+  COMPLETED: { label: "Ritirato", color: "#2e2118", bg: "rgba(46,33,24,0.08)" },
 };
 
 const MyOrders = () => {
@@ -27,28 +27,46 @@ const MyOrders = () => {
   const requestedRef = useRef(new Set());
 
   useEffect(() => {
-    if (!accessToken) { setLoading(false); return; }
+    if (!accessToken) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     fetchMyOrders()
-      .then(res => { if (!cancelled) setMyOrders(res || []); })
-      .catch(err => { if (!cancelled) setError(err.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then(res => {
+        if (!cancelled) setMyOrders(res || []);
+      })
+      .catch(err => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [accessToken]);
 
-  const getProduct = useCallback(async id => {
-    if (products[id] || requestedRef.current.has(id)) return;
-    requestedRef.current.add(id);
-    try {
-      const prod = await fetchProductById(id);
-      setProducts(prev => ({ ...prev, [id]: prod }));
-    } catch {
-      requestedRef.current.delete(id);
-    }
-  }, [products]);
+  const getProduct = useCallback(
+    async id => {
+      if (products[id] || requestedRef.current.has(id)) return;
+      requestedRef.current.add(id);
+      try {
+        const prod = await fetchProductById(id);
+        setProducts(prev => ({ ...prev, [id]: prod }));
+      } catch {
+        requestedRef.current.delete(id);
+      }
+    },
+    [products],
+  );
 
   useEffect(() => {
-    myOrders.forEach(o => o.orderItems?.forEach(i => { if (i?.productId) getProduct(i.productId); }));
+    myOrders.forEach(o =>
+      o.orderItems?.forEach(i => {
+        if (i?.productId) getProduct(i.productId);
+      }),
+    );
   }, [myOrders, getProduct]);
 
   const handleDeleteConfirm = async id => {
@@ -62,19 +80,23 @@ const MyOrders = () => {
     }
   };
 
-  if (loading) return (
-    <div className="mo-page">
-      <Container className="d-flex justify-content-center py-5">
-        <Spinner animation="border" />
-      </Container>
-    </div>
-  );
+  if (loading)
+    return (
+      <div className="mo-page">
+        <Container className="d-flex justify-content-center py-5">
+          <Spinner animation="border" />
+        </Container>
+      </div>
+    );
 
-  if (error) return (
-    <div className="mo-page">
-      <Container><p className="text-danger mt-5">{error}</p></Container>
-    </div>
-  );
+  if (error)
+    return (
+      <div className="mo-page">
+        <Container>
+          <p className="text-danger mt-5">{error}</p>
+        </Container>
+      </div>
+    );
 
   return (
     <div className="mo-page">
@@ -85,7 +107,7 @@ const MyOrders = () => {
           <h1 className="mo-title">I miei ordini</h1>
           <p className="mo-subtitle">
             {myOrders.length > 0
-              ? `${myOrders.length} ordine${myOrders.length > 1 ? "i" : ""} trovato${myOrders.length > 1 ? "i" : ""}`
+              ? `${myOrders.length} ordin${myOrders.length > 1 ? "i" : "e"} trovat${myOrders.length > 1 ? "i" : "o"}`
               : "Nessun ordine ancora"}
           </p>
         </div>
@@ -97,8 +119,12 @@ const MyOrders = () => {
             <h3>Ancora nessun acquisto</h3>
             <p>Esplora i nostri prodotti e trattamenti</p>
             <div className="d-flex gap-3 justify-content-center flex-wrap">
-              <button className="mo-empty-btn" onClick={() => navigate("/prodotti")}>Vai ai Prodotti</button>
-              <button className="mo-empty-btn mo-empty-btn--outline" onClick={() => navigate("/trattamenti")}>Vai ai Trattamenti</button>
+              <button className="mo-empty-btn" onClick={() => navigate("/prodotti")}>
+                Vai ai Prodotti
+              </button>
+              <button className="mo-empty-btn mo-empty-btn--outline" onClick={() => navigate("/trattamenti")}>
+                Vai ai Trattamenti
+              </button>
             </div>
           </div>
         )}
@@ -121,7 +147,9 @@ const MyOrders = () => {
                     </div>
                   </div>
                   <div className="mo-card-right">
-                    <span className="mo-status-pill" style={{ color: st.color, background: st.bg }}>{st.label}</span>
+                    <span className="mo-status-pill" style={{ color: st.color, background: st.bg }}>
+                      {st.label}
+                    </span>
                     <span className="mo-total">€ {total.toFixed(2)}</span>
                     <span className="mo-expand-icon">{isExpanded ? "−" : "+"}</span>
                   </div>
@@ -133,17 +161,11 @@ const MyOrders = () => {
                     const prod = products[item.productId];
                     return (
                       <div key={item.orderItemId} className="mo-item-thumb" title={prod?.name || "Prodotto"}>
-                        {prod?.images?.[0] ? (
-                          <img src={prod.images[0]} alt={prod.name} />
-                        ) : (
-                          <div className="mo-item-thumb-placeholder" />
-                        )}
+                        {prod?.images?.[0] ? <img src={prod.images[0]} alt={prod.name} /> : <div className="mo-item-thumb-placeholder" />}
                       </div>
                     );
                   })}
-                  {order.orderItems?.length > 3 && (
-                    <div className="mo-item-thumb mo-item-more">+{order.orderItems.length - 3}</div>
-                  )}
+                  {order.orderItems?.length > 3 && <div className="mo-item-thumb mo-item-more">+{order.orderItems.length - 3}</div>}
                 </div>
 
                 {/* Expandable detail */}
@@ -154,17 +176,15 @@ const MyOrders = () => {
                     {order.orderItems?.map(item => {
                       const prod = products[item.productId];
                       return (
-                        <div
-                          key={item.orderItemId}
-                          className="mo-detail-item"
-                          onClick={() => prod && navigate(`/prodotti/${prod.productId}`)}
-                        >
+                        <div key={item.orderItemId} className="mo-detail-item" onClick={() => prod && navigate(`/prodotti/${prod.productId}`)}>
                           <div className="mo-detail-img">
                             {prod?.images?.[0] ? <img src={prod.images[0]} alt={prod.name} /> : <div className="mo-detail-img-ph" />}
                           </div>
                           <div className="mo-detail-info">
                             <p className="mo-detail-name">{prod?.name || "Prodotto"}</p>
-                            <p className="mo-detail-sub">Quantità: {item.quantity} · € {item.price.toFixed(2)} cad.</p>
+                            <p className="mo-detail-sub">
+                              Quantità: {item.quantity} · € {item.price.toFixed(2)} cad.
+                            </p>
                           </div>
                           <p className="mo-detail-subtotal">€ {(item.price * item.quantity).toFixed(2)}</p>
                         </div>
@@ -172,13 +192,15 @@ const MyOrders = () => {
                     })}
 
                     <div className="mo-detail-footer">
-                      {order.pickupNote && (
-                        <p className="mo-detail-note">📋 {order.pickupNote}</p>
-                      )}
+                      {order.pickupNote && <p className="mo-detail-note">📋 {order.pickupNote}</p>}
                       <div className="mo-detail-actions">
                         <button
                           className="mo-delete-btn"
-                          onClick={e => { e.stopPropagation(); setSelectedOrder(order); setDeleteModal(true); }}
+                          onClick={e => {
+                            e.stopPropagation();
+                            setSelectedOrder(order);
+                            setDeleteModal(true);
+                          }}
                         >
                           Elimina ordine
                         </button>
@@ -192,12 +214,7 @@ const MyOrders = () => {
         </div>
       </Container>
 
-      <DeleteOrderModal
-        show={deleteModal}
-        onHide={() => setDeleteModal(false)}
-        order={selectedOrder}
-        onConfirm={handleDeleteConfirm}
-      />
+      <DeleteOrderModal show={deleteModal} onHide={() => setDeleteModal(false)} order={selectedOrder} onConfirm={handleDeleteConfirm} />
     </div>
   );
 };

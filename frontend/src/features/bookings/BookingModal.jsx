@@ -1,103 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { fetchAvailabilities } from "../../api/modules/availabilities.api";
 import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest } from "../../api/modules/stripe.api";
+import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
+import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import WaitlistModal from "../../components/common/WaitlistModal";
+import { useClosedDays } from "../../hooks/useClosedDays";
+import { useNextSlot } from "../../hooks/useNextSlot";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
-
-function BookingCalendar({ selected, onChange, minDate }) {
-  const [viewYear, setViewYear] = useState(selected.getFullYear());
-  const [viewMonth, setViewMonth] = useState(selected.getMonth());
-
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const firstDOW = new Date(viewYear, viewMonth, 1).getDay();
-  const startOffset = (firstDOW + 6) % 7; // Lun primo
-
-  const prevMonth = () => {
-    if (viewMonth === 0) {
-      setViewMonth(11);
-      setViewYear(y => y - 1);
-    } else {
-      setViewMonth(m => m - 1);
-    }
-  };
-
-  const nextMonth = () => {
-    if (viewMonth === 11) {
-      setViewMonth(0);
-      setViewYear(y => y + 1);
-    } else {
-      setViewMonth(m => m + 1);
-    }
-  };
-
-  const monthName = new Date(viewYear, viewMonth, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" });
-
-  const isSelected = d => selected.getDate() === d && selected.getMonth() === viewMonth && selected.getFullYear() === viewYear;
-
-  const isToday = d => {
-    const dt = new Date(viewYear, viewMonth, d);
-    return dt.toDateString() === new Date().toDateString();
-  };
-
-  const isPast = d => {
-    const dt = new Date(viewYear, viewMonth, d);
-    dt.setHours(0, 0, 0, 0);
-    const min = new Date(minDate);
-    min.setHours(0, 0, 0, 0);
-    return dt < min;
-  };
-
-  const DOW_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
-  const cells = [];
-  for (let i = 0; i < startOffset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  return (
-    <div className="bc-calendar">
-      <div className="bc-header">
-        <button className="bc-nav-btn" onClick={prevMonth} type="button">
-          ‹
-        </button>
-        <span className="bc-month-label">{monthName}</span>
-        <button className="bc-nav-btn" onClick={nextMonth} type="button">
-          ›
-        </button>
-      </div>
-
-      <div className="bc-grid">
-        {DOW_LABELS.map(l => (
-          <div key={l} className="bc-dow">
-            {l}
-          </div>
-        ))}
-        {cells.map((d, i) => {
-          const classes = ["bc-day"];
-          if (d === null) classes.push("bc-day--empty");
-          if (d && isSelected(d)) classes.push("bc-day--selected");
-          if (d && isToday(d)) classes.push("bc-day--today");
-          if (d && isPast(d)) classes.push("bc-day--past");
-          return (
-            <div
-              key={i}
-              className={classes.join(" ")}
-              onClick={() => {
-                if (!d || isPast(d)) return;
-                onChange(new Date(viewYear, viewMonth, d));
-              }}
-            >
-              {d}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // FIX-2: initialOptionId viene passato da ServiceDetails quando il servizio ha opzioni
 const BookingModal = ({
@@ -111,6 +25,30 @@ const BookingModal = ({
   prefill = null,
 }) => {
   const { accessToken, user } = useSelector(state => state.auth);
+
+  const { closedDates, closedWeekdays, isClosed } = useClosedDays();
+  const disabledDates = useMemo(() => {
+    const dates = [];
+    const today = new Date();
+    for (let i = 0; i < 90; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const iso = toISODateLocal(d);
+      if (iso && isClosed(iso)) dates.push(iso);
+    }
+    return dates;
+  }, [closedDates, closedWeekdays, isClosed]);
+
+  const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } =
+    useNextSlot(service?.serviceId);
+  // Ref used to auto-select a slot after slots are loaded (set by NextSlotBanner → onSelect)
+  const pendingSlotStartRef = useRef(null);
+
+  // Cerca il prossimo slot non appena il modale si apre con un servizio valido
+  useEffect(() => {
+    if (show && service?.serviceId) findNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, service?.serviceId]);
 
   const [step, setStep] = useState(1);
   const [date, setDate] = useState(new Date());
@@ -165,8 +103,17 @@ const BookingModal = ({
 
           const day = date.toLocaleDateString("sv-SE");
           const data = await fetchAvailabilities(service.serviceId, day);
+          const loaded = data.slots || [];
+          setSlots(loaded);
 
-          setSlots(data.slots || []);
+          // Auto-select slot pre-scelto dal NextSlotBanner
+          if (pendingSlotStartRef.current) {
+            const autoSlot = loaded.find(
+              s => s.start === pendingSlotStartRef.current && s.available !== false
+            );
+            if (autoSlot) setSlot(autoSlot);
+            pendingSlotStartRef.current = null;
+          }
         } catch (err) {
           setError(err.message);
         } finally {
@@ -319,7 +266,34 @@ const BookingModal = ({
 
       {step === 1 && (
         <div className="bm-step-content">
-          <BookingCalendar selected={date} onChange={setDate} minDate={new Date()} />
+          <NextSlotBanner
+            slot={nextSlot}
+            loading={nextLoading}
+            notFound={nextNotFound}
+            onFind={findNext}
+            onNext={findNextAgain}
+            onSelect={bannerSlot => {
+              const d = new Date(bannerSlot.date + "T12:00:00");
+              if (!Number.isNaN(d.getTime())) {
+                setDate(d);
+                pendingSlotStartRef.current = bannerSlot.startTime;
+                setStep(2);
+              }
+            }}
+          />
+          <div className="bm-or-divider"><span>oppure scegli una data</span></div>
+          <DateTimeField
+            variant="inline"
+            mode="date"
+            value={toISODateLocal(date)}
+            onChange={iso => {
+              const d = new Date(`${iso}T12:00:00`);
+              if (!Number.isNaN(d.getTime())) setDate(d);
+            }}
+            minDate={new Date()}
+            disabledDates={disabledDates}
+            placeholder="Scegli un giorno"
+          />
           <div className="bm-nav">
             <span />
             <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(2)}>

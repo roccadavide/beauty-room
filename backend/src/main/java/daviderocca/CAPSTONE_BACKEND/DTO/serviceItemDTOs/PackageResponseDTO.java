@@ -1,6 +1,7 @@
 package daviderocca.CAPSTONE_BACKEND.DTO.serviceItemDTOs;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record PackageResponseDTO(
@@ -13,5 +14,6 @@ public record PackageResponseDTO(
         BigDecimal price,
         String optionGroup,
         String gender,
-        boolean active
+        boolean active,
+        List<String> badges
 ) {}

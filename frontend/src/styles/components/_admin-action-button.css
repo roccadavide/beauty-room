@@ -8,7 +8,11 @@
   border: 1.5px solid transparent;
   background: transparent;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.15s ease,
+    box-shadow 0.18s ease;
   padding: 0;
   flex-shrink: 0;
 }
@@ -21,12 +25,12 @@
 /* Modifica — oro caldo */
 .br-action-btn--edit {
   color: var(--card-gold, #b8976a);
-  border-color: rgba(184, 151, 106, 0.30);
+  border-color: rgba(184, 151, 106, 0.3);
 }
 .br-action-btn--edit:hover:not(:disabled) {
   background: rgba(184, 151, 106, 0.13);
   border-color: var(--card-gold, #b8976a);
-  transform: scale(1.10);
+  transform: scale(1.1);
   box-shadow: 0 2px 8px rgba(184, 151, 106, 0.22);
 }
 
@@ -38,6 +42,6 @@
 .br-action-btn--delete:hover:not(:disabled) {
   background: rgba(184, 50, 50, 0.09);
   border-color: #b83232;
-  transform: scale(1.10);
+  transform: scale(1.1);
   box-shadow: 0 2px 8px rgba(184, 50, 50, 0.18);
 }

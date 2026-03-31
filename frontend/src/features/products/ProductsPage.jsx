@@ -9,6 +9,7 @@ import AdminAddButton from "../../components/common/AdminAddButton";
 import AdminToggle from "../../components/common/AdminToggle";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteProduct, fetchProducts } from "../../api/modules/products.api";
+import { BadgeFlags } from "../../components/common/BadgeFlag";
 
 function ProductsPage() {
   const [cat, setCat] = useState("all");
@@ -136,11 +137,7 @@ function ProductsPage() {
         {categories
           .filter(c => c.label !== "Trucco Permanente")
           .map(c => (
-            <button
-              key={c.categoryId}
-              className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`}
-              onClick={() => setCat(c.categoryId)}
-            >
+            <button key={c.categoryId} className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`} onClick={() => setCat(c.categoryId)}>
               <span className="sp-chip-label">{c.label}</span>
             </button>
           ))}
@@ -151,7 +148,7 @@ function ProductsPage() {
           <circle cx="11" cy="11" r="8" />
           <path d="M21 21l-4.35-4.35" />
         </svg>
-        <input className="sp-search-input" placeholder="Cerca..." value={q} onChange={e => setQ(e.target.value)} />
+        <input className="sp-search-input" placeholder="Cerca prodotto..." value={q} onChange={e => setQ(e.target.value)} />
         {q && (
           <button className="sp-search-clear" onClick={() => setQ("")} aria-label="Cancella">
             ×
@@ -174,14 +171,12 @@ function ProductsPage() {
                 onClick={() => navigate(`/prodotti/${p.productId}`)}
               >
                 {isAdmin && (
-                  <div className="admin-card-toggle-corner" onClick={e => e.stopPropagation()}>
+                  <div className="admin-card-toggle-corner" style={{ left: 10, right: "auto" }} onClick={e => e.stopPropagation()}>
                     <AdminToggle
                       entityId={p.productId}
                       isActive={p.active ?? true}
                       endpoint="/products"
-                      onToggleSuccess={newVal =>
-                        setAllProducts(prev => prev.map(pr => pr.productId === p.productId ? { ...pr, active: newVal } : pr))
-                      }
+                      onToggleSuccess={newVal => setAllProducts(prev => prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr)))}
                     />
                   </div>
                 )}
@@ -193,6 +188,7 @@ function ProductsPage() {
                     </div>
                   )}
                 </div>
+                <BadgeFlags badges={p?.badges ?? []} />
                 <Card.Body className="d-flex flex-column">
                   <div className="bpc-accent-line" />
                   <Card.Title className="bpc-title mb-1">{p.name}</Card.Title>
@@ -209,7 +205,12 @@ function ProductsPage() {
                     {isAdmin && (
                       <div className="d-flex gap-2 ms-auto">
                         <EditButton onClick={() => handleEdit(p)} />
-                        <DeleteButton onClick={() => { setSelectedProduct(p); setDeleteModal(true); }} />
+                        <DeleteButton
+                          onClick={() => {
+                            setSelectedProduct(p);
+                            setDeleteModal(true);
+                          }}
+                        />
                       </div>
                     )}
                   </div>

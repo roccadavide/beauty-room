@@ -31,5 +31,6 @@ public record PromotionResponseDTO(
         List<UUID> categoryIds,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        boolean currentlyActive
+        boolean currentlyActive,
+        List<String> badges
 ) {}

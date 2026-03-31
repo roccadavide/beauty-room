@@ -82,6 +82,9 @@ public class SecConfig {
                         // CORS preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // PUBLIC API (chiusure, slot disponibili — nessuna auth)
+                        .requestMatchers("/api/public/**").permitAll()
+
                         // AUTH
                         .requestMatchers("/auth/**").permitAll()
 

@@ -426,105 +426,6 @@
   box-shadow: 0 8px 28px rgba(46, 33, 24, 0.35);
 }
 
-/* Calendario */
-.bc-calendar {
-  background: #fff;
-  border: 1px solid rgba(180, 148, 106, 0.2);
-  border-radius: 18px;
-  overflow: hidden;
-}
-
-.bc-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: rgba(184, 151, 106, 0.06);
-  border-bottom: 1px solid rgba(180, 148, 106, 0.12);
-}
-
-.bc-month-label {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #2e2118;
-  text-transform: capitalize;
-  letter-spacing: 0.02em;
-}
-
-.bc-nav-btn {
-  background: rgba(184, 151, 106, 0.12);
-  border: 1px solid rgba(180, 148, 106, 0.25);
-  border-radius: 8px;
-  width: 32px;
-  height: 32px;
-  font-size: 1.1rem;
-  color: #8c6d3f;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.18s ease;
-}
-
-.bc-nav-btn:hover {
-  background: rgba(184, 151, 106, 0.22);
-}
-
-.bc-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  padding: 10px;
-}
-
-.bc-dow {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #b8976a;
-  text-align: center;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 4px 0 10px;
-}
-
-.bc-day {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #2e2118;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-  margin: 1px;
-}
-
-.bc-day:hover:not(.bc-day--past):not(.bc-day--empty) {
-  background: rgba(184, 151, 106, 0.12);
-}
-
-.bc-day--today {
-  font-weight: 800;
-  color: #8c6d3f;
-}
-
-.bc-day--selected {
-  background: #2e2118 !important;
-  color: #f5e8d8 !important;
-  font-weight: 700;
-  border-radius: 10px;
-}
-
-.bc-day--past {
-  color: rgba(46, 33, 24, 0.22);
-  cursor: not-allowed;
-}
-
-.bc-day--empty {
-  cursor: default;
-}
-
 @media (max-width: 767px) {
   .bm-panel--side {
     width: 100%;
@@ -557,6 +458,28 @@
 }
 .bm-summary__row--highlight strong {
   color: #b8976a;
+}
+
+/* ── Or divider ── */
+.bm-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  color: rgba(46, 33, 24, 0.38);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-family: "Montserrat", sans-serif;
+}
+
+.bm-or-divider::before,
+.bm-or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(180, 148, 106, 0.18);
 }
 
 /* ── Slot occupato ── */

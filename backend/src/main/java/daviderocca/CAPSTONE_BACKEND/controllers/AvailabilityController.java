@@ -22,7 +22,9 @@ public class AvailabilityController {
 
     private final AvailabilityService availabilityService;
 
-    // CLIENT
+    // ENDPOINT PUBBLICO SLOT — GET /availabilities/services/{serviceId}?date={yyyy-MM-dd}
+    // Restituisce tutti gli slot del giorno per il servizio, con available=true/false.
+    // Whitelist: /availabilities/services/** in SecConfig.
     @GetMapping("/services/{serviceId}")
     public ResponseEntity<AvailabilityResponseDTO> getServiceDaySlots(
             @PathVariable UUID serviceId,

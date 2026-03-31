@@ -116,21 +116,26 @@
 
 .sp-search-icon {
   position: absolute;
-  left: calc(1rem + 14px);
+  left: calc(1rem + 12px);
   top: 50%;
   transform: translateY(-50%);
   color: #b8976a;
   pointer-events: none;
 }
 
+/* Unificato: Risultati, Trattamenti (ServicePage), Prodotti */
 .sp-search-input {
   width: 100%;
-  padding: 0.7rem 2.8rem 0.7rem 2.6rem;
-  border: 1px solid rgba(176, 137, 104, 0.35);
-  border-radius: 999px;
+  box-sizing: border-box;
+  height: auto;
+  min-height: 0;
+  padding: 8px 14px;
+  padding-left: 40px;
+  border: 1.5px solid rgba(184, 151, 106, 0.3);
+  border-radius: 10px;
   background: rgba(255, 253, 248, 0.9);
   font-family: "Montserrat", sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: #3a2e26;
   outline: none;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
@@ -149,7 +154,7 @@
 
 .sp-search-clear {
   position: absolute;
-  right: calc(1rem + 12px);
+  right: calc(1rem + 10px);
   top: 50%;
   transform: translateY(-50%);
   background: none;

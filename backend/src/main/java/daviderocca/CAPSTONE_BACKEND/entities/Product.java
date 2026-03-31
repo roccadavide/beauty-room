@@ -50,6 +50,10 @@ public class Product {
     @Column(nullable = false)
     private boolean active = true;
 
+    /** Badge attivi in formato JSON array string, es. ["new","sale"] oppure null. */
+    @Column(length = 500)
+    private String badges;
+
     @ManyToMany(mappedBy = "products", fetch = FetchType.LAZY)
     private Set<Promotion> promotions = new HashSet<>();
 

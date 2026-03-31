@@ -90,6 +90,14 @@
   box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.12);
 }
 
+.rep-filter-group--dtf {
+  min-width: 200px;
+}
+
+.rep-dtf .dtf-trigger {
+  font-size: 0.86rem;
+}
+
 .rep-filter-actions {
   display: flex;
   align-items: center;

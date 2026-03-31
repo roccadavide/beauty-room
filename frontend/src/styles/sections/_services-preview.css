@@ -80,7 +80,7 @@
 .sp-card {
   position: relative;
   border-radius: 22px;
-  overflow: hidden;
+  overflow: visible;
   cursor: pointer;
   height: 420px;
   box-shadow: 0 4px 20px rgba(46, 33, 24, 0.1);
@@ -98,6 +98,8 @@
   position: absolute;
   inset: 0;
   background: #f5ede3;
+  border-radius: 22px;
+  overflow: hidden;
 }
 
 .sp-card__img-wrap img {
@@ -171,13 +173,40 @@
   letter-spacing: 0.03em;
 }
 
-.sp-card__admin {
+.sp-card-actions {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
+  top: 10px;
+  left: 10px;
   display: flex;
-  gap: 0.4rem;
+  gap: 6px;
   z-index: 10;
+  background: rgba(20, 14, 10, 0.38);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 24px;
+  padding: 5px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.sp-card-actions .br-action-btn--edit {
+  color: rgba(255, 255, 255, 0.88);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.sp-card-actions .br-action-btn--edit:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.sp-card-actions .br-action-btn--delete {
+  color: #ff7875;
+  border-color: rgba(255, 120, 100, 0.3);
+}
+.sp-card-actions .br-action-btn--delete:hover:not(:disabled) {
+  background: rgba(255, 80, 60, 0.15);
+  border-color: #ff7875;
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(255, 80, 60, 0.2);
 }
 
 .sp-arrow {
@@ -216,7 +245,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 2.5rem;
 }
 
@@ -241,6 +271,9 @@
 }
 
 .sp-admin-add {
+  flex-shrink: 0;
+  display: inline-flex;
+  width: auto;
   border-radius: 999px;
   font-size: 0.85rem;
 }

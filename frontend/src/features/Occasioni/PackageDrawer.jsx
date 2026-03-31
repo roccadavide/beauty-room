@@ -3,7 +3,15 @@ import { useEffect, useState } from "react";
 import { Col, Form, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createPackage, updatePackage, deletePackage } from "../../api/modules/packages.api";
+import CustomSelect from "../../components/common/CustomSelect";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
+import { BadgesPicker } from "../../components/common/BadgeFlag";
+
+const GENDER_OPTIONS = [
+  { value: "", label: "Nessuna preferenza" },
+  { value: "Donna", label: "Donna" },
+  { value: "Uomo", label: "Uomo" },
+];
 
 const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
   const { accessToken } = useSelector(s => s.auth);
@@ -16,6 +24,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
   const [group, setGroup] = useState("");
   const [gender, setGender] = useState("");
   const [active, setActive] = useState(true);
+  const [badges, setBadges] = useState([]);
   const [errors, setErrors] = useState({});
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,6 +41,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
         setGroup(pkg.optionGroup ?? "");
         setGender(pkg.gender ?? "");
         setActive(pkg.active ?? true);
+        setBadges(pkg.badges ?? []);
       } else {
         setSelectedServiceId(services[0]?.serviceId ?? "");
         setName("");
@@ -40,6 +50,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
         setGroup("");
         setGender("");
         setActive(true);
+        setBadges([]);
       }
       setErrors({});
       setErrorMsg("");
@@ -69,6 +80,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
       optionGroup: group.trim() || null,
       gender: gender || null,
       active,
+      badges: badges.length > 0 ? badges : null,
     };
     try {
       if (isEdit) {
@@ -219,17 +231,24 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
 
           <Col md={6}>
             <Form.Group>
-              <Form.Label>Per chi è indicato</Form.Label>
-              <Form.Select value={gender} onChange={e => setGender(e.target.value)}>
-                <option value="">Nessuna preferenza</option>
-                <option value="Donna">Donna</option>
-                <option value="Uomo">Uomo</option>
-              </Form.Select>
+              <CustomSelect
+                label="Per chi è indicato"
+                options={GENDER_OPTIONS}
+                value={gender}
+                onChange={v => setGender(v)}
+                placeholder="Nessuna preferenza"
+              />
             </Form.Group>
           </Col>
 
           <Col md={12}>
             <Form.Check type="switch" id="pkg-active" label="Pacchetto visibile" checked={active} onChange={e => setActive(e.target.checked)} />
+          </Col>
+
+          <Col md={12}>
+            <Form.Group>
+              <BadgesPicker value={badges} onChange={setBadges} />
+            </Form.Group>
           </Col>
         </Row>
       </Form>

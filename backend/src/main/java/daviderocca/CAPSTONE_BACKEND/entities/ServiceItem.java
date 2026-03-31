@@ -41,6 +41,10 @@ public class ServiceItem {
     @Column(nullable = false)
     private boolean active = true;
 
+    /** Badge attivi in formato JSON array string, es. ["new","sale"] oppure null. */
+    @Column(length = 500)
+    private String badges;
+
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "service_images", joinColumns = @JoinColumn(name = "service_id"))
     @Column(name = "image_url")

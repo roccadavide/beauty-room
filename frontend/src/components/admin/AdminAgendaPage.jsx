@@ -6,6 +6,7 @@ import BookingSalePanel from "./BookingSalePanel";
 import WeeklyCalendar from "./WeeklyCalendar";
 import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
+import DateTimeField from "../common/DateTimeField";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -46,8 +47,16 @@ function StatusPill({ status }) {
   return <span className={`ag-pill ag-pill--${s.tone}`}>{s.label}</span>;
 }
 
+// Abbrevia "Mario Rossi" → "Mario R."
+function shortCustomerName(name) {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
 /** ---------- Timeline ---------- */
-function TimelineDay({ dateISO, data }) {
+function TimelineDay({ dateISO, data, bookings = [], selectedBookingId, onBookingClick }) {
   const timelineRef = useRef(null);
   const nowLineRef = useRef(null);
   const hasAutoScrolledRef = useRef(false);
@@ -65,14 +74,77 @@ function TimelineDay({ dateISO, data }) {
 
   const toPct = useCallback(m => ((m - viewWindow.startMin) / (viewWindow.endMin - viewWindow.startMin)) * 100, [viewWindow.endMin, viewWindow.startMin]);
 
+  // Mappa "HH:mm" → booking per collegare i blocchi timeline alla lista
+  const bookingMap = useMemo(() => {
+    const m = new Map();
+    (bookings || []).forEach(b => {
+      const tStart = b.startTime?.slice(11, 16);
+      if (tStart) m.set(tStart, b);
+    });
+    return m;
+  }, [bookings]);
+
   const renderBlock = (slot, kind, idx) => {
     const start = minutes(slot.start);
     const end = minutes(slot.end);
     if (end <= viewWindow.startMin || start >= viewWindow.endMin) return null;
     const top = toPct(Math.max(start, viewWindow.startMin));
     const height = toPct(Math.min(end, viewWindow.endMin)) - top;
-    const cls = kind === "open" ? "ag-tl-block ag-tl-open" : kind === "closure" ? "ag-tl-block ag-tl-closure" : "ag-tl-block ag-tl-booking";
-    return <div key={`${kind}-${idx}`} className={cls} style={{ top: `${top}%`, height: `${Math.max(height, 0)}%` }} />;
+
+    if (kind !== "booking") {
+      const cls = kind === "open" ? "ag-tl-block ag-tl-open" : "ag-tl-block ag-tl-closure";
+      return <div key={`${kind}-${idx}`} className={cls} style={{ top: `${top}%`, height: `${Math.max(height, 0)}%` }} />;
+    }
+
+    // Booking block — arricchito con dati cliente/servizio
+    const booking = bookingMap.get(slot.start);
+    const bookingId = booking?.bookingId;
+    const isSelected = bookingId != null && bookingId === selectedBookingId;
+    const durationMin = end - start;
+    const isCompact = durationMin < 30;
+
+    return (
+      <div
+        key={`${kind}-${idx}`}
+        className={`ag-tl-block ag-tl-booking${booking ? " ag-tl-booking--clickable" : ""}${isSelected ? " ag-tl-booking--selected" : ""}`}
+        style={{ top: `${top}%`, height: `${Math.max(height, 0)}%` }}
+        role={booking ? "button" : undefined}
+        tabIndex={booking ? 0 : undefined}
+        title={booking ? `${booking.serviceTitle || ""} — ${booking.customerName || ""}` : undefined}
+        onClick={
+          booking
+            ? e => {
+                e.stopPropagation();
+                onBookingClick?.(bookingId);
+              }
+            : undefined
+        }
+        onKeyDown={
+          booking
+            ? e => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onBookingClick?.(bookingId);
+                }
+              }
+            : undefined
+        }
+      >
+        {booking &&
+          (isCompact ? (
+            <div className="ag-tl-booking__label ag-tl-booking__label--compact">
+              <span className="ag-tl-booking__service">{booking.serviceTitle || "—"}</span>
+              <span className="ag-tl-booking__dot"> · </span>
+              <span className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</span>
+            </div>
+          ) : (
+            <div className="ag-tl-booking__label">
+              <div className="ag-tl-booking__service">{booking.serviceTitle || "—"}</div>
+              <div className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</div>
+            </div>
+          ))}
+      </div>
+    );
   };
 
   const hourMarks = useMemo(() => {
@@ -224,6 +296,28 @@ export default function AdminAgendaPage() {
   const [deleteCountdown, setDeleteCountdown] = useState(5);
   const deleteIntervalRef = useRef(null);
 
+  // ── Timeline ↔ Lista: highlight sincronizzato ────────────────────────────
+  const [highlightedId, setHighlightedId] = useState(null);
+  const itemRefsMap = useRef(new Map());
+
+  const handleTimelineBookingClick = useCallback(bookingId => {
+    setHighlightedId(prev => (prev === bookingId ? null : bookingId));
+    const el = itemRefsMap.current.get(bookingId);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
+
+  // Azzera highlight al click fuori da blocchi timeline e lista
+  useEffect(() => {
+    if (!highlightedId) return;
+    const onDoc = e => {
+      if (!e.target.closest(".ag-tl-booking") && !e.target.closest(".ag-item")) {
+        setHighlightedId(null);
+      }
+    };
+    document.addEventListener("mousedown", onDoc, true);
+    return () => document.removeEventListener("mousedown", onDoc, true);
+  }, [highlightedId]);
+
   // FIX B2: traccia se il cambio data è stato causato da una ricerca slot.
   // Senza questo ref, l'effect su dateISO azzera nextSlotResult appena
   // la ricerca cambia la data, rendendo "Ancora →" inutilizzabile.
@@ -329,6 +423,16 @@ export default function AdminAgendaPage() {
     return map;
   }, [filtered]);
 
+  const agendaBusyDates = useMemo(() => {
+    const m = new Map();
+    bookings.forEach(b => {
+      const iso = typeof b.startTime === "string" ? b.startTime.slice(0, 10) : "";
+      if (!iso) return;
+      m.set(iso, (m.get(iso) || 0) + 1);
+    });
+    return Array.from(m.entries()).map(([date, count]) => ({ date, count }));
+  }, [bookings]);
+
   const kpi = useMemo(() => {
     const active = bookings.filter(b => b.status !== "CANCELLED");
     const count = active.length;
@@ -352,6 +456,8 @@ export default function AdminAgendaPage() {
   // NON se è stato causato da searchNextSlot (altrimenti "Ancora →" si rompe)
   useEffect(() => {
     setStatusFilter(new Set());
+    setHighlightedId(null);
+    itemRefsMap.current.clear();
     if (dateChangedBySearchRef.current) {
       dateChangedBySearchRef.current = false;
       // Data cambiata da ricerca slot: NON azzeriamo il risultato
@@ -591,18 +697,27 @@ export default function AdminAgendaPage() {
                 </button>
               </div>
 
-              <div className="d-flex gap-2 mt-3 flex-wrap">
-                <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => setDate(d => addDays(d, -1))}>
-                  ← Giorno prima
-                </Button>
-                <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => setDate(new Date())}>
-                  Oggi
-                </Button>
-                <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => setDate(d => addDays(d, 1))}>
-                  Giorno dopo →
-                </Button>
-                <div className="ms-auto">
-                  <Form.Control className="ag-date" type="date" value={dateISO} onChange={e => setDate(fromISODateLocal(e.target.value))} />
+              <div className="ag-toolbar-nav mt-3">
+                <div className="ag-toolbar-nav__btns">
+                  <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => setDate(d => addDays(d, -1))}>
+                    ← Giorno prima
+                  </Button>
+                  <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => setDate(new Date())}>
+                    Oggi
+                  </Button>
+                  <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => setDate(d => addDays(d, 1))}>
+                    Giorno dopo →
+                  </Button>
+                </div>
+                <div className="ag-date-wrap">
+                  <DateTimeField
+                    mode="date"
+                    value={dateISO}
+                    onChange={iso => setDate(fromISODateLocal(iso))}
+                    busyDates={agendaBusyDates}
+                    placeholder="Vai a data…"
+                    className="ag-date-dtf"
+                  />
                 </div>
               </div>
 
@@ -731,7 +846,13 @@ export default function AdminAgendaPage() {
 
           {viewMode === "day" && (
             <div className="mt-3 d-none d-md-block">
-              <TimelineDay dateISO={dateISO} data={timeline} />
+              <TimelineDay
+                dateISO={dateISO}
+                data={timeline}
+                bookings={bookings}
+                selectedBookingId={highlightedId}
+                onBookingClick={handleTimelineBookingClick}
+              />
             </div>
           )}
         </Col>
@@ -796,7 +917,14 @@ export default function AdminAgendaPage() {
                 <>
                   <div className="ag-list">
                     {filtered.map(b => (
-                      <div key={b.bookingId} className="ag-item">
+                      <div
+                        key={b.bookingId}
+                        className={`ag-item${highlightedId === b.bookingId ? " ag-item--highlighted" : ""}`}
+                        ref={el => {
+                          if (el) itemRefsMap.current.set(b.bookingId, el);
+                          else itemRefsMap.current.delete(b.bookingId);
+                        }}
+                      >
                         <div className="ag-item__header">
                           <div className="ag-item__time">
                             <div className="ag-item__timeMain">

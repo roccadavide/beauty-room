@@ -1,6 +1,7 @@
 import PromoCountdown from "./PromoCountdown";
 import AdminToggle from "../../components/common/AdminToggle";
 import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
+import { BadgeFlags } from "../../components/common/BadgeFlag";
 
 export default function PromoCard({
   promo,
@@ -40,6 +41,7 @@ export default function PromoCard({
           <span className="pcn-badge-inactive">Inattiva</span>
         )}
       </div>
+      <BadgeFlags badges={promo?.badges ?? []} />
 
       <div className="pcn-body">
         {promo.subtitle && <p className="pcn-eyebrow">{promo.subtitle}</p>}

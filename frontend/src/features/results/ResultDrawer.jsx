@@ -1,8 +1,9 @@
 // Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { createResult, updateResult } from "../../api/modules/results.api";
 import { fetchServices } from "../../api/modules/services.api";
+import CustomSelect from "../../components/common/CustomSelect";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import MultiImageUpload from "../../components/common/MultiImageUpload";
 import { buildMultipartForm } from "../../api/utils/multipart";
@@ -21,6 +22,12 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
   const [errors, setErrors] = useState({});
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const categoryOptions = useMemo(() => categories.map(c => ({ value: c.categoryId, label: c.label })), [categories]);
+  const linkedServiceOptions = useMemo(
+    () => [{ value: "", label: "— Nessuno —" }, ...services.map(s => ({ value: s.serviceId, label: s.title }))],
+    [services],
+  );
 
   // Load services list once on mount
   useEffect(() => {
@@ -136,39 +143,29 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
         </Form.Group>
 
         <Form.Group className="rd-field">
-          <Form.Label>Categoria *</Form.Label>
-          <Form.Select
+          <CustomSelect
+            label="Categoria *"
+            options={categoryOptions}
             value={categoryId}
-            onChange={e => {
-              setCategoryId(e.target.value);
+            onChange={v => {
+              setCategoryId(v);
               setErrors(p => ({ ...p, categoryId: null }));
             }}
+            placeholder="-- Seleziona una categoria --"
+            error={errors.categoryId || null}
             isInvalid={!!errors.categoryId}
-          >
-            <option value="">-- Seleziona una categoria --</option>
-            {categories.map(c => (
-              <option key={c.categoryId} value={c.categoryId}>
-                {c.label}
-              </option>
-            ))}
-          </Form.Select>
-          <Form.Control.Feedback type="invalid">{errors.categoryId}</Form.Control.Feedback>
+          />
         </Form.Group>
 
         <Form.Group className="rd-field">
-          <Form.Label>Trattamento collegato <span className="text-muted fw-normal">(opzionale)</span></Form.Label>
-          <Form.Select
+          <CustomSelect
+            label="Trattamento collegato (opzionale)"
+            options={linkedServiceOptions}
             value={linkedServiceId}
-            onChange={e => setLinkedServiceId(e.target.value)}
+            onChange={v => setLinkedServiceId(v)}
+            placeholder="— Nessuno —"
             className="rd-select-service"
-          >
-            <option value="">— Nessuno —</option>
-            {services.map(s => (
-              <option key={s.serviceId} value={s.serviceId}>
-                {s.title}
-              </option>
-            ))}
-          </Form.Select>
+          />
           <Form.Text className="text-muted" style={{ fontSize: "0.75rem" }}>
             Se collegato, nella card pubblica apparirà un link al trattamento.
           </Form.Text>

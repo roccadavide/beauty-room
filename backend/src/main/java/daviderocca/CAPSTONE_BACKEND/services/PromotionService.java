@@ -10,6 +10,7 @@ import daviderocca.CAPSTONE_BACKEND.enums.PromotionScope;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.repositories.*;
+import daviderocca.CAPSTONE_BACKEND.util.BadgesUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -192,6 +193,7 @@ public class PromotionService {
         promo.setDiscountType(dto.discountType());
         promo.setDiscountValue(dto.discountValue());
         promo.setScope(dto.scope());
+        promo.setBadges(BadgesUtil.toJson(BadgesUtil.validate(dto.badges())));
     }
 
     // ---------------------------- CLOUDINARY ----------------------------
@@ -233,7 +235,8 @@ public class PromotionService {
                 p.getCategories().stream().map(Category::getCategoryId).collect(Collectors.toList()),
                 p.getCreatedAt(),
                 p.getUpdatedAt(),
-                p.isCurrentlyActive()
+                p.isCurrentlyActive(),
+                BadgesUtil.fromJson(p.getBadges())
         );
     }
 }

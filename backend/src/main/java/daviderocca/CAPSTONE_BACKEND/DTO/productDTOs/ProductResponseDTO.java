@@ -13,5 +13,6 @@ public record ProductResponseDTO(
         List<String> images,
         int stock,
         UUID categoryId,
-        boolean active
+        boolean active,
+        List<String> badges
 ) {}
