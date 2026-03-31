@@ -15,11 +15,21 @@ import java.util.UUID;
 
 public interface PackageCreditRepository extends JpaRepository<PackageCredit, UUID> {
 
-    // ---- storico per email ----
+    // ---- storico per email (singolo status) ----
     List<PackageCredit> findByCustomerEmailIgnoreCaseAndStatusOrderByPurchasedAtDesc(
             String email,
             PackageCreditStatus status
     );
+
+    // ---- storico completo per email (tutti gli status, per client area e admin) ----
+    @Query("""
+            SELECT pc FROM PackageCredit pc
+            LEFT JOIN FETCH pc.service
+            LEFT JOIN FETCH pc.serviceOption
+            WHERE LOWER(pc.customerEmail) = LOWER(:email)
+            ORDER BY pc.purchasedAt DESC
+            """)
+    List<PackageCredit> findAllByCustomerEmailOrderByPurchasedAtDesc(@Param("email") String email);
 
     // ---- blocco pessimistico su singolo pacchetto (anti race-condition) ----
     @Lock(LockModeType.PESSIMISTIC_WRITE)

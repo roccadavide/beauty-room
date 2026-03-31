@@ -1,6 +1,8 @@
 package daviderocca.CAPSTONE_BACKEND.services;
 
 import daviderocca.CAPSTONE_BACKEND.DTO.packageDTOs.ActivePackageDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.packageDTOs.AssignPackageCreditDTO;
+import daviderocca.CAPSTONE_BACKEND.DTO.packageDTOs.MyPackageDTO;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
 import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
@@ -10,6 +12,7 @@ import daviderocca.CAPSTONE_BACKEND.enums.PackageCreditStatus;
 import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.DuplicateResourceException;
 import daviderocca.CAPSTONE_BACKEND.repositories.PackageCreditRepository;
+import daviderocca.CAPSTONE_BACKEND.repositories.ServiceOptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,7 @@ import java.util.UUID;
 public class PackageCreditService {
 
     private final PackageCreditRepository packageCreditRepository;
+    private final ServiceOptionRepository serviceOptionRepository;
 
     // =====================================================================
     // CREAZIONE
@@ -315,6 +319,100 @@ public class PackageCreditService {
                 "expired",   packageCreditRepository.countByStatus(PackageCreditStatus.EXPIRED),
                 "completed", packageCreditRepository.countByStatus(PackageCreditStatus.COMPLETED)
         );
+    }
+
+    // =====================================================================
+    // CLIENT AREA
+    // =====================================================================
+
+    /**
+     * Restituisce tutti i pacchetti (tutti gli status) del cliente loggato.
+     */
+    @Transactional(readOnly = true)
+    public List<MyPackageDTO> getMyPackages(String customerEmail) {
+        return packageCreditRepository
+                .findAllByCustomerEmailOrderByPurchasedAtDesc(customerEmail.trim().toLowerCase())
+                .stream()
+                .map(this::toMyPackageDTO)
+                .toList();
+    }
+
+    private MyPackageDTO toMyPackageDTO(PackageCredit pc) {
+        int sessionsUsed = pc.getSessionsTotal() - pc.getSessionsRemaining();
+        return new MyPackageDTO(
+                pc.getPackageCreditId(),
+                pc.getService() != null ? pc.getService().getTitle() : null,
+                pc.getServiceOption() != null ? pc.getServiceOption().getName() : null,
+                pc.getSessionsTotal(),
+                sessionsUsed,
+                pc.getSessionsRemaining(),
+                pc.getStatus(),
+                pc.getPurchasedAt(),
+                pc.getExpiryDate()
+        );
+    }
+
+    // =====================================================================
+    // ADMIN — gestione manuale pacchetti cliente
+    // =====================================================================
+
+    /**
+     * Assegna manualmente un pacchetto a un cliente (senza pagamento Stripe).
+     */
+    @Transactional
+    public ActivePackageDTO adminAssignPackage(AssignPackageCreditDTO dto) {
+        ServiceOption option = serviceOptionRepository.findById(dto.serviceOptionId())
+                .orElseThrow(() -> new BadRequestException("ServiceOption non trovata: " + dto.serviceOptionId()));
+        ServiceItem service = option.getService();
+
+        PackageCredit pc = createPackageCredit(
+                dto.customerEmail(),
+                dto.sessionsTotal(),
+                service,
+                option,
+                null,
+                null,
+                false
+        );
+        return toActiveDTO(pc);
+    }
+
+    /**
+     * Scala manualmente una seduta (uso da admin senza prenotazione).
+     */
+    @Transactional
+    public ActivePackageDTO adminUseSession(UUID packageCreditId) {
+        PackageCredit pc = packageCreditRepository.findByIdForUpdate(packageCreditId)
+                .orElseThrow(() -> new BadRequestException("PackageCredit non trovato: " + packageCreditId));
+
+        if (pc.getStatus() != PackageCreditStatus.ACTIVE) {
+            throw new BadRequestException("Il pacchetto non è ACTIVE: " + pc.getStatus());
+        }
+        if (pc.getSessionsRemaining() <= 0) {
+            throw new BadRequestException("Il pacchetto non ha sedute residue.");
+        }
+
+        pc.setSessionsRemaining(pc.getSessionsRemaining() - 1);
+        if (pc.getSessionsRemaining() == 0) {
+            pc.setStatus(PackageCreditStatus.COMPLETED);
+        }
+
+        PackageCredit saved = packageCreditRepository.save(pc);
+        log.info("Admin use-session: pacchetto {} remaining={} status={}",
+                packageCreditId, saved.getSessionsRemaining(), saved.getStatus());
+        return toActiveDTO(saved);
+    }
+
+    /**
+     * Recupera tutti i pacchetti di un cliente (per email) — vista admin.
+     */
+    @Transactional(readOnly = true)
+    public List<ActivePackageDTO> adminFindByEmail(String email) {
+        return packageCreditRepository
+                .findAllByCustomerEmailOrderByPurchasedAtDesc(email.trim().toLowerCase())
+                .stream()
+                .map(this::toActiveDTO)
+                .toList();
     }
 
     private ActivePackageDTO toActiveDTO(PackageCredit pc) {

@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { fetchMyOrders } from "../../api/modules/orders.api";
 import { fetchMyBookings } from "../../api/modules/bookings.api";
+import { fetchMyPackages } from "../../api/modules/packages.api";
 
 const TABS = [
   { key: "ordini", label: "Ordini" },
@@ -33,6 +34,10 @@ export default function MyArea() {
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
 
+  // Pacchetti
+  const [packages, setPackages] = useState([]);
+  const [packagesLoading, setPackagesLoading] = useState(true);
+
   const name = user?.name || "Utente";
 
   const downloadIcs = (booking, date) => {
@@ -61,10 +66,12 @@ export default function MyArea() {
     if (!accessToken) {
       setOrdersLoading(false);
       setBookingsLoading(false);
+      setPackagesLoading(false);
       return;
     }
     setOrdersLoading(true);
     setBookingsLoading(true);
+    setPackagesLoading(true);
 
     fetchMyOrders()
       .then(res => setOrders(res || []))
@@ -75,6 +82,11 @@ export default function MyArea() {
       .then(res => setBookings(res || []))
       .catch(() => {})
       .finally(() => setBookingsLoading(false));
+
+    fetchMyPackages()
+      .then(res => setPackages(res || []))
+      .catch(() => {})
+      .finally(() => setPackagesLoading(false));
   }, [accessToken]);
 
   const totalSpent = orders
@@ -99,6 +111,10 @@ export default function MyArea() {
             <div className="ma-stat">
               <span className="ma-stat-val">{bookings.length}</span>
               <span className="ma-stat-label">Prenotazioni</span>
+            </div>
+            <div className="ma-stat">
+              <span className="ma-stat-val">{packages.filter(p => p.status === "ACTIVE").length}</span>
+              <span className="ma-stat-label">Pacchetti</span>
             </div>
             <div className="ma-stat">
               <span className="ma-stat-val">€ {totalSpent.toFixed(0)}</span>
@@ -243,12 +259,82 @@ export default function MyArea() {
         {/* ── PACCHETTI TAB ── */}
         {activeTab === "pacchetti" && (
           <div className="ma-section">
-            <div className="ma-empty">
-              <p>I tuoi pacchetti acquistati appariranno qui.</p>
-              <button className="ma-cta-btn" onClick={() => navigate("/occasioni")}>
-                Scopri i pacchetti →
-              </button>
-            </div>
+            {packagesLoading && (
+              <div className="d-flex justify-content-center py-4">
+                <Spinner animation="border" />
+              </div>
+            )}
+
+            {!packagesLoading && packages.length === 0 && (
+              <div className="ma-empty">
+                <p>Non hai ancora pacchetti acquistati.</p>
+                <button className="ma-cta-btn" onClick={() => navigate("/occasioni")}>
+                  Scopri i pacchetti →
+                </button>
+              </div>
+            )}
+
+            {packages.map(pkg => {
+              const pct = pkg.sessionsTotal > 0
+                ? Math.round((pkg.sessionsUsed / pkg.sessionsTotal) * 100)
+                : 0;
+              const isActive = pkg.status === "ACTIVE";
+              const pillStyle = isActive
+                ? { color: "#2d6a4f", background: "rgba(45,106,79,0.10)" }
+                : { color: "#9c8880", background: "rgba(156,136,128,0.10)" };
+              const pillLabel = {
+                ACTIVE:    "Attivo",
+                COMPLETED: "Completato",
+                EXPIRED:   "Scaduto",
+                EXHAUSTED: "Esaurito",
+                CANCELLED: "Cancellato",
+              }[pkg.status] ?? pkg.status;
+
+              return (
+                <div key={pkg.packageCreditId} className="ma-pkg-card">
+                  <div className="ma-pkg-header">
+                    <div>
+                      <p className="ma-pkg-name">{pkg.serviceName}</p>
+                      {pkg.serviceOptionName && (
+                        <p className="ma-pkg-desc">{pkg.serviceOptionName}</p>
+                      )}
+                    </div>
+                    <span className="ma-status-pill" style={pillStyle}>
+                      {pillLabel}
+                    </span>
+                  </div>
+
+                  <div className="ma-pkg-progress-wrap">
+                    <div className="ma-pkg-progress-bar">
+                      <div className="ma-pkg-progress-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="ma-pkg-progress-label">
+                      {pkg.sessionsUsed} / {pkg.sessionsTotal} sedute utilizzate
+                      {isActive && (
+                        <strong> · {pkg.sessionsRemaining} rimanenti</strong>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="ma-pkg-footer">
+                    <span className="ma-pkg-date">
+                      Acquistato il{" "}
+                      {new Date(pkg.purchasedAt).toLocaleDateString("it-IT", {
+                        day: "2-digit", month: "long", year: "numeric",
+                      })}
+                    </span>
+                    {pkg.expiryDate && isActive && (
+                      <span className="ma-pkg-date">
+                        Scade il{" "}
+                        {new Date(pkg.expiryDate).toLocaleDateString("it-IT", {
+                          day: "2-digit", month: "long", year: "numeric",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </Container>

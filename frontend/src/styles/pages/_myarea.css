@@ -244,6 +244,79 @@
 
 .ma-cta-btn:hover { color: #8c6d3f; }
 
+/* ── Package cards ── */
+.ma-pkg-card {
+  background: var(--warm-cream, #fffdf8);
+  border: 1.5px solid rgba(184, 151, 106, 0.18);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 12px;
+  transition: box-shadow 0.18s ease;
+}
+.ma-pkg-card:hover {
+  box-shadow: 0 4px 18px rgba(184, 151, 106, 0.13);
+}
+.ma-pkg-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ma-pkg-name {
+  font-family: "Petrona", serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2e2118;
+  margin: 0 0 4px;
+}
+.ma-pkg-desc {
+  font-size: 0.82rem;
+  color: #9c8880;
+  margin: 0;
+  line-height: 1.4;
+}
+.ma-pkg-progress-wrap {
+  margin-bottom: 14px;
+}
+.ma-pkg-progress-bar {
+  height: 6px;
+  background: rgba(184, 151, 106, 0.15);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.ma-pkg-progress-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--card-gold, #b8976a),
+    var(--card-gold-deep, #8c6d3f)
+  );
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+.ma-pkg-progress-label {
+  font-size: 0.78rem;
+  color: #9c8880;
+}
+.ma-pkg-progress-label strong {
+  color: var(--card-gold-deep, #8c6d3f);
+  font-weight: 600;
+}
+.ma-pkg-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid rgba(184, 151, 106, 0.12);
+}
+.ma-pkg-date {
+  font-size: 0.78rem;
+  color: #b0a09a;
+}
+
 @media (max-width: 576px) {
   .ma-welcome { flex-direction: column; text-align: center; }
   .ma-stats { width: 100%; justify-content: center; }
