@@ -141,6 +141,69 @@
   transform: translateY(-1px);
 }
 
+/* Card prenotazione */
+.ma-booking-card {
+  background: var(--warm-cream, #fffdf8);
+  border: 1.5px solid rgba(184, 151, 106, 0.18);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 12px;
+}
+
+.ma-booking-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* Bottone calendario */
+.ma-cal-btn {
+  font-family: "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(184, 151, 106, 0.4);
+  background: transparent;
+  color: var(--card-gold, #b8976a);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ma-cal-btn:hover {
+  background: rgba(184, 151, 106, 0.1);
+  border-color: var(--card-gold, #b8976a);
+}
+
+/* Bottone/nota cancella */
+.ma-cancel-btn {
+  font-family: "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(184, 50, 50, 0.3);
+  background: transparent;
+  color: #b83232;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ma-cancel-btn:hover {
+  background: rgba(184, 50, 50, 0.08);
+  border-color: #b83232;
+}
+
+.ma-cancel-note {
+  font-size: 11px;
+  color: var(--color-text-secondary, #9c8880);
+  font-style: italic;
+}
+
 .ma-order-row {
   display: flex;
   justify-content: space-between;

@@ -9,7 +9,14 @@ const DeleteOrderModal = ({ show, onHide, order, onConfirm }) => {
         <Modal.Title>Conferma eliminazione</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        Sei sicuro di voler eliminare l'ordine <strong>{order.orderId}</strong>? Questa azione non può essere annullata.
+        <p className="mb-2">
+          Sei sicuro di voler eliminare l'ordine <strong>{order.orderId}</strong>? Questa azione non puo essere annullata.
+        </p>
+        <p className="mb-0">
+          <strong>Stai per eliminare un ordine in attesa di pagamento.</strong>
+          <br />
+          Se hai gia pagato, contatta Michela direttamente.
+        </p>
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={onHide}>

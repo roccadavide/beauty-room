@@ -194,16 +194,32 @@ const MyOrders = () => {
                     <div className="mo-detail-footer">
                       {order.pickupNote && <p className="mo-detail-note">📋 {order.pickupNote}</p>}
                       <div className="mo-detail-actions">
-                        <button
-                          className="mo-delete-btn"
-                          onClick={e => {
-                            e.stopPropagation();
-                            setSelectedOrder(order);
-                            setDeleteModal(true);
-                          }}
-                        >
-                          Elimina ordine
-                        </button>
+                        {order.orderStatus === "PENDING" && (
+                          <button
+                            className="mo-delete-btn"
+                            onClick={e => {
+                              e.stopPropagation();
+                              setSelectedOrder(order);
+                              setDeleteModal(true);
+                            }}
+                          >
+                            Elimina ordine
+                          </button>
+                        )}
+                        {(order.orderStatus === "PAID" || order.orderStatus === "COMPLETED") && (
+                          <button
+                            className="mo-contact-btn"
+                            onClick={e => {
+                              e.stopPropagation();
+                              window.location.href = `mailto:michela@beautyroom.it?subject=Richiesta cancellazione ordine %23${order.orderId?.slice(-8).toUpperCase()}&body=Buongiorno, vorrei richiedere la cancellazione dell'ordine.`;
+                            }}
+                          >
+                            Richiedi cancellazione →
+                          </button>
+                        )}
+                        {order.orderStatus === "CANCELLED" && (
+                          <span className="mo-cancelled-note">Ordine gia cancellato</span>
+                        )}
                       </div>
                     </div>
                   </div>

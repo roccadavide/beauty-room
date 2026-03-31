@@ -3,8 +3,7 @@ import { Container, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { fetchMyOrders } from "../../api/modules/orders.api";
-// Importa le API delle prenotazioni quando disponibili:
-// import { fetchMyBookings } from "../../api/modules/bookings.api";
+import { fetchMyBookings } from "../../api/modules/bookings.api";
 
 const TABS = [
   { key: "ordini", label: "Ordini" },
@@ -30,21 +29,52 @@ export default function MyArea() {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
 
-  // Prenotazioni (placeholder — collegare API quando pronta)
-  const [bookings] = useState([]);
-  const [bookingsLoading] = useState(false);
+  // Prenotazioni
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
 
   const name = user?.name || "Utente";
 
+  const downloadIcs = (booking, date) => {
+    const end = new Date(date.getTime() + (booking.durationMin || 60) * 60000);
+    const fmt = d => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      `DTSTART:${fmt(date)}`,
+      `DTEND:${fmt(end)}`,
+      `SUMMARY:${booking.serviceName || booking.serviceTitle || "Trattamento Beauty Room"}`,
+      "LOCATION:Beauty Room M.R.",
+      "DESCRIPTION:Prenotazione confermata",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const blob = new Blob([ics], { type: "text/calendar" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `beautyroom-${booking.bookingId?.slice(-6)}.ics`;
+    a.click();
+  };
+
   useEffect(() => {
-    if (!accessToken) { setOrdersLoading(false); return; }
+    if (!accessToken) {
+      setOrdersLoading(false);
+      setBookingsLoading(false);
+      return;
+    }
+    setOrdersLoading(true);
+    setBookingsLoading(true);
+
     fetchMyOrders()
       .then(res => setOrders(res || []))
       .catch(() => {})
       .finally(() => setOrdersLoading(false));
 
-    // Quando API prenotazioni pronta:
-    // fetchMyBookings().then(setBookings).catch(()=>{}).finally(()=>setBookingsLoading(false));
+    fetchMyBookings()
+      .then(res => setBookings(res || []))
+      .catch(() => {})
+      .finally(() => setBookingsLoading(false));
   }, [accessToken]);
 
   const totalSpent = orders
@@ -157,24 +187,53 @@ export default function MyArea() {
             )}
 
             {bookings.map(b => {
-              const st = STATUS_LABELS[b.status] || STATUS_LABELS.CONFIRMED;
+              const status = b.status || b.bookingStatus;
+              const st = STATUS_LABELS[status] || STATUS_LABELS.CONFIRMED;
+              const bookingDate = b.startTime ? new Date(b.startTime) : null;
+              const isPast = bookingDate && bookingDate < new Date();
+              const isCancellable = bookingDate &&
+                bookingDate - new Date() > 24 * 60 * 60 * 1000;
+
               return (
-                <div key={b.bookingId} className="ma-order-card">
+                <div key={b.bookingId} className="ma-booking-card">
                   <div className="ma-order-row">
                     <div>
-                      <p className="ma-order-num">{b.serviceName || "Trattamento"}</p>
+                      <p className="ma-order-num">{b.serviceName || b.serviceTitle || "Trattamento"}</p>
                       <p className="ma-order-date">
-                        {b.date
-                          ? new Date(b.date).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
+                        {bookingDate
+                          ? bookingDate.toLocaleDateString("it-IT", {
+                            weekday: "long", day: "numeric", month: "long", year: "numeric"
+                          }) + (b.startTime
+                            ? ` · ore ${bookingDate.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+                            : "")
                           : "—"}
-                        {b.time ? ` · ore ${b.time}` : ""}
                       </p>
                     </div>
                     <span className="ma-status-pill" style={{ color: st.color, background: st.bg }}>
                       {st.label}
                     </span>
                   </div>
-                  {b.note && <p className="ma-order-items-preview">📋 {b.note}</p>}
+                  <div className="ma-booking-actions">
+                    {!isPast && bookingDate && (
+                      <button
+                        className="ma-cal-btn"
+                        onClick={() => downloadIcs(b, bookingDate)}
+                      >
+                        📅 Aggiungi al calendario
+                      </button>
+                    )}
+                    {isCancellable && status !== "CANCELLED" && (
+                      <span className="ma-cancel-note">
+                        Per cancellare contatta Michela
+                      </span>
+                    )}
+                    {!isCancellable && !isPast && status !== "CANCELLED" && (
+                      <span className="ma-cancel-note">
+                        Cancellazione non disponibile online (meno di 24h). Contatta Michela.
+                      </span>
+                    )}
+                  </div>
+                  {(b.notes || b.note) && <p className="ma-order-items-preview">📋 {b.notes || b.note}</p>}
                 </div>
               );
             })}
