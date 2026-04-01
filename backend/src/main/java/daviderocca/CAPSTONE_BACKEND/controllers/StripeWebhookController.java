@@ -14,6 +14,7 @@ import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.Order;
 import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
 import daviderocca.CAPSTONE_BACKEND.entities.ProcessedStripeEvent;
+import daviderocca.CAPSTONE_BACKEND.repositories.BookingRepository;
 import daviderocca.CAPSTONE_BACKEND.repositories.ProcessedStripeEventRepository;
 import daviderocca.CAPSTONE_BACKEND.enums.BookingStatus;
 import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
@@ -49,6 +50,7 @@ public class StripeWebhookController {
     private final BookingService bookingService;
     private final PackageCreditService packageCreditService;
     private final EmailOutboxService emailOutboxService;
+    private final BookingRepository bookingRepository;
     private final ProcessedStripeEventRepository processedEventRepo;
 
     @PostMapping("/webhook")
@@ -67,12 +69,9 @@ public class StripeWebhookController {
 
         log.info("Stripe event: {}", event.getType());
 
-        if (processedEventRepo.existsById(event.getId())) {
-            log.info("Stripe event già processato, skip: {}", event.getId());
-            return ResponseEntity.ok("duplicate");
-        }
-
         try {
+            processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
+
             switch (event.getType()) {
                 case "checkout.session.completed" -> handleCheckoutCompleted(event);
                 case "checkout.session.expired"   -> handleCheckoutExpired(event);
@@ -81,17 +80,11 @@ public class StripeWebhookController {
                 default -> log.info("Evento non gestito: {}", event.getType());
             }
 
-            // Salva SOLO se il processing è andato a buon fine
-            processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
-
         } catch (DataIntegrityViolationException dup) {
-            // Race condition: due webhook in parallelo hanno processato lo stesso evento
-            // Il secondo trova il record già salvato dal primo → ok, non è un errore
-            log.info("Stripe event già processato (race condition): {}", event.getId());
+            log.info("Stripe event già processato, skip: {}", event.getId());
             return ResponseEntity.ok("duplicate");
         } catch (Exception e) {
             log.error("Errore gestione Stripe {}: {}", event.getType(), e.getMessage(), e);
-            // NON salvare ProcessedStripeEvent → Stripe reinvierà e verrà riprocessato
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error processing event");
         }
@@ -185,6 +178,8 @@ public class StripeWebhookController {
                             }
                         } catch (StripeException ex) {
                             log.error("PAID_CONFLICT: errore rimborso Stripe per bookingId={}: {}", bookingId, ex.getMessage());
+                            booking.setCancelReason("PAID_CONFLICT_REFUND_FAILED");
+                            bookingRepository.save(booking);
                         }
 
                         // FIX-6: alert admin

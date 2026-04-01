@@ -4,6 +4,7 @@ import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.AdminBookingCardDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.CAPSTONE_BACKEND.DTO.bookingDTOs.NextAvailableSlotDTO;
+import daviderocca.CAPSTONE_BACKEND.email.outbox.EmailOutboxService;
 import daviderocca.CAPSTONE_BACKEND.entities.Booking;
 import daviderocca.CAPSTONE_BACKEND.entities.Closure;
 import daviderocca.CAPSTONE_BACKEND.entities.Customer;
@@ -31,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
@@ -56,13 +58,22 @@ public class BookingService {
     private final ClosureRepository closureRepository;
     private final AdminNotificationService notificationService;
     private final WaitlistService waitlistService;
+    private final EmailOutboxService emailOutboxService;
 
     @Value("${stripe.secret}")
     private String stripeSecretKey;
 
-    private static final int HOLD_EXPIRE_MINUTES = 12;
+    @Value("${booking.hold.expire-minutes:12}")
+    private int holdExpireMinutes;
 
     private static final List<BookingStatus> BLOCKING = List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
+
+    /**
+     * Finestra di sicurezza per il padding: valore massimo ragionevole di paddingMinutes.
+     * Serve a allargare la finestra di ricerca overlap per trovare booking il cui
+     * endTime + paddingMinutes si sovrappone allo slot richiesto.
+     */
+    private static final int MAX_PADDING_MINUTES = 480;
 
     private static final DateTimeFormatter NOTIF_FMT =
         DateTimeFormatter.ofPattern("dd/MM 'alle' HH:mm");
@@ -112,7 +123,7 @@ public class BookingService {
     }
 
     // ============================ HOLD CREATE (Stripe checkout) ============================
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO createHoldBooking(NewBookingDTO payload, User currentUserOrNull) {
 
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
@@ -123,7 +134,7 @@ public class BookingService {
 
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
 
-        if (!bookingRepository.lockOverlappingBookingsByStatuses(start, end, BLOCKING).isEmpty()) {
+        if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
 
@@ -144,7 +155,7 @@ public class BookingService {
         }
 
         booking.setBookingStatus(BookingStatus.PENDING_PAYMENT);
-        booking.setExpiresAt(LocalDateTime.now().plusMinutes(HOLD_EXPIRE_MINUTES));
+        booking.setExpiresAt(LocalDateTime.now().plusMinutes(holdExpireMinutes));
         booking.setStripeSessionId(null);
         booking.setPaidAt(null);
         booking.setCanceledAt(null);
@@ -165,7 +176,7 @@ public class BookingService {
     }
 
     // ============================ MANUAL ADMIN CREATE ============================
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO createManualConfirmedBookingAsAdmin(NewBookingDTO payload, User currentUser) {
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni manuali.");
 
@@ -177,7 +188,7 @@ public class BookingService {
 
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
 
-        if (!bookingRepository.lockOverlappingBookingsByStatuses(start, end, BLOCKING).isEmpty()) {
+        if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
 
@@ -278,13 +289,11 @@ public class BookingService {
         bookingRepository.save(booking);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public boolean hasBlockingConflictExcluding(Booking booking) {
         if (booking == null) return true;
         if (booking.getStartTime() == null || booking.getEndTime() == null) return true;
-        List<Booking> overlaps = bookingRepository.lockOverlappingBookingsByStatusesExcluding(
-                booking.getBookingId(), booking.getStartTime(), booking.getEndTime(), BLOCKING);
-        return !overlaps.isEmpty();
+        return hasOverlapIncludingPaddingExcluding(booking.getBookingId(), booking.getStartTime(), booking.getEndTime());
     }
 
     @Transactional
@@ -496,12 +505,13 @@ public class BookingService {
         booking.setCancelReason("ADMIN_REFUND");
         booking.setExpiresAt(null);
         bookingRepository.save(booking);
+        emailOutboxService.enqueueBookingRefunded(booking);
 
         log.info("Booking refunded and cancelled: bookingId={} stripeSession={}", bookingId, booking.getStripeSessionId());
     }
 
     // ============================ UPDATE (ADMIN/OWNER) ============================
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO updateBooking(UUID bookingId, NewBookingDTO payload, User currentUser) {
         Booking found = findBookingById(bookingId);
 
@@ -527,7 +537,7 @@ public class BookingService {
 
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
 
-        if (!bookingRepository.lockOverlappingBookingsByStatusesExcluding(found.getBookingId(), start, end, BLOCKING).isEmpty()) {
+        if (hasOverlapIncludingPaddingExcluding(found.getBookingId(), start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
 
@@ -723,6 +733,39 @@ public class BookingService {
     }
 
     // ============================ HELPERS ============================
+
+    /**
+     * BUG FIX — padding overlap: controlla se [start, end) si sovrappone a un booking BLOCKING
+     * considerando il buffer paddingMinutes di ciascun booking esistente.
+     *
+     * La finestra di ricerca viene allargata a sinistra di MAX_PADDING_MINUTES per trovare
+     * anche booking il cui endTime (raw) precede start ma il cui endTime+paddingMinutes lo supera.
+     * Il filtro preciso avviene in Java dopo aver acquisito il lock pessimistico.
+     */
+    private boolean hasOverlapIncludingPadding(LocalDateTime start, LocalDateTime end) {
+        List<Booking> candidates = bookingRepository.lockOverlappingBookingsByStatuses(
+                start.minusMinutes(MAX_PADDING_MINUTES), end, BLOCKING);
+        return candidates.stream().anyMatch(b -> {
+            int pad = (b.getPaddingMinutes() != null && b.getPaddingMinutes() > 0) ? b.getPaddingMinutes() : 0;
+            LocalDateTime effectiveEnd = b.getEndTime().plusMinutes(pad);
+            return b.getStartTime().isBefore(end) && effectiveEnd.isAfter(start);
+        });
+    }
+
+    /**
+     * Versione excluding di hasOverlapIncludingPadding: ignora il booking con id excludeId
+     * (usata durante update per non far conflitto con se stesso).
+     */
+    private boolean hasOverlapIncludingPaddingExcluding(UUID excludeId, LocalDateTime start, LocalDateTime end) {
+        List<Booking> candidates = bookingRepository.lockOverlappingBookingsByStatusesExcluding(
+                excludeId, start.minusMinutes(MAX_PADDING_MINUTES), end, BLOCKING);
+        return candidates.stream().anyMatch(b -> {
+            int pad = (b.getPaddingMinutes() != null && b.getPaddingMinutes() > 0) ? b.getPaddingMinutes() : 0;
+            LocalDateTime effectiveEnd = b.getEndTime().plusMinutes(pad);
+            return b.getStartTime().isBefore(end) && effectiveEnd.isAfter(start);
+        });
+    }
+
     private LocalDateTime normalizeStart(LocalDateTime startTime) {
         LocalDateTime start = requireNotNull(startTime, "La data e ora di inizio non può essere nulla")
                 .truncatedTo(ChronoUnit.MINUTES);
