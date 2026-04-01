@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
-import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot, patchBookingPadding } from "../../api/modules/adminAgenda.api";
+import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot, patchBookingPadding, refundBooking } from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
 import WeeklyCalendar from "./WeeklyCalendar";
@@ -270,6 +270,7 @@ export default function AdminAgendaPage() {
 
   const [err, setErr] = useState("");
   const [errDetails, setErrDetails] = useState(null);
+  const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [services, setServices] = useState([]);
@@ -567,7 +568,32 @@ export default function AdminAgendaPage() {
   };
 
   const askCancel = b => {
+    if (b?.stripeSessionId) {
+      setErr("Questa prenotazione è stata pagata. Usa 'Rimborsa' per cancellarla e rimborsare il cliente.");
+      setErrDetails(null);
+      return;
+    }
     setConfirmModal({ type: "cancel", bookingId: b.bookingId, customerName: b.customerName });
+  };
+
+  const handleRefund = async booking => {
+    const confirmed = window.confirm(
+      "Sei sicura di voler rimborsare questo appuntamento?\nIl cliente riceverà il rimborso su Stripe e una email di conferma."
+    );
+    if (!confirmed) return;
+
+    setErr("");
+    setErrDetails(null);
+    setSuccessMsg("");
+
+    try {
+      await refundBooking(booking.bookingId);
+      setSuccessMsg("Rimborso avviato con successo");
+      await refresh();
+      if (viewMode === "week") setWeekRefreshKey(k => k + 1);
+    } catch (e) {
+      setErr(e.message || "Errore durante il rimborso.");
+    }
   };
 
   const submitModal = async payload => {
@@ -841,6 +867,11 @@ export default function AdminAgendaPage() {
                   {errDetails && <pre className="ag-pre mt-2 mb-0">{typeof errDetails === "string" ? errDetails : JSON.stringify(errDetails, null, 2)}</pre>}
                 </Alert>
               )}
+              {successMsg && (
+                <Alert variant="success" className="mt-3 mb-0">
+                  {successMsg}
+                </Alert>
+              )}
             </Card.Body>
           </Card>
 
@@ -1013,6 +1044,11 @@ export default function AdminAgendaPage() {
                           {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
                             <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
                               Annulla
+                            </Button>
+                          )}
+                          {b.stripeSessionId && (b.status === "CONFIRMED" || b.status === "CANCELLED") && (
+                            <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => handleRefund(b)}>
+                              Rimborsa
                             </Button>
                           )}
                           <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>

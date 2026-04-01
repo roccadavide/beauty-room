@@ -558,6 +558,7 @@ public class BookingService {
         }
 
         Booking updated = bookingRepository.save(found);
+        emailOutboxService.enqueueBookingConfirmed(updated);
         log.info("Booking updated: id={} status={} padding={}min", updated.getBookingId(), updated.getBookingStatus(), updated.getPaddingMinutes());
         return convertToDTO(updated);
     }

@@ -74,6 +74,16 @@ export const deleteBooking = async id => {
   }
 };
 
+export const refundBooking = async id => {
+  try {
+    const { data } = await http.post(`/admin/bookings/${id}/refund`);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante il rimborso della prenotazione.";
+    throw new Error(message);
+  }
+};
+
 export const getNextAvailableSlot = async (durationMin, afterISO) => {
   const params = { durationMin };
   if (afterISO) params.after = afterISO;
