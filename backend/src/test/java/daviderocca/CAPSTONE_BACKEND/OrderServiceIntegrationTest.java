@@ -1,15 +1,15 @@
-package daviderocca.CAPSTONE_BACKEND;
+package daviderocca.beautyroom;
 
-import daviderocca.CAPSTONE_BACKEND.DTO.orderDTOs.NewOrderDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.orderDTOs.OrderResponseDTO;
-import daviderocca.CAPSTONE_BACKEND.DTO.orderItemDTOs.NewOrderItemDTO;
-import daviderocca.CAPSTONE_BACKEND.entities.Category;
-import daviderocca.CAPSTONE_BACKEND.entities.Product;
-import daviderocca.CAPSTONE_BACKEND.enums.OrderStatus;
-import daviderocca.CAPSTONE_BACKEND.repositories.CategoryRepository;
-import daviderocca.CAPSTONE_BACKEND.repositories.OrderRepository;
-import daviderocca.CAPSTONE_BACKEND.repositories.ProductRepository;
-import daviderocca.CAPSTONE_BACKEND.services.OrderService;
+import daviderocca.beautyroom.DTO.orderDTOs.NewOrderDTO;
+import daviderocca.beautyroom.DTO.orderDTOs.OrderResponseDTO;
+import daviderocca.beautyroom.DTO.orderItemDTOs.NewOrderItemDTO;
+import daviderocca.beautyroom.entities.Category;
+import daviderocca.beautyroom.entities.Product;
+import daviderocca.beautyroom.enums.OrderStatus;
+import daviderocca.beautyroom.repositories.CategoryRepository;
+import daviderocca.beautyroom.repositories.OrderRepository;
+import daviderocca.beautyroom.repositories.ProductRepository;
+import daviderocca.beautyroom.services.OrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

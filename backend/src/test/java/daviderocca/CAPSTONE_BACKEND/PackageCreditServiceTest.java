@@ -1,14 +1,14 @@
-package daviderocca.CAPSTONE_BACKEND;
+package daviderocca.beautyroom;
 
-import daviderocca.CAPSTONE_BACKEND.entities.Booking;
-import daviderocca.CAPSTONE_BACKEND.entities.PackageCredit;
-import daviderocca.CAPSTONE_BACKEND.entities.ServiceItem;
-import daviderocca.CAPSTONE_BACKEND.entities.ServiceOption;
-import daviderocca.CAPSTONE_BACKEND.enums.PackageCreditStatus;
-import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
-import daviderocca.CAPSTONE_BACKEND.exceptions.DuplicateResourceException;
-import daviderocca.CAPSTONE_BACKEND.repositories.PackageCreditRepository;
-import daviderocca.CAPSTONE_BACKEND.services.PackageCreditService;
+import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.PackageCredit;
+import daviderocca.beautyroom.entities.ServiceItem;
+import daviderocca.beautyroom.entities.ServiceOption;
+import daviderocca.beautyroom.enums.PackageCreditStatus;
+import daviderocca.beautyroom.exceptions.BadRequestException;
+import daviderocca.beautyroom.exceptions.DuplicateResourceException;
+import daviderocca.beautyroom.repositories.PackageCreditRepository;
+import daviderocca.beautyroom.services.PackageCreditService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -1,10 +1,10 @@
-package daviderocca.CAPSTONE_BACKEND;
+package daviderocca.beautyroom;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.UserLoginDTO;
-import daviderocca.CAPSTONE_BACKEND.entities.User;
-import daviderocca.CAPSTONE_BACKEND.enums.Role;
-import daviderocca.CAPSTONE_BACKEND.repositories.UserRepository;
+import daviderocca.beautyroom.DTO.userDTOs.UserLoginDTO;
+import daviderocca.beautyroom.entities.User;
+import daviderocca.beautyroom.enums.Role;
+import daviderocca.beautyroom.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

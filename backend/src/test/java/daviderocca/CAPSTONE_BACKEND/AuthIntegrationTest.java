@@ -1,7 +1,7 @@
-package daviderocca.CAPSTONE_BACKEND;
+package daviderocca.beautyroom;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import daviderocca.CAPSTONE_BACKEND.DTO.userDTOs.UserLoginDTO;
+import daviderocca.beautyroom.DTO.userDTOs.UserLoginDTO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

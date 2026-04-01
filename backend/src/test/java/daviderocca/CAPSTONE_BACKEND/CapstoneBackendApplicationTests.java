@@ -1,4 +1,4 @@
-package daviderocca.CAPSTONE_BACKEND;
+package daviderocca.beautyroom;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

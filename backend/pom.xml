@@ -13,9 +13,9 @@
 	</parent>
 
 	<groupId>daviderocca</groupId>
-	<artifactId>CAPSTONE_BACKEND</artifactId>
+	<artifactId>beautyroom</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>CAPSTONE_BACKEND</name>
+	<name>beautyroom</name>
 	<description>Demo project for Spring Boot</description>
 
 	<properties>
