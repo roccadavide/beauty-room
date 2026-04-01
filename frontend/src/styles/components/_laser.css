@@ -1,7 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
    LASER SECTION
-   Desktop/Tablet: card con border-radius e animazione parallax
-   Mobile ≤575px : full-bleed, macchina grande, CTA gold, fade-in
    ═══════════════════════════════════════════════════════════════ */
 
 .laser-section {
@@ -10,6 +8,14 @@
   padding-bottom: 28px;
   position: relative;
   z-index: 3;
+}
+
+/* Su desktop la card ha margin-top:30px e border-radius:24px
+     quindi la transizione è già naturale — nascondi il pseudo */
+@media (min-width: 576px) {
+  .laser-section::before {
+    display: none;
+  }
 }
 
 /* ────────────────────────────────────────
@@ -164,6 +170,10 @@
   margin-bottom: 18px;
 }
 
+.laser-text-mobile {
+  display: none;
+}
+
 .laser-subtle {
   color: rgba(255, 255, 255, 0.6);
 }
@@ -176,7 +186,6 @@
   font-weight: 700;
 }
 
-/* Bottone oro: solo mobile, fullwidth */
 .laser-btn-gold {
   background: linear-gradient(135deg, #c9a87c 0%, #b8976a 100%) !important;
   border: none !important;
@@ -185,8 +194,9 @@
   box-shadow: 0 4px 18px rgba(184, 151, 106, 0.42) !important;
   letter-spacing: 0.2px;
   width: 100%;
-  padding: 13px 20px !important;
+  padding: 14px 20px !important;
   font-size: 15px !important;
+  border-radius: 100px !important;
   transition:
     transform 0.15s ease,
     box-shadow 0.15s ease;
@@ -200,7 +210,6 @@
 
 .laser-btn-gold:active {
   transform: scale(0.98) !important;
-  box-shadow: 0 3px 14px rgba(184, 151, 106, 0.4) !important;
 }
 
 /* ────────────────────────────────────────
@@ -233,7 +242,7 @@
 }
 
 /* ────────────────────────────────────────
-     COLONNA SINISTRA
+     COLONNA SINISTRA desktop/tablet
      ──────────────────────────────────────── */
 .laser-left {
   display: flex;
@@ -250,23 +259,36 @@
   margin: 0 auto;
 }
 
-/* Nascosti di default, mostrati da CSS mobile */
-.laser-ctas-mobile {
-  display: none;
-}
+/* ────────────────────────────────────────
+     ELEMENTI SOLO MOBILE — nascosti di default
+     ──────────────────────────────────────── */
 
+/* La macchina mobile è nascosta su desktop/tablet */
 .laser-machine-mobile {
   display: none;
 }
 
-.laser-meta-mobile {
-  margin-top: 10px;
-  display: grid;
-  gap: 4px;
+/* laser-body-mobile: su desktop/tablet è un passthrough
+     (display:contents fa sì che i figli fluiscano normalmente
+     senza che il div crei un nuovo contesto di layout) */
+.laser-body-mobile {
+  display: contents;
+}
+
+/* Strip inferiore: nascosta su desktop/tablet */
+.laser-strip {
+  display: none;
+}
+
+.laser-strip-meta {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 /* ══════════════════════════════════════════════════════════════
-     BREAKPOINTS DESKTOP / TABLET  (invariati)
+     BREAKPOINTS DESKTOP / TABLET — invariati
      ══════════════════════════════════════════════════════════════ */
 
 @media (max-width: 1399px) {
@@ -282,13 +304,10 @@
     --fx-x: 205px;
     --fx-y: 162px;
     --fx-s: 1.55;
-
     --gap: 22px;
     --copy-tx: -50px;
-
     --machine-w: 320px;
     --copy-w: 420px;
-
     --hand-w: 270px;
     --hand-top: -90px;
   }
@@ -299,15 +318,12 @@
     --fx-x: 110px;
     --fx-y: 132px;
     --fx-s: 1.25;
-
     --pad-y: 75px;
     --pad-x: 0px;
     --gap: 0px;
-
     --machine-w: 255px;
     --copy-w: 310px;
     --copy-tx: -25px;
-
     --hand-w: 180px;
     --hand-top: -20px;
     --hand-right: -8px;
@@ -317,14 +333,11 @@
 @media (max-width: 768px) {
   .laser-card {
     min-height: auto;
-
     --fx-x: 110px;
     --fx-y: 125px;
     --fx-s: 1.25;
-
     --pad-y: 75px;
     --pad-x: 0px;
-
     --gap: 12px;
     --machine-w: 220px;
     --copy-w: 350px;
@@ -340,7 +353,6 @@
   .laser-top {
     align-items: flex-start;
   }
-
   .laser-side {
     display: none;
   }
@@ -358,24 +370,20 @@
     font-size: 11px;
     margin-bottom: 6px;
   }
-
   .laser-title {
     font-size: 20px;
     line-height: 1.12;
     margin-bottom: 8px;
   }
-
   .laser-text {
     font-size: 13px;
     line-height: 1.55;
     margin-bottom: 12px;
   }
-
   .laser-meta {
     gap: 4px;
     margin-top: 10px;
   }
-
   .laser-info,
   .laser-pay {
     font-size: 11px;
@@ -391,26 +399,88 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-     MOBILE FULL-BLEED  ≤ 575px
-     ──────────────────────────────────────────────────────────────
-     Sostituisce tutti i vecchi breakpoint 720/695/570/500/385px.
-     - Container: zero padding, full width
-     - Card: border-radius 0, margin 0, ~92svh
-     - Machine grande in cima (area visiva + beam)
-     - Copy in basso con gradient scuro per leggibilità
-     - CTA: bottone oro full-width
-     - Testo lungo nascosto
-     - Fade-in via IntersectionObserver + classe .laser-copy--visible
+     MOBILE FULL-BLEED ≤ 575px
+     ══════════════════════════════════════════════════════════════
+  
+     VARIABILI TWEAKABILI — cambia solo queste per aggiustare
+     tutto il layout mobile senza toccare nient'altro:
+  
+     Beam:
+       --mob-beam-x    spostamento orizzontale beam (formula fluid)
+       --mob-beam-y    spostamento verticale beam
+       --mob-beam-s    scala beam
+  
+     Handpiece:
+       --mob-hand-w    larghezza manipolo
+       --mob-hand-top  posizione verticale manipolo (negativo = sale sopra card)
+  
+     Macchina:
+       --mob-machine-w     larghezza immagine macchina
+       --mob-machine-col   percentuale colonna sinistra (es. 48%)
+       --mob-machine-tx    traslazione orizzontale macchina
+       --mob-machine-ty    traslazione verticale macchina
+  
+     Copy (colonna destra):
+       --mob-copy-col      percentuale colonna destra (es. 52%)
+       --mob-copy-pt       padding-top del copy
+       --mob-copy-pb       padding-bottom del copy
+  
+     Body row:
+       --mob-body-pt       padding-top della riga (spazio navbar)
+       --mob-body-min-h    altezza minima della riga
+  
      ══════════════════════════════════════════════════════════════ */
 
 @media (max-width: 575px) {
-  /* Sezione: zero padding */
+  /* ── Variabili mobile tweakabili ── */
+  .laser-card {
+    /* Beam fluid: il centro del manipolo è a ≈ (100vw - hand-w/2)
+         Il beam si sposta di conseguenza.
+         Tweaka la costante finale (130px) in DevTools:
+           +valore  → beam più a sinistra
+           -valore  → beam più a destra (verso manipolo)  */
+    --mob-beam-x: calc(33.2vw - 130px);
+    --mob-beam-y: 5px;
+    --mob-beam-s: 1.25;
+
+    /* Handpiece */
+    --mob-hand-w: 210px;
+    --mob-hand-top: -45px;
+
+    /* Macchina */
+    --mob-machine-w: min(250px, 43vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -38px;
+    --mob-machine-ty: -50px;
+
+    /* Copy */
+    --mob-copy-col: 45%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -100px;
+    --mob-copy-ty: -150px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    /* ── Applica le variabili mobile alle var CSS esistenti ── */
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+
+  /* Sezione e container: full bleed */
   .laser-section {
     padding-top: 0;
     padding-bottom: 0;
   }
 
-  /* Container Bootstrap: full bleed */
   .laser-section .container {
     padding-left: 0 !important;
     padding-right: 0 !important;
@@ -418,43 +488,25 @@
     width: 100% !important;
   }
 
-  /* ── CARD full-bleed ── */
+  /* Card: full bleed, flex column */
   .laser-card {
     border-radius: 0;
     margin-top: 0;
     width: 100%;
-    min-height: 92svh;
+    min-height: 0;
+    height: auto;
     box-shadow: none;
     display: flex;
     flex-direction: column;
-
-    /*
-        🎯 BEAM POSITIONING — tweakare per allineare il fascio al manipolo.
-        --fx-x : positivo = beam si sposta a destra
-        --fx-y : positivo = beam scende
-        --fx-s : > 1 = beam più grande
-      */
-    --fx-x: 40px;
-    --fx-y: 0px;
-    --fx-s: 1.85;
-
-    /* Handpiece: top-right, compatto */
-    --hand-w: 238px;
-    --hand-right: -5px;
-    --hand-top: -35px;
-    --hand-tx: 0px;
-    --hand-ty: 0px;
-
-    /* Reset layout vars */
-    --pad-y: 0px;
-    --pad-x: 0px;
-    --gap: 0px;
     --machine-w: 100%;
     --copy-w: 100%;
     --copy-tx: 0px;
+    --pad-y: 0px;
+    --pad-x: 0px;
+    --gap: 0px;
   }
 
-  /* Nascondi elementi desktop/tablet */
+  /* Nascondi tutto il layout desktop/tablet */
   .laser-left {
     display: none !important;
   }
@@ -465,7 +517,7 @@
     display: none !important;
   }
 
-  /* Content: full height flex column */
+  /* Content e top: flex colonna full */
   .laser-content {
     padding: 0 !important;
     flex: 1;
@@ -481,105 +533,490 @@
     width: 100%;
   }
 
-  /* Wrapper: flex column, occupa tutto */
   .laser-wrapper-mobile {
     flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: stretch;
     width: 100%;
   }
 
-  /* ── AREA VISIVA: macchina grande in alto ── */
-  .laser-machine-mobile {
-    display: flex !important;
-    flex: 1 1 auto; /* occupa lo spazio disponibile sopra il copy */
-    align-items: flex-end;
-    justify-content: center;
-    padding-top: 68px; /* margine sotto navbar */
-    padding-bottom: 0;
-    position: relative;
-    z-index: 5;
-    transform: translate(-100px, -150px);
+  /* ── laser-body-mobile: ora è un vero flex row ── */
+  .laser-body-mobile {
+    display: flex !important; /* override display:contents di default */
+    flex-direction: row;
+    align-items: stretch;
+    flex: 1;
+    min-height: var(--mob-body-min-h);
+    padding-top: var(--mob-body-pt);
   }
 
-  .laser-machine-mobile .laser-machine {
-    width: min(240px, 60vw);
-    height: auto;
-    filter: drop-shadow(0 16px 36px rgba(0, 0, 0, 0.5));
-  }
-
-  /* ── AREA COPY: testo + CTA in basso ── */
-  .laser-copy {
-    flex: 0 0 auto;
-    max-width: 100% !important;
-    transform: none !important;
-    padding: 24px 22px 40px;
-    position: relative;
-    z-index: 6;
-
-    /*
-        Gradient: garantisce leggibilità del testo
-        sul beam che irradia dall'alto.
-        La parte trasparente in cima permette al beam
-        di "sbordare" visivamente nella zona copy.
-      */
-    background: linear-gradient(180deg, rgba(47, 39, 35, 0) 0%, rgba(47, 39, 35, 0.78) 18%, rgba(47, 39, 35, 0.96) 38%);
-
-    /* Animazione fade-up: attivata da IntersectionObserver */
-    opacity: 0;
-    transform: translateY(18px);
-    transition:
-      opacity 0.65s ease,
-      transform 0.65s ease;
-    transition-delay: 0.05s;
-  }
-
-  /* Classe aggiunta da JS quando il copy entra nel viewport */
-  .laser-copy.laser-copy--visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  /* Typography mobile */
-  .laser-kicker {
-    font-size: 11px;
-    letter-spacing: 0.8px;
-    margin-bottom: 6px;
-  }
-
-  .laser-title {
-    font-size: clamp(20px, 5.8vw, 25px);
-    line-height: 1.15;
+  .laser-text-mobile {
+    display: block !important;
+    color: rgba(255, 255, 255, 0.74);
+    font-size: clamp(11px, 1.05vw, 15px);
+    line-height: 1.7;
     margin-bottom: 18px;
   }
 
-  /* Testo lungo nascosto su mobile: troppo da leggere, converte meno */
+  /* Macchina — colonna sinistra */
+  .laser-machine-mobile {
+    display: flex !important;
+    flex: 0 0 var(--mob-machine-col);
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 0;
+    position: relative;
+    z-index: 5;
+  }
+
+  .laser-machine-mobile .laser-machine {
+    width: var(--mob-machine-w);
+    height: auto;
+    transform: translate(var(--mob-machine-tx), var(--mob-machine-ty));
+    filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.55));
+  }
+
+  /* Copy — colonna destra */
+  .laser-copy {
+    flex: 0 0 var(--mob-copy-col) !important;
+    max-width: var(--mob-copy-col) !important;
+    transform: translate(var(--mob-copy-tx), var(--mob-copy-ty)) !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-top: var(--mob-copy-pt);
+    padding-bottom: var(--mob-copy-pb);
+    padding-left: 10px;
+    padding-right: 14px;
+    position: relative;
+    z-index: 6;
+    background: transparent;
+  }
+
+  .laser-kicker {
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    margin-bottom: 5px;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .laser-title {
+    font-size: clamp(15px, 4.2vw, 20px);
+    line-height: 1.2;
+    margin-bottom: 0;
+  }
+
+  /* Testo corpo: nascosto su mobile */
   .laser-text {
     display: none;
   }
 
-  /* ── CTA MOBILE ── */
-  .laser-ctas-mobile {
-    display: block !important;
+  /* ── STRIP INFERIORE ── */
+  .laser-strip {
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 18px 20px 32px;
+    position: relative;
+    z-index: 6;
+    background: #1e1814;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+
+    /* Fade-up */
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 0.5s ease,
+      transform 0.5s ease;
   }
 
-  /* Meta mobile */
-  .laser-meta-mobile {
-    margin-top: 11px;
-    display: grid;
-    gap: 4px;
+  .laser-strip.laser-strip--visible {
+    opacity: 1;
+    transform: translateY(0);
   }
 
-  .laser-meta-mobile .laser-info,
-  .laser-meta-mobile .laser-pay {
+  .laser-strip-meta {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .laser-strip-meta .laser-info,
+  .laser-strip-meta .laser-pay {
     font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .laser-strip-meta .laser-whatsapp {
+    color: #ffd7a1;
   }
 }
 
-/* Accessibilità: motion ridotta → niente animazione */
+.laser-beam-mask {
+  display: none;
+}
+
+@media (max-width: 575px) {
+  .laser-card {
+    /* Beam fluid: il centro del manipolo è a ≈ (100vw - hand-w/2)
+         Il beam si sposta di conseguenza.
+         Tweaka la costante finale (130px) in DevTools:
+           +valore  → beam più a sinistra
+           -valore  → beam più a destra (verso manipolo)  */
+    --mob-beam-x: calc(44.2vw - 130px);
+    --mob-beam-y: 50px;
+    --mob-beam-s: 1.65;
+
+    /* Handpiece */
+    --mob-hand-w: 210px;
+    --mob-hand-top: -45px;
+
+    /* Macchina */
+    --mob-machine-w: min(350px, 54vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: 10px;
+    --mob-machine-ty: -15px;
+
+    /* Copy */
+    --mob-copy-col: 60%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -200px;
+    --mob-copy-ty: -240px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    /* ── Applica le variabili mobile alle var CSS esistenti ── */
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+
+  .laser-beam-mask {
+    display: block;
+    position: absolute;
+    top: 0;
+    right: 0;
+    /*
+      Larghezza: copre la zona destra dove passa il beam sopra il manipolo.
+      Tweaka in DevTools finché il fascio sparisce ma il manipolo rimane visibile.
+    */
+    width: 60%;
+    /*
+      Altezza: dal top della card fino a dove inizia il manipolo.
+      Corrisponde circa a var(--mob-hand-top) in positivo + qualcosa.
+    */
+    height: 50px;
+    background: #312925; /* stesso sfondo della card */
+    z-index: 3; /* sopra beam (z1) e overlay (z2), SOTTO handpiece (z4) e content (z5) */
+    pointer-events: none;
+  }
+}
+
+@media (min-width: 421px) and (max-width: 440px) {
+  .laser-card {
+    --mob-beam-x: calc(50.9vw - 130px);
+    --mob-beam-y: 87px;
+    --mob-beam-s: 2;
+
+    /* Handpiece */
+    --mob-hand-w: 220px;
+    --mob-hand-top: -45px;
+
+    /* Macchina */
+    --mob-machine-w: min(350px, 54vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: 10px;
+    --mob-machine-ty: -5px;
+
+    /* Copy */
+    --mob-copy-col: 60%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -200px;
+    --mob-copy-ty: -240px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    /* ── Applica le variabili mobile alle var CSS esistenti ── */
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+
+  .laser-beam-mask {
+    display: block;
+    position: absolute;
+    top: 0;
+    right: 0;
+    /*
+      Larghezza: copre la zona destra dove passa il beam sopra il manipolo.
+      Tweaka in DevTools finché il fascio sparisce ma il manipolo rimane visibile.
+    */
+    width: 60%;
+    /*
+      Altezza: dal top della card fino a dove inizia il manipolo.
+      Corrisponde circa a var(--mob-hand-top) in positivo + qualcosa.
+    */
+    height: 50px;
+    background: #312925; /* stesso sfondo della card */
+    z-index: 3; /* sopra beam (z1) e overlay (z2), SOTTO handpiece (z4) e content (z5) */
+    pointer-events: none;
+  }
+}
+
+@media (min-width: 400px) and (max-width: 420px) {
+  .laser-card {
+    --mob-beam-x: calc(55.8vw - 130px);
+    --mob-beam-y: 80px;
+    --mob-beam-s: 1.95;
+
+    /* Handpiece */
+    --mob-hand-w: 180px;
+    --mob-hand-top: -35px;
+
+    /* Macchina */
+    --mob-machine-w: min(350px, 58vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -15px;
+    --mob-machine-ty: 7px;
+
+    /* Copy */
+    --mob-copy-col: 57%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -225px;
+    --mob-copy-ty: -240px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+}
+
+@media (min-width: 400px) and (max-width: 420px) {
+  .laser-card {
+    --mob-beam-x: calc(52.8vw - 130px);
+    --mob-beam-y: 80px;
+    --mob-beam-s: 1.95;
+
+    /* Handpiece */
+    --mob-hand-w: 200px;
+    --mob-hand-top: -35px;
+
+    /* Macchina */
+    --mob-machine-w: min(350px, 58vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -15px;
+    --mob-machine-ty: 7px;
+
+    /* Copy */
+    --mob-copy-col: 57%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -225px;
+    --mob-copy-ty: -240px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+}
+
+@media (min-width: 375px) and (max-width: 399px) {
+  .laser-card {
+    --mob-beam-x: calc(61vw - 130px);
+    --mob-beam-y: 113px;
+    --mob-beam-s: 2.25;
+
+    /* Handpiece */
+    --mob-hand-w: 195px;
+    --mob-hand-top: -35px;
+
+    /* Macchina */
+    --mob-machine-w: min(350px, 60vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -15px;
+    --mob-machine-ty: 7px;
+
+    /* Copy */
+    --mob-copy-col: 57%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -220px;
+    --mob-copy-ty: -240px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+
+  .laser-body-mobile {
+    min-height: 470px;
+  }
+}
+
+@media (min-width: 358px) and (max-width: 374px) {
+  .laser-card {
+    --mob-beam-x: calc(64.2vw - 130px);
+    --mob-beam-y: 113px;
+    --mob-beam-s: 2.25;
+
+    /* Handpiece */
+    --mob-hand-w: 180px;
+    --mob-hand-top: -20px;
+
+    /* Macchina */
+    --mob-machine-w: min(350px, 62vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -15px;
+    --mob-machine-ty: 0px;
+
+    /* Copy */
+    --mob-copy-col: 57%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -210px;
+    --mob-copy-ty: -240px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+}
+
+@media (min-width: 344px) and (max-width: 357px) {
+  .laser-card {
+    --mob-beam-x: calc(64.7vw - 130px);
+    --mob-beam-y: 95px;
+    --mob-beam-s: 2.25;
+
+    /* Handpiece */
+    --mob-hand-w: 180px;
+    --mob-hand-top: -20px;
+
+    /* Macchina */
+    --mob-machine-w: min(350px, 65vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -15px;
+    --mob-machine-ty: 0px;
+
+    /* Copy */
+    --mob-copy-col: 57%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -210px;
+    --mob-copy-ty: -230px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+}
+
+@media (max-width: 343px) {
+  .laser-card {
+    --mob-beam-x: calc(67.3vw - 130px);
+    --mob-beam-y: 100px;
+    --mob-beam-s: 2.35;
+
+    /* Handpiece */
+    --mob-hand-w: 180px;
+    --mob-hand-top: -20px;
+
+    /* Macchina */
+    --mob-machine-w: min(350px, 65vw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -15px;
+    --mob-machine-ty: 0px;
+
+    /* Copy */
+    --mob-copy-col: 57%;
+    --mob-copy-pt: 0px;
+    --mob-copy-pb: 12px;
+    --mob-copy-tx: -200px;
+    --mob-copy-ty: -220px;
+
+    /* Body row */
+    --mob-body-pt: 58px;
+    --mob-body-min-h: 410px;
+
+    /* ── Applica le variabili mobile alle var CSS esistenti ── */
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+    --hand-tx: 0px;
+    --hand-ty: 0px;
+  }
+}
+
+/* Accessibilità */
 @media (prefers-reduced-motion: reduce) {
-  .laser-copy {
+  .laser-strip {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;

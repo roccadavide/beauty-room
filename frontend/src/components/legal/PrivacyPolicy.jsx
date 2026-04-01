@@ -44,6 +44,11 @@ const PrivacyPolicy = () => {
               carta.
             </li>
             <li>
+              <strong>Dati relativi alla salute (categoria speciale - Art. 9 GDPR)</strong>: in fase di prenotazione di alcuni trattamenti (laser, trucco
+              permanente) raccogliamo la dichiarazione di assenza di controindicazioni mediche. Base giuridica: consenso esplicito dell'interessata (Art. 9
+              comma 2 lett. a GDPR), prestato in forma digitale con timestamp prima della prenotazione.
+            </li>
+            <li>
               <strong>Dati tecnici</strong>: log tecnici e informazioni di navigazione (es. indirizzo IP), per sicurezza e funzionamento.
             </li>
           </ul>
@@ -97,15 +102,11 @@ const PrivacyPolicy = () => {
             Per erogare il servizio possiamo condividere alcuni dati con fornitori tecnici, nominati (se necessario) Responsabili del trattamento, ad esempio:
           </p>
           <ul>
-            <li>
-              <strong>Provider pagamenti</strong> (es. Stripe) per gestire l’incasso.
-            </li>
-            <li>
-              <strong>Provider email</strong> (es. Mailgun) per invio conferme e promemoria.
-            </li>
-            <li>
-              <strong>Hosting/Infrastructure</strong> dove risiede l’applicazione.
-            </li>
+            <li><strong>Stripe Inc.</strong> - elaborazione pagamenti online.</li>
+            <li><strong>Mailgun (Sinch)</strong> - invio email transazionali (conferme prenotazione, promemoria).</li>
+            <li><strong>Cloudinary Inc.</strong> - archiviazione e ottimizzazione immagini del sito.</li>
+            <li><strong>Railway / Render</strong> - hosting del server applicativo e del database.</li>
+            <li><strong>Vercel Inc.</strong> - hosting del frontend del sito.</li>
           </ul>
           <p>Non vendiamo i tuoi dati a terzi.</p>
         </section>
@@ -129,6 +130,15 @@ const PrivacyPolicy = () => {
         <section className="legal-card">
           <h2>9. Reclamo</h2>
           <p>Se ritieni che il trattamento violi il GDPR, puoi proporre reclamo al Garante per la protezione dei dati personali.</p>
+        </section>
+
+        <section className="legal-card">
+          <h2>10. Storage locale e dati tecnici</h2>
+          <p>
+            Il sito utilizza il <strong>localStorage</strong> del browser per funzionalità tecniche indispensabili: mantenimento della sessione di
+            autenticazione e gestione del carrello acquisti. Questi dati non vengono trasmessi a terzi e vengono eliminati alla disconnessione o alla pulizia
+            del browser. Non utilizziamo cookie di profilazione o tracking di terze parti.
+          </p>
         </section>
 
         <footer className="legal-footer">

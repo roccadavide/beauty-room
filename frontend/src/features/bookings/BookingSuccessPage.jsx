@@ -107,14 +107,32 @@ const BookingSuccessPage = () => {
   const shortCode = data?.booking?.bookingId
     ? `BR-${String(data.booking.bookingId).slice(-6).toUpperCase()}`
     : null;
+  const paymentStatus = data?.paymentStatus;
+  const isPaid = paymentStatus === "PAID";
+  const isFailedOrCancelled = paymentStatus === "FAILED" || paymentStatus === "CANCELLED";
+  const eyebrowText = isPaid
+    ? "Prenotazione confermata"
+    : isFailedOrCancelled
+      ? "Pagamento non completato"
+      : "Prenotazione ricevuta";
+  const heroTitle = isPaid
+    ? "Ci vediamo presto"
+    : isFailedOrCancelled
+      ? "Qualcosa non è andato a buon fine"
+      : "In attesa di conferma pagamento";
+  const heroSubtitle = isPaid
+    ? "Ti abbiamo inviato una email con tutti i dettagli."
+    : isFailedOrCancelled
+      ? "Qualcosa non è andato a buon fine, contattaci."
+      : "Prenotazione ricevuta, in attesa di conferma pagamento.";
 
   return (
     <div className="bs-page">
       <div className="bs-hero">
         <div className="bs-hero__check">✓</div>
-        <span className="section-eyebrow">Prenotazione confermata</span>
-        <h1 className="bs-hero__title">Ci vediamo presto</h1>
-        <p className="bs-hero__sub">Ti abbiamo inviato una email con tutti i dettagli.</p>
+        <span className="section-eyebrow">{eyebrowText}</span>
+        <h1 className="bs-hero__title">{heroTitle}</h1>
+        <p className="bs-hero__sub">{heroSubtitle}</p>
         {shortCode && (
           <div className="bs-code">
             <span className="bs-code__label">Codice prenotazione</span>

@@ -89,6 +89,15 @@ public class Booking {
     @Column(name = "created_by_admin", nullable = false)
     private boolean createdByAdmin = false;
 
+    @Column(name = "consent_laser", nullable = false)
+    private boolean consentLaser = false;
+
+    @Column(name = "consent_pmu", nullable = false)
+    private boolean consentPmu = false;
+
+    @Column(name = "consent_at")
+    private LocalDateTime consentAt;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_id", nullable = false)
     private ServiceItem service;

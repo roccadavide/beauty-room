@@ -31,6 +31,8 @@ public record NewBookingDTO(
 
         UUID serviceOptionId,
         UUID packageCreditId,
+        boolean consentLaser,
+        boolean consentPmu,
         BigDecimal promoPrice,
         UUID promotionId,
         Integer paddingMinutes

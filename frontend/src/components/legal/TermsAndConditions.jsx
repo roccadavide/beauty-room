@@ -26,6 +26,23 @@ const TermsAndConditions = () => {
         </section>
 
         <section className="legal-card">
+          <h2>2b. Cancellazione prenotazioni</h2>
+          <ul>
+            <li>
+              Le prenotazioni possono essere cancellate autonomamente con almeno <strong>24 ore di anticipo</strong> rispetto all'appuntamento, dalla propria
+              area personale del sito.
+            </li>
+            <li>
+              Per cancellazioni con meno di 24 ore di preavviso è necessario contattare direttamente Michela via email o telefono.
+            </li>
+            <li>
+              Le prenotazioni già pagate e cancellate entro i termini vengono gestite caso per caso - contattare{" "}
+              <a href="mailto:rossimichela.pmu@gmail.com">rossimichela.pmu@gmail.com</a>.
+            </li>
+          </ul>
+        </section>
+
+        <section className="legal-card">
           <h2>3. Pagamenti e rimborsi</h2>
           <p>
             I pagamenti online sono gestiti da provider esterni. Eventuali rimborsi o annullamenti vengono gestiti secondo le condizioni comunicate al momento
@@ -33,6 +50,22 @@ const TermsAndConditions = () => {
           </p>
           <p>
             Per richieste relative a pagamenti/rimborsi: <a href={`mailto:${brandEmail}`}>{brandEmail}</a>
+          </p>
+        </section>
+
+        <section className="legal-card">
+          <h2>3b. Diritto di recesso (acquisti di prodotti)</h2>
+          <p>
+            Ai sensi del D.Lgs. 206/2005 (Codice del Consumo), per gli acquisti di prodotti effettuati online hai diritto di recedere dal contratto entro{" "}
+            <strong>14 giorni</strong> dalla ricezione/ritiro del prodotto, senza dover fornire motivazione.
+          </p>
+          <p>
+            Per esercitare il recesso scrivi a{" "}
+            <a href="mailto:rossimichela.pmu@gmail.com">rossimichela.pmu@gmail.com</a>{" "}
+            indicando l'ordine di riferimento. Il prodotto deve essere restituito nelle stesse condizioni di ritiro.
+          </p>
+          <p>
+            Il diritto di recesso <strong>non si applica</strong> ai servizi estetici già eseguiti, né ai prodotti personalizzati o aperti.
           </p>
         </section>
 
@@ -57,6 +90,14 @@ const TermsAndConditions = () => {
         <section className="legal-card">
           <h2>7. Modifiche</h2>
           <p>I Termini possono essere aggiornati. La versione pubblicata sul sito è quella in vigore.</p>
+        </section>
+
+        <section className="legal-card">
+          <h2>8. Legge applicabile e foro competente</h2>
+          <p>
+            I presenti Termini sono regolati dalla legge italiana. Per qualsiasi controversia è competente il Foro di Bergamo, salvo diversa disposizione di
+            legge inderogabile a favore del consumatore.
+          </p>
         </section>
 
         <footer className="legal-footer">

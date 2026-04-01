@@ -37,10 +37,22 @@ const CookiePolicy = () => {
         </section>
 
         <section className="legal-card">
-          <h2>3. Cookie usati su questo sito</h2>
+          <h2>3. Tecnologie di storage usate su questo sito</h2>
+          <p>Questo sito utilizza esclusivamente storage tecnico necessario:</p>
+          <ul>
+            <li>
+              <strong>Cookie di sessione tecnici</strong>: necessari per la sicurezza e il funzionamento delle chiamate al server.
+            </li>
+            <li>
+              <strong>localStorage - autenticazione</strong>: mantiene la sessione dell'utente loggato (token JWT). Viene rimosso al logout.
+            </li>
+            <li>
+              <strong>localStorage - carrello</strong>: salva i prodotti aggiunti al carrello anche se si chiude il browser. Non contiene dati personali.
+            </li>
+          </ul>
           <p>
-            Attualmente il sito può utilizzare cookie tecnici necessari al funzionamento e alla sicurezza. Se in futuro verranno attivati cookie analytics o
-            marketing, verrà richiesto il consenso tramite banner.
+            <strong>Non utilizziamo</strong> cookie di profilazione, cookie di terze parti, pixel pubblicitari o strumenti di analytics che richiedano
+            consenso. Per questo motivo non è presente un banner cookie.
           </p>
         </section>
 

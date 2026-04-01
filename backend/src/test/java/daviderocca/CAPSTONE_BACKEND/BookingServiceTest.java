@@ -111,6 +111,8 @@ class BookingServiceTest {
                 serviceId,
                 optionId,
                 null,
+                false,
+                false,
                 null,
                 null,
                 null

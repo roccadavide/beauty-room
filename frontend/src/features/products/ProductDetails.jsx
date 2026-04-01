@@ -9,6 +9,7 @@ import { subscribeStockAlert } from "../../api/modules/products.api";
 import { addToCart } from "../cart/slices/cart.slice";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
 import PayNowModal from "./PayNowModal";
+import ImageGallery from "../../components/common/ImageGallery";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -166,9 +167,11 @@ const ProductDetail = () => {
       <Row className="justify-content-center align-items-start g-4 g-md-5">
         {/* ▸ IMMAGINE */}
         <Col md={5} lg={5} className="d-flex justify-content-center">
-          <div ref={imageRef} className={`detail-img-hero fade-slide ${imageVisible ? "visible" : ""}`}>
-            <img src={product.images?.[0]} alt={product.name} />
-            <div className="detail-img-shimmer" />
+          <div ref={imageRef} className={`fade-slide ${imageVisible ? "visible" : ""}`}>
+            <ImageGallery
+              images={product.images?.filter(Boolean) ?? []}
+              alt={product.name}
+            />
           </div>
         </Col>
 

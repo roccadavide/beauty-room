@@ -135,6 +135,13 @@ public class BookingService {
 
         Booking booking = new Booking(name, email, phone, start, end, payload.notes(), serviceItem, option, user);
         booking.setCreatedByAdmin(false);
+        booking.setConsentLaser(payload.consentLaser());
+        booking.setConsentPmu(payload.consentPmu());
+        if (payload.consentLaser() || payload.consentPmu()) {
+            booking.setConsentAt(LocalDateTime.now());
+        } else {
+            booking.setConsentAt(null);
+        }
 
         booking.setBookingStatus(BookingStatus.PENDING_PAYMENT);
         booking.setExpiresAt(LocalDateTime.now().plusMinutes(HOLD_EXPIRE_MINUTES));
@@ -185,6 +192,13 @@ public class BookingService {
                 option,
                 null
         );
+        booking.setConsentLaser(payload.consentLaser());
+        booking.setConsentPmu(payload.consentPmu());
+        if (payload.consentLaser() || payload.consentPmu()) {
+            booking.setConsentAt(LocalDateTime.now());
+        } else {
+            booking.setConsentAt(null);
+        }
 
         if (payload.packageCreditId() != null) {
             PackageCredit pc = packageCreditService.findById(payload.packageCreditId());

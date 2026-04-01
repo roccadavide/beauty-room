@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Spinner } from "react-bootstrap";
 import http from "../../api/httpClient";
-import "./AdminToggle.css";
 
 /**
  * AdminToggle — switch attivo/disattivo per entità admin.

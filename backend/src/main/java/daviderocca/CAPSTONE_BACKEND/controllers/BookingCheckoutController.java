@@ -68,8 +68,7 @@ public class BookingCheckoutController {
 
         if (currentUser == null) throw new BadRequestException("Utente non autenticato.");
 
-        // FIX: aggiunto null come paddingMinutes (11° argomento).
-        // Il flow Stripe non usa paddingMinutes — è un campo solo admin.
+        // Il flow Stripe non usa packageCreditId/paddingMinutes, ma propaga i consensi.
         NewBookingDTO dto = new NewBookingDTO(
                 payload.customerName(),
                 currentUser.getEmail(),
@@ -79,6 +78,8 @@ public class BookingCheckoutController {
                 payload.serviceId(),
                 payload.serviceOptionId(),
                 null,                   // packageCreditId non applicabile nel flow Stripe
+                payload.consentLaser(), // consenso informato laser
+                payload.consentPmu(),   // consenso informato PMU
                 payload.promoPrice(),   // propaga prezzo promo
                 payload.promotionId(),  // propaga id promo
                 null                    // paddingMinutes: non applicabile nel flow Stripe

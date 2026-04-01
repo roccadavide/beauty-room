@@ -10,6 +10,18 @@
   padding-top: 0.5rem;
 }
 
+/* Centra verticalmente colonna immagine e info su desktop */
+.service-detail .row.justify-content-center,
+.product-detail .row.justify-content-center {
+  align-items: center !important;
+}
+
+/* Forza il wrapper fade-slide a occupare tutto il Col immagine */
+.col-md-5 > .fade-slide,
+.col-lg-5 > .fade-slide {
+  width: 100%;
+}
+
 /* Meta row: badge + durata/stock */
 .detail-meta {
   display: flex;
@@ -507,6 +519,11 @@
 
 /* ── Responsive ── */
 @media (max-width: 767px) {
+  .service-detail .row.justify-content-center,
+  .product-detail .row.justify-content-center {
+    align-items: flex-start !important;
+  }
+
   .service-detail,
   .product-detail {
     padding: 0 0 3rem;
@@ -519,14 +536,11 @@
     margin-bottom: 0;
   }
 
-  .detail-img-hero img {
-    aspect-ratio: 4 / 3;
-    max-height: 55vw;
-  }
-
   .service-detail .row,
   .product-detail .row {
     gap: 0 !important;
+    --bs-gutter-x: 0;
+    --bs-gutter-y: 0;
   }
 
   .detail-info {

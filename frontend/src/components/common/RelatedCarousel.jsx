@@ -26,7 +26,7 @@ const RelatedCarousel = ({ items, renderCard, getKey }) => {
     };
   }, [items]);
 
-  const scrollBy = (dir) => {
+  const scrollBy = dir => {
     const el = scrollRef.current;
     if (!el) return;
     const cardWidth = el.querySelector(".rc-card-wrap")?.offsetWidth || 240;
@@ -38,7 +38,7 @@ const RelatedCarousel = ({ items, renderCard, getKey }) => {
       {/* DESKTOP: griglia normale Bootstrap */}
       <div className="d-none d-md-block">
         <Row className="justify-content-center g-4">
-          {items.map((item) => (
+          {items.map(item => (
             <Col key={getKey(item)} md={4} lg={3}>
               {renderCard(item)}
             </Col>
@@ -54,7 +54,7 @@ const RelatedCarousel = ({ items, renderCard, getKey }) => {
           </button>
         )}
         <div className="rc-track" ref={scrollRef}>
-          {items.map((item) => (
+          {items.map(item => (
             <div key={getKey(item)} className="rc-card-wrap">
               {renderCard(item)}
             </div>
@@ -71,4 +71,3 @@ const RelatedCarousel = ({ items, renderCard, getKey }) => {
 };
 
 export default RelatedCarousel;
-

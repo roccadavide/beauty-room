@@ -1,5 +1,4 @@
 import { Plus } from "react-bootstrap-icons";
-import "./AdminAddButton.css";
 
 /**
  * Bottone admin "Nuovo / Aggiungi" — design system Editorial Beauty.
@@ -13,12 +12,7 @@ import "./AdminAddButton.css";
  */
 export default function AdminAddButton({ onClick, label, icon, disabled = false, className = "" }) {
   return (
-    <button
-      type="button"
-      className={`admin-add-btn${className ? ` ${className}` : ""}`}
-      onClick={onClick}
-      disabled={disabled}
-    >
+    <button type="button" className={`admin-add-btn${className ? ` ${className}` : ""}`} onClick={onClick} disabled={disabled}>
       {icon ?? <Plus size={16} />}
       {label}
     </button>

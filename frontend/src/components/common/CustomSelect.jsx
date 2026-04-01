@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import "./CustomSelect.css";
 
 const MOBILE_MAX_PX = 575;
 
@@ -119,9 +118,7 @@ export default function CustomSelect({
   const triggerLabel = useMemo(() => {
     if (multiple && Array.isArray(value)) {
       if (!value.length) return null;
-      const labels = value
-        .map(v => options.find(o => normVal(o.value) === normVal(v))?.label)
-        .filter(Boolean);
+      const labels = value.map(v => options.find(o => normVal(o.value) === normVal(v))?.label).filter(Boolean);
       if (!labels.length) return null;
       if (labels.length <= 2) return labels.join(", ");
       return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
@@ -245,9 +242,7 @@ export default function CustomSelect({
         aria-invalid={showError}
         onClick={handleTriggerClick}
       >
-        <span className={triggerLabel ? "custom-select__value" : "custom-select__value custom-select__value--placeholder"}>
-          {triggerLabel ?? placeholder}
-        </span>
+        <span className={triggerLabel ? "custom-select__value" : "custom-select__value custom-select__value--placeholder"}>{triggerLabel ?? placeholder}</span>
         <ChevronIcon />
       </button>
 

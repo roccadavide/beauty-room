@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { compressImage } from "../../api/utils/multipart";
-import "./MultiImageUpload.css";
 
 /**
  * Componente riusabile per upload multi-immagine con:
@@ -15,14 +14,7 @@ import "./MultiImageUpload.css";
  *   maxFiles         number      – default 8
  *   label            string      – default "Immagini"
  */
-const MultiImageUpload = ({
-  files = [],
-  existingUrls = [],
-  onChange,
-  onRemoveExisting,
-  maxFiles = 8,
-  label = "Immagini",
-}) => {
+const MultiImageUpload = ({ files = [], existingUrls = [], onChange, onRemoveExisting, maxFiles = 8, label = "Immagini" }) => {
   const inputRef = useRef(null);
   const [compressing, setCompressing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -106,12 +98,7 @@ const MultiImageUpload = ({
             <div key={url} className="miu-item miu-item--existing">
               <img src={url} alt={`Immagine ${i + 1}`} className="miu-img" />
               {i === 0 && <span className="miu-badge">Principale</span>}
-              <button
-                type="button"
-                className="miu-remove"
-                onClick={() => onRemoveExisting(url)}
-                aria-label="Rimuovi immagine"
-              >
+              <button type="button" className="miu-remove" onClick={() => onRemoveExisting(url)} aria-label="Rimuovi immagine">
                 ×
               </button>
             </div>
@@ -138,13 +125,10 @@ const MultiImageUpload = ({
                 <img src={preview} alt={`Nuova ${i + 1}`} className="miu-img" />
                 {isPrimary && <span className="miu-badge">Principale</span>}
                 <span className="miu-size">{formatSize(file.size)}</span>
-                <div className="miu-handle" aria-hidden="true">⠿</div>
-                <button
-                  type="button"
-                  className="miu-remove"
-                  onClick={() => onChange(files.filter((_, j) => j !== i))}
-                  aria-label="Rimuovi immagine"
-                >
+                <div className="miu-handle" aria-hidden="true">
+                  ⠿
+                </div>
+                <button type="button" className="miu-remove" onClick={() => onChange(files.filter((_, j) => j !== i))} aria-label="Rimuovi immagine">
                   ×
                 </button>
               </div>
@@ -163,7 +147,10 @@ const MultiImageUpload = ({
         <div
           className={["miu-drop", dragOver ? "miu-drop--over" : ""].join(" ")}
           onClick={() => inputRef.current?.click()}
-          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragOver={e => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           role="button"
@@ -176,21 +163,15 @@ const MultiImageUpload = ({
             <strong>Clicca o trascina</strong> le immagini qui
             {remaining < maxFiles && (
               <>
-                {" "}· ancora <strong>{remaining}</strong> slot{remaining !== 1 ? "" : ""}
+                {" "}
+                · ancora <strong>{remaining}</strong> slot{remaining !== 1 ? "" : ""}
               </>
             )}
           </div>
         </div>
       )}
 
-      <input
-        ref={inputRef}
-        type="file"
-        multiple
-        accept="image/*"
-        style={{ display: "none" }}
-        onChange={handleInputChange}
-      />
+      <input ref={inputRef} type="file" multiple accept="image/*" style={{ display: "none" }} onChange={handleInputChange} />
     </div>
   );
 };

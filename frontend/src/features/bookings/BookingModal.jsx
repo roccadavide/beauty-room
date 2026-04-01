@@ -12,6 +12,19 @@ import { useNextSlot } from "../../hooks/useNextSlot";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
+const LASER_KEYWORDS = ["laser", "epilazione", "hiled", "diodo", "luce pulsata"];
+const PMU_KEYWORDS = [
+  "trucco permanente",
+  "pmu",
+  "microblading",
+  "micropigmentazione",
+  "pelo pelo",
+  "labbra permanente",
+  "eyeliner permanente",
+];
+
+const needsLaserConsent = title => LASER_KEYWORDS.some(k => title?.toLowerCase().includes(k));
+const needsPmuConsent = title => PMU_KEYWORDS.some(k => title?.toLowerCase().includes(k));
 
 // FIX-2: initialOptionId viene passato da ServiceDetails quando il servizio ha opzioni
 const BookingModal = ({
@@ -27,6 +40,7 @@ const BookingModal = ({
   const { accessToken, user } = useSelector(state => state.auth);
 
   const { closedDates, closedWeekdays, isClosed } = useClosedDays();
+  const [emptySlotDates, setEmptySlotDates] = useState([]);
   const disabledDates = useMemo(() => {
     const dates = [];
     const today = new Date();
@@ -36,8 +50,8 @@ const BookingModal = ({
       const iso = toISODateLocal(d);
       if (iso && isClosed(iso)) dates.push(iso);
     }
-    return dates;
-  }, [closedDates, closedWeekdays, isClosed]);
+    return Array.from(new Set([...dates, ...emptySlotDates]));
+  }, [closedDates, closedWeekdays, isClosed, emptySlotDates]);
 
   const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } =
     useNextSlot(service?.serviceId);
@@ -62,6 +76,10 @@ const BookingModal = ({
   // FIX-9: blocca doppio click su "Vai al pagamento"
   const [paying, setPaying] = useState(false);
   const [waitlistSlot, setWaitlistSlot] = useState(null);
+  const [consentLaser, setConsentLaser] = useState(false);
+  const [consentPmu, setConsentPmu] = useState(false);
+  const hasConsentStep = needsLaserConsent(service?.title) || needsPmuConsent(service?.title);
+  const summaryStep = hasConsentStep ? 5 : 4;
 
   // Apply prefill from waitlist deep link
   useEffect(() => {
@@ -88,6 +106,8 @@ const BookingModal = ({
     setError(null);
     setPaying(false);
     setWaitlistSlot(null);
+    setConsentLaser(false);
+    setConsentPmu(false);
   };
 
   useEffect(() => {
@@ -105,6 +125,9 @@ const BookingModal = ({
           const data = await fetchAvailabilities(service.serviceId, day);
           const loaded = data.slots || [];
           setSlots(loaded);
+          if (loaded.length === 0) {
+            setEmptySlotDates(prev => (prev.includes(day) ? prev : [...prev, day]));
+          }
 
           // Auto-select slot pre-scelto dal NextSlotBanner
           if (pendingSlotStartRef.current) {
@@ -145,7 +168,7 @@ const BookingModal = ({
       setErrors(validationErrors);
       return;
     }
-    setStep(4);
+    setStep(hasConsentStep ? 4 : summaryStep);
   };
 
   const confirm = async () => {
@@ -176,6 +199,8 @@ const BookingModal = ({
         ...(promoPrice != null && promoPrice > 0 && {
           promoPrice: parseFloat(promoPrice.toFixed(2)),
         }),
+        consentLaser: consentLaser,
+        consentPmu: consentPmu,
       };
 
       // NIENTE token param: ci pensa httpClient/interceptor
@@ -241,11 +266,19 @@ const BookingModal = ({
 
   const stepsSlot = (
     <div className="bm-steps">
-      {[1, 2, 3, 4].map(s => (
+      {Array.from({ length: summaryStep }, (_, i) => i + 1).map(s => (
         <div key={s} className={`bm-step ${step === s ? "active" : step > s ? "done" : ""}`}>
           <div className="bm-step__dot">{step > s ? "✓" : s}</div>
           <span className="bm-step__label">
-            {s === 1 ? "Data" : s === 2 ? "Orario" : s === 3 ? "Dati" : "Riepilogo"}
+            {s === 1
+              ? "Data"
+              : s === 2
+                ? "Orario"
+                : s === 3
+                  ? "Dati"
+                  : hasConsentStep && s === 4
+                    ? "Consenso"
+                    : "Riepilogo"}
           </span>
         </div>
       ))}
@@ -288,7 +321,10 @@ const BookingModal = ({
             value={toISODateLocal(date)}
             onChange={iso => {
               const d = new Date(`${iso}T12:00:00`);
-              if (!Number.isNaN(d.getTime())) setDate(d);
+              if (!Number.isNaN(d.getTime())) {
+                setDate(d);
+                setSlot(null);
+              }
             }}
             minDate={new Date()}
             disabledDates={disabledDates}
@@ -343,7 +379,14 @@ const BookingModal = ({
             <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>
           )}
           <div className="bm-nav">
-            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(1)}>
+            <button
+              className="bm-btn bm-btn--ghost"
+              type="button"
+              onClick={() => {
+                setSlot(null);
+                setStep(1);
+              }}
+            >
               ← Indietro
             </button>
             <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(3)} disabled={!slot}>
@@ -407,13 +450,71 @@ const BookingModal = ({
               ← Indietro
             </button>
             <button className="bm-btn bm-btn--primary" type="button" onClick={goToSummary}>
-              Riepilogo →
+              {hasConsentStep ? "Consenso →" : "Riepilogo →"}
             </button>
           </div>
         </div>
       )}
 
-      {step === 4 && (
+      {step === 4 && hasConsentStep && (
+        <div className="bm-step-content bm-consent">
+          <div className="bm-consent__header">
+            <span className="bm-consent__icon">📋</span>
+            <h3 className="bm-consent__title">Informativa e consenso</h3>
+            <p className="bm-consent__subtitle">
+              Leggi le informazioni sul trattamento e conferma la presa visione.
+            </p>
+          </div>
+
+          {needsLaserConsent(service?.title) && (
+            <div className="bm-consent__box">
+              <h4 className="bm-consent__box-title">Epilazione laser</h4>
+              <div className="bm-consent__text">
+                <p>Il trattamento utilizza laser a diodo 818nm (fototermolisi selettiva). Sono necessarie mediamente 10-12 sedute.</p>
+                <p><strong>Controindicazioni principali:</strong> farmaci fotosensibilizzanti, malattie autoimmuni, lesioni cutanee, gravidanza/allattamento, esposizione solare nei 3/4 giorni precedenti/successivi.</p>
+                <p className="bm-consent__note">
+                  ⚠️ Alla prima seduta firmerai il consenso informato completo in studio.
+                </p>
+              </div>
+              <label className="bm-consent__check">
+                <input type="checkbox" checked={consentLaser} onChange={e => setConsentLaser(e.target.checked)} />
+                <span>Ho letto le informazioni, dichiaro di non avere controindicazioni e sono consapevole che firmero il documento completo in studio.</span>
+              </label>
+            </div>
+          )}
+
+          {needsPmuConsent(service?.title) && (
+            <div className="bm-consent__box">
+              <h4 className="bm-consent__box-title">Trucco permanente (PMU)</h4>
+              <div className="bm-consent__text">
+                <p>Tecnica di micropigmentazione intradermica con pigmenti certificati. Tempi di guarigione: 7-14 giorni.</p>
+                <p><strong>Controindicazioni principali:</strong> gravidanza/allattamento, diabete, coagulopatie, allergie a pigmenti/anestetici, malattie cutanee nella zona interessata, cicatrici recenti o cheloidi.</p>
+                <p className="bm-consent__note">
+                  ⚠️ Alla prima seduta firmerai il modulo di consenso completo in studio.
+                </p>
+              </div>
+              <label className="bm-consent__check">
+                <input type="checkbox" checked={consentPmu} onChange={e => setConsentPmu(e.target.checked)} />
+                <span>Ho letto le informazioni, dichiaro di non avere controindicazioni e sono consapevole che firmero il documento completo in studio.</span>
+              </label>
+            </div>
+          )}
+
+          <div className="bm-nav">
+            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>← Indietro</button>
+            <button
+              className="bm-btn bm-btn--primary"
+              type="button"
+              onClick={() => setStep(summaryStep)}
+              disabled={(needsLaserConsent(service?.title) && !consentLaser) || (needsPmuConsent(service?.title) && !consentPmu)}
+            >
+              Continua →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === summaryStep && (
         <div className="bm-step-content">
           <div className="bm-summary">
             <div className="bm-summary__row">
@@ -523,9 +624,14 @@ const BookingModal = ({
                 <strong>{customer.notes}</strong>
               </div>
             )}
+            {(consentLaser || consentPmu) && (
+              <div className="bm-summary__consent-note">
+                📋 Ricordati di firmare il consenso informato completo in studio alla prima seduta.
+              </div>
+            )}
           </div>
           <div className="bm-nav">
-            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>
+            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(hasConsentStep ? 4 : 3)}>
               ← Modifica
             </button>
             {/* FIX-9: disabled durante redirect Stripe */}

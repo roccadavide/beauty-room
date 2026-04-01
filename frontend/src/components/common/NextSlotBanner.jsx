@@ -1,5 +1,3 @@
-import "./NextSlotBanner.css";
-
 function CalIcon() {
   return (
     <svg className="nsb__icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden fill="none">
@@ -63,7 +61,9 @@ export default function NextSlotBanner({ slot, loading, notFound, onFind, onNext
         <div className="nsb__body">
           <span className="nsb__label">Prossimo disponibile</span>
           <span className="nsb__date">{formatDate(slot.date)}</span>
-          <span className="nsb__time">ore {slot.startTime} – {slot.endTime}</span>
+          <span className="nsb__time">
+            ore {slot.startTime} – {slot.endTime}
+          </span>
         </div>
         <button className="nsb__cta" type="button" onClick={() => onSelect(slot)}>
           Prenota questo

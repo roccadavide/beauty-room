@@ -5,6 +5,7 @@ import { fetchServices, fetchServiceById } from "../../api/modules/services.api"
 import { fetchCategories } from "../../api/modules/categories.api";
 import BookingModal from "../bookings/BookingModal";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
+import ImageGallery from "../../components/common/ImageGallery";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -149,9 +150,11 @@ const ServiceDetail = () => {
       <Row className="justify-content-center align-items-start g-4 g-md-5">
         {/* ▸ IMMAGINE */}
         <Col md={5} lg={5} className="d-flex justify-content-center">
-          <div ref={imgRef} className={`detail-img-hero fade-slide ${imgVisible ? "visible" : ""}`}>
-            <img src={service.images?.[0]} alt={service.title} />
-            <div className="detail-img-shimmer" />
+          <div ref={imgRef} className={`fade-slide ${imgVisible ? "visible" : ""}`}>
+            <ImageGallery
+              images={service.images?.filter(Boolean) ?? []}
+              alt={service.title}
+            />
           </div>
         </Col>
 

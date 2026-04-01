@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import "./DateTimeField.css";
 
 const MOBILE_MAX_PX = 575;
 
@@ -336,8 +335,7 @@ export default function DateTimeField({
     }
   };
 
-  const showTimeSection =
-    mode === "time" || (mode === "datetime" && (draftDate || parsed.dateStr));
+  const showTimeSection = mode === "time" || (mode === "datetime" && (draftDate || parsed.dateStr));
 
   const cells = [];
   for (let i = 0; i < startOffset; i++) cells.push(null);
@@ -407,17 +405,9 @@ export default function DateTimeField({
           <div className="dtf-time-title">{mode === "datetime" ? "Orario" : "Seleziona orario"}</div>
           <div className="dtf-slots">
             {TIME_SLOTS.map(slot => {
-              const active =
-                mode === "time"
-                  ? (pendingTime ?? draftTime ?? parsed.timeStr) === slot
-                  : (pendingTime ?? draftTime ?? parsed.timeStr) === slot;
+              const active = mode === "time" ? (pendingTime ?? draftTime ?? parsed.timeStr) === slot : (pendingTime ?? draftTime ?? parsed.timeStr) === slot;
               return (
-                <button
-                  key={slot}
-                  type="button"
-                  className={`dtf-slot ${active ? "is-selected" : ""}`}
-                  onClick={() => handleTimeClick(slot)}
-                >
+                <button key={slot} type="button" className={`dtf-slot ${active ? "is-selected" : ""}`} onClick={() => handleTimeClick(slot)}>
                   {slot}
                 </button>
               );
@@ -425,14 +415,10 @@ export default function DateTimeField({
           </div>
         </div>
       )}
-
     </div>
   );
 
-  const dropdown =
-    variant === "field" && open && !isMobile ? (
-      <div className="dtf-dropdown">{panelInner}</div>
-    ) : null;
+  const dropdown = variant === "field" && open && !isMobile ? <div className="dtf-dropdown">{panelInner}</div> : null;
 
   const portal =
     variant === "field" && open && isMobile
@@ -479,15 +465,9 @@ export default function DateTimeField({
     >
       <CalendarIcon />
       <span className="dtf-trigger-mid">
-        {mode !== "time" && (
-          <span className={!displayDateLabel ? "dtf-placeholder" : ""}>{displayDateLabel || placeholder}</span>
-        )}
+        {mode !== "time" && <span className={!displayDateLabel ? "dtf-placeholder" : ""}>{displayDateLabel || placeholder}</span>}
         {mode === "datetime" && <span className="dtf-sep">|</span>}
-        {mode !== "date" && (
-          <span className={!displayTimeLabel ? "dtf-placeholder" : ""}>
-            {displayTimeLabel || "—:—"}
-          </span>
-        )}
+        {mode !== "date" && <span className={!displayTimeLabel ? "dtf-placeholder" : ""}>{displayTimeLabel || "—:—"}</span>}
       </span>
     </button>
   );

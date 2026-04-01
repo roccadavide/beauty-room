@@ -8,7 +8,7 @@ const MotionDiv = motion.div;
 export default function LaserSection() {
   const reduce = useReducedMotion();
   const sectionRef = useRef(null);
-  const copyRef = useRef(null);
+  const stripRef = useRef(null);
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -18,29 +18,23 @@ export default function LaserSection() {
   const liftY = useTransform(scrollYProgress, [0, 0.25, 1], [0, 0, reduce ? 0 : -70]);
   const liftScale = useTransform(scrollYProgress, [0, 1], [1, reduce ? 1 : 1.02]);
 
-  // Fade-in del copy su mobile tramite IntersectionObserver.
-  // Il copy è in fondo a una card da 92svh → l'utente non lo vede
-  // senza scrollare, quindi opacity: 0 iniziale non causa flash.
+  // Fade-in strip mobile via IntersectionObserver
   useEffect(() => {
-    const el = copyRef.current;
+    const el = stripRef.current;
     if (!el) return;
-
-    // Motion ridotta: mostra subito senza animazione
     if (reduce) {
-      el.classList.add("laser-copy--visible");
+      el.classList.add("laser-strip--visible");
       return;
     }
-
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          el.classList.add("laser-copy--visible");
+          el.classList.add("laser-strip--visible");
           observer.disconnect();
         }
       },
-      { threshold: 0.12 },
+      { threshold: 0.05 },
     );
-
     observer.observe(el);
     return () => observer.disconnect();
   }, [reduce]);
@@ -57,9 +51,9 @@ export default function LaserSection() {
                 color="#FFD7A1"
                 horizontalBeamOffset={0.25}
                 verticalBeamOffset={-0.3}
-                wispDensity={8.75}
+                wispDensity={6.5}
                 wispSpeed={1.5}
-                wispIntensity={5.6}
+                wispIntensity={4.5}
                 flowSpeed={0.35}
                 flowStrength={0.05}
                 fogIntensity={1.05}
@@ -71,15 +65,16 @@ export default function LaserSection() {
             </div>
           </div>
 
-          {/* Handpiece assoluto top-right */}
+          {/* Handpiece — assoluto top-right */}
           <img src="/handpiece.png" alt="Manipolo laser" className="laser-handpiece" draggable="false" />
+
+          <div className="laser-beam-mask" aria-hidden="true" />
 
           <div className="laser-content">
             <div className="laser-top">
-              {/* ── COLONNA SINISTRA: macchina + CTA (tablet/desktop ≥576px) ── */}
+              {/* ── Colonna sinistra desktop/tablet: macchina + CTA ── */}
               <div className="laser-left">
                 <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
-
                 <div className="laser-side">
                   <div className="laser-ctas d-flex gap-2 flex-column px-3">
                     <Button variant="light" className="rounded-pill px-4 laser-btn-primary">
@@ -103,38 +98,51 @@ export default function LaserSection() {
                 </div>
               </div>
 
-              {/* ── WRAPPER CONTENUTO ── */}
+              {/* ── Wrapper ── */}
               <div className="laser-wrapper-mobile">
                 {/*
-                  Macchina solo mobile (≤575px).
-                  DOM: prima del copy → visivamente IN CIMA su mobile
-                  senza bisogno di CSS order.
-                  Display: none su tablet/desktop via CSS.
+                  laser-body-mobile:
+                  - Desktop/tablet: display:contents → figli fluiscono normalmente
+                  - Mobile ≤575px:  display:flex row → macchina sx | copy dx
+                  NON mettere mai display:none qui o il copy sparisce su tablet.
                 */}
-                <div className="laser-machine-mobile">
-                  <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
-                </div>
+                <div className="laser-body-mobile">
+                  {/* Macchina: visibile SOLO su mobile ≤575px */}
+                  <div className="laser-machine-mobile">
+                    <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
+                  </div>
 
-                {/* Copy – ref per IntersectionObserver */}
-                <div ref={copyRef} className="laser-copy">
-                  <div className="laser-kicker">Laser • Estetica avanzata</div>
+                  {/* Copy: SEMPRE visibile su tutti i breakpoint */}
+                  <div className="laser-copy">
+                    <div className="laser-kicker">Laser • Estetica avanzata</div>
 
-                  <h2 className="laser-title">Stanca di lamette e cerette ogni settimana?</h2>
+                    <h2 className="laser-title">Stanca di lamette e cerette ogni settimana?</h2>
 
-                  {/* Testo lungo: solo tablet/desktop (nascosto su mobile via CSS) */}
-                  <p className="laser-text">
-                    Con il nuovo macchinario <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni una
-                    pelle più liscia.
-                    <br />
-                    <span className="laser-subtle">
-                      Spesso si nota una differenza già dalle prime sedute (i risultati possono variare in base al tipo di pelle e pelo).
-                    </span>
-                  </p>
+                    <p className="laser-text-mobile">
+                      Con <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni una pelle più liscia.
+                    </p>
 
-                  {/* ── CTA MOBILE (≤575px) ── */}
-                  <div className="laser-ctas-mobile">
-                    <Button className="laser-btn-gold rounded-pill">Prenota una consulenza</Button>
-                    <div className="laser-meta-mobile">
+                    {/* Testo lungo: visibile su tablet/desktop, nascosto su mobile */}
+                    <p className="laser-text">
+                      Con il nuovo macchinario <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni una
+                      pelle più liscia.
+                      <br />
+                      <span className="laser-subtle">
+                        Spesso si nota una differenza già dalle prime sedute (i risultati possono variare in base al tipo di pelle e pelo).
+                      </span>
+                    </p>
+
+                    {/* CTA tablet/desktop */}
+                    <div className="laser-ctas d-flex gap-2 flex-wrap laser-ctas--main">
+                      <Button variant="light" className="rounded-pill px-4 laser-btn-primary">
+                        Prenota una consulenza
+                      </Button>
+                      <Button variant="outline-light" className="rounded-pill px-4">
+                        Guarda i risultati
+                      </Button>
+                    </div>
+
+                    <div className="laser-meta laser-meta--main">
                       <div className="laser-info">
                         Per info rapide:{" "}
                         <a href="https://wa.me/393780921723" target="_blank" rel="noreferrer" className="laser-whatsapp">
@@ -146,32 +154,32 @@ export default function LaserSection() {
                       </div>
                     </div>
                   </div>
-
-                  {/* ── CTA TABLET / DESKTOP (≥576px) ── */}
-                  <div className="laser-ctas d-flex gap-2 flex-wrap laser-ctas--main">
-                    <Button variant="light" className="rounded-pill px-4 laser-btn-primary">
-                      Prenota una consulenza
-                    </Button>
-                    <Button variant="outline-light" className="rounded-pill px-4">
-                      Guarda i risultati
-                    </Button>
-                  </div>
-
-                  <div className="laser-meta laser-meta--main">
-                    <div className="laser-info">
-                      Per info rapide:{" "}
-                      <a href="https://wa.me/393780921723" target="_blank" rel="noreferrer" className="laser-whatsapp">
-                        WhatsApp
-                      </a>
-                    </div>
-                    <div className="laser-pay">
-                      Disponibile pagamento in <strong>3 rate</strong> con Scalapay
-                    </div>
-                  </div>
+                  {/* fine laser-copy */}
                 </div>
-                {/* fine .laser-copy */}
+                {/* fine laser-body-mobile */}
               </div>
-              {/* fine .laser-wrapper-mobile */}
+              {/* fine laser-wrapper-mobile */}
+            </div>
+          </div>
+          {/* fine laser-content */}
+
+          {/*
+            ── STRIP INFERIORE ── solo mobile ≤575px
+            bg #1e1814 (più scuro di #2f2723), separazione netta
+            il fascio "atterra" visivamente sulla strip
+          */}
+          <div ref={stripRef} className="laser-strip">
+            <Button className="laser-btn-gold">Prenota una consulenza</Button>
+            <div className="laser-strip-meta">
+              <span className="laser-info">
+                Per info rapide:{" "}
+                <a href="https://wa.me/393780921723" target="_blank" rel="noreferrer" className="laser-whatsapp">
+                  WhatsApp
+                </a>
+              </span>
+              <span className="laser-pay">
+                Pagamento in <strong>3 rate</strong> con Scalapay
+              </span>
             </div>
           </div>
 

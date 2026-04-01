@@ -23,31 +23,6 @@
     0 36px 72px rgba(46, 33, 24, 0.12);
 }
 
-.detail-img-hero img {
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-.detail-img-hero:hover img {
-  transform: scale(1.04);
-}
-
-.detail-img-shimmer {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.12) 50%, transparent 70%);
-  transform: translateX(-100%);
-  transition: transform 0.75s ease;
-  pointer-events: none;
-}
-
-.detail-img-hero:hover .detail-img-shimmer {
-  transform: translateX(100%);
-}
-
 .sd-cancel-banner {
   display: flex;
   align-items: center;
@@ -428,4 +403,16 @@
 
 .detail-pay-btn:not(:disabled):active {
   transform: scale(0.98);
+}
+
+/* ImageGallery wrapper nel contesto detail */
+.detail-info-col ~ * .ig-wrap,
+.col-md-5 .ig-wrap {
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .ig-wrap {
+    border-radius: 0;
+  }
 }

@@ -1,13 +1,11 @@
-import "./BadgeFlag.css";
-
 /** Configurazione di tutti i tipi di badge ammessi. */
 const BADGE_CONFIG = {
-  new:          { label: "Novità" },
-  sale:         { label: "Offerta" },
-  promo:        { label: "Promo" },
-  limited:      { label: "Limitato" },
-  bestseller:   { label: "Best Seller" },
-  coming_soon:  { label: "Coming Soon" },
+  new: { label: "Novità" },
+  sale: { label: "Offerta" },
+  promo: { label: "Promo" },
+  limited: { label: "Limitato" },
+  bestseller: { label: "Best Seller" },
+  coming_soon: { label: "Coming Soon" },
 };
 
 /** Array ordinato dei tipi ammessi — utile per picker e validazione. */
@@ -29,11 +27,7 @@ export function BadgeFlag({ type }) {
   const config = BADGE_CONFIG[type];
   if (!config) return null;
   return (
-    <span
-      className={`badge-flag badge-flag--${type}`}
-      aria-label={config.label}
-      title={config.label}
-    >
+    <span className={`badge-flag badge-flag--${type}`} aria-label={config.label} title={config.label}>
       <span className="badge-flag__text">{config.label}</span>
     </span>
   );
@@ -75,9 +69,7 @@ export function BadgeFlags({ badges }) {
  */
 export function BadgesPicker({ value = [], onChange }) {
   const toggle = type => {
-    const next = value.includes(type)
-      ? value.filter(t => t !== type)
-      : [...value, type];
+    const next = value.includes(type) ? value.filter(t => t !== type) : [...value, type];
     onChange(next);
   };
 
