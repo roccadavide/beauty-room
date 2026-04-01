@@ -54,6 +54,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
             // FIX-W4: rate limit su endpoint order checkout prodotti
             } else if (path.startsWith("/checkout/create-session")) {
                 bucket = config.resolveCheckoutBookingBucket(ip);
+            } else if (path.startsWith("/waitlist")) {
+                bucket = config.resolveWaitlistBucket(ip);
+            } else if (path.matches("/products/[^/]+/stock-alerts")) {
+                bucket = config.resolveStockAlertBucket(ip);
             }
 
             if (bucket == null) {

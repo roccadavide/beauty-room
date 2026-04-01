@@ -27,6 +27,7 @@ public class JWTFilter extends OncePerRequestFilter {
     private static final String UNAUTHORIZED_MESSAGE = "Invalid or expired token";
 
     private final JWTTools jwtTools;
+    private final TokenBlocklist tokenBlocklist;
     private final UserDetailsService userDetailsService;
     private final ObjectMapper om;
 
@@ -49,6 +50,10 @@ public class JWTFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
         try {
             jwtTools.verifyToken(token);
+            String jti = jwtTools.extractJti(token);
+            if (tokenBlocklist.isBlocked(jti)) {
+                throw new IllegalArgumentException("Token revocato");
+            }
             String email = jwtTools.extractSubject(token);
 
             UserDetails user = userDetailsService.loadUserByUsername(email);

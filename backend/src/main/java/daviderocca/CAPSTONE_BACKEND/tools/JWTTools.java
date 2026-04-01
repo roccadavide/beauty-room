@@ -7,7 +7,9 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JWTTools {
@@ -24,6 +26,7 @@ public class JWTTools {
                 .expiration(new Date(System.currentTimeMillis() + accessExpirationMs))
                 .subject(user.getEmail())
                 .claim("id", user.getUserId().toString())
+                .claim("jti", UUID.randomUUID().toString())
                 .signWith(Keys.hmacShaKeyFor(secret.getBytes()))
                 .compact();
     }
@@ -48,5 +51,24 @@ public class JWTTools {
                 .parseSignedClaims(accessToken)
                 .getPayload()
                 .getSubject();
+    }
+
+    public String extractJti(String accessToken) {
+        return Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(secret.getBytes()))
+                .build()
+                .parseSignedClaims(accessToken)
+                .getPayload()
+                .get("jti", String.class);
+    }
+
+    public Instant extractExpiration(String accessToken) {
+        Date expiration = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(secret.getBytes()))
+                .build()
+                .parseSignedClaims(accessToken)
+                .getPayload()
+                .getExpiration();
+        return expiration.toInstant();
     }
 }

@@ -6,6 +6,7 @@ import daviderocca.CAPSTONE_BACKEND.exceptions.BadRequestException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.InternalServerErrorException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.ResourceNotFoundException;
 import daviderocca.CAPSTONE_BACKEND.exceptions.UnauthorizedException;
+import daviderocca.CAPSTONE_BACKEND.security.TokenBlocklist;
 import daviderocca.CAPSTONE_BACKEND.services.AuthService;
 import daviderocca.CAPSTONE_BACKEND.services.RefreshTokenService;
 import daviderocca.CAPSTONE_BACKEND.services.UserService;
@@ -36,6 +37,7 @@ public class AuthController {
     private final UserService userService;
     private final RefreshTokenService refreshTokenService;
     private final JWTTools jwtTools;
+    private final TokenBlocklist tokenBlocklist;
 
     @Value("${app.jwt.refresh-cookie.name:refresh_token}")
     private String cookieName;
@@ -114,6 +116,18 @@ public class AuthController {
         if (rawToken != null) {
             refreshTokenService.revoke(rawToken);
         }
+
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String accessToken = authHeader.substring(7);
+            try {
+                String jti = jwtTools.extractJti(accessToken);
+                tokenBlocklist.block(jti, jwtTools.extractExpiration(accessToken));
+            } catch (Exception ex) {
+                log.warn("Impossibile aggiungere access token in blocklist durante logout: {}", ex.getMessage());
+            }
+        }
+
         clearRefreshCookie(response);
         log.info("Logout eseguito");
         return ResponseEntity.ok(Map.of("message", "Logout effettuato."));

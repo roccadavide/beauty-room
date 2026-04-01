@@ -8,6 +8,7 @@ import io.github.bucket4j.Refill;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class RateLimitConfig {
@@ -29,6 +30,9 @@ public class RateLimitConfig {
     private final Cache<String, Bucket> checkoutBookingBuckets = Caffeine.newBuilder()
             .expireAfterAccess(Duration.ofHours(1))
             .build();
+
+    private final ConcurrentHashMap<String, Bucket> waitlistBuckets = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Bucket> stockAlertBuckets = new ConcurrentHashMap<>();
 
     private Bandwidth loginBandwidth() {
         return Bandwidth.classic(LOGIN_CAPACITY, Refill.greedy(LOGIN_CAPACITY, Duration.ofMinutes(1)));
@@ -54,6 +58,20 @@ public class RateLimitConfig {
     // FIX-7: resolve bucket per /checkout/bookings/
     public Bucket resolveCheckoutBookingBucket(String ip) {
         return checkoutBookingBuckets.get(ip, k -> Bucket.builder().addLimit(checkoutBookingBandwidth()).build());
+    }
+
+    public Bucket resolveWaitlistBucket(String ip) {
+        return waitlistBuckets.computeIfAbsent(ip, k ->
+                Bucket.builder()
+                        .addLimit(Bandwidth.classic(5, Refill.intervally(5, Duration.ofMinutes(10))))
+                        .build());
+    }
+
+    public Bucket resolveStockAlertBucket(String ip) {
+        return stockAlertBuckets.computeIfAbsent(ip, k ->
+                Bucket.builder()
+                        .addLimit(Bandwidth.classic(3, Refill.intervally(3, Duration.ofMinutes(10))))
+                        .build());
     }
 
     public long getLoginCapacity() {
