@@ -27,11 +27,8 @@ SET row_security = off;
 -- *not* creating schema, since initdb creates it
 
 
-ALTER SCHEMA public 
 
-SET default_tablespace = '';
 
-SET default_table_access_method = heap;
 
 --
 -- TOC entry 209 (class 1259 OID 26330)
@@ -910,8 +907,6 @@ ALTER TABLE ONLY public.bookings
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: daviderocca
 --
 
-REVOKE USAGE ON SCHEMA public FROM PUBLIC;
-GRANT ALL ON SCHEMA public TO PUBLIC;
 
 
 -- Completed on 2026-02-21 11:53:08 CET
