@@ -27,7 +27,7 @@ SET row_security = off;
 -- *not* creating schema, since initdb creates it
 
 
-ALTER SCHEMA public OWNER TO daviderocca;
+ALTER SCHEMA public 
 
 SET default_tablespace = '';
 
@@ -63,7 +63,7 @@ CREATE TABLE public.bookings (
 );
 
 
-ALTER TABLE public.bookings OWNER TO daviderocca;
+ALTER TABLE public.bookings 
 
 --
 -- TOC entry 210 (class 1259 OID 26338)
@@ -77,7 +77,7 @@ CREATE TABLE public.categories (
 );
 
 
-ALTER TABLE public.categories OWNER TO daviderocca;
+ALTER TABLE public.categories 
 
 --
 -- TOC entry 211 (class 1259 OID 26343)
@@ -94,7 +94,7 @@ CREATE TABLE public.closures (
 );
 
 
-ALTER TABLE public.closures OWNER TO daviderocca;
+ALTER TABLE public.closures 
 
 --
 -- TOC entry 228 (class 1259 OID 26575)
@@ -123,7 +123,7 @@ CREATE TABLE public.email_outbox (
 );
 
 
-ALTER TABLE public.email_outbox OWNER TO daviderocca;
+ALTER TABLE public.email_outbox 
 
 --
 -- TOC entry 212 (class 1259 OID 26348)
@@ -139,7 +139,7 @@ CREATE TABLE public.order_items (
 );
 
 
-ALTER TABLE public.order_items OWNER TO daviderocca;
+ALTER TABLE public.order_items 
 
 --
 -- TOC entry 213 (class 1259 OID 26353)
@@ -165,7 +165,7 @@ CREATE TABLE public.orders (
 );
 
 
-ALTER TABLE public.orders OWNER TO daviderocca;
+ALTER TABLE public.orders 
 
 --
 -- TOC entry 227 (class 1259 OID 26535)
@@ -187,7 +187,7 @@ CREATE TABLE public.package_credits (
 );
 
 
-ALTER TABLE public.package_credits OWNER TO daviderocca;
+ALTER TABLE public.package_credits 
 
 --
 -- TOC entry 214 (class 1259 OID 26361)
@@ -200,7 +200,7 @@ CREATE TABLE public.product_images (
 );
 
 
-ALTER TABLE public.product_images OWNER TO daviderocca;
+ALTER TABLE public.product_images 
 
 --
 -- TOC entry 215 (class 1259 OID 26364)
@@ -218,7 +218,7 @@ CREATE TABLE public.products (
 );
 
 
-ALTER TABLE public.products OWNER TO daviderocca;
+ALTER TABLE public.products 
 
 --
 -- TOC entry 223 (class 1259 OID 26474)
@@ -231,7 +231,7 @@ CREATE TABLE public.promotion_categories (
 );
 
 
-ALTER TABLE public.promotion_categories OWNER TO daviderocca;
+ALTER TABLE public.promotion_categories 
 
 --
 -- TOC entry 224 (class 1259 OID 26477)
@@ -244,7 +244,7 @@ CREATE TABLE public.promotion_products (
 );
 
 
-ALTER TABLE public.promotion_products OWNER TO daviderocca;
+ALTER TABLE public.promotion_products 
 
 --
 -- TOC entry 225 (class 1259 OID 26480)
@@ -257,7 +257,7 @@ CREATE TABLE public.promotion_services (
 );
 
 
-ALTER TABLE public.promotion_services OWNER TO daviderocca;
+ALTER TABLE public.promotion_services 
 
 --
 -- TOC entry 222 (class 1259 OID 26467)
@@ -287,7 +287,7 @@ CREATE TABLE public.promotions (
 );
 
 
-ALTER TABLE public.promotions OWNER TO daviderocca;
+ALTER TABLE public.promotions 
 
 --
 -- TOC entry 216 (class 1259 OID 26371)
@@ -300,7 +300,7 @@ CREATE TABLE public.result_images (
 );
 
 
-ALTER TABLE public.result_images OWNER TO daviderocca;
+ALTER TABLE public.result_images 
 
 --
 -- TOC entry 217 (class 1259 OID 26374)
@@ -317,7 +317,7 @@ CREATE TABLE public.results (
 );
 
 
-ALTER TABLE public.results OWNER TO daviderocca;
+ALTER TABLE public.results 
 
 --
 -- TOC entry 218 (class 1259 OID 26381)
@@ -330,7 +330,7 @@ CREATE TABLE public.service_images (
 );
 
 
-ALTER TABLE public.service_images OWNER TO daviderocca;
+ALTER TABLE public.service_images 
 
 --
 -- TOC entry 226 (class 1259 OID 26514)
@@ -348,7 +348,7 @@ CREATE TABLE public.service_options (
 );
 
 
-ALTER TABLE public.service_options OWNER TO daviderocca;
+ALTER TABLE public.service_options 
 
 --
 -- TOC entry 219 (class 1259 OID 26384)
@@ -366,7 +366,7 @@ CREATE TABLE public.services (
 );
 
 
-ALTER TABLE public.services OWNER TO daviderocca;
+ALTER TABLE public.services 
 
 --
 -- TOC entry 220 (class 1259 OID 26391)
@@ -385,7 +385,7 @@ CREATE TABLE public.users (
 );
 
 
-ALTER TABLE public.users OWNER TO daviderocca;
+ALTER TABLE public.users 
 
 --
 -- TOC entry 221 (class 1259 OID 26399)
@@ -404,7 +404,7 @@ CREATE TABLE public.working_hours (
 );
 
 
-ALTER TABLE public.working_hours OWNER TO daviderocca;
+ALTER TABLE public.working_hours 
 
 --
 -- TOC entry 3720 (class 2606 OID 26337)
