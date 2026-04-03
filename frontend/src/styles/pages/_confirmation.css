@@ -1,0 +1,482 @@
+/* ================================================
+   CONFIRMATION PAGES  (_confirmation.css)
+   Prefix: .conf-
+   Usato da: OrderConfirmation, BookingConfirmation
+   ================================================ */
+
+/* ── Page wrapper ── */
+.conf-page {
+  min-height: 100vh;
+  background: #fffdf8;
+  padding-top: 4.5rem;
+}
+
+/* ── Hero ── */
+.conf-hero {
+  text-align: center;
+  padding: 4.5rem 1.5rem 3.5rem;
+  position: relative;
+  border-bottom: 1px solid rgba(184, 151, 106, 0.12);
+}
+
+.conf-hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #b8976a 40%, #8c6d3f 60%, transparent 100%);
+}
+
+/* ── Spark ✦ ── */
+.conf-spark {
+  display: block;
+  font-size: 1.8rem;
+  color: #b8976a;
+  margin-bottom: 1.25rem;
+  animation: conf-pulse 4s ease-in-out infinite;
+  letter-spacing: 0;
+}
+
+@keyframes conf-pulse {
+  0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  50% { opacity: 0.65; transform: scale(1.12) rotate(15deg); }
+}
+
+/* ── Eyebrow / badge ── */
+.conf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 1.1rem;
+}
+
+.conf-badge--paid {
+  background: rgba(184, 151, 106, 0.1);
+  color: #8c6d3f;
+  border: 1px solid rgba(184, 151, 106, 0.32);
+}
+
+.conf-badge--pending {
+  background: rgba(212, 165, 80, 0.1);
+  color: #9a7520;
+  border: 1px solid rgba(212, 165, 80, 0.32);
+}
+
+.conf-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.conf-badge--paid .conf-badge__dot { background: #8c6d3f; }
+.conf-badge--pending .conf-badge__dot {
+  background: #d4a550;
+  animation: conf-blink 1.6s ease infinite;
+}
+
+@keyframes conf-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+/* ── Title ── */
+.conf-title {
+  font-family: 'SaolDisplay-Light', 'Petrona', Georgia, serif;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 300;
+  color: #1a1208;
+  margin-bottom: 0;
+  line-height: 1.15;
+}
+
+/* ── Gold divider ── */
+.conf-divider {
+  width: 36px;
+  height: 1px;
+  background: #b8976a;
+  margin: 1.25rem auto;
+}
+
+/* ── Subtitle ── */
+.conf-subtitle {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.9rem;
+  color: #7a6a58;
+  max-width: 480px;
+  margin: 0 auto 1.5rem;
+  line-height: 1.75;
+}
+
+/* ── Order code pill ── */
+.conf-code {
+  display: inline-block;
+  font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: #4a3d2c;
+  background: rgba(184, 151, 106, 0.07);
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 8px;
+  padding: 0.35rem 0.9rem;
+  margin-bottom: 2rem;
+}
+
+/* ── Steps tracker ── */
+.conf-steps {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.conf-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 72px;
+}
+
+.conf-step__dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(184, 151, 106, 0.3);
+  background: #fffdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #b8976a;
+  transition: all 0.35s ease;
+}
+
+.conf-step__dot--done {
+  background: #b8976a;
+  border-color: #b8976a;
+  color: #fff;
+}
+
+.conf-step__dot--active {
+  border-color: #b8976a;
+  box-shadow: 0 0 0 5px rgba(184, 151, 106, 0.12);
+}
+
+.conf-step__label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #c0b09a;
+  white-space: nowrap;
+}
+
+.conf-step__label--done,
+.conf-step__label--active {
+  color: #8c6d3f;
+}
+
+.conf-step-line {
+  height: 1.5px;
+  width: 56px;
+  flex-shrink: 0;
+  background: rgba(184, 151, 106, 0.18);
+  margin-top: 14px; /* aligns with center of dot */
+}
+
+.conf-step-line--done {
+  background: #b8976a;
+}
+
+/* ── Content area ── */
+.conf-content {
+  padding-top: 3rem;
+  padding-bottom: 4rem;
+}
+
+/* ── Cards ── */
+.conf-card {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(184, 151, 106, 0.14);
+  box-shadow: 0 4px 28px rgba(139, 103, 60, 0.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.conf-card__header {
+  padding: 1rem 1.4rem;
+  border-bottom: 1px solid rgba(184, 151, 106, 0.1);
+  background: rgba(184, 151, 106, 0.04);
+}
+
+.conf-card__header-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #b8976a;
+  margin: 0;
+}
+
+.conf-card__body {
+  padding: 1.4rem;
+  flex: 1;
+}
+
+/* ── Detail rows ── */
+.conf-detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.045);
+}
+
+.conf-detail-row:first-child { padding-top: 0; }
+.conf-detail-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+.conf-detail-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #b8976a;
+}
+
+.conf-detail-value {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.9rem;
+  color: #2a1f12;
+  line-height: 1.5;
+}
+
+/* ── Product items ── */
+.conf-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.045);
+}
+
+.conf-item:first-child { padding-top: 0; }
+.conf-item:last-of-type { border-bottom: none; }
+
+.conf-item__thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid rgba(184, 151, 106, 0.15);
+}
+
+.conf-item__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.conf-item__info { flex: 1; min-width: 0; }
+
+.conf-item__name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2a1f12;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conf-item__meta {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.72rem;
+  color: #9a8a78;
+  margin-top: 0.15rem;
+}
+
+.conf-item__price {
+  font-family: 'Petrona', Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #8c6d3f;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Total row ── */
+.conf-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 1rem 0 0;
+  margin-top: 0.5rem;
+  border-top: 1px solid rgba(184, 151, 106, 0.18);
+}
+
+.conf-total__label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #b8976a;
+}
+
+.conf-total__amount {
+  font-family: 'SaolDisplay-Light', 'Petrona', Georgia, serif;
+  font-size: 1.7rem;
+  font-weight: 300;
+  color: #1a1208;
+}
+
+/* ── Service thumb (booking) ── */
+.conf-service-block {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.conf-service-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid rgba(184, 151, 106, 0.2);
+}
+
+.conf-service-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.conf-service-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #2a1f12;
+}
+
+.conf-service-meta {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.72rem;
+  color: #9a8a78;
+  margin-top: 0.15rem;
+}
+
+/* ── CTAs ── */
+.conf-cta-wrap {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2.5rem;
+}
+
+.conf-btn-primary,
+.conf-btn-ghost {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0.75rem 2rem;
+  border-radius: 999px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  line-height: 1;
+}
+
+.conf-btn-primary {
+  background: #b8976a;
+  color: #fff;
+  border-color: #b8976a;
+}
+
+.conf-btn-primary:hover {
+  background: #8c6d3f;
+  border-color: #8c6d3f;
+  color: #fff;
+}
+
+.conf-btn-ghost {
+  background: transparent;
+  color: #8c6d3f;
+  border-color: rgba(184, 151, 106, 0.4);
+}
+
+.conf-btn-ghost:hover {
+  background: rgba(184, 151, 106, 0.08);
+  border-color: #b8976a;
+  color: #8c6d3f;
+}
+
+/* ── Reveal animation ── */
+.conf-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+  transition-delay: var(--conf-delay, 0s);
+}
+
+.conf-reveal--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Error state ── */
+.conf-error {
+  max-width: 440px;
+  margin: 5rem auto;
+  text-align: center;
+  padding: 0 1.5rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 767px) {
+  .conf-hero { padding: 3.5rem 1rem 2.5rem; }
+
+  .conf-step { min-width: 56px; }
+
+  .conf-step-line { width: 32px; }
+
+  .conf-cta-wrap {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .conf-btn-primary,
+  .conf-btn-ghost {
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .conf-step-line { width: 16px; }
+  .conf-step { min-width: 48px; }
+  .conf-step__label { font-size: 0.52rem; }
+}
