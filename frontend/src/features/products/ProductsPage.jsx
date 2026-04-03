@@ -9,7 +9,6 @@ import AdminAddButton from "../../components/common/AdminAddButton";
 import AdminToggle from "../../components/common/AdminToggle";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteProduct, fetchProducts } from "../../api/modules/products.api";
-import { BadgeFlags } from "../../components/common/BadgeFlag";
 
 function ProductsPage() {
   const [cat, setCat] = useState("all");
@@ -122,7 +121,7 @@ function ProductsPage() {
   }
 
   return (
-    <Container fluid className="py-5 container-base flex-column">
+    <Container fluid className="pb-5 container-base flex-column">
       <div className="sp-page-head">
         <span className="section-eyebrow">Prodotti</span>
         <h1 className="sp-page-title">La mia selezione</h1>
@@ -148,7 +147,7 @@ function ProductsPage() {
           <circle cx="11" cy="11" r="8" />
           <path d="M21 21l-4.35-4.35" />
         </svg>
-        <input className="sp-search-input" placeholder="Cerca prodotto..." value={q} onChange={e => setQ(e.target.value)} />
+        <input className="sp-search-input" placeholder="Cerca..." value={q} onChange={e => setQ(e.target.value)} />
         {q && (
           <button className="sp-search-clear" onClick={() => setQ("")} aria-label="Cancella">
             ×
@@ -171,7 +170,7 @@ function ProductsPage() {
                 onClick={() => navigate(`/prodotti/${p.productId}`)}
               >
                 {isAdmin && (
-                  <div className="admin-card-toggle-corner" style={{ left: 10, right: "auto" }} onClick={e => e.stopPropagation()}>
+                  <div className="admin-card-toggle-corner" onClick={e => e.stopPropagation()}>
                     <AdminToggle
                       entityId={p.productId}
                       isActive={p.active ?? true}
@@ -188,7 +187,6 @@ function ProductsPage() {
                     </div>
                   )}
                 </div>
-                <BadgeFlags badges={p?.badges ?? []} />
                 <Card.Body className="d-flex flex-column">
                   <div className="bpc-accent-line" />
                   <Card.Title className="bpc-title mb-1">{p.name}</Card.Title>

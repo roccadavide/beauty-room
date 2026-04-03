@@ -133,7 +133,17 @@ public class SecConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()));
 
         http.headers(headers -> headers
-                .frameOptions(frame -> frame.deny())
+                .frameOptions(frame -> frame.sameOrigin())
+.contentSecurityPolicy(csp -> csp
+    .policyDirectives(
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' https://js.stripe.com; " +
+        "frame-src 'self' https://www.google.com/maps/ https://maps.googleapis.com/ https://js.stripe.com; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: https:; " +
+        "connect-src 'self' https://api.stripe.com;"
+    )
+)
                 .contentTypeOptions(Customizer.withDefaults())
                 .referrerPolicy(ref -> ref
                         .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy

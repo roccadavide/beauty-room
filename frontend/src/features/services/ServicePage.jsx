@@ -123,7 +123,7 @@ const ServicePage = () => {
   }
 
   return (
-    <Container fluid className="py-5 container-base flex-column">
+    <Container fluid className="pb-5 container-base flex-column">
       <div className="sp-page-head">
         <span className="section-eyebrow">Trattamenti</span>
         <h1 className="sp-page-title">Prenota il tuo trattamento</h1>
