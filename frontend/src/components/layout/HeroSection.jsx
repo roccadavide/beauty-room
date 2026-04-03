@@ -16,9 +16,9 @@ export default function HeroSection({
   primaryCtaTo = "/trattamenti",
   secondaryCtaLabel = "Scopri promozioni",
   secondaryCtaTo = "/promozioni",
-  imgAvif = "public/hero/hero.avif",
-  imgWebp = "public/hero/hero.webp",
-  imgJpg = "public/hero/hero.jpeg",
+  imgAvif = "/hero/hero.avif",
+  imgWebp = "/hero/hero.webp",
+  imgJpg = "/hero/hero.jpeg",
   imgAlt = "Beauty Room – trattamenti laser e permanent make-up",
 }) {
   const reduce = useReducedMotion();
@@ -157,7 +157,6 @@ export default function HeroSection({
           </MotionDiv>
         </MotionDiv>
       </Container>
-
     </section>
   );
 }
