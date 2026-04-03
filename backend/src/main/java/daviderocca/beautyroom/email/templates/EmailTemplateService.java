@@ -180,54 +180,160 @@ public class EmailTemplateService {
 
     // ===================== ORDER PAID =====================
     public EmailContent orderPaid(Order o) {
-        String subject = "Ordine pagato - " + brandName;
+        String subject = "✨ Il tuo ordine è confermato — " + brandName;
 
-        String customer = (safe(o.getCustomerName()) + " " + safe(o.getCustomerSurname())).trim();
-        if (customer.equals("- -")) customer = "-";
+        String firstName = (o.getCustomerName() != null && !o.getCustomerName().isBlank())
+                ? o.getCustomerName().split(" ")[0]
+                : "cara cliente";
 
+        String fullName = (safe(o.getCustomerName()) + " " + safe(o.getCustomerSurname())).trim();
+        if (fullName.equals("- -")) fullName = firstName;
+
+        // Calcolo totale e righe articoli
         BigDecimal total = BigDecimal.ZERO;
-        if (o.getOrderItems() != null) {
+        StringBuilder itemsHtml = new StringBuilder();
+        StringBuilder itemsText = new StringBuilder();
+
+        if (o.getOrderItems() != null && !o.getOrderItems().isEmpty()) {
             for (var item : o.getOrderItems()) {
-                if (item == null || item.getPrice() == null) continue;
-                total = total.add(item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+                if (item == null || item.getPrice() == null || item.getProduct() == null) continue;
+
+                BigDecimal lineTotal = item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+                total = total.add(lineTotal);
+
+                String productName = safe(item.getProduct().getName());
+                String lineTotalStr = lineTotal.setScale(2, RoundingMode.HALF_UP).toPlainString();
+                String unitStr = item.getPrice().setScale(2, RoundingMode.HALF_UP).toPlainString();
+
+                itemsHtml.append("""
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;
+                                padding:10px 0; border-bottom:1px solid %s;">
+                      <div>
+                        <div style="font-family:Arial,sans-serif; font-size:14px; font-weight:700; color:%s;">%s</div>
+                        <div style="font-family:Arial,sans-serif; font-size:12px; color:%s; margin-top:2px;">
+                          Qt. %d · €&nbsp;%s cad.
+                        </div>
+                      </div>
+                      <div style="font-family:Arial,sans-serif; font-size:14px; font-weight:700;
+                                  color:%s; white-space:nowrap; padding-left:12px;">
+                        €&nbsp;%s
+                      </div>
+                    </div>
+                """.formatted(BORDER, TEXT, esc(productName), MUTED,
+                        item.getQuantity(), unitStr, GOLD, lineTotalStr));
+
+                itemsText.append("  - ").append(productName)
+                        .append(" x").append(item.getQuantity())
+                        .append(" = € ").append(lineTotalStr).append("\n");
             }
         }
+
         String totalStr = total.setScale(2, RoundingMode.HALF_UP).toPlainString();
         String whenPaid = (o.getPaidAt() != null) ? o.getPaidAt().format(IT_DT) : "-";
+        String orderId  = (o.getOrderId() != null) ? o.getOrderId().toString().toUpperCase().substring(0, 8) : "-";
+
+        String pickupNote = (o.getPickupNote() != null && !o.getPickupNote().isBlank())
+                ? o.getPickupNote() : null;
 
         String body = """
-            <h1 style="%s">Pagamento ricevuto</h1>
+            <h1 style="%s">Ordine confermato ✦</h1>
 
             <p style="%s">Ciao <b>%s</b>,</p>
-            <p style="%s">abbiamo ricevuto il pagamento del tuo ordine.</p>
+            <p style="%s">
+              il pagamento è andato a buon fine e il tuo ordine è confermato.
+              Ti contatteremo appena sarà pronto per il ritiro in <b>%s</b>.
+            </p>
+
+            <!-- Riepilogo articoli -->
+            <div style="margin-top:18px; background:#FFFDFB; border:1px solid %s;
+                        border-radius:14px; padding:4px 14px;">
+              <div style="font-family:Arial,sans-serif; font-size:11px; font-weight:700;
+                          letter-spacing:0.12em; text-transform:uppercase; color:%s;
+                          padding:10px 0 6px;">
+                Articoli
+              </div>
+              %s
+              <!-- Totale -->
+              <div style="display:flex; justify-content:space-between; align-items:center;
+                          padding:12px 0; margin-top:4px;">
+                <div style="font-family:Arial,sans-serif; font-size:11px; font-weight:700;
+                            letter-spacing:0.12em; text-transform:uppercase; color:%s;">
+                  Totale pagato
+                </div>
+                <div style="font-family:Arial,sans-serif; font-size:20px; font-weight:700; color:%s;">
+                  €&nbsp;%s
+                </div>
+              </div>
+            </div>
+
+            <!-- Dettagli ordine -->
+            %s
 
             %s
 
-            <p style="%s; margin-top:14px;"><b>Nota ritiro:</b> %s</p>
-            <p style="%s; margin-top:12px;">Grazie, a presto.</p>
+            <p style="%s; margin-top:16px;">
+              Vuoi sapere quando è pronto il tuo ordine? Scrivici su WhatsApp.
+            </p>
+
+            <div style="margin-top:10px;">
+              %s
+              %s
+              %s
+            </div>
         """.formatted(
                 h1Style(),
-                pStyle(),
-                esc(customer),
-                pStyle(),
+                pStyle(), esc(firstName),
+                pStyle(), esc(brandAddress),
+                BORDER,
+                GOLD,
+                itemsHtml,
+                GOLD, TEXT, totalStr,
                 detailsBox(new String[][]{
-                        {"Totale", "€ " + totalStr},
-                        {"Email", safe(o.getCustomerEmail())},
-                        {"Telefono", safe(o.getCustomerPhone())},
-                        {"Pagato il", whenPaid}
+                        {"Numero ordine", "#" + orderId},
+                        {"Pagato il", whenPaid},
+                        {"Email di conferma", safe(o.getCustomerEmail())}
                 }),
-                pStyle(),
-                esc(safe(o.getPickupNote())),
-                smallStyle()
+                pickupNote != null
+                    ? ("<div style=\"margin-top:14px; background:rgba(200,164,106,0.1); border:1px solid "
+                       + BORDER + "; border-radius:12px; padding:12px 14px;\">"
+                       + "<div style=\"font-family:Arial,sans-serif; font-size:11px; font-weight:700; "
+                       + "letter-spacing:0.12em; text-transform:uppercase; color:" + GOLD + "; margin-bottom:4px;\">Nota ritiro</div>"
+                       + "<div style=\"font-family:Arial,sans-serif; font-size:14px; color:" + TEXT + ";\">"
+                       + esc(pickupNote) + "</div></div>")
+                    : "",
+                smallStyle(),
+                miniLink("WhatsApp", "https://wa.me/" + brandPhoneE164.replace("+", "")),
+                miniLink("Chiama", "tel:" + brandPhoneE164),
+                miniLink("Email", "mailto:" + brandEmail)
         );
 
-        return new EmailContent(subject, wrap(body), """
-                Ordine pagato - %s
-                Cliente: %s
-                Totale: € %s
+        String html = wrap(body);
+
+        String text = """
+                Ordine confermato — %s
+                Ciao %s, il tuo ordine è confermato!
+
+                Numero ordine: #%s
                 Pagato il: %s
-                Nota ritiro: %s
-                """.formatted(brandName, customer, totalStr, whenPaid, safe(o.getPickupNote())));
+
+                Articoli:
+                %s
+                Totale: € %s
+
+                Ritiro presso: %s
+                %s
+                WhatsApp: https://wa.me/%s
+                """.formatted(
+                brandName, firstName,
+                orderId, whenPaid,
+                itemsText,
+                totalStr,
+                brandAddress,
+                pickupNote != null ? "Nota ritiro: " + pickupNote + "\n" : "",
+                brandPhoneE164.replace("+", "")
+        );
+
+        return new EmailContent(subject, html, text);
     }
 
     // ===================== PAID CONFLICT ALERT (ADMIN) =====================

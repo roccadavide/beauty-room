@@ -12,6 +12,7 @@ import daviderocca.beautyroom.enums.OrderStatus;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.exceptions.UnauthorizedException;
+import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.repositories.OrderRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductService productService;
     private final ProductRepository productRepository;
+    private final EmailOutboxService emailOutboxService;
 
     private static final int PENDING_EXPIRE_MINUTES = 30;
 
@@ -279,6 +281,13 @@ public class OrderService {
         order.setExpiresAt(null);
 
         orderRepository.save(order);
+
+        try {
+            emailOutboxService.enqueueOrderPaid(order);
+        } catch (Exception ex) {
+            log.warn("enqueueOrderPaid failed (non-blocking): orderId={} err={}", orderId, ex.getMessage());
+        }
+
         log.info("Order paid: id={} email={}", orderId, customerEmail);
     }
 
