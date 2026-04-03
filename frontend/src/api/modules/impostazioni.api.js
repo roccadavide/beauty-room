@@ -1,4 +1,4 @@
-import { SETTINGS_ENDPOINTS } from "../endpoints";
+import { CATEGORY_ENDPOINTS, SETTINGS_ENDPOINTS } from "../endpoints";
 import http from "../httpClient";
 
 /* ============================================================
@@ -75,6 +75,53 @@ export const deleteClosure = async id => {
     return true;
   } catch (error) {
     const message = error.response?.data?.message || "Errore durante l'eliminazione della chiusura.";
+    throw new Error(message);
+  }
+};
+
+/* ============================================================
+   CATEGORIES
+   ============================================================ */
+
+export const getCategories = async () => {
+  try {
+    const { data } = await http.get(CATEGORY_ENDPOINTS.BASE, {
+      params: { page: 0, size: 50, sort: "label" },
+    });
+    const content = data?.content;
+    return Array.isArray(content) ? content : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile recuperare le categorie.";
+    throw new Error(message);
+  }
+};
+
+export const createCategory = async dto => {
+  try {
+    const { data } = await http.post(CATEGORY_ENDPOINTS.BASE, dto);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante la creazione della categoria.";
+    throw new Error(message);
+  }
+};
+
+export const updateCategory = async (id, dto) => {
+  try {
+    const { data } = await http.put(CATEGORY_ENDPOINTS.BY_ID(id), dto);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'aggiornamento della categoria.";
+    throw new Error(message);
+  }
+};
+
+export const deleteCategory = async id => {
+  try {
+    await http.delete(CATEGORY_ENDPOINTS.BY_ID(id));
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'eliminazione della categoria.";
     throw new Error(message);
   }
 };

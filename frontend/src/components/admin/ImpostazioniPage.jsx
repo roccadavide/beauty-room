@@ -61,6 +61,21 @@ function validateWH(form) {
   return "";
 }
 
+/** Genera una chiave URL-safe dal nome (es. "Laser Viso" → "laser-viso") */
+function labelToCategoryKey(label) {
+  return label
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function sortCategories(list) {
+  return [...list].sort((a, b) => (a.label || "").localeCompare(b.label || "", "it"));
+}
+
 /* ============================================================
    DayCard — per-day working hours editor
    ============================================================ */
@@ -373,6 +388,129 @@ function ClosureForm({ initial, todayISO, onSave, onCancel }) {
 }
 
 /* ============================================================
+   CategoryForm — inline create / edit
+   ============================================================ */
+
+function CategoryForm({ initial, onSave, onCancel }) {
+  const isEdit = !!initial?.categoryId;
+
+  const [form, setForm] = useState({
+    label: initial?.label || "",
+    categoryKey: initial?.categoryKey || "",
+  });
+
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      label: initial?.label || "",
+      categoryKey: initial?.categoryKey || "",
+    });
+  }, [initial]);
+
+  const setField = useCallback((key, val) => setForm(f => ({ ...f, [key]: val })), []);
+
+  const validate = () => {
+    const label = form.label.trim();
+    const categoryKey = form.categoryKey.trim().toLowerCase();
+    if (!label) return "Inserisci un nome.";
+    if (label.length > 100) return "Il nome non può superare i 100 caratteri.";
+    if (!categoryKey) return "Inserisci una chiave.";
+    if (categoryKey.length > 50) return "La chiave non può superare i 50 caratteri.";
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(categoryKey)) {
+      return "La chiave può contenere solo lettere minuscole, numeri e trattini (es. laser-viso).";
+    }
+    return "";
+  };
+
+  const handleGenerateKey = () => {
+    setField("categoryKey", labelToCategoryKey(form.label));
+  };
+
+  const handleSave = async () => {
+    const err = validate();
+    if (err) { setError(err); return; }
+    setError("");
+    setLoading(true);
+
+    const payload = {
+      label: form.label.trim(),
+      categoryKey: form.categoryKey.trim().toLowerCase(),
+    };
+
+    try {
+      await onSave(initial?.categoryId || null, payload);
+    } catch (e) {
+      setError(e.message || "Errore durante il salvataggio.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="imp-closure-form">
+      <div className="imp-form-title">{isEdit ? "✏️ Modifica categoria" : "➕ Nuova categoria"}</div>
+
+      <div className="imp-form-row">
+        <div className="imp-form-group imp-form-group--full">
+          <label className="imp-form-label">
+            Nome{" "}
+            <span className="imp-char-count">{form.label.length}/100</span>
+          </label>
+          <input
+            type="text"
+            className="imp-form-input"
+            maxLength={100}
+            placeholder="es. Laser viso"
+            value={form.label}
+            onChange={e => setField("label", e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="imp-form-row imp-form-row--times">
+        <div className="imp-form-group">
+          <label className="imp-form-label">Chiave</label>
+          <input
+            type="text"
+            className="imp-form-input"
+            maxLength={50}
+            placeholder="es. laser-viso"
+            autoComplete="off"
+            value={form.categoryKey}
+            onChange={e => setField("categoryKey", e.target.value)}
+          />
+        </div>
+        <div className="imp-form-group">
+          <label className="imp-form-label"> </label>
+          <button type="button" className="imp-btn imp-btn--ghost" onClick={handleGenerateKey}>
+            Genera
+          </button>
+        </div>
+      </div>
+
+      <p className="imp-form-hint">
+        Solo lettere minuscole, numeri e trattini. Usa &quot;Genera&quot; dal nome oppure scrivila a mano.
+      </p>
+
+      {error && <div className="imp-field-error">{error}</div>}
+
+      <div className="imp-form-actions">
+        {isEdit && (
+          <button type="button" className="imp-btn imp-btn--ghost" onClick={onCancel}>
+            Annulla
+          </button>
+        )}
+        <button type="button" className="imp-btn imp-btn--primary" onClick={handleSave} disabled={loading}>
+          {loading ? "Salvataggio…" : "Salva categoria"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    ImpostazioniPage — main component
    ============================================================ */
 
@@ -382,12 +520,19 @@ export default function ImpostazioniPage() {
   const [tab, setTab] = useState("orari");
   const [workingHours, setWorkingHours] = useState([]);
   const [closures, setClosures] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [globalError, setGlobalError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingClosure, setEditingClosure] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryDeleteConfirm, setCategoryDeleteConfirm] = useState(null);
+  const [categoryDeleteLoading, setCategoryDeleteLoading] = useState(false);
 
   const sortWH = list =>
     [...list].sort((a, b) => DOW_ORDER.indexOf(a.dayOfWeek) - DOW_ORDER.indexOf(b.dayOfWeek));
@@ -419,6 +564,24 @@ export default function ImpostazioniPage() {
   }, [filterFutureClosures]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (tab !== "categorie") return undefined;
+    let cancelled = false;
+    (async () => {
+      setCategoriesLoading(true);
+      setGlobalError("");
+      try {
+        const data = await api.getCategories();
+        if (!cancelled) setCategories(sortCategories(data));
+      } catch (e) {
+        if (!cancelled) setGlobalError(e.message || "Errore durante il caricamento delle categorie.");
+      } finally {
+        if (!cancelled) setCategoriesLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tab]);
 
   /* ── WH save ── */
   const handleSaveWH = useCallback(async (id, payload) => {
@@ -455,6 +618,35 @@ export default function ImpostazioniPage() {
     }
   };
 
+  const refreshCategories = useCallback(async () => {
+    const fresh = await api.getCategories();
+    setCategories(sortCategories(fresh));
+  }, []);
+
+  const handleSaveCategory = useCallback(async (categoryId, payload) => {
+    if (categoryId) {
+      await api.updateCategory(categoryId, payload);
+    } else {
+      await api.createCategory(payload);
+    }
+    setShowCategoryForm(false);
+    setEditingCategory(null);
+    await refreshCategories();
+  }, [refreshCategories]);
+
+  const handleDeleteCategory = async categoryId => {
+    setCategoryDeleteLoading(true);
+    try {
+      await api.deleteCategory(categoryId);
+      setCategoryDeleteConfirm(null);
+      await refreshCategories();
+    } catch (e) {
+      setGlobalError(e.message || "Errore durante l'eliminazione.");
+    } finally {
+      setCategoryDeleteLoading(false);
+    }
+  };
+
   const openEdit = closure => {
     setEditingClosure(closure);
     setShowForm(true);
@@ -468,6 +660,21 @@ export default function ImpostazioniPage() {
   const cancelForm = () => {
     setShowForm(false);
     setEditingClosure(null);
+  };
+
+  const openCategoryNew = () => {
+    setEditingCategory(null);
+    setShowCategoryForm(true);
+  };
+
+  const openCategoryEdit = cat => {
+    setEditingCategory(cat);
+    setShowCategoryForm(true);
+  };
+
+  const cancelCategoryForm = () => {
+    setShowCategoryForm(false);
+    setEditingCategory(null);
   };
 
   /* ── Loading screen ── */
@@ -488,7 +695,9 @@ export default function ImpostazioniPage() {
         {/* ── Header ── */}
         <div className="imp-header">
           <h1 className="imp-title">Impostazioni</h1>
-          <p className="imp-subtitle">Gestisci orari di apertura e chiusure straordinarie</p>
+          <p className="imp-subtitle">
+            Gestisci orari di apertura, chiusure straordinarie e categorie servizi
+          </p>
         </div>
 
         {/* ── Global error ── */}
@@ -499,16 +708,25 @@ export default function ImpostazioniPage() {
         {/* ── Tab pills ── */}
         <div className="imp-tabs">
           <button
+            type="button"
             className={`imp-tab-pill${tab === "orari" ? " imp-tab-pill--active" : ""}`}
             onClick={() => setTab("orari")}
           >
             🕐 Orari
           </button>
           <button
+            type="button"
             className={`imp-tab-pill${tab === "chiusure" ? " imp-tab-pill--active" : ""}`}
             onClick={() => setTab("chiusure")}
           >
             📅 Chiusure
+          </button>
+          <button
+            type="button"
+            className={`imp-tab-pill${tab === "categorie" ? " imp-tab-pill--active" : ""}`}
+            onClick={() => setTab("categorie")}
+          >
+            🏷️ Categorie
           </button>
         </div>
 
@@ -521,7 +739,7 @@ export default function ImpostazioniPage() {
               <div>
                 <div className="imp-section-title">Orari settimanali</div>
                 <div className="imp-section-sub">
-                  Ogni giorno ha un pulsante "Salva" indipendente
+                  Ogni giorno ha un pulsante &quot;Salva&quot; indipendente
                 </div>
               </div>
             </div>
@@ -547,7 +765,7 @@ export default function ImpostazioniPage() {
                 </div>
               </div>
               {!showForm && (
-                <button className="imp-btn imp-btn--primary" onClick={openNew}>
+                <button type="button" className="imp-btn imp-btn--primary" onClick={openNew}>
                   + Aggiungi chiusura
                 </button>
               )}
@@ -594,6 +812,7 @@ export default function ImpostazioniPage() {
 
                     <div className="imp-closure-actions">
                       <button
+                        type="button"
                         className="imp-btn imp-btn--sm imp-btn--ghost"
                         onClick={() => openEdit(c)}
                       >
@@ -604,6 +823,7 @@ export default function ImpostazioniPage() {
                         <>
                           <span className="imp-delete-confirm-text">Sei sicura?</span>
                           <button
+                            type="button"
                             className="imp-btn imp-btn--sm imp-btn--danger"
                             onClick={() => handleDeleteClosure(c.id)}
                             disabled={deleteLoading}
@@ -611,6 +831,7 @@ export default function ImpostazioniPage() {
                             {deleteLoading ? "…" : "Sì, elimina"}
                           </button>
                           <button
+                            type="button"
                             className="imp-btn imp-btn--sm imp-btn--ghost"
                             onClick={() => setDeleteConfirm(null)}
                           >
@@ -619,8 +840,101 @@ export default function ImpostazioniPage() {
                         </>
                       ) : (
                         <button
+                          type="button"
                           className="imp-btn imp-btn--sm imp-btn--danger-ghost"
                           onClick={() => setDeleteConfirm(c.id)}
+                        >
+                          Elimina
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════
+            CATEGORIE TAB
+            ══════════════════════════════════ */}
+        {tab === "categorie" && (
+          <div className="imp-section">
+            <div className="imp-section-header">
+              <div>
+                <div className="imp-section-title">Categorie servizi</div>
+                <div className="imp-section-sub">
+                  {categoriesLoading ? "Caricamento in corso…" : `${categories.length} categorie`}
+                </div>
+              </div>
+              {!showCategoryForm && !categoriesLoading && (
+                <button type="button" className="imp-btn imp-btn--primary" onClick={openCategoryNew}>
+                  + Aggiungi categoria
+                </button>
+              )}
+            </div>
+
+            {showCategoryForm && (
+              <CategoryForm
+                initial={editingCategory}
+                onSave={handleSaveCategory}
+                onCancel={cancelCategoryForm}
+              />
+            )}
+
+            {!categoriesLoading && categories.length === 0 && !showCategoryForm && (
+              <div className="imp-empty">
+                Nessuna categoria — aggiungine una per organizzare i servizi.
+              </div>
+            )}
+
+            {!categoriesLoading && categories.length > 0 && (
+              <div className="imp-closure-list">
+                {categories.map(cat => (
+                  <div
+                    key={cat.categoryId}
+                    className={`imp-closure-card${editingCategory?.categoryId === cat.categoryId ? " imp-closure-card--editing" : ""}`}
+                  >
+                    <div className="imp-closure-info">
+                      <div className="imp-closure-date">{cat.label}</div>
+                      <div className="imp-closure-meta">
+                        <span className="imp-badge imp-badge--partial">{cat.categoryKey}</span>
+                      </div>
+                    </div>
+
+                    <div className="imp-closure-actions">
+                      <button
+                        type="button"
+                        className="imp-btn imp-btn--sm imp-btn--ghost"
+                        onClick={() => openCategoryEdit(cat)}
+                      >
+                        Modifica
+                      </button>
+
+                      {categoryDeleteConfirm === cat.categoryId ? (
+                        <>
+                          <span className="imp-delete-confirm-text">Sei sicura?</span>
+                          <button
+                            type="button"
+                            className="imp-btn imp-btn--sm imp-btn--danger"
+                            onClick={() => handleDeleteCategory(cat.categoryId)}
+                            disabled={categoryDeleteLoading}
+                          >
+                            {categoryDeleteLoading ? "…" : "Sì, elimina"}
+                          </button>
+                          <button
+                            type="button"
+                            className="imp-btn imp-btn--sm imp-btn--ghost"
+                            onClick={() => setCategoryDeleteConfirm(null)}
+                          >
+                            No
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="imp-btn imp-btn--sm imp-btn--danger-ghost"
+                          onClick={() => setCategoryDeleteConfirm(cat.categoryId)}
                         >
                           Elimina
                         </button>

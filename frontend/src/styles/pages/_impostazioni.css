@@ -507,6 +507,13 @@
   color: rgba(35, 26, 20, 0.38);
 }
 
+.imp-form-hint {
+  font-size: 0.75rem;
+  color: var(--ag-muted);
+  margin: -4px 0 0;
+  line-height: 1.4;
+}
+
 .imp-form-input {
   background: #fff;
   border: 1px solid rgba(111, 74, 47, 0.18);
