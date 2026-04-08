@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import DeleteOrderModal from "./DeleteOrderModal";
 import { deleteOrder, fetchMyOrders } from "../../api/modules/orders.api";
 import { fetchProductById } from "../../api/modules/products.api";
+import SEO from "../../components/common/SEO";
 
 const STATUS_LABELS = {
   PAID: { label: "Pagato", color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
@@ -82,24 +83,31 @@ const MyOrders = () => {
 
   if (loading)
     return (
-      <div className="mo-page">
-        <Container className="d-flex justify-content-center py-5">
-          <Spinner animation="border" />
-        </Container>
-      </div>
+      <>
+        <SEO title="I miei ordini" description="Storico dei tuoi ordini Beauty Room." noindex={true} />
+        <div className="mo-page">
+          <Container className="d-flex justify-content-center py-5">
+            <Spinner animation="border" />
+          </Container>
+        </div>
+      </>
     );
 
   if (error)
     return (
-      <div className="mo-page">
-        <Container>
-          <p className="text-danger mt-5">{error}</p>
-        </Container>
-      </div>
+      <>
+        <SEO title="I miei ordini" description="Storico dei tuoi ordini Beauty Room." noindex={true} />
+        <div className="mo-page">
+          <Container>
+            <p className="text-danger mt-5">{error}</p>
+          </Container>
+        </div>
+      </>
     );
 
   return (
     <div className="mo-page">
+      <SEO title="I miei ordini" description="Storico dei tuoi ordini Beauty Room." noindex={true} />
       <Container>
         {/* Header */}
         <div className="mo-header">
@@ -217,9 +225,7 @@ const MyOrders = () => {
                             Richiedi cancellazione →
                           </button>
                         )}
-                        {order.orderStatus === "CANCELLED" && (
-                          <span className="mo-cancelled-note">Ordine gia cancellato</span>
-                        )}
+                        {order.orderStatus === "CANCELLED" && <span className="mo-cancelled-note">Ordine gia cancellato</span>}
                       </div>
                     </div>
                   </div>

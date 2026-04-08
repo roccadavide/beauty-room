@@ -1,14 +1,16 @@
 import LaserFlow from "./LaserFlow";
 import { Button, Container } from "react-bootstrap";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 
 const MotionDiv = motion.div;
 
 export default function LaserSection() {
   const reduce = useReducedMotion();
   const sectionRef = useRef(null);
+  const cardRef = useRef(null);
   const stripRef = useRef(null);
+  const [fogValue, setFogValue] = useState(typeof window !== "undefined" && window.innerWidth <= 575 ? 0.35 : 1.05);
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -18,7 +20,38 @@ export default function LaserSection() {
   const liftY = useTransform(scrollYProgress, [0, 0.25, 1], [0, 0, reduce ? 0 : -70]);
   const liftScale = useTransform(scrollYProgress, [0, 1], [1, reduce ? 1 : 1.02]);
 
-  // Fade-in strip mobile via IntersectionObserver
+  // Fog adattivo mobile/desktop
+  useEffect(() => {
+    const handler = () => setFogValue(window.innerWidth <= 575 ? 0.35 : 1.05);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  // Animazione entrata card
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+
+    // Motion ridotta: mostra subito
+    if (reduce) {
+      card.classList.add("laser-card--visible");
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          card.classList.add("laser-card--visible");
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.06 },
+    );
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [reduce]);
+
+  // Fade-in strip mobile
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
@@ -42,7 +75,7 @@ export default function LaserSection() {
   return (
     <section ref={sectionRef} className="laser-section">
       <Container className="d-flex justify-content-center align-items-center">
-        <MotionDiv className="laser-card laser-card--dark" style={{ y: liftY, scale: liftScale }}>
+        <MotionDiv ref={cardRef} className="laser-card laser-card--dark" style={{ y: liftY, scale: liftScale }}>
           {/* WebGL beam */}
           <div className="laser-fx" aria-hidden="true">
             <div className="laser-fx-inner">
@@ -56,7 +89,7 @@ export default function LaserSection() {
                 wispIntensity={4.5}
                 flowSpeed={0.35}
                 flowStrength={0.05}
-                fogIntensity={1.05}
+                fogIntensity={fogValue}
                 fogScale={0.11}
                 decay={2.5}
                 verticalSizing={1.9}
@@ -68,11 +101,12 @@ export default function LaserSection() {
           {/* Handpiece — assoluto top-right */}
           <img src="/handpiece.png" alt="Manipolo laser" className="laser-handpiece" draggable="false" />
 
+          {/* Maschera beam sopra manipolo (mobile) */}
           <div className="laser-beam-mask" aria-hidden="true" />
 
           <div className="laser-content">
             <div className="laser-top">
-              {/* ── Colonna sinistra desktop/tablet: macchina + CTA ── */}
+              {/* Colonna sinistra desktop/tablet */}
               <div className="laser-left">
                 <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
                 <div className="laser-side">
@@ -98,31 +132,21 @@ export default function LaserSection() {
                 </div>
               </div>
 
-              {/* ── Wrapper ── */}
+              {/* Wrapper mobile */}
               <div className="laser-wrapper-mobile">
-                {/*
-                  laser-body-mobile:
-                  - Desktop/tablet: display:contents → figli fluiscono normalmente
-                  - Mobile ≤575px:  display:flex row → macchina sx | copy dx
-                  NON mettere mai display:none qui o il copy sparisce su tablet.
-                */}
                 <div className="laser-body-mobile">
-                  {/* Macchina: visibile SOLO su mobile ≤575px */}
+                  {/* Macchina — solo mobile */}
                   <div className="laser-machine-mobile">
                     <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
                   </div>
 
-                  {/* Copy: SEMPRE visibile su tutti i breakpoint */}
+                  {/* Copy — sempre visibile */}
                   <div className="laser-copy">
                     <div className="laser-kicker">Laser • Estetica avanzata</div>
-
                     <h2 className="laser-title">Stanca di lamette e cerette ogni settimana?</h2>
-
                     <p className="laser-text-mobile">
                       Con <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni una pelle più liscia.
                     </p>
-
-                    {/* Testo lungo: visibile su tablet/desktop, nascosto su mobile */}
                     <p className="laser-text">
                       Con il nuovo macchinario <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni una
                       pelle più liscia.
@@ -141,7 +165,6 @@ export default function LaserSection() {
                         Guarda i risultati
                       </Button>
                     </div>
-
                     <div className="laser-meta laser-meta--main">
                       <div className="laser-info">
                         Per info rapide:{" "}
@@ -154,20 +177,12 @@ export default function LaserSection() {
                       </div>
                     </div>
                   </div>
-                  {/* fine laser-copy */}
                 </div>
-                {/* fine laser-body-mobile */}
               </div>
-              {/* fine laser-wrapper-mobile */}
             </div>
           </div>
-          {/* fine laser-content */}
 
-          {/*
-            ── STRIP INFERIORE ── solo mobile ≤575px
-            bg #1e1814 (più scuro di #2f2723), separazione netta
-            il fascio "atterra" visivamente sulla strip
-          */}
+          {/* Strip inferiore — solo mobile */}
           <div ref={stripRef} className="laser-strip">
             <Button className="laser-btn-gold">Prenota una consulenza</Button>
             <div className="laser-strip-meta">

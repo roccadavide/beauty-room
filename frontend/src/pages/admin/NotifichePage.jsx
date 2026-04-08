@@ -10,6 +10,7 @@ import {
   deleteStalePastNotifications,
 } from "../../api/modules/notifications.api";
 import "../../styles/pages/_notifiche.css";
+import SEO from "../../components/common/SEO";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -307,6 +308,7 @@ export default function NotifichePage() {
 
   return (
     <div className="nf-page">
+      <SEO title="Notifiche" description="Centro notifiche amministrativo Beauty Room." noindex={true} />
       <Container fluid="xl">
         {/* Header */}
         <div className="nf-header">

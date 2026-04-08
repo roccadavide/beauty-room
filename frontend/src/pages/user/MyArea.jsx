@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { fetchMyOrders } from "../../api/modules/orders.api";
 import { fetchMyBookings } from "../../api/modules/bookings.api";
 import { fetchMyPackages } from "../../api/modules/packages.api";
+import SEO from "../../components/common/SEO";
 
 const TABS = [
   { key: "ordini", label: "Ordini" },
@@ -13,12 +14,12 @@ const TABS = [
 ];
 
 const STATUS_LABELS = {
-  PAID:      { label: "Pagato",    color: "#2d6a4f", bg: "rgba(45,106,79,0.1)"    },
-  PENDING:   { label: "In attesa", color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
-  CANCELLED: { label: "Cancellato",color: "#c0392b", bg: "rgba(192,57,43,0.1)"    },
-  COMPLETED: { label: "Completato",color: "#2e2118", bg: "rgba(46,33,24,0.08)"    },
-  CONFIRMED: { label: "Confermata",color: "#2d6a4f", bg: "rgba(45,106,79,0.1)"    },
-  BOOKED:    { label: "Prenotata", color: "#2d6a4f", bg: "rgba(45,106,79,0.1)"    },
+  PAID: { label: "Pagato", color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
+  PENDING: { label: "In attesa", color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
+  CANCELLED: { label: "Cancellato", color: "#c0392b", bg: "rgba(192,57,43,0.1)" },
+  COMPLETED: { label: "Completato", color: "#2e2118", bg: "rgba(46,33,24,0.08)" },
+  CONFIRMED: { label: "Confermata", color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
+  BOOKED: { label: "Prenotata", color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
 };
 
 export default function MyArea() {
@@ -95,6 +96,7 @@ export default function MyArea() {
 
   return (
     <div className="ma-page">
+      <SEO title="Area personale" description="La tua area riservata Beauty Room: prenotazioni, ordini e pacchetti trattamenti." noindex={true} />
       <Container>
         {/* WELCOME HEADER */}
         <div className="ma-welcome">
@@ -126,11 +128,7 @@ export default function MyArea() {
         {/* TABS */}
         <div className="ma-tabs">
           {TABS.map(t => (
-            <button
-              key={t.key}
-              className={`ma-tab${activeTab === t.key ? " ma-tab--active" : ""}`}
-              onClick={() => setActiveTab(t.key)}
-            >
+            <button key={t.key} className={`ma-tab${activeTab === t.key ? " ma-tab--active" : ""}`} onClick={() => setActiveTab(t.key)}>
               {t.label}
             </button>
           ))}
@@ -164,7 +162,9 @@ export default function MyArea() {
                       <p className="ma-order-num">Ordine #{order.orderId?.slice(-8).toUpperCase()}</p>
                       <p className="ma-order-date">
                         {new Date(order.createdAt).toLocaleDateString("it-IT", {
-                          day: "2-digit", month: "long", year: "numeric",
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
                         })}
                       </p>
                     </div>
@@ -207,8 +207,7 @@ export default function MyArea() {
               const st = STATUS_LABELS[status] || STATUS_LABELS.CONFIRMED;
               const bookingDate = b.startTime ? new Date(b.startTime) : null;
               const isPast = bookingDate && bookingDate < new Date();
-              const isCancellable = bookingDate &&
-                bookingDate - new Date() > 24 * 60 * 60 * 1000;
+              const isCancellable = bookingDate && bookingDate - new Date() > 24 * 60 * 60 * 1000;
 
               return (
                 <div key={b.bookingId} className="ma-booking-card">
@@ -218,10 +217,11 @@ export default function MyArea() {
                       <p className="ma-order-date">
                         {bookingDate
                           ? bookingDate.toLocaleDateString("it-IT", {
-                            weekday: "long", day: "numeric", month: "long", year: "numeric"
-                          }) + (b.startTime
-                            ? ` · ore ${bookingDate.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
-                            : "")
+                              weekday: "long",
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            }) + (b.startTime ? ` · ore ${bookingDate.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : "")
                           : "—"}
                       </p>
                     </div>
@@ -231,22 +231,13 @@ export default function MyArea() {
                   </div>
                   <div className="ma-booking-actions">
                     {!isPast && bookingDate && (
-                      <button
-                        className="ma-cal-btn"
-                        onClick={() => downloadIcs(b, bookingDate)}
-                      >
+                      <button className="ma-cal-btn" onClick={() => downloadIcs(b, bookingDate)}>
                         📅 Aggiungi al calendario
                       </button>
                     )}
-                    {isCancellable && status !== "CANCELLED" && (
-                      <span className="ma-cancel-note">
-                        Per cancellare contatta Michela
-                      </span>
-                    )}
+                    {isCancellable && status !== "CANCELLED" && <span className="ma-cancel-note">Per cancellare contatta Michela</span>}
                     {!isCancellable && !isPast && status !== "CANCELLED" && (
-                      <span className="ma-cancel-note">
-                        Cancellazione non disponibile online (meno di 24h). Contatta Michela.
-                      </span>
+                      <span className="ma-cancel-note">Cancellazione non disponibile online (meno di 24h). Contatta Michela.</span>
                     )}
                   </div>
                   {(b.notes || b.note) && <p className="ma-order-items-preview">📋 {b.notes || b.note}</p>}
@@ -275,29 +266,26 @@ export default function MyArea() {
             )}
 
             {packages.map(pkg => {
-              const pct = pkg.sessionsTotal > 0
-                ? Math.round((pkg.sessionsUsed / pkg.sessionsTotal) * 100)
-                : 0;
+              const pct = pkg.sessionsTotal > 0 ? Math.round((pkg.sessionsUsed / pkg.sessionsTotal) * 100) : 0;
               const isActive = pkg.status === "ACTIVE";
               const pillStyle = isActive
                 ? { color: "#2d6a4f", background: "rgba(45,106,79,0.10)" }
                 : { color: "#9c8880", background: "rgba(156,136,128,0.10)" };
-              const pillLabel = {
-                ACTIVE:    "Attivo",
-                COMPLETED: "Completato",
-                EXPIRED:   "Scaduto",
-                EXHAUSTED: "Esaurito",
-                CANCELLED: "Cancellato",
-              }[pkg.status] ?? pkg.status;
+              const pillLabel =
+                {
+                  ACTIVE: "Attivo",
+                  COMPLETED: "Completato",
+                  EXPIRED: "Scaduto",
+                  EXHAUSTED: "Esaurito",
+                  CANCELLED: "Cancellato",
+                }[pkg.status] ?? pkg.status;
 
               return (
                 <div key={pkg.packageCreditId} className="ma-pkg-card">
                   <div className="ma-pkg-header">
                     <div>
                       <p className="ma-pkg-name">{pkg.serviceName}</p>
-                      {pkg.serviceOptionName && (
-                        <p className="ma-pkg-desc">{pkg.serviceOptionName}</p>
-                      )}
+                      {pkg.serviceOptionName && <p className="ma-pkg-desc">{pkg.serviceOptionName}</p>}
                     </div>
                     <span className="ma-status-pill" style={pillStyle}>
                       {pillLabel}
@@ -310,9 +298,7 @@ export default function MyArea() {
                     </div>
                     <span className="ma-pkg-progress-label">
                       {pkg.sessionsUsed} / {pkg.sessionsTotal} sedute utilizzate
-                      {isActive && (
-                        <strong> · {pkg.sessionsRemaining} rimanenti</strong>
-                      )}
+                      {isActive && <strong> · {pkg.sessionsRemaining} rimanenti</strong>}
                     </span>
                   </div>
 
@@ -320,14 +306,18 @@ export default function MyArea() {
                     <span className="ma-pkg-date">
                       Acquistato il{" "}
                       {new Date(pkg.purchasedAt).toLocaleDateString("it-IT", {
-                        day: "2-digit", month: "long", year: "numeric",
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
                       })}
                     </span>
                     {pkg.expiryDate && isActive && (
                       <span className="ma-pkg-date">
                         Scade il{" "}
                         {new Date(pkg.expiryDate).toLocaleDateString("it-IT", {
-                          day: "2-digit", month: "long", year: "numeric",
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
                         })}
                       </span>
                     )}

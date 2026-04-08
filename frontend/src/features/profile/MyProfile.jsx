@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import EditProfileModal from "./EditProfileModal";
 import ChangePasswordModal from "./ChangePasswordModal";
 import { updateUser } from "../auth/slices/auth.slice";
+import SEO from "../../components/common/SEO";
 
 const MyProfile = () => {
   const { user } = useSelector(state => state.auth);
@@ -27,6 +28,7 @@ const MyProfile = () => {
 
   return (
     <div className="mp-page">
+      <SEO title="Il mio profilo" description="Gestisci il tuo account Beauty Room: dati personali, prenotazioni e ordini." noindex={true} />
       <Container>
         {/* HERO */}
         <div className="mp-hero">

@@ -5,12 +5,13 @@ import { useNavigate } from "react-router-dom";
 import DeleteOrderModal from "./DeleteOrderModal";
 import { deleteOrder, fetchOrders } from "../../api/modules/orders.api";
 import { fetchProductById } from "../../api/modules/products.api";
+import SEO from "../../components/common/SEO";
 
 const STATUS_LABELS = {
-  PAID:      { label: "Pagato",    color: "#2d6a4f", bg: "rgba(45,106,79,0.1)"    },
-  PENDING:   { label: "In attesa", color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
-  CANCELLED: { label: "Cancellato",color: "#c0392b", bg: "rgba(192,57,43,0.1)"    },
-  COMPLETED: { label: "Ritirato",  color: "#2e2118", bg: "rgba(46,33,24,0.08)"    },
+  PAID: { label: "Pagato", color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
+  PENDING: { label: "In attesa", color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
+  CANCELLED: { label: "Cancellato", color: "#c0392b", bg: "rgba(192,57,43,0.1)" },
+  COMPLETED: { label: "Ritirato", color: "#2e2118", bg: "rgba(46,33,24,0.08)" },
 };
 
 const AllOrders = () => {
@@ -42,7 +43,7 @@ const AllOrders = () => {
         fetchProductById(i.productId)
           .then(p => setProducts(prev => ({ ...prev, [i.productId]: p })))
           .catch(() => {});
-      })
+      }),
     );
   }, [allOrders]);
 
@@ -62,16 +63,10 @@ const AllOrders = () => {
     .filter(o => {
       if (!searchQ) return true;
       const q = searchQ.toLowerCase();
-      return (
-        o.customerName?.toLowerCase().includes(q) ||
-        o.customerSurname?.toLowerCase().includes(q) ||
-        o.customerEmail?.toLowerCase().includes(q)
-      );
+      return o.customerName?.toLowerCase().includes(q) || o.customerSurname?.toLowerCase().includes(q) || o.customerEmail?.toLowerCase().includes(q);
     });
 
-  const grandTotal = filtered.reduce((s, o) =>
-    s + (o.orderItems?.reduce((ss, i) => ss + i.price * i.quantity, 0) || 0), 0
-  );
+  const grandTotal = filtered.reduce((s, o) => s + (o.orderItems?.reduce((ss, i) => ss + i.price * i.quantity, 0) || 0), 0);
 
   const totals = {
     ALL: allOrders.length,
@@ -80,22 +75,33 @@ const AllOrders = () => {
     COMPLETED: allOrders.filter(o => o.orderStatus === "COMPLETED").length,
   };
 
-  if (loading) return (
-    <div className="ao-page">
-      <Container className="d-flex justify-content-center py-5">
-        <Spinner animation="border" />
-      </Container>
-    </div>
-  );
+  if (loading)
+    return (
+      <>
+        <SEO title="Tutti gli ordini" description="Gestione amministrativa degli ordini Beauty Room." noindex={true} />
+        <div className="ao-page">
+          <Container className="d-flex justify-content-center py-5">
+            <Spinner animation="border" />
+          </Container>
+        </div>
+      </>
+    );
 
-  if (error) return (
-    <div className="ao-page">
-      <Container><p className="text-danger mt-5">{error}</p></Container>
-    </div>
-  );
+  if (error)
+    return (
+      <>
+        <SEO title="Tutti gli ordini" description="Gestione amministrativa degli ordini Beauty Room." noindex={true} />
+        <div className="ao-page">
+          <Container>
+            <p className="text-danger mt-5">{error}</p>
+          </Container>
+        </div>
+      </>
+    );
 
   return (
     <div className="ao-page">
+      <SEO title="Tutti gli ordini" description="Gestione amministrativa degli ordini Beauty Room." noindex={true} />
       <Container fluid="xl">
         {/* Header + KPI */}
         <div className="ao-header">
@@ -109,11 +115,15 @@ const AllOrders = () => {
               <span className="ao-kpi-label">Totale</span>
             </div>
             <div className="ao-kpi">
-              <span className="ao-kpi-val" style={{ color: "#2d6a4f" }}>{totals.PAID}</span>
+              <span className="ao-kpi-val" style={{ color: "#2d6a4f" }}>
+                {totals.PAID}
+              </span>
               <span className="ao-kpi-label">Pagati</span>
             </div>
             <div className="ao-kpi">
-              <span className="ao-kpi-val" style={{ color: "#b8976a" }}>{totals.PENDING}</span>
+              <span className="ao-kpi-val" style={{ color: "#b8976a" }}>
+                {totals.PENDING}
+              </span>
               <span className="ao-kpi-label">In attesa</span>
             </div>
             <div className="ao-kpi">
@@ -127,24 +137,13 @@ const AllOrders = () => {
         <div className="ao-filters">
           <div className="ao-filter-tabs">
             {["ALL", "PAID", "PENDING", "COMPLETED", "CANCELLED"].map(s => (
-              <button
-                key={s}
-                className={`ao-filter-tab${filterStatus === s ? " ao-filter-tab--active" : ""}`}
-                onClick={() => setFilterStatus(s)}
-              >
+              <button key={s} className={`ao-filter-tab${filterStatus === s ? " ao-filter-tab--active" : ""}`} onClick={() => setFilterStatus(s)}>
                 {s === "ALL" ? "Tutti" : STATUS_LABELS[s]?.label || s}
-                {s !== "ALL" && (
-                  <span className="ao-filter-count">{allOrders.filter(o => o.orderStatus === s).length}</span>
-                )}
+                {s !== "ALL" && <span className="ao-filter-count">{allOrders.filter(o => o.orderStatus === s).length}</span>}
               </button>
             ))}
           </div>
-          <input
-            className="ao-search"
-            placeholder="Cerca per nome o email..."
-            value={searchQ}
-            onChange={e => setSearchQ(e.target.value)}
-          />
+          <input className="ao-search" placeholder="Cerca per nome o email..." value={searchQ} onChange={e => setSearchQ(e.target.value)} />
         </div>
 
         {/* Orders */}
@@ -158,13 +157,17 @@ const AllOrders = () => {
               <div key={order.orderId} className="mo-card" style={{ animationDelay: `${idx * 0.04}s` }}>
                 <div className="mo-card-header" onClick={() => setExpandedOrder(isExpanded ? null : order.orderId)}>
                   <div className="mo-card-left">
-                    <div className="mo-order-num">{order.customerName} {order.customerSurname}</div>
+                    <div className="mo-order-num">
+                      {order.customerName} {order.customerSurname}
+                    </div>
                     <div className="mo-order-date">
                       {order.customerEmail} · {new Date(order.createdAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}
                     </div>
                   </div>
                   <div className="mo-card-right">
-                    <span className="mo-status-pill" style={{ color: st.color, background: st.bg }}>{st.label}</span>
+                    <span className="mo-status-pill" style={{ color: st.color, background: st.bg }}>
+                      {st.label}
+                    </span>
                     <span className="mo-total">€ {total.toFixed(2)}</span>
                     <span className="mo-expand-icon">{isExpanded ? "−" : "+"}</span>
                   </div>
@@ -179,9 +182,7 @@ const AllOrders = () => {
                       </div>
                     );
                   })}
-                  {order.orderItems?.length > 4 && (
-                    <div className="mo-item-thumb mo-item-more">+{order.orderItems.length - 4}</div>
-                  )}
+                  {order.orderItems?.length > 4 && <div className="mo-item-thumb mo-item-more">+{order.orderItems.length - 4}</div>}
                 </div>
 
                 {isExpanded && (
@@ -191,17 +192,15 @@ const AllOrders = () => {
                     {order.orderItems?.map(item => {
                       const prod = products[item.productId];
                       return (
-                        <div
-                          key={item.orderItemId}
-                          className="mo-detail-item"
-                          onClick={() => prod && navigate(`/prodotti/${prod.productId}`)}
-                        >
+                        <div key={item.orderItemId} className="mo-detail-item" onClick={() => prod && navigate(`/prodotti/${prod.productId}`)}>
                           <div className="mo-detail-img">
                             {prod?.images?.[0] ? <img src={prod.images[0]} alt={prod.name} /> : <div className="mo-detail-img-ph" />}
                           </div>
                           <div className="mo-detail-info">
                             <p className="mo-detail-name">{prod?.name || "Prodotto"}</p>
-                            <p className="mo-detail-sub">Qt: {item.quantity} · € {item.price.toFixed(2)} cad.</p>
+                            <p className="mo-detail-sub">
+                              Qt: {item.quantity} · € {item.price.toFixed(2)} cad.
+                            </p>
                           </div>
                           <p className="mo-detail-subtotal">€ {(item.price * item.quantity).toFixed(2)}</p>
                         </div>
@@ -229,7 +228,11 @@ const AllOrders = () => {
                         )}
                         <button
                           className="mo-delete-btn"
-                          onClick={e => { e.stopPropagation(); setSelectedOrder(order); setDeleteModal(true); }}
+                          onClick={e => {
+                            e.stopPropagation();
+                            setSelectedOrder(order);
+                            setDeleteModal(true);
+                          }}
                         >
                           Elimina
                         </button>
@@ -243,12 +246,7 @@ const AllOrders = () => {
         </div>
       </Container>
 
-      <DeleteOrderModal
-        show={deleteModal}
-        onHide={() => setDeleteModal(false)}
-        order={selectedOrder}
-        onConfirm={handleDeleteConfirm}
-      />
+      <DeleteOrderModal show={deleteModal} onHide={() => setDeleteModal(false)} order={selectedOrder} onConfirm={handleDeleteConfirm} />
     </div>
   );
 };

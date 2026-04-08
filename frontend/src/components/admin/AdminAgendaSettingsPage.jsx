@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Badge, Button, Card, Col, Container, Form, Modal, Row, Tab, Tabs, Table } from "react-bootstrap";
 import * as adminAgendaApi from "../../api/modules/adminAgenda.api";
 import DateTimeField from "../common/DateTimeField";
+import SEO from "../common/SEO";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -300,6 +301,7 @@ export default function AdminAgendaSettingsPage() {
 
   return (
     <Container fluid className="py-3">
+      <SEO title="Agenda impostazioni" noindex={true} />
       {err && <Alert variant="danger">{err}</Alert>}
 
       <Card className="adm-glass p-3">

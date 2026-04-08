@@ -3,6 +3,7 @@ import { Container, Row, Col } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
 import CountUp from "../../components/common/CountUp";
 import CircularText from "../../components/common/CircularText";
+import SEO from "../../components/common/SEO";
 
 const AboutDescription = () => {
   const navigate = useNavigate();
@@ -60,6 +61,10 @@ const AboutDescription = () => {
 
   return (
     <div className="ab-root">
+      <SEO
+        title="Chi Sono"
+        description="Conosci Michela, estetista specializzata in laser e trattamenti estetici avanzati a Calusco d'Adda."
+      />
       {/* ══ HERO ══ */}
       <section className="ab-hero">
         <Container>

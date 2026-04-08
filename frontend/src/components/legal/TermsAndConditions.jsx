@@ -1,10 +1,15 @@
 import { Container } from "react-bootstrap";
+import SEO from "../common/SEO";
 
 const TermsAndConditions = () => {
   const brandEmail = "rossimichela.pmu@gmail.com";
 
   return (
     <main className="legal-page">
+      <SEO
+        title="Termini e Condizioni"
+        description="Termini e condizioni di utilizzo dei servizi Beauty Room."
+      />
       <Container className="legal-container">
         <header className="legal-header">
           <h1>Termini e Condizioni</h1>

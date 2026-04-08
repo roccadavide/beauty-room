@@ -1,4 +1,5 @@
 import { Container } from "react-bootstrap";
+import SEO from "../common/SEO";
 
 const PrivacyPolicy = () => {
   const business = {
@@ -12,6 +13,10 @@ const PrivacyPolicy = () => {
 
   return (
     <main className="legal-page">
+      <SEO
+        title="Privacy Policy"
+        description="Informativa privacy di Beauty Room ai sensi del GDPR."
+      />
       <Container className="legal-container">
         <header className="legal-header">
           <h1>Privacy Policy</h1>

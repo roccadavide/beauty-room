@@ -16,6 +16,7 @@ import { fetchPackages } from "../../api/modules/packages.api";
 import { fetchPromotions, deletePromotion } from "../../api/modules/promotions.api";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchServices } from "../../api/modules/services.api";
+import SEO from "../../components/common/SEO";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -222,6 +223,10 @@ function OccasioniPage() {
 
   return (
     <Container fluid className="py-4 px-3 px-md-4" style={{ background: "#fffdf8", minHeight: "80vh" }}>
+      <SEO
+        title="Occasioni"
+        description="Promozioni e offerte speciali su trattamenti laser ed estetica avanzata a Calusco d'Adda."
+      />
       {/* HEAD */}
       <div className="text-center mb-4">
         <span className="section-eyebrow">Convenienza</span>

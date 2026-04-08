@@ -6,6 +6,7 @@ import {
 } from "../../api/modules/postits.api";
 import DateTimeField from "../../components/common/DateTimeField";
 import "../../styles/pages/_postit.css";
+import SEO from "../../components/common/SEO";
 
 const PALETTE = [
   { hex: "#b8976a", name: "Oro" },
@@ -139,15 +140,19 @@ export default function PostItBoard() {
   const expiringCount = postIts.filter(p => !p.done && (isExpiring(p.dueDate) || isOverdue(p.dueDate))).length;
 
   if (loading) return (
-    <div className="pib-page">
-      <Container className="d-flex justify-content-center py-5">
-        <Spinner animation="border" />
-      </Container>
-    </div>
+    <>
+      <SEO title="Post-it" description="Lavagna post-it amministrativa Beauty Room." noindex={true} />
+      <div className="pib-page">
+        <Container className="d-flex justify-content-center py-5">
+          <Spinner animation="border" />
+        </Container>
+      </div>
+    </>
   );
 
   return (
     <div className="pib-page">
+      <SEO title="Post-it" description="Lavagna post-it amministrativa Beauty Room." noindex={true} />
       <Container fluid="xl">
 
         {/* HEADER */}

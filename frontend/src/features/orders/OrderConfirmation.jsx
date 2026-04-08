@@ -4,6 +4,7 @@ import { Container, Row, Col, Spinner } from "react-bootstrap";
 import { fetchOrderSummary } from "../../api/modules/stripe.api";
 import { fetchProductById } from "../../api/modules/products.api";
 import "../../styles/pages/_confirmation.css";
+import SEO from "../../components/common/SEO";
 
 const PLACEHOLDER = "/assets/placeholder.jpg";
 const fmt = v => Number(v || 0).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
@@ -134,27 +135,46 @@ export default function OrderConfirmation() {
   /* ── States ── */
   if (loading)
     return (
-      <div className="conf-page d-flex justify-content-center align-items-center">
-        <Spinner animation="border" style={{ color: "#b8976a", width: 36, height: 36 }} />
-      </div>
+      <>
+        <SEO
+          title="Ordine confermato"
+          description="Il tuo ordine è stato ricevuto. Riceverai una email di conferma a breve."
+          noindex={true}
+        />
+        <div className="conf-page d-flex justify-content-center align-items-center">
+          <Spinner animation="border" style={{ color: "#b8976a", width: 36, height: 36 }} />
+        </div>
+      </>
     );
 
   if (error)
     return (
-      <div className="conf-page">
-        <div className="conf-error conf-reveal conf-reveal--visible">
-          <span className="conf-spark">✦</span>
-          <p className="conf-subtitle">{error}</p>
-          <Link to="/" className="conf-btn-primary">
-            Torna alla Home
-          </Link>
+      <>
+        <SEO
+          title="Ordine confermato"
+          description="Il tuo ordine è stato ricevuto. Riceverai una email di conferma a breve."
+          noindex={true}
+        />
+        <div className="conf-page">
+          <div className="conf-error conf-reveal conf-reveal--visible">
+            <span className="conf-spark">✦</span>
+            <p className="conf-subtitle">{error}</p>
+            <Link to="/" className="conf-btn-primary">
+              Torna alla Home
+            </Link>
+          </div>
         </div>
-      </div>
+      </>
     );
 
   /* ── Render ── */
   return (
     <div className="conf-page">
+      <SEO
+        title="Ordine confermato"
+        description="Il tuo ordine è stato ricevuto. Riceverai una email di conferma a breve."
+        noindex={true}
+      />
       {/* ── HERO ── */}
       <section className="conf-hero conf-reveal" style={{ "--conf-delay": "0s" }}>
         <span className="conf-spark">✦</span>

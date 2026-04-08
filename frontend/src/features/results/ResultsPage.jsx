@@ -7,6 +7,7 @@ import ResultDrawer from "./ResultDrawer";
 import DeleteResultModal from "./DeleteResultModal";
 import { deleteResult, fetchResults } from "../../api/modules/results.api";
 import { fetchCategories } from "../../api/modules/categories.api";
+import SEO from "../../components/common/SEO";
 
 export default function ResultsPage() {
   const [cat, setCat] = useState("all");
@@ -65,20 +66,36 @@ export default function ResultsPage() {
 
   if (loading)
     return (
-      <div className="rp-loading">
-        <Spinner animation="border" />
-      </div>
+      <>
+        <SEO
+          title="Risultati"
+          description="Guarda i risultati reali dei trattamenti laser e estetici di Beauty Room di Michela."
+        />
+        <div className="rp-loading">
+          <Spinner animation="border" />
+        </div>
+      </>
     );
 
   if (error)
     return (
-      <div className="rp-loading">
-        <p className="text-danger">{error}</p>
-      </div>
+      <>
+        <SEO
+          title="Risultati"
+          description="Guarda i risultati reali dei trattamenti laser e estetici di Beauty Room di Michela."
+        />
+        <div className="rp-loading">
+          <p className="text-danger">{error}</p>
+        </div>
+      </>
     );
 
   return (
     <div className="results-root">
+      <SEO
+        title="Risultati"
+        description="Guarda i risultati reali dei trattamenti laser e estetici di Beauty Room di Michela."
+      />
       <Container fluid="xl" className="px-3 px-md-4">
         {/* ── Header centrato (come ProductsPage) ── */}
         <div className="sp-page-head">

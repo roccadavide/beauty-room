@@ -1,8 +1,13 @@
 import { Container } from "react-bootstrap";
+import SEO from "../common/SEO";
 
 const CookiePolicy = () => {
   return (
     <main className="legal-page">
+      <SEO
+        title="Cookie Policy"
+        description="Informazioni sull'uso di cookie e storage tecnico sul sito Beauty Room."
+      />
       <Container className="legal-container">
         <header className="legal-header">
           <h1>Cookie Policy</h1>

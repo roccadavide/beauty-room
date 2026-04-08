@@ -5,6 +5,7 @@ import { useState } from "react";
 import CheckoutModal from "./CheckoutModal";
 import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/modules/stripe.api";
 import { removeFromCart, updateCartQuantity } from "./slices/cart.slice";
+import SEO from "../../components/common/SEO";
 
 const CartPage = () => {
   const items = useSelector(state => state.cart?.items ?? []);
@@ -60,24 +61,36 @@ const CartPage = () => {
 
   if (items.length === 0) {
     return (
-      <div className="cart-empty-page">
-        <Container>
-          <div className="cart-empty-inner">
-            <div className="cart-empty-icon">✦</div>
-            <h2 className="cart-empty-title">Il tuo carrello è vuoto</h2>
-            <p className="cart-empty-sub">Scopri i nostri prodotti e trattamenti selezionati</p>
-            <div className="cart-empty-ctas">
-              <Link to="/prodotti" className="cart-empty-btn">Esplora Prodotti</Link>
-              <Link to="/trattamenti" className="cart-empty-btn cart-empty-btn--outline">Vedi Trattamenti</Link>
+      <>
+        <SEO
+          title="Carrello"
+          description="Il tuo carrello Beauty Room. Riepilogo prodotti selezionati per l'acquisto."
+          noindex={true}
+        />
+        <div className="cart-empty-page">
+          <Container>
+            <div className="cart-empty-inner">
+              <div className="cart-empty-icon">✦</div>
+              <h2 className="cart-empty-title">Il tuo carrello è vuoto</h2>
+              <p className="cart-empty-sub">Scopri i nostri prodotti e trattamenti selezionati</p>
+              <div className="cart-empty-ctas">
+                <Link to="/prodotti" className="cart-empty-btn">Esplora Prodotti</Link>
+                <Link to="/trattamenti" className="cart-empty-btn cart-empty-btn--outline">Vedi Trattamenti</Link>
+              </div>
             </div>
-          </div>
-        </Container>
-      </div>
+          </Container>
+        </div>
+      </>
     );
   }
 
   return (
     <div className="cart-page">
+      <SEO
+        title="Carrello"
+        description="Il tuo carrello Beauty Room. Riepilogo prodotti selezionati per l'acquisto."
+        noindex={true}
+      />
       <Container>
         <div className="cart-header">
           <span className="section-eyebrow">Il tuo</span>
