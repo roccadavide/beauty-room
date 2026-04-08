@@ -10,6 +10,7 @@ import { addToCart } from "../cart/slices/cart.slice";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
 import PayNowModal from "./PayNowModal";
 import ImageGallery from "../../components/common/ImageGallery";
+import SEO from "../../components/common/SEO";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -163,7 +164,31 @@ const ProductDetail = () => {
     );
 
   return (
-    <Container fluid="xxl" className="product-detail">
+    <>
+      <SEO
+        title={product?.name}
+        description={product?.description ? product.description.slice(0, 150) : undefined}
+        image={product?.images?.[0]}
+        jsonLd={product ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: product.name,
+          description: product.description,
+          image: product.images?.[0],
+          offers: {
+            "@type": "Offer",
+            price: product.price,
+            priceCurrency: "EUR",
+            availability: "https://schema.org/InStock",
+            url: `https://www.beauty-room.it/products/${product.productId}`,
+          },
+          brand: {
+            "@type": "Brand",
+            name: "Beauty Room di Michela",
+          },
+        } : undefined}
+      />
+      <Container fluid="xxl" className="product-detail">
       <Row className="justify-content-center align-items-start g-4 g-md-5">
         {/* ▸ IMMAGINE */}
         <Col md={5} lg={5} className="d-flex justify-content-center">
@@ -330,7 +355,8 @@ const ProductDetail = () => {
         onCheckoutAuth={handleCheckoutAuth}
         onCheckoutGuest={handleCheckoutGuest}
       />
-    </Container>
+      </Container>
+    </>
   );
 };
 

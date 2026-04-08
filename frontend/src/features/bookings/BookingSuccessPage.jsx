@@ -4,6 +4,7 @@ import { Spinner } from "react-bootstrap";
 import { fetchBookingSummary } from "../../api/modules/stripe.api";
 // FIX-3: fallback fetch del titolo servizio se il backend non include ancora serviceTitle
 import { fetchServiceById } from "../../api/modules/services.api";
+import SEO from "../../components/common/SEO";
 
 const BOOKING_SUMMARY_ERROR_MESSAGE =
   "Non è stato possibile recuperare i dettagli della prenotazione. Controlla la tua email per la conferma.";
@@ -76,6 +77,11 @@ const BookingSuccessPage = () => {
   if (loading) {
     return (
       <div className="bs-page">
+        <SEO
+          title="Prenotazione confermata"
+          description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve."
+          noindex={true}
+        />
         <div className="bs-loading">
           <Spinner animation="border" style={{ color: "#b8976a" }} />
           <p>Verifica prenotazione in corso…</p>
@@ -87,6 +93,11 @@ const BookingSuccessPage = () => {
   if (error) {
     return (
       <div className="bs-page">
+        <SEO
+          title="Prenotazione confermata"
+          description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve."
+          noindex={true}
+        />
         <div className="bs-error-card">
           <div className="bs-error-icon">⚠️</div>
           <h2>Qualcosa non ha funzionato</h2>
@@ -128,6 +139,11 @@ const BookingSuccessPage = () => {
 
   return (
     <div className="bs-page">
+      <SEO
+        title="Prenotazione confermata"
+        description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve."
+        noindex={true}
+      />
       <div className="bs-hero">
         <div className="bs-hero__check">✓</div>
         <span className="section-eyebrow">{eyebrowText}</span>

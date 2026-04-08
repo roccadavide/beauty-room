@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Container } from "react-bootstrap";
 import * as api from "../../api/modules/impostazioni.api";
 import DateTimeField from "../common/DateTimeField";
+import SEO from "../common/SEO";
 
 /* ============================================================
    CONSTANTS
@@ -690,6 +691,7 @@ export default function ImpostazioniPage() {
 
   return (
     <div className="imp-page">
+      <SEO title="Impostazioni" noindex={true} />
       <Container className="imp-container">
 
         {/* ── Header ── */}

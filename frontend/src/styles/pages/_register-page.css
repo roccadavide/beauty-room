@@ -1,5 +1,5 @@
 .register-page {
-  min-height: calc(100vh - var(--nav-current, 72px));
+  min-height: calc(95vh - var(--nav-current, 72px));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -21,7 +21,9 @@
   max-width: 1000px;
   background: #fff;
   border-radius: 24px;
-  box-shadow: 0 8px 40px rgba(140, 109, 63, 0.1), 0 2px 8px rgba(140, 109, 63, 0.06);
+  box-shadow:
+    0 8px 40px rgba(140, 109, 63, 0.1),
+    0 2px 8px rgba(140, 109, 63, 0.06);
   border: 1px solid rgba(184, 151, 106, 0.14);
   display: grid;
   grid-template-columns: 55fr 45fr;
@@ -112,7 +114,9 @@
   font-size: 0.9rem;
   color: #2e2118;
   outline: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .field input:focus {
@@ -182,7 +186,10 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   box-shadow: 0 4px 18px rgba(140, 109, 63, 0.28);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s;
 }
 
 .btn-primary:hover:not(:disabled) {

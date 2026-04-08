@@ -83,7 +83,10 @@ const Login = () => {
 
   return (
     <div className="register-page">
-      <SEO title="Accedi" description="Accedi alla tua area riservata per gestire le prenotazioni." />
+      <SEO
+        title="Accedi"
+        description="Accedi alla tua area personale Beauty Room per gestire le prenotazioni e i tuoi trattamenti estetici."
+      />
 
       <div className="register-card">
         <div className="register-left">

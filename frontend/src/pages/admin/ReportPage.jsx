@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Container, Spinner } from "react-bootstrap";
 import { getReport } from "../../api/modules/report.api";
 import DateTimeField from "../../components/common/DateTimeField";
+import SEO from "../../components/common/SEO";
 
 const MONTH_LABELS = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
@@ -201,6 +202,7 @@ function ReportPage() {
 
   return (
     <div className="rep-page">
+      <SEO title="Report" noindex={true} />
       <Container className="rep-container">
         <header className="rep-header">
           <h1 className="rep-title">Report</h1>

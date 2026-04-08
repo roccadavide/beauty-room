@@ -51,6 +51,7 @@ import CookiePolicy from "./components/legal/CookiePolicy";
 import TermsAndConditions from "./components/legal/TermsAndConditions";
 import LaserSection from "./components/laser/LaserSection";
 import ScrollVelocity from "./components/common/ScrollVelocity";
+import SEO from "./components/common/SEO";
 
 function App() {
   const location = useLocation();
@@ -161,6 +162,10 @@ function App() {
               element={
                 <PageTransition routeKey={location.pathname}>
                   <>
+                    <SEO
+                      title={null}
+                      description="Beauty Room di Michela: centro estetico specializzato in laser per la depilazione definitiva, trattamenti viso, estetica avanzata. Prenota online."
+                    />
                     <HeroSection />
                     <LaserSection />
                     <ServicesPreview />

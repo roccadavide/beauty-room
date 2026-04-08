@@ -6,6 +6,7 @@ import { fetchCategories } from "../../api/modules/categories.api";
 import BookingModal from "../bookings/BookingModal";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
 import ImageGallery from "../../components/common/ImageGallery";
+import SEO from "../../components/common/SEO";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -140,7 +141,25 @@ const ServiceDetail = () => {
     );
 
   return (
-    <Container fluid="xxl" className="service-detail">
+    <>
+      <SEO
+        title={service?.title}
+        description={service?.description ? service.description.slice(0, 150) : undefined}
+        image={service?.images?.[0]}
+        jsonLd={service ? {
+          "@context": "https://schema.org",
+          "@type": "Service",
+          name: service.title,
+          description: service.description,
+          provider: {
+            "@type": "BeautySalon",
+            name: "Beauty Room di Michela",
+            url: "https://www.beauty-room.it",
+          },
+          url: `https://www.beauty-room.it/services/${service.serviceId}`,
+        } : undefined}
+      />
+      <Container fluid="xxl" className="service-detail">
       {wasCancelled && (
         <div className="sd-cancel-banner">
           <span className="sd-cancel-banner__icon">↩</span>
@@ -324,7 +343,8 @@ const ServiceDetail = () => {
         initialOptionId={selectedOption?.optionId ?? null}
         prefill={prefill}
       />
-    </Container>
+      </Container>
+    </>
   );
 };
 

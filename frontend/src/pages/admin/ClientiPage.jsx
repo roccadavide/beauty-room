@@ -3,6 +3,7 @@ import { Container, Spinner } from "react-bootstrap";
 import CustomerAutocomplete from "../../components/admin/CustomerAutocomplete";
 import { getCustomerSummary, updateCustomerNotes } from "../../api/modules/customer.api";
 import { fetchActivePackages, fetchPackageKpis } from "../../api/modules/packages.api";
+import SEO from "../../components/common/SEO";
 
 const STATUS_META = {
   PENDING: { label: "In attesa", tone: "pending" },
@@ -302,6 +303,7 @@ export default function ClientiPage() {
 
   return (
     <div className="cli-page">
+      <SEO title="Clienti" noindex={true} />
       <Container className="cli-container">
         <header className="cli-header">
           <h1 className="cli-title">Gestione</h1>

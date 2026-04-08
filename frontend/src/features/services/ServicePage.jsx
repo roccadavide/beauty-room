@@ -10,6 +10,7 @@ import AdminToggle from "../../components/common/AdminToggle";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices } from "../../api/modules/services.api";
 import { BadgeFlags } from "../../components/common/BadgeFlag";
+import SEO from "../../components/common/SEO";
 
 const ServicePage = () => {
   const [cat, setCat] = useState("all");
@@ -124,6 +125,10 @@ const ServicePage = () => {
 
   return (
     <Container fluid className="pb-5 container-base flex-column">
+      <SEO
+        title="Servizi"
+        description="Scopri tutti i trattamenti estetici di Beauty Room: laser, viso, corpo, estetica avanzata. Prenota il tuo appuntamento online."
+      />
       <div className="sp-page-head">
         <span className="section-eyebrow">Trattamenti</span>
         <h1 className="sp-page-title">Prenota il tuo trattamento</h1>

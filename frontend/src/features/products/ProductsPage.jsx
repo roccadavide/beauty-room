@@ -7,6 +7,7 @@ import DeleteProductModal from "./DeleteProductModal";
 import ProductModal from "./ProductModal";
 import AdminAddButton from "../../components/common/AdminAddButton";
 import AdminToggle from "../../components/common/AdminToggle";
+import SEO from "../../components/common/SEO";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteProduct, fetchProducts } from "../../api/modules/products.api";
 
@@ -122,6 +123,10 @@ function ProductsPage() {
 
   return (
     <Container fluid className="pb-5 container-base flex-column">
+      <SEO
+        title="Prodotti"
+        description="Acquista i prodotti professionali di Beauty Room: creme, sieri e trattamenti selezionati per la cura di viso e corpo."
+      />
       <div className="sp-page-head">
         <span className="section-eyebrow">Prodotti</span>
         <h1 className="sp-page-title">La mia selezione</h1>

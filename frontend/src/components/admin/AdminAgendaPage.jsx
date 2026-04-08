@@ -7,6 +7,7 @@ import WeeklyCalendar from "./WeeklyCalendar";
 import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
 import DateTimeField from "../common/DateTimeField";
+import SEO from "../common/SEO";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -676,6 +677,7 @@ export default function AdminAgendaPage() {
 
   return (
     <Container fluid className="ag-page py-3">
+      <SEO title="Agenda" noindex={true} />
       <Row className="g-3 align-items-stretch">
         {/* LEFT */}
         <Col lg={4}>

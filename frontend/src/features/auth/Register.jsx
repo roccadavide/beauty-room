@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../../api/modules/auth.api";
+import SEO from "../../components/common/SEO";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
@@ -67,6 +68,10 @@ const Register = () => {
 
   return (
     <div className="register-page">
+      <SEO
+        title="Crea account"
+        description="Registrati su Beauty Room per prenotare online trattamenti laser, viso e corpo. Accesso rapido e sicuro."
+      />
       <div className="register-card">
         <div className="register-left">
           <header className="register-header">
