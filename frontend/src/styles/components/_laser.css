@@ -668,10 +668,10 @@
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(310px, 54vw);
-    --mob-machine-col: 47%;
+    --mob-machine-w: min(300px);
+    --mob-machine-col: 53%;
     --mob-machine-tx: -15px;
-    --mob-machine-ty: 10px;
+    --mob-machine-ty: 0px;
     --mob-copy-col: 60%;
     --mob-copy-tx: -280px;
     --mob-copy-ty: -320px;

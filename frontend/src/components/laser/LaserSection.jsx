@@ -10,7 +10,7 @@ export default function LaserSection() {
   const sectionRef = useRef(null);
   const cardRef = useRef(null);
   const stripRef = useRef(null);
-  const [fogValue, setFogValue] = useState(typeof window !== "undefined" && window.innerWidth <= 575 ? 0.35 : 1.05);
+  const [fogValue, setFogValue] = useState(typeof window !== "undefined" && window.innerWidth <= 575 ? 0.18 : 1.05);
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
