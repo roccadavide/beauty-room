@@ -98,13 +98,14 @@ const ServicePage = () => {
     setEditingService(null);
   };
 
-  const badgeColors = {
-    "2ab17c92-da9c-4b18-a04a-549eaa643ad3": "primary", //Trucco permanente
-    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success", //Piedi
-    "95b6d339-a765-4569-9aee-08107d27516b": "warning", //Mani
-    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info", //Corpo
-    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger", //Viso
-  };
+  const categoryColorMap = useMemo(() => {
+    const colors = ["primary", "success", "warning", "info", "danger", "secondary"];
+    const map = {};
+    categories.forEach((category, index) => {
+      map[category.categoryId] = colors[index % colors.length];
+    });
+    return map;
+  }, [categories]);
 
   // ---------- UI ----------
   if (loading) {
@@ -195,7 +196,7 @@ const ServicePage = () => {
                   <div className="bsc-accent-line" />
                   <Card.Title className="bsc-title mb-1">{s.title}</Card.Title>
                   <div className="mb-2 d-flex align-items-center gap-2">
-                    <Badge bg={badgeColors[s.categoryId] || "secondary"} className="text-uppercase">
+                    <Badge bg={categoryColorMap[s.categoryId] || "secondary"} className="text-uppercase">
                       {categoriesMap[s.categoryId] || "Senza categoria"}
                     </Badge>
                     <small className="text-muted">{s.durationMin} min</small>

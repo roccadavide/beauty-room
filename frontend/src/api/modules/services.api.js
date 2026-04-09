@@ -63,3 +63,37 @@ export const deleteService = async serviceId => {
   }
 };
 
+export const createServiceOption = async (serviceId, optionPayload) => {
+  try {
+    const { data } = await http.post(SERVICE_ENDPOINTS.CREATE_OPTION(serviceId), optionPayload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore nella creazione dell’opzione servizio.";
+    throw new Error(message);
+  }
+};
+
+export const updateServiceOption = async (optionId, optionPayload) => {
+  try {
+    const { data } = await http.put(SERVICE_ENDPOINTS.UPDATE_OPTION(optionId), optionPayload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore nell’aggiornamento dell’opzione servizio.";
+    throw new Error(message);
+  }
+};
+
+export const deleteServiceOption = async optionId => {
+  try {
+    await http.delete(SERVICE_ENDPOINTS.DELETE_OPTION(optionId));
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l’eliminazione dell’opzione servizio.";
+    throw new Error(message);
+  }
+};
+

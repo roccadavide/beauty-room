@@ -214,7 +214,7 @@ float sc = 512.0 / minRes * 0.4;
   float hW=mix(1.0,hE,clamp(yP,0.0,1.0));
   float bBias=mix(1.0,1.0-sPix,FOG_BOTTOM_BIAS);
 
-  float browserFogIntensity = uFogIntensity * 1.8;
+  float browserFogIntensity = uFogIntensity * 0.9;
   float radialFade = 1.0 - smoothstep(0.0, 1.05, length(uvc) / 170.0);
   fog = n * browserFogIntensity * bBias * bm * hW * radialFade;
 #endif
@@ -412,7 +412,9 @@ export default function LaserFlow({
           } else if (import.meta.env?.DEV) {
             console.debug("[LaserFlow] shader OK — canvas %d×%d", w, h);
           }
-        } catch { /* noop */ }
+        } catch {
+          /* noop */
+        }
       }
     };
 
@@ -430,7 +432,7 @@ export default function LaserFlow({
       entries => {
         inViewRef.current = entries[0]?.isIntersecting ?? true;
       },
-      { root: null, threshold: 0 }
+      { root: null, threshold: 0 },
     );
     io.observe(mount);
 
@@ -605,5 +607,12 @@ export default function LaserFlow({
     color,
   ]);
 
-  return <div ref={mountRef} className={`laser-flow-container ${className || ""}`} style={{ background: background || "transparent", ...style }} aria-hidden="true" />;
+  return (
+    <div
+      ref={mountRef}
+      className={`laser-flow-container ${className || ""}`}
+      style={{ background: background || "transparent", ...style }}
+      aria-hidden="true"
+    />
+  );
 }

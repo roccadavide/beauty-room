@@ -27,6 +27,9 @@ export const CATEGORY_ENDPOINTS = {
 export const SERVICE_ENDPOINTS = {
   BASE: "/service-items",
   BY_ID: id => `/service-items/${id}`,
+  CREATE_OPTION: serviceId => `/service-items/${serviceId}/options`,
+  UPDATE_OPTION: optionId => `/service-items/options/${optionId}`,
+  DELETE_OPTION: optionId => `/service-items/options/${optionId}`,
 };
 
 // ---- BOOKINGS (PUBLIC) ----

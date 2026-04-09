@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { createService, updateService } from "../../api/modules/services.api";
+import { createService, updateService, createServiceOption, deleteServiceOption } from "../../api/modules/services.api";
 import CustomSelect from "../../components/common/CustomSelect";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import MultiImageUpload from "../../components/common/MultiImageUpload";
@@ -26,6 +26,17 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
   const [badges, setBadges] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [hasOptions, setHasOptions] = useState(false);
+  const [existingOptions, setExistingOptions] = useState([]);
+  const [optionsToDelete, setOptionsToDelete] = useState([]);
+  const [optionsToAdd, setOptionsToAdd] = useState([]);
+  const [optionDraft, setOptionDraft] = useState({
+    name: "",
+    optionGroup: "",
+    price: "",
+    gender: "",
+  });
+  const [optionDraftError, setOptionDraftError] = useState("");
 
   const categoryOptions = useMemo(() => categories.map(c => ({ value: c.categoryId, label: c.label })), [categories]);
 
@@ -42,6 +53,12 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     setRemovedUrls([]);
     setBadges([]);
     setErrors({});
+    setHasOptions(false);
+    setExistingOptions([]);
+    setOptionsToDelete([]);
+    setOptionsToAdd([]);
+    setOptionDraft({ name: "", optionGroup: "", price: "", gender: "" });
+    setOptionDraftError("");
   };
 
   useEffect(() => {
@@ -59,6 +76,17 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
       } else {
         resetForm();
       }
+      if (isEdit && service.options && service.options.length > 0) {
+        setHasOptions(true);
+        setExistingOptions(service.options);
+      } else {
+        setHasOptions(false);
+        setExistingOptions([]);
+      }
+      setOptionsToDelete([]);
+      setOptionsToAdd([]);
+      setOptionDraft({ name: "", optionGroup: "", price: "", gender: "" });
+      setOptionDraftError("");
       setNewFiles([]);
       setRemovedUrls([]);
       setErrors({});
@@ -108,6 +136,27 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     return Object.keys(newErrors).length === 0;
   };
 
+  const addOptionDraft = () => {
+    if (!optionDraft.name.trim()) {
+      setOptionDraftError("Il nome zona è obbligatorio.");
+      return;
+    }
+    if (!optionDraft.price || isNaN(optionDraft.price) || parseFloat(optionDraft.price) <= 0) {
+      setOptionDraftError("Inserisci un prezzo valido.");
+      return;
+    }
+    setOptionsToAdd(prev => [
+      ...prev,
+      {
+        ...optionDraft,
+        price: parseFloat(optionDraft.price),
+        _tempId: Date.now() + Math.random(),
+      },
+    ]);
+    setOptionDraft({ name: "", optionGroup: "", price: "", gender: "" });
+    setOptionDraftError("");
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
@@ -132,6 +181,32 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         savedService = await updateService(service.serviceId, formData, accessToken);
       } else {
         savedService = await createService(formData, accessToken);
+      }
+
+      const serviceId = savedService.serviceId;
+
+      if (optionsToDelete.length > 0) {
+        await Promise.all(optionsToDelete.map(id => deleteServiceOption(id)));
+      }
+
+      if (optionsToAdd.length > 0) {
+        await Promise.all(
+          optionsToAdd.map(opt => {
+            const payload = {
+              name: opt.name,
+              optionGroup: opt.optionGroup || null,
+              price: opt.price,
+              sessions: 1,
+              gender: opt.gender || null,
+              active: true,
+              badges: [],
+            };
+            return createServiceOption(serviceId, payload);
+          }),
+        );
+      }
+
+      if (!isEdit) {
         resetForm();
       }
 
@@ -222,6 +297,129 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         <Form.Group>
           <BadgesPicker value={badges} onChange={setBadges} />
         </Form.Group>
+
+        <Form.Group>
+          <Form.Check
+            type="switch"
+            id="service-has-options"
+            label="Servizio con opzioni (es. zone / varianti)"
+            checked={hasOptions}
+            onChange={e => setHasOptions(e.target.checked)}
+          />
+        </Form.Group>
+
+        {hasOptions && (
+          <div className="border rounded p-3 d-flex flex-column gap-3">
+            <div className="fw-semibold">Opzioni</div>
+
+            {isEdit && existingOptions.length > 0 && (
+              <div className="d-flex flex-wrap gap-2">
+                {existingOptions.map(opt => (
+                  <div key={opt.optionId} className="badge text-bg-secondary d-flex align-items-center gap-2 py-2 px-3">
+                    <span>
+                      {opt.name}
+                      {opt.optionGroup ? ` - ${opt.optionGroup}` : ""}
+                      {` - €${opt.price}`}
+                      {opt.gender === "FEMALE" ? " - Donna" : opt.gender === "MALE" ? " - Uomo" : " - Tutti"}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger py-0 px-2"
+                      onClick={() => {
+                        setOptionsToDelete(prev => [...prev, opt.optionId]);
+                        setExistingOptions(prev => prev.filter(o => o.optionId !== opt.optionId));
+                      }}
+                    >
+                      X
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {optionsToAdd.length > 0 && (
+              <div className="d-flex flex-wrap gap-2">
+                {optionsToAdd.map(item => (
+                  <div key={item._tempId} className="badge text-bg-success d-flex align-items-center gap-2 py-2 px-3">
+                    <span>
+                      {item.name}
+                      {item.optionGroup ? ` - ${item.optionGroup}` : ""}
+                      {` - €${item.price}`}
+                      {item.gender === "FEMALE" ? " - Donna" : item.gender === "MALE" ? " - Uomo" : " - Tutti"}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-light py-0 px-2"
+                      onClick={() => setOptionsToAdd(prev => prev.filter(o => o._tempId !== item._tempId))}
+                    >
+                      X
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="border-top pt-3 d-flex flex-column gap-2">
+              <div className="fw-semibold">Aggiungi zona</div>
+              <div className="row g-2">
+                <div className="col-12 col-md-6">
+                  <Form.Control
+                    type="text"
+                    placeholder="Nome zona *"
+                    value={optionDraft.name}
+                    onChange={e => {
+                      setOptionDraft(prev => ({ ...prev, name: e.target.value }));
+                      setOptionDraftError("");
+                    }}
+                  />
+                </div>
+                <div className="col-12 col-md-6">
+                  <Form.Control
+                    type="text"
+                    placeholder="Gruppo (es. Gambe)"
+                    value={optionDraft.optionGroup}
+                    onChange={e => {
+                      setOptionDraft(prev => ({ ...prev, optionGroup: e.target.value }));
+                      setOptionDraftError("");
+                    }}
+                  />
+                </div>
+                <div className="col-12 col-md-6">
+                  <Form.Control
+                    type="number"
+                    placeholder="Prezzo €"
+                    value={optionDraft.price}
+                    onChange={e => {
+                      setOptionDraft(prev => ({ ...prev, price: e.target.value }));
+                      setOptionDraftError("");
+                    }}
+                  />
+                </div>
+                <div className="col-12 col-md-6">
+                  <Form.Select
+                    value={optionDraft.gender}
+                    onChange={e => {
+                      setOptionDraft(prev => ({ ...prev, gender: e.target.value }));
+                      setOptionDraftError("");
+                    }}
+                  >
+                    <option value="">Tutti</option>
+                    <option value="FEMALE">Donna</option>
+                    <option value="MALE">Uomo</option>
+                  </Form.Select>
+                </div>
+              </div>
+
+              <div>
+                <button type="button" className="bm-btn bm-btn--primary" onClick={addOptionDraft}>
+                  + Aggiungi zona
+                </button>
+              </div>
+
+              {optionDraftError && <div className="text-danger small">{optionDraftError}</div>}
+            </div>
+          </div>
+        )}
 
         <MultiImageUpload
           files={newFiles}

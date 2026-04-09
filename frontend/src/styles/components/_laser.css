@@ -11,6 +11,28 @@
 }
 
 /* ────────────────────────────────────────
+     WRAPPER STATICO (nuovo)
+     Gestisce border-radius + overflow separati dal transform framer.
+     Su desktop: trasparente, nessun effetto visivo.
+     Su mobile ≤575px: border-radius + overflow:hidden + margin-top.
+     ──────────────────────────────────────── */
+.laser-card-wrapper {
+  width: min(1140px, 100%);
+  /* Animazione entrata — su opacity e translate, non su transform
+       per non conflittare con framer-motion che usa transform inline */
+  opacity: 0;
+  translate: 0 32px;
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    translate 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.laser-card-wrapper.laser-card--visible {
+  opacity: 1;
+  translate: 0 0;
+}
+
+/* ────────────────────────────────────────
      CARD BASE (desktop)
      ──────────────────────────────────────── */
 .laser-card {
@@ -19,7 +41,7 @@
   overflow: hidden;
   border-radius: 24px;
   min-height: 520px;
-  width: min(1140px, 100%);
+  width: 100%; /* il wrapper gestisce la larghezza max */
   box-shadow: 0 18px 40px rgba(59, 47, 42, 0.12);
 
   --fx-x: 257px;
@@ -39,27 +61,6 @@
   --hand-top: -100px;
   --hand-tx: -6px;
   --hand-ty: 18px;
-}
-
-/*
-    ── ANIMAZIONE ENTRATA CARD ──
-    Stato iniziale: invisibile + traslata in giù.
-    .laser-card--visible aggiunta da IntersectionObserver
-    quando la card entra nel viewport.
-    La transition è su opacity e transform, NON su y/scale
-    che sono gestiti da framer-motion inline → nessun conflitto.
-  */
-.laser-card {
-  opacity: 0;
-  translate: 0 32px;
-  transition:
-    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-    translate 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.laser-card--visible {
-  opacity: 1;
-  translate: 0 0;
 }
 
 .laser-card--dark {
@@ -122,7 +123,7 @@
 }
 
 /* ────────────────────────────────────────
-     BEAM MASK (mobile)
+     BEAM MASK (mobile only)
      ──────────────────────────────────────── */
 .laser-beam-mask {
   display: none;
@@ -409,13 +410,6 @@
 
 /* ══════════════════════════════════════════════════════════════
      MOBILE FULL-BLEED ≤ 575px
-     ══════════════════════════════════════════════════════════════
-  
-     CAMBIAMENTI RISPETTO A PRIMA:
-     1. border-radius: 20px 20px 0 0  → stondato solo in cima
-     2. margin-top: 24px              → bianco visibile sopra la card
-     3. Il resto (posizioni interne)  → INVARIATO, tutto il tuo lavoro è preservato
-  
      ══════════════════════════════════════════════════════════════ */
 
 @media (max-width: 575px) {
@@ -431,20 +425,31 @@
     width: 100% !important;
   }
 
-  .laser-card {
-    /*
-        ✅ BORDO STONDATO IN CIMA: la card "emerge" dallo sfondo bianco
-        ✅ MARGIN-TOP: lascia il bianco visibile sopra
-        Nessuna altra modifica al layout interno.
-      */
-    border-radius: 20px 20px 0 0;
-    margin-top: 24px;
+  /* ── WRAPPER: gestisce border-radius + overflow su mobile ── */
+  .laser-card-wrapper {
     width: 100%;
-    min-height: 0;
-    height: auto;
+    margin-top: 24px;
+    border-radius: 20px 20px 0 0;
+    overflow: hidden;
     box-shadow:
       0 -4px 24px rgba(47, 39, 35, 0.18),
       0 18px 40px rgba(47, 39, 35, 0.1);
+    /*
+        Fix Safari/Chrome mobile: forza il rispetto di border-radius
+        su elementi GPU-composited (transform da framer-motion).
+      */
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    mask-image: radial-gradient(white, black);
+  }
+
+  /* ── CARD: niente border-radius (lo fa il wrapper) ── */
+  .laser-card {
+    border-radius: 0;
+    margin-top: 0;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    box-shadow: none; /* shadow sul wrapper */
     display: flex;
     flex-direction: column;
     --machine-w: 100%;
@@ -455,7 +460,7 @@
     --gap: 0px;
   }
 
-  /* Beam mask: nasconde il fascio che sbuca sopra il manipolo */
+  /* Beam mask */
   .laser-beam-mask {
     display: block;
     position: absolute;
@@ -466,7 +471,6 @@
     background: #2f2723;
     z-index: 3;
     pointer-events: none;
-    /* Sfumatura verso il basso: non taglia netto */
     -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
     mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
   }
@@ -515,9 +519,10 @@
   .laser-text-mobile {
     display: block !important;
     color: rgba(255, 255, 255, 0.74);
-    font-size: clamp(11px, 1.05vw, 15px);
-    line-height: 1.7;
-    margin-bottom: 18px;
+    font-size: clamp(11px, 3vw, 13px);
+    line-height: 1.6;
+    margin-top: 6px;
+    margin-bottom: 0;
   }
 
   .laser-machine-mobile {
@@ -531,6 +536,11 @@
   }
 
   .laser-machine-mobile .laser-machine {
+    /*
+        svw (small viewport width) = viewport senza toolbar Safari/Chrome mobile.
+        Più stabile di vw che include la barra degli indirizzi.
+        Cambia solo il valore numerico in --mob-machine-w nei breakpoint.
+      */
     width: var(--mob-machine-w);
     height: auto;
     transform: translate(var(--mob-machine-tx), var(--mob-machine-ty));
@@ -570,6 +580,7 @@
     display: none;
   }
 
+  /* Strip */
   .laser-strip {
     display: flex !important;
     flex-direction: column;
@@ -611,26 +622,11 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-     VARIABILI TWEAKABILI MOBILE
-     Metti queste dentro i tuoi breakpoint specifici (344px, 375px…)
-     e cambia solo i valori — nessun altro CSS da toccare.
-  
-     --mob-beam-x        beam orizzontale  (calc(Xvw - Ypx))
-     --mob-beam-y        beam verticale
-     --mob-beam-s        scala beam
-     --mob-hand-w        larghezza manipolo
-     --mob-hand-top      posizione verticale manipolo
-     --mob-machine-w     larghezza macchina
-     --mob-machine-col   % colonna macchina
-     --mob-machine-tx/ty traslazione macchina x/y
-     --mob-copy-col      % colonna copy
-     --mob-copy-tx/ty    traslazione copy x/y
-     --mob-body-pt       padding-top riga (spazio navbar)
-     --mob-body-min-h    altezza minima riga
+     BREAKPOINT SPECIFICI MOBILE
+     I tuoi valori preservati integralmente.
+     Unica modifica: vw → svw in --mob-machine-w
+     (svw non include la barra URL su mobile → più stabile)
      ══════════════════════════════════════════════════════════════ */
-
-/* I tuoi breakpoint specifici vanno qui sotto — copia/incolla
-     dal CSS precedente senza modifiche, funzionano invariati. */
 
 @media (max-width: 575px) {
   .laser-card {
@@ -639,7 +635,7 @@
     --mob-beam-s: 1.65;
     --mob-hand-w: 210px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(350px, 54vw);
+    --mob-machine-w: min(350px, 54svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: 10px;
     --mob-machine-ty: -15px;
@@ -668,7 +664,7 @@
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(300px);
+    --mob-machine-w: min(300px, 54svw);
     --mob-machine-col: 53%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: 0px;
@@ -695,7 +691,7 @@
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(350px, 62vw);
+    --mob-machine-w: min(350px, 62svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: -15px;
@@ -722,7 +718,7 @@
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(350px, 59vw);
+    --mob-machine-w: min(350px, 59svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: -25px;
@@ -749,7 +745,7 @@
     --mob-beam-s: 1.95;
     --mob-hand-w: 200px;
     --mob-hand-top: -35px;
-    --mob-machine-w: min(350px, 58vw);
+    --mob-machine-w: min(350px, 58svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: -35px;
@@ -776,7 +772,7 @@
     --mob-beam-s: 2.25;
     --mob-hand-w: 195px;
     --mob-hand-top: -35px;
-    --mob-machine-w: min(350px, 60vw);
+    --mob-machine-w: min(350px, 60svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: -35px;
@@ -803,7 +799,7 @@
     --mob-beam-s: 2.25;
     --mob-hand-w: 180px;
     --mob-hand-top: -20px;
-    --mob-machine-w: min(350px, 62vw);
+    --mob-machine-w: min(350px, 62svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: 0px;
@@ -827,7 +823,7 @@
     --mob-beam-s: 2.25;
     --mob-hand-w: 180px;
     --mob-hand-top: -20px;
-    --mob-machine-w: min(350px, 65vw);
+    --mob-machine-w: min(350px, 65svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: 0px;
@@ -851,7 +847,7 @@
     --mob-beam-s: 2.35;
     --mob-hand-w: 180px;
     --mob-hand-top: -20px;
-    --mob-machine-w: min(350px, 65vw);
+    --mob-machine-w: min(350px, 65svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: 0px;
@@ -870,7 +866,7 @@
 
 /* Accessibilità */
 @media (prefers-reduced-motion: reduce) {
-  .laser-card {
+  .laser-card-wrapper {
     opacity: 1 !important;
     translate: none !important;
     transition: none !important;
