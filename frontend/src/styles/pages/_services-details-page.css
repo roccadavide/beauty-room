@@ -130,7 +130,9 @@
   background: #fdfaf6;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
   width: 100%;
 }
 
@@ -260,10 +262,11 @@
   background: #fdfaf6;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.2s ease,
-              background 0.2s ease,
-              box-shadow 0.2s ease,
-              transform 0.15s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
   width: 100%;
   overflow: hidden;
 }
@@ -396,9 +399,10 @@
 }
 
 .detail-pay-btn {
-  transition: background 0.2s ease,
-              transform 0.15s ease,
-              box-shadow 0.2s ease;
+  transition:
+    background 0.2s ease,
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
 }
 
 .detail-pay-btn:not(:disabled):active {
@@ -415,4 +419,59 @@
   .ig-wrap {
     border-radius: 0;
   }
+}
+
+/* ── Layout grid detail — colonne veramente indipendenti ── */
+.sd-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.sd-col-img {
+  align-self: start;
+}
+
+@media (min-width: 768px) {
+  .sd-layout-grid {
+    grid-template-columns: 5fr 6fr;
+    gap: 3rem;
+  }
+
+  .sd-col-img {
+    position: sticky;
+    top: 100px;
+    align-self: start;
+  }
+}
+
+/* ── Gender toggle (riusa stile OccasioniPage) ── */
+.of-tab-bar {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 0.4rem;
+  background: #f5ede3;
+  border-radius: 999px;
+  width: fit-content;
+  margin-bottom: 0.75rem;
+}
+
+.of-tab {
+  padding: 0.6rem 1.8rem;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #7a6156;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.of-tab--active {
+  background: #fff;
+  color: #2e2118;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }

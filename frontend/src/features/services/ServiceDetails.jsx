@@ -33,6 +33,7 @@ const ServiceDetail = () => {
   const [open, setOpen] = useState(false);
   const [prefill, setPrefill] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
+  const [selectedGender, setSelectedGender] = useState("FEMALE");
   const [activeGroup, setActiveGroup] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const wasCancelled = searchParams.get("cancel") === "1";
@@ -104,9 +105,18 @@ const ServiceDetail = () => {
 
   const hasZoneGroups = zoneGroups.length > 0;
   const hasZoneOptions = zoneOptions.length > 0 && !hasZoneGroups;
+  // true se almeno una zona option ha un gender specificato
+  const hasGenderOptions = zoneOptions.some(o => o.gender !== null && o.gender !== undefined && o.gender !== "");
+
+  // filtra le zone visibili per gender: mostra "per tutti" (null/"") + gender selezionato
+  const genderFilteredZoneOptions = hasGenderOptions
+    ? zoneOptions.filter(o => !o.gender || o.gender === selectedGender)
+    : zoneOptions;
   const hasPackages = packageOptions.length > 0;
 
-  const visibleZoneOptions = hasZoneGroups && activeGroup ? zoneOptions.filter(o => o.optionGroup === activeGroup) : hasZoneGroups ? [] : zoneOptions;
+  const visibleZoneOptions = hasZoneGroups && activeGroup
+    ? genderFilteredZoneOptions.filter(o => o.optionGroup === activeGroup)
+    : hasZoneGroups ? [] : genderFilteredZoneOptions;
 
   const displayPrice = selectedOption?.price ?? service?.price;
 
@@ -146,203 +156,231 @@ const ServiceDetail = () => {
         title={service?.title}
         description={service?.description ? service.description.slice(0, 150) : undefined}
         image={service?.images?.[0]}
-        jsonLd={service ? {
-          "@context": "https://schema.org",
-          "@type": "Service",
-          name: service.title,
-          description: service.description,
-          provider: {
-            "@type": "BeautySalon",
-            name: "Beauty Room di Michela",
-            url: "https://www.beauty-room.it",
-          },
-          url: `https://www.beauty-room.it/services/${service.serviceId}`,
-        } : undefined}
+        jsonLd={
+          service
+            ? {
+                "@context": "https://schema.org",
+                "@type": "Service",
+                name: service.title,
+                description: service.description,
+                provider: {
+                  "@type": "BeautySalon",
+                  name: "Beauty Room di Michela",
+                  url: "https://www.beauty-room.it",
+                },
+                url: `https://www.beauty-room.it/services/${service.serviceId}`,
+              }
+            : undefined
+        }
       />
       <Container fluid="xxl" className="service-detail">
-      {wasCancelled && (
-        <div className="sd-cancel-banner">
-          <span className="sd-cancel-banner__icon">↩</span>
-          <span>Pagamento annullato — nessun addebito effettuato. Puoi riprovare quando vuoi.</span>
-        </div>
-      )}
-      <Row className="justify-content-center align-items-start g-4 g-md-5">
-        {/* ▸ IMMAGINE */}
-        <Col md={5} lg={5} className="d-flex justify-content-center">
-          <div ref={imgRef} className={`fade-slide ${imgVisible ? "visible" : ""}`}>
-            <ImageGallery
-              images={service.images?.filter(Boolean) ?? []}
-              alt={service.title}
-            />
+        {wasCancelled && (
+          <div className="sd-cancel-banner">
+            <span className="sd-cancel-banner__icon">↩</span>
+            <span>Pagamento annullato — nessun addebito effettuato. Puoi riprovare quando vuoi.</span>
           </div>
-        </Col>
-
-        {/* ▸ INFO */}
-        <Col md={6} lg={5} className="detail-info fade-slide visible">
-          <div className="detail-meta">
-            <Badge bg={categoryColorMap[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
-              {categoriesMap[service.categoryId] || "Senza categoria"}
-            </Badge>
-            <span className="detail-duration">⏱ {service.durationMin} min</span>
+        )}
+        <div className="sd-layout-grid">
+          {/* ▸ IMMAGINE */}
+          <div className="sd-col-img d-flex justify-content-center">
+            <div ref={imgRef} className={`fade-slide ${imgVisible ? "visible" : ""}`}>
+              <ImageGallery images={service.images?.filter(Boolean) ?? []} alt={service.title} />
+            </div>
           </div>
 
-          <h1 className="detail-title">{service.title}</h1>
+          {/* ▸ INFO */}
+          <div className="detail-info sd-col-info fade-slide visible">
+            <div className="detail-meta">
+              <Badge bg={categoryColorMap[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
+                {categoriesMap[service.categoryId] || "Senza categoria"}
+              </Badge>
+              <span className="detail-duration">⏱ {service.durationMin} min</span>
+            </div>
 
-          <div className="detail-accent-line" />
+            <h1 className="detail-title">{service.title}</h1>
 
-          <div className="detail-price-block">
-            <span className="detail-price">{displayPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-            <span className="detail-price-note">{selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}</span>
-          </div>
+            <div className="detail-accent-line" />
 
-          {/* ── Selettore ZONE (seduta singola, varianti) ── */}
-          {(hasZoneGroups || hasZoneOptions) && (
-            <div className="so-selector">
-              {hasZoneGroups && (
-                <div className="so-groups">
-                  <span className="so-label">Seleziona zona:</span>
-                  <div className="so-group-pills">
-                    {zoneGroups.map(g => (
-                      <button
-                        key={g}
-                        type="button"
-                        className={`so-group-pill${activeGroup === g ? " so-group-pill--active" : ""}`}
-                        onClick={() => {
-                          setActiveGroup(g);
-                          setSelectedOption(null);
-                        }}
-                      >
-                        {g}
-                      </button>
-                    ))}
+            <div className="detail-price-block">
+              <span className="detail-price">{displayPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+              <span className="detail-price-note">{selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}</span>
+            </div>
+
+            {/* ── Selettore ZONE (seduta singola, varianti) ── */}
+            {(hasZoneGroups || hasZoneOptions) && (
+              <div className="so-selector">
+                {hasGenderOptions && (
+                  <div className="of-tab-bar">
+                    <button
+                      className={`of-tab${selectedGender === "FEMALE" ? " of-tab--active" : ""}`}
+                      onClick={() => {
+                        setSelectedGender("FEMALE");
+                        setSelectedOption(null);
+                      }}
+                    >
+                      Donna
+                    </button>
+                    <button
+                      className={`of-tab${selectedGender === "MALE" ? " of-tab--active" : ""}`}
+                      onClick={() => {
+                        setSelectedGender("MALE");
+                        setSelectedOption(null);
+                      }}
+                    >
+                      Uomo
+                    </button>
                   </div>
+                )}
+                {hasZoneGroups && (
+                  <div className="so-groups">
+                    <span className="so-label">Seleziona zona:</span>
+                    <div className="so-group-pills">
+                      {zoneGroups.map(g => (
+                        <button
+                          key={g}
+                          type="button"
+                          className={`so-group-pill${activeGroup === g ? " so-group-pill--active" : ""}`}
+                          onClick={() => {
+                            setActiveGroup(g);
+                            setSelectedOption(null);
+                          }}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {visibleZoneOptions.length > 0 && (
+                  <div className="so-options">
+                    <span className="so-label">Seleziona opzione:</span>
+                    <div className="so-option-list">
+                      {visibleZoneOptions.map(opt => (
+                        <button
+                          key={opt.optionId}
+                          type="button"
+                          className={`so-option-card${selectedOption?.optionId === opt.optionId ? " so-option-card--selected" : ""}`}
+                          onClick={() => setSelectedOption(opt)}
+                        >
+                          <span className="so-option-name">{opt.name}</span>
+                          <span className="so-option-price">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Selettore PACCHETTI (multi-seduta, opzionale) ── */}
+            {hasPackages && (
+              <div className="so-pkg-section">
+                <div className="so-pkg-header">
+                  <span className="so-pkg-eyebrow">Pacchetti multi-seduta</span>
+                  <span className="so-pkg-subtitle">Prenota più sedute e risparmia rispetto al prezzo singolo</span>
                 </div>
-              )}
-              {visibleZoneOptions.length > 0 && (
-                <div className="so-options">
-                  <span className="so-label">Seleziona opzione:</span>
-                  <div className="so-option-list">
-                    {visibleZoneOptions.map(opt => (
+                <div className="so-pkg-list">
+                  {packageOptions.map(opt => {
+                    const savings = calcSavings(opt);
+                    const isSelected = selectedOption?.optionId === opt.optionId;
+                    return (
                       <button
                         key={opt.optionId}
                         type="button"
-                        className={`so-option-card${selectedOption?.optionId === opt.optionId ? " so-option-card--selected" : ""}`}
-                        onClick={() => setSelectedOption(opt)}
+                        className={`so-pkg-card${isSelected ? " so-pkg-card--selected" : ""}`}
+                        onClick={() => setSelectedOption(prev => (prev?.optionId === opt.optionId ? null : opt))}
                       >
-                        <span className="so-option-name">{opt.name}</span>
-                        <span className="so-option-price">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                        {opt.gender && <span className="so-option-gender">{opt.gender}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Selettore PACCHETTI (multi-seduta, opzionale) ── */}
-          {hasPackages && (
-            <div className="so-pkg-section">
-              <div className="so-pkg-header">
-                <span className="so-pkg-eyebrow">Pacchetti multi-seduta</span>
-                <span className="so-pkg-subtitle">Prenota più sedute e risparmia rispetto al prezzo singolo</span>
-              </div>
-              <div className="so-pkg-list">
-                {packageOptions.map(opt => {
-                  const savings = calcSavings(opt);
-                  const isSelected = selectedOption?.optionId === opt.optionId;
-                  return (
-                    <button
-                      key={opt.optionId}
-                      type="button"
-                      className={`so-pkg-card${isSelected ? " so-pkg-card--selected" : ""}`}
-                      onClick={() => setSelectedOption(prev => (prev?.optionId === opt.optionId ? null : opt))}
-                    >
-                      <span className="so-pkg-sessions-badge">{opt.sessions} sedute</span>
-                      <span className="so-pkg-name">{opt.name}</span>
-                      <div className="so-pkg-price-block">
+                        <span className="so-pkg-sessions-badge">{opt.sessions} sedute</span>
+                        <span className="so-pkg-name">{opt.name}</span>
+                        <div className="so-pkg-price-block">
+                          {savings && (
+                            <span className="so-pkg-price-full">{savings.fullPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                          )}
+                          <span className="so-pkg-price-actual">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                        </div>
                         {savings && (
-                          <span className="so-pkg-price-full">{savings.fullPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                          <span className="so-pkg-savings">Risparmi {savings.saved.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
                         )}
-                        <span className="so-pkg-price-actual">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                      </div>
-                      {savings && (
-                        <span className="so-pkg-savings">Risparmi {savings.saved.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                      )}
-                      {opt.gender && <span className="so-pkg-gender">{opt.gender}</span>}
-                      {isSelected && <span className="so-pkg-check">✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {selectedOption?.sessions > 1 && <p className="so-pkg-note">Paghi ora la prima seduta · Le successive le fissi con me</p>}
-            </div>
-          )}
-
-          <div className="detail-trust">
-            <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
-            <span className="detail-trust-pill">✓ Nessun anticipo</span>
-            <span className="detail-trust-pill">✓ Conferma immediata</span>
-          </div>
-
-          <div className="detail-cart-actions">
-            <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={needsZoneSelection}>
-              {needsZoneSelection
-                ? "Scegli una zona"
-                : selectedOption?.sessions > 1
-                  ? `Prenota il pacchetto · ${selectedOption.sessions} sedute →`
-                  : "Prenota ora →"}
-            </button>
-          </div>
-
-          <div className="detail-divider" />
-
-          <div className={`detail-description ${showFullDesc ? "expanded" : ""}`}>
-            <p>{service.description}</p>
-          </div>
-
-          {service.description?.length > 200 && (
-            <button className="detail-expand-btn" onClick={() => setShowFullDesc(!showFullDesc)}>
-              {showFullDesc ? "Mostra meno ↑" : "Leggi tutto ↓"}
-            </button>
-          )}
-        </Col>
-      </Row>
-
-      {/* ▸ SERVIZI SIMILI */}
-      {related.length > 0 && (
-        <section ref={relatedRef} className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}>
-          <div className="related-head">
-            <span className="section-eyebrow">Scopri anche</span>
-            <h3 className="related-title">Trattamenti simili</h3>
-          </div>
-          <RelatedCarousel
-            items={related}
-            getKey={s => s.serviceId}
-            renderCard={s => (
-              <div className="related-card text-center" onClick={() => navigate(`/trattamenti/${s.serviceId}`)} style={{ cursor: "pointer" }}>
-                <div className="related-img-wrap mb-3">
-                  <img src={s.images?.[0]} alt={s.title} className="img-fluid rounded-4" />
+                        {opt.gender && <span className="so-pkg-gender">{opt.gender}</span>}
+                        {isSelected && <span className="so-pkg-check">✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
-                <h5>{s.title}</h5>
-                <p className="text-muted mb-0">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</p>
+
+                {selectedOption?.sessions > 1 && <p className="so-pkg-note">Paghi ora la prima seduta · Le successive le fissi con me</p>}
               </div>
             )}
-          />
-        </section>
-      )}
 
-      <BookingModal
-        show={open}
-        onHide={() => {
-          setOpen(false);
-          setPrefill(null);
-        }}
-        service={service}
-        initialOptionId={selectedOption?.optionId ?? null}
-        prefill={prefill}
-      />
+            {(hasZoneGroups || hasZoneOptions) && (
+              <p className="so-pkg-note" style={{ marginBottom: "1rem" }}>
+                Per prenotare più zone selezionale separatamente — ogni zona è una prenotazione indipendente.
+              </p>
+            )}
+
+            <div className="detail-trust">
+              <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
+              <span className="detail-trust-pill">✓ Nessun anticipo</span>
+              <span className="detail-trust-pill">✓ Conferma immediata</span>
+            </div>
+
+            <div className="detail-cart-actions">
+              <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={needsZoneSelection}>
+                {needsZoneSelection
+                  ? "Scegli una zona"
+                  : selectedOption?.sessions > 1
+                    ? `Prenota il pacchetto · ${selectedOption.sessions} sedute →`
+                    : "Prenota ora →"}
+              </button>
+            </div>
+
+            <div className="detail-divider" />
+
+            <div className={`detail-description ${showFullDesc ? "expanded" : ""}`}>
+              <p>{service.description}</p>
+            </div>
+
+            {service.description?.length > 200 && (
+              <button className="detail-expand-btn" onClick={() => setShowFullDesc(!showFullDesc)}>
+                {showFullDesc ? "Mostra meno ↑" : "Leggi tutto ↓"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ▸ SERVIZI SIMILI */}
+        {related.length > 0 && (
+          <section ref={relatedRef} className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}>
+            <div className="related-head">
+              <span className="section-eyebrow">Scopri anche</span>
+              <h3 className="related-title">Trattamenti simili</h3>
+            </div>
+            <RelatedCarousel
+              items={related}
+              getKey={s => s.serviceId}
+              renderCard={s => (
+                <div className="related-card text-center" onClick={() => navigate(`/trattamenti/${s.serviceId}`)} style={{ cursor: "pointer" }}>
+                  <div className="related-img-wrap mb-3">
+                    <img src={s.images?.[0]} alt={s.title} className="img-fluid rounded-4" />
+                  </div>
+                  <h5>{s.title}</h5>
+                  <p className="text-muted mb-0">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</p>
+                </div>
+              )}
+            />
+          </section>
+        )}
+
+        <BookingModal
+          show={open}
+          onHide={() => {
+            setOpen(false);
+            setPrefill(null);
+          }}
+          service={service}
+          initialOptionId={selectedOption?.optionId ?? null}
+          prefill={prefill}
+        />
       </Container>
     </>
   );
