@@ -206,16 +206,16 @@ public class OrderService {
         Order found = findOrderById(orderId);
         OrderStatus old = found.getOrderStatus();
 
-        if (old == newStatus) throw new BadRequestException(“L'ordine è già nello stato richiesto.”);
-        if (old == OrderStatus.COMPLETED) throw new BadRequestException(“Ordine COMPLETED: non modificabile.”);
+        if (old == newStatus) throw new BadRequestException("L'ordine è già nello stato richiesto.");
+        if (old == OrderStatus.COMPLETED) throw new BadRequestException("Ordine COMPLETED: non modificabile.");
 
-        // regola base: non “riaprire” uno stato chiuso
-        if (old == OrderStatus.CANCELED) throw new BadRequestException(“Ordine CANCELED: non modificabile.”);
+        // regola base: non "riaprire" uno stato chiuso
+        if (old == OrderStatus.CANCELED) throw new BadRequestException("Ordine CANCELED: non modificabile.");
 
         // valida transizione legale
         Set<OrderStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(old, Set.of());
         if (!allowed.contains(newStatus)) {
-            throw new BadRequestException(“Transizione non consentita: “ + old + “ → “ + newStatus);
+            throw new BadRequestException("Transizione non consentita: " + old + " -> " + newStatus);
         }
 
         // se stai annullando/fallendo PRIMA del pagamento -> rilascia stock
@@ -356,7 +356,7 @@ public class OrderService {
             return;
         }
 
-        // se è stato cancellato prima del pagamento, non “riapriamo”
+        // se è stato cancellato prima del pagamento, non "riapriamo"
         if (order.getOrderStatus() == OrderStatus.CANCELED) {
             log.warn("Webhook paid on canceled order: {}", orderId);
             return;
