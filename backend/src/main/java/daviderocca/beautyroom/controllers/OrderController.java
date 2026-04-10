@@ -1,12 +1,12 @@
 package daviderocca.beautyroom.controllers;
 
+import com.stripe.exception.StripeException;
 import daviderocca.beautyroom.DTO.orderDTOs.NewOrderDTO;
 import daviderocca.beautyroom.DTO.orderDTOs.OrderResponseDTO;
+import daviderocca.beautyroom.DTO.orderDTOs.UpdateOrderStatusDTO;
 import daviderocca.beautyroom.entities.User;
-import daviderocca.beautyroom.enums.OrderStatus;
 import daviderocca.beautyroom.services.OrderService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -76,28 +76,45 @@ public class OrderController {
         return ResponseEntity.status(201).body(created);
     }
 
-    // ---------------------------------- ADMIN PATCH ----------------------------------
+    // ---------------------------------- ADMIN PATCH status ----------------------------------
     @PatchMapping("/{orderId}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<OrderResponseDTO> updateOrderStatus(
             @PathVariable UUID orderId,
-            @RequestParam @NotBlank OrderStatus status
+            @Valid @RequestBody UpdateOrderStatusDTO payload
     ) {
-        log.info("ADMIN | update order status {} -> {}", orderId, status);
-        return ResponseEntity.ok(orderService.updateOrderStatus(orderId, status));
+        log.info("ADMIN | update order status {} -> {}", orderId, payload.status());
+        return ResponseEntity.ok(orderService.updateOrderStatus(orderId, payload.status()));
     }
 
-    // ---------------------------------- AUTH CANCEL (soft) ----------------------------------
-    // Nota: rimane DELETE per UX, ma semanticamente è CANCEL.
-    @DeleteMapping("/{orderId}")
+    // ---------------------------------- ADMIN POST refund ----------------------------------
+    @PostMapping("/{orderId}/refund")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<OrderResponseDTO> refundOrder(
+            @PathVariable UUID orderId
+    ) throws StripeException {
+        log.info("ADMIN | refund order {}", orderId);
+        return ResponseEntity.ok(orderService.refundOrder(orderId));
+    }
+
+    // ---------------------------------- AUTH POST cancel (soft) ----------------------------------
+    @PostMapping("/{orderId}/cancel")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> cancelOrder(
+    public ResponseEntity<OrderResponseDTO> cancelOrder(
             @PathVariable UUID orderId,
             @AuthenticationPrincipal User currentUser,
             @RequestParam(required = false) String reason
     ) {
         log.info("AUTH | cancel order {} reason={}", orderId, reason);
-        orderService.cancelOrder(orderId, currentUser, reason);
+        return ResponseEntity.ok(orderService.cancelOrder(orderId, currentUser, reason));
+    }
+
+    // ---------------------------------- ADMIN DELETE (hard) ----------------------------------
+    @DeleteMapping("/{orderId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteOrder(@PathVariable UUID orderId) {
+        log.info("ADMIN | hard delete order {}", orderId);
+        orderService.deleteOrder(orderId);
         return ResponseEntity.noContent().build();
     }
 }

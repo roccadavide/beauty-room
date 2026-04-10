@@ -1,5 +1,9 @@
 package daviderocca.beautyroom.services;
 
+import com.stripe.Stripe;
+import com.stripe.exception.StripeException;
+import com.stripe.model.Refund;
+import com.stripe.model.checkout.Session;
 import daviderocca.beautyroom.DTO.orderDTOs.NewOrderDTO;
 import daviderocca.beautyroom.DTO.orderDTOs.OrderResponseDTO;
 import daviderocca.beautyroom.DTO.orderItemDTOs.NewOrderItemDTO;
@@ -10,19 +14,24 @@ import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.OrderStatus;
 import daviderocca.beautyroom.exceptions.BadRequestException;
+import daviderocca.beautyroom.exceptions.DuplicateResourceException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.exceptions.UnauthorizedException;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.repositories.OrderRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -35,7 +44,20 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final EmailOutboxService emailOutboxService;
 
+    @Value("${stripe.secret}")
+    private String stripeSecretKey;
+
+    @PostConstruct
+    public void init() {
+        Stripe.apiKey = this.stripeSecretKey;
+    }
+
     private static final int PENDING_EXPIRE_MINUTES = 30;
+
+    private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
+            OrderStatus.PENDING_PAYMENT,     Set.of(OrderStatus.PAID_PENDING_PICKUP, OrderStatus.CANCELED, OrderStatus.FAILED),
+            OrderStatus.PAID_PENDING_PICKUP, Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELED)
+    );
 
     // ---------------------------- FIND ----------------------------
     @Transactional(readOnly = true)
@@ -184,11 +206,17 @@ public class OrderService {
         Order found = findOrderById(orderId);
         OrderStatus old = found.getOrderStatus();
 
-        if (old == newStatus) throw new BadRequestException("L'ordine è già nello stato richiesto.");
-        if (old == OrderStatus.COMPLETED) throw new BadRequestException("Ordine COMPLETED: non modificabile.");
+        if (old == newStatus) throw new BadRequestException(“L'ordine è già nello stato richiesto.”);
+        if (old == OrderStatus.COMPLETED) throw new BadRequestException(“Ordine COMPLETED: non modificabile.”);
 
         // regola base: non “riaprire” uno stato chiuso
-        if (old == OrderStatus.CANCELED) throw new BadRequestException("Ordine CANCELED: non modificabile.");
+        if (old == OrderStatus.CANCELED) throw new BadRequestException(“Ordine CANCELED: non modificabile.”);
+
+        // valida transizione legale
+        Set<OrderStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(old, Set.of());
+        if (!allowed.contains(newStatus)) {
+            throw new BadRequestException(“Transizione non consentita: “ + old + “ → “ + newStatus);
+        }
 
         // se stai annullando/fallendo PRIMA del pagamento -> rilascia stock
         if ((newStatus == OrderStatus.CANCELED || newStatus == OrderStatus.FAILED) && old == OrderStatus.PENDING_PAYMENT) {
@@ -218,7 +246,7 @@ public class OrderService {
 
     // ---------------------------- AUTH: cancel (soft) ----------------------------
     @Transactional
-    public void cancelOrder(UUID orderId, User currentUser, String reason) {
+    public OrderResponseDTO cancelOrder(UUID orderId, User currentUser, String reason) {
         if (currentUser == null || currentUser.getUserId() == null) {
             throw new UnauthorizedException("Utente non autenticato.");
         }
@@ -239,7 +267,7 @@ public class OrderService {
             throw new BadRequestException("Non puoi annullare un ordine REFUNDED.");
         }
         if (found.getOrderStatus() == OrderStatus.CANCELED) {
-            return;
+            return findOrderByIdAndConvert(orderId);
         }
         if (found.getOrderStatus() == OrderStatus.PAID_PENDING_PICKUP) {
             throw new BadRequestException("Ordine già pagato: per annullarlo serve procedura di rimborso.");
@@ -257,6 +285,64 @@ public class OrderService {
 
         orderRepository.save(found);
         log.info("Order canceled: id={} reason={}", orderId, found.getCancelReason());
+        return findOrderByIdAndConvert(orderId);
+    }
+
+    // ---------------------------- ADMIN: refund ----------------------------
+    @Transactional
+    public OrderResponseDTO refundOrder(UUID orderId) throws StripeException {
+        Order order = orderRepository.findByIdWithItems(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException(orderId));
+
+        OrderStatus status = order.getOrderStatus();
+
+        if (status == OrderStatus.PENDING_PAYMENT) {
+            releaseStock(order);
+            order.setOrderStatus(OrderStatus.CANCELED);
+            order.setCanceledAt(LocalDateTime.now());
+            order.setCancelReason("ADMIN_REFUND_PENDING");
+            order.setExpiresAt(null);
+            orderRepository.save(order);
+            log.info("Refund (pending): ordine annullato senza chiamata Stripe id={}", orderId);
+            return findOrderByIdAndConvert(orderId);
+        }
+
+        if (status != OrderStatus.PAID_PENDING_PICKUP) {
+            throw new BadRequestException("Rimborso possibile solo per ordini PAID o PENDING. Stato attuale: " + status);
+        }
+
+        String sessionId = order.getStripeSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new BadRequestException("Nessuna sessione Stripe associata all'ordine.");
+        }
+
+        Session session = Session.retrieve(sessionId);
+        String paymentIntentId = session.getPaymentIntent();
+        if (paymentIntentId == null || paymentIntentId.isBlank()) {
+            throw new BadRequestException("Impossibile recuperare il PaymentIntent dalla sessione Stripe.");
+        }
+
+        Refund.create(Map.of("payment_intent", paymentIntentId));
+
+        order.setOrderStatus(OrderStatus.REFUNDED);
+        orderRepository.save(order);
+        log.info("Ordine rimborsato via Stripe: id={} paymentIntent={}", orderId, paymentIntentId);
+        return findOrderByIdAndConvert(orderId);
+    }
+
+    // ---------------------------- ADMIN: hard delete ----------------------------
+    @Transactional
+    public void deleteOrder(UUID orderId) {
+        Order order = orderRepository.findByIdWithItems(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException(orderId));
+
+        OrderStatus status = order.getOrderStatus();
+        if (status != OrderStatus.CANCELED && status != OrderStatus.COMPLETED) {
+            throw new DuplicateResourceException("Annulla l'ordine prima di eliminarlo");
+        }
+
+        orderRepository.delete(order);
+        log.info("Order hard deleted: id={}", orderId);
     }
 
     // ---------------------------- Stripe webhook: paid ----------------------------
