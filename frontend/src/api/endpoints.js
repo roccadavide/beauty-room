@@ -56,6 +56,8 @@ export const ORDER_ENDPOINTS = {
   BY_ID: id => `/orders/${id}`,
   BY_EMAIL: email => `/orders/email/${email}`,
   ME: "/orders/me",
+  STATUS: id => `/orders/${id}/status`,
+  REFUND: id => `/orders/${id}/refund`,
 };
 
 // ---- PRODUCTS ----

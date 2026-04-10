@@ -47,6 +47,28 @@ export const createOrder = async payload => {
   }
 };
 
+// -------------------------- UPDATE STATUS (ADMIN) --------------------------
+export const updateOrderStatus = async (orderId, status) => {
+  try {
+    const { data } = await http.patch(ORDER_ENDPOINTS.STATUS(orderId), { status });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'aggiornamento dello stato.";
+    throw new Error(message);
+  }
+};
+
+// -------------------------- REFUND (ADMIN) --------------------------
+export const refundOrder = async orderId => {
+  try {
+    const { data } = await http.post(ORDER_ENDPOINTS.REFUND(orderId));
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante il rimborso.";
+    throw new Error(message);
+  }
+};
+
 // -------------------------- DELETE (OWNER/ADMIN) --------------------------
 export const deleteOrder = async orderId => {
   try {

@@ -410,3 +410,123 @@
 }
 
 .ao-wa-btn:hover { background: rgba(37, 211, 102, 0.18); color: #1a7a3e; }
+
+/* ── ALL ORDERS: action group ── */
+.ao-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.ao-action-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Export CSV pill */
+.ao-btn-export {
+  background: transparent;
+  border: 1.5px solid #b8976a;
+  border-radius: 20px;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #8c6d3f;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+.ao-btn-export:hover {
+  background: rgba(184, 151, 106, 0.1);
+  border-color: #8c6d3f;
+}
+
+/* Mark as collected — green */
+.ao-btn-complete {
+  background: none;
+  border: 1px solid rgba(45, 106, 79, 0.35);
+  border-radius: 20px;
+  padding: 0.35rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #2d6a4f;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ao-btn-complete:hover:not(:disabled) {
+  background: rgba(45, 106, 79, 0.08);
+  border-color: #2d6a4f;
+}
+
+.ao-btn-complete:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Refund / cancel — gold warm */
+.ao-btn-refund {
+  background: none;
+  border: 1px solid rgba(184, 151, 106, 0.45);
+  border-radius: 20px;
+  padding: 0.35rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #7a5c2e;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ao-btn-refund:hover:not(:disabled) {
+  background: rgba(184, 151, 106, 0.12);
+  border-color: #b8976a;
+}
+
+.ao-btn-refund:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Inline cancel ("No") */
+.ao-btn-cancel-inline {
+  background: none;
+  border: 1px solid rgba(140, 109, 63, 0.2);
+  border-radius: 20px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #9e8272;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ao-btn-cancel-inline:hover { background: #fef7ef; }
+
+/* Refund confirm label */
+.ao-confirm-text {
+  font-size: 0.78rem;
+  color: #7a5c2e;
+  font-weight: 600;
+}
+
+/* Inline feedback */
+.ao-action-feedback {
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 0.2rem 0.6rem;
+}
+
+.ao-action-feedback--ok {
+  color: #2d6a4f;
+  background: rgba(45, 106, 79, 0.08);
+}
+
+.ao-action-feedback--err {
+  color: #c0392b;
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.mo-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }

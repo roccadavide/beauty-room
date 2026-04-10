@@ -3,27 +3,38 @@ import { Container, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import DeleteOrderModal from "./DeleteOrderModal";
-import { deleteOrder, fetchOrders } from "../../api/modules/orders.api";
+import { deleteOrder, fetchOrders, refundOrder, updateOrderStatus } from "../../api/modules/orders.api";
 import { fetchProductById } from "../../api/modules/products.api";
 import SEO from "../../components/common/SEO";
 
 const STATUS_LABELS = {
-  PAID: { label: "Pagato", color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
-  PENDING: { label: "In attesa", color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
-  CANCELLED: { label: "Cancellato", color: "#c0392b", bg: "rgba(192,57,43,0.1)" },
-  COMPLETED: { label: "Ritirato", color: "#2e2118", bg: "rgba(46,33,24,0.08)" },
+  PAID:              { label: "Pagato",     color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
+  PAID_PENDING_PICKUP: { label: "Pagato",   color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
+  PENDING:           { label: "In attesa",  color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
+  PENDING_PAYMENT:   { label: "In attesa",  color: "#b8976a", bg: "rgba(184,151,106,0.12)" },
+  CANCELLED:         { label: "Cancellato", color: "#c0392b", bg: "rgba(192,57,43,0.1)" },
+  CANCELED:          { label: "Cancellato", color: "#c0392b", bg: "rgba(192,57,43,0.1)" },
+  COMPLETED:         { label: "Ritirato",   color: "#2e2118", bg: "rgba(46,33,24,0.08)" },
+  REFUNDED:          { label: "Rimborsato", color: "#1a6b8a", bg: "rgba(26,107,138,0.1)" },
 };
 
+const isPaidStatus      = s => ["PAID", "PAID_PENDING_PICKUP"].includes(s);
+const isPendingStatus   = s => ["PENDING", "PENDING_PAYMENT"].includes(s);
+const isClosedStatus    = s => ["CANCELLED", "CANCELED", "COMPLETED"].includes(s);
+
 const AllOrders = () => {
-  const [allOrders, setAllOrders] = useState([]);
-  const [products, setProducts] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [allOrders, setAllOrders]       = useState([]);
+  const [products, setProducts]         = useState({});
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteModal, setDeleteModal]   = useState(false);
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [filterStatus, setFilterStatus] = useState("ALL");
-  const [searchQ, setSearchQ] = useState("");
+  const [searchQ, setSearchQ]           = useState("");
+  const [actionLoading, setActionLoading] = useState({});
+  const [actionFeedback, setActionFeedback] = useState({});
+  const [refundConfirm, setRefundConfirm] = useState(null);
   const { accessToken } = useSelector(s => s.auth);
   const navigate = useNavigate();
   const requested = useRef(new Set());
@@ -47,6 +58,38 @@ const AllOrders = () => {
     );
   }, [allOrders]);
 
+  const setFeedback = (orderId, ok, msg) => {
+    setActionFeedback(prev => ({ ...prev, [orderId]: { ok, msg } }));
+    setTimeout(() => setActionFeedback(prev => ({ ...prev, [orderId]: null })), 3500);
+  };
+
+  const handleUpdateStatus = async (orderId, status) => {
+    setActionLoading(prev => ({ ...prev, [orderId]: true }));
+    try {
+      const updated = await updateOrderStatus(orderId, status);
+      setAllOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, orderStatus: updated.orderStatus } : o));
+      setFeedback(orderId, true, "Aggiornato.");
+    } catch (err) {
+      setFeedback(orderId, false, err.message);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handleRefund = async orderId => {
+    setRefundConfirm(null);
+    setActionLoading(prev => ({ ...prev, [orderId]: true }));
+    try {
+      const updated = await refundOrder(orderId);
+      setAllOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, orderStatus: updated.orderStatus } : o));
+      setFeedback(orderId, true, "Rimborso effettuato.");
+    } catch (err) {
+      setFeedback(orderId, false, err.message);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
+
   const handleDeleteConfirm = async id => {
     try {
       await deleteOrder(id);
@@ -54,12 +97,45 @@ const AllOrders = () => {
       setDeleteModal(false);
       setSelectedOrder(null);
     } catch (err) {
-      alert("Errore durante l'eliminazione: " + err.message);
+      setDeleteModal(false);
+      setFeedback(id, false, err.message);
     }
   };
 
+  const handleExportCsv = () => {
+    const header = ["ID", "Nome", "Cognome", "Email", "Telefono", "Stato", "Totale€", "Data", "Prodotti"];
+    const rows = filtered.map(o => {
+      const total = o.orderItems?.reduce((s, i) => s + i.price * i.quantity, 0) || 0;
+      const prodotti = o.orderItems
+        ?.map(i => {
+          const p = products[i.productId];
+          return p ? `${p.name} x${i.quantity}` : `#${String(i.productId).slice(0, 8)} x${i.quantity}`;
+        })
+        .join("; ") || "";
+      const data = o.createdAt ? new Date(o.createdAt).toLocaleDateString("it-IT") : "";
+      return [o.orderId, o.customerName, o.customerSurname, o.customerEmail, o.customerPhone || "", o.orderStatus, total.toFixed(2), data, prodotti];
+    });
+
+    const csv = [header, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ordini-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filtered = allOrders
-    .filter(o => filterStatus === "ALL" || o.orderStatus === filterStatus)
+    .filter(o => {
+      if (filterStatus === "ALL") return true;
+      if (filterStatus === "PAID") return isPaidStatus(o.orderStatus);
+      if (filterStatus === "PENDING") return isPendingStatus(o.orderStatus);
+      return o.orderStatus === filterStatus;
+    })
     .filter(o => {
       if (!searchQ) return true;
       const q = searchQ.toLowerCase();
@@ -69,9 +145,9 @@ const AllOrders = () => {
   const grandTotal = filtered.reduce((s, o) => s + (o.orderItems?.reduce((ss, i) => ss + i.price * i.quantity, 0) || 0), 0);
 
   const totals = {
-    ALL: allOrders.length,
-    PAID: allOrders.filter(o => o.orderStatus === "PAID").length,
-    PENDING: allOrders.filter(o => o.orderStatus === "PENDING").length,
+    ALL:       allOrders.length,
+    PAID:      allOrders.filter(o => isPaidStatus(o.orderStatus)).length,
+    PENDING:   allOrders.filter(o => isPendingStatus(o.orderStatus)).length,
     COMPLETED: allOrders.filter(o => o.orderStatus === "COMPLETED").length,
   };
 
@@ -109,27 +185,32 @@ const AllOrders = () => {
             <span className="section-eyebrow">Pannello Admin</span>
             <h1 className="mo-title">Tutti gli ordini</h1>
           </div>
-          <div className="ao-kpi-row">
-            <div className="ao-kpi">
-              <span className="ao-kpi-val">{totals.ALL}</span>
-              <span className="ao-kpi-label">Totale</span>
+          <div className="ao-header-right">
+            <div className="ao-kpi-row">
+              <div className="ao-kpi">
+                <span className="ao-kpi-val">{totals.ALL}</span>
+                <span className="ao-kpi-label">Totale</span>
+              </div>
+              <div className="ao-kpi">
+                <span className="ao-kpi-val" style={{ color: "#2d6a4f" }}>
+                  {totals.PAID}
+                </span>
+                <span className="ao-kpi-label">Pagati</span>
+              </div>
+              <div className="ao-kpi">
+                <span className="ao-kpi-val" style={{ color: "#b8976a" }}>
+                  {totals.PENDING}
+                </span>
+                <span className="ao-kpi-label">In attesa</span>
+              </div>
+              <div className="ao-kpi">
+                <span className="ao-kpi-val">€ {grandTotal.toFixed(0)}</span>
+                <span className="ao-kpi-label">Totale filtrato</span>
+              </div>
             </div>
-            <div className="ao-kpi">
-              <span className="ao-kpi-val" style={{ color: "#2d6a4f" }}>
-                {totals.PAID}
-              </span>
-              <span className="ao-kpi-label">Pagati</span>
-            </div>
-            <div className="ao-kpi">
-              <span className="ao-kpi-val" style={{ color: "#b8976a" }}>
-                {totals.PENDING}
-              </span>
-              <span className="ao-kpi-label">In attesa</span>
-            </div>
-            <div className="ao-kpi">
-              <span className="ao-kpi-val">€ {grandTotal.toFixed(0)}</span>
-              <span className="ao-kpi-label">Totale filtrato</span>
-            </div>
+            <button className="ao-btn-export" onClick={handleExportCsv}>
+              ↓ Esporta CSV
+            </button>
           </div>
         </div>
 
@@ -152,6 +233,9 @@ const AllOrders = () => {
             const st = STATUS_LABELS[order.orderStatus] || STATUS_LABELS.PENDING;
             const isExpanded = expandedOrder === order.orderId;
             const total = order.orderItems?.reduce((s, i) => s + i.price * i.quantity, 0) || 0;
+            const isLoading = !!actionLoading[order.orderId];
+            const feedback = actionFeedback[order.orderId];
+            const awaitingRefund = refundConfirm === order.orderId;
 
             return (
               <div key={order.orderId} className="mo-card" style={{ animationDelay: `${idx * 0.04}s` }}>
@@ -215,7 +299,9 @@ const AllOrders = () => {
                           ID: {order.orderId}
                         </p>
                       </div>
-                      <div className="d-flex gap-2 align-items-center flex-wrap">
+
+                      <div className="ao-action-group">
+                        {/* WhatsApp — always shown */}
                         {order.customerPhone && (
                           <a
                             href={`https://wa.me/${order.customerPhone.replace(/\D/g, "")}?text=Ciao%20${order.customerName},%20riguardo%20al%20tuo%20ordine...`}
@@ -226,16 +312,79 @@ const AllOrders = () => {
                             WhatsApp
                           </a>
                         )}
-                        <button
-                          className="mo-delete-btn"
-                          onClick={e => {
-                            e.stopPropagation();
-                            setSelectedOrder(order);
-                            setDeleteModal(true);
-                          }}
-                        >
-                          Elimina
-                        </button>
+
+                        {/* PAID: mark collected + refund */}
+                        {isPaidStatus(order.orderStatus) && !awaitingRefund && (
+                          <>
+                            <button
+                              className="ao-btn-complete"
+                              disabled={isLoading}
+                              onClick={e => { e.stopPropagation(); handleUpdateStatus(order.orderId, "COMPLETED"); }}
+                            >
+                              ✓ Segna ritirato
+                            </button>
+                            <button
+                              className="ao-btn-refund"
+                              disabled={isLoading}
+                              onClick={e => { e.stopPropagation(); setRefundConfirm(order.orderId); }}
+                            >
+                              ↩ Annulla + rimborso
+                            </button>
+                          </>
+                        )}
+
+                        {/* PAID: refund confirm inline */}
+                        {isPaidStatus(order.orderStatus) && awaitingRefund && (
+                          <>
+                            <span className="ao-confirm-text">Confermare rimborso?</span>
+                            <button
+                              className="ao-btn-refund"
+                              disabled={isLoading}
+                              onClick={e => { e.stopPropagation(); handleRefund(order.orderId); }}
+                            >
+                              Sì, rimborsa
+                            </button>
+                            <button
+                              className="ao-btn-cancel-inline"
+                              onClick={e => { e.stopPropagation(); setRefundConfirm(null); }}
+                            >
+                              No
+                            </button>
+                          </>
+                        )}
+
+                        {/* PENDING: cancel */}
+                        {isPendingStatus(order.orderStatus) && (
+                          <button
+                            className="ao-btn-refund"
+                            disabled={isLoading}
+                            onClick={e => { e.stopPropagation(); handleUpdateStatus(order.orderId, "CANCELED"); }}
+                          >
+                            ↩ Annulla ordine
+                          </button>
+                        )}
+
+                        {/* CANCELLED / COMPLETED: hard delete */}
+                        {isClosedStatus(order.orderStatus) && (
+                          <button
+                            className="mo-delete-btn"
+                            disabled={isLoading}
+                            onClick={e => {
+                              e.stopPropagation();
+                              setSelectedOrder(order);
+                              setDeleteModal(true);
+                            }}
+                          >
+                            🗑 Elimina
+                          </button>
+                        )}
+
+                        {/* Inline feedback */}
+                        {feedback && (
+                          <span className={`ao-action-feedback${feedback.ok ? " ao-action-feedback--ok" : " ao-action-feedback--err"}`}>
+                            {feedback.msg}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -246,7 +395,13 @@ const AllOrders = () => {
         </div>
       </Container>
 
-      <DeleteOrderModal show={deleteModal} onHide={() => setDeleteModal(false)} order={selectedOrder} onConfirm={handleDeleteConfirm} />
+      <DeleteOrderModal
+        show={deleteModal}
+        onHide={() => setDeleteModal(false)}
+        order={selectedOrder}
+        onConfirm={handleDeleteConfirm}
+        isAdmin={true}
+      />
     </div>
   );
 };
