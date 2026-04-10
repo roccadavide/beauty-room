@@ -43,8 +43,8 @@ public class BookingCheckoutController {
     @Value("${stripe.secret}")
     private String stripeSecretKey;
 
-    @Value("${app.front.url:http://localhost:5173}")
-    private String frontUrl;
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
 
     @Value("${booking.hold.expire-minutes:12}")
     private int holdExpireMinutes;
@@ -155,11 +155,11 @@ public class BookingCheckoutController {
                 .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                 .setMode(SessionCreateParams.Mode.PAYMENT)
                 .setExpiresAt(expiresAt)
-                .setSuccessUrl(frontUrl + "/prenotazione-confermata?session_id={CHECKOUT_SESSION_ID}")
+                .setSuccessUrl(frontendUrl + "/prenotazione-confermata?session_id={CHECKOUT_SESSION_ID}")
                 .setCancelUrl(
                         payload.promotionId() != null
-                                ? frontUrl + "/occasioni?cancel=1&tab=promozioni&promo=" + payload.promotionId()
-                                : frontUrl + "/trattamenti/" + service.getServiceId() + "?cancel=1"
+                                ? frontendUrl + "/occasioni?cancel=1&tab=promozioni&promo=" + payload.promotionId()
+                                : frontendUrl + "/trattamenti/" + service.getServiceId() + "?cancel=1"
                 )
                 .putMetadata("bookingId", bookingId)
                 .putMetadata("serviceId", service.getServiceId().toString())

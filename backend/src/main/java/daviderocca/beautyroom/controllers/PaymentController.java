@@ -36,8 +36,8 @@ public class PaymentController {
     @Value("${stripe.secret}")
     private String stripeSecretKey;
 
-    @Value("${app.front.url:http://localhost:5173}")
-    private String frontUrl;
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
 
     private final OrderService orderService;
 
@@ -147,8 +147,8 @@ public class PaymentController {
         SessionCreateParams.Builder builder = SessionCreateParams.builder()
                 .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                 .setMode(SessionCreateParams.Mode.PAYMENT)
-                .setSuccessUrl(frontUrl + "/ordine-confermato?session_id={CHECKOUT_SESSION_ID}")
-                .setCancelUrl(frontUrl + "/carrello")
+                .setSuccessUrl(frontendUrl + "/ordine-confermato?session_id={CHECKOUT_SESSION_ID}")
+                .setCancelUrl(frontendUrl + "/carrello")
                 .putMetadata("orderId", orderId)
                 .setPaymentIntentData(
                         SessionCreateParams.PaymentIntentData.builder()
