@@ -55,12 +55,23 @@ function ProductsPage() {
     return map;
   }, [categories]);
 
+  const allowedCategoryLabels = useMemo(() => new Set(["corpo", "mani", "piedi", "viso"]), []);
+
+  const allowedCategoryIds = useMemo(() => {
+    return new Set(categories.filter(c => allowedCategoryLabels.has((c.label || "").trim().toLowerCase())).map(c => c.categoryId));
+  }, [categories, allowedCategoryLabels]);
+
+  const visibleCategories = useMemo(() => {
+    return categories.filter(c => allowedCategoryIds.has(c.categoryId));
+  }, [categories, allowedCategoryIds]);
+
   // ---------- FILTER ----------
   const filtered = useMemo(() => {
     return allProducts
+      .filter(p => allowedCategoryIds.has(p.categoryId))
       .filter(p => (cat === "all" ? true : p.categoryId === cat))
       .filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || p.description.toLowerCase().includes(q.toLowerCase()));
-  }, [allProducts, cat, q]);
+  }, [allProducts, cat, q, allowedCategoryIds]);
 
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
@@ -97,12 +108,14 @@ function ProductsPage() {
     setEditingProduct(null);
   };
 
-  const badgeColors = {
-    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success", //Piedi
-    "95b6d339-a765-4569-9aee-08107d27516b": "warning", //Mani
-    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info", //Corpo
-    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger", //Viso
-  };
+  const categoryColorMap = useMemo(() => {
+    const colors = ["primary", "success", "warning", "info", "danger", "secondary"];
+    const map = {};
+    categories.forEach((category, index) => {
+      map[category.categoryId] = colors[index % colors.length];
+    });
+    return map;
+  }, [categories]);
 
   // ---------- UI ----------
   if (loading) {
@@ -138,13 +151,11 @@ function ProductsPage() {
           <span className="sp-chip-label">Tutti</span>
         </button>
 
-        {categories
-          .filter(c => c.label !== "Trucco Permanente")
-          .map(c => (
-            <button key={c.categoryId} className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`} onClick={() => setCat(c.categoryId)}>
-              <span className="sp-chip-label">{c.label}</span>
-            </button>
-          ))}
+        {visibleCategories.map(c => (
+          <button key={c.categoryId} className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`} onClick={() => setCat(c.categoryId)}>
+            <span className="sp-chip-label">{c.label}</span>
+          </button>
+        ))}
       </div>
 
       <div className="sp-search-wrap">
@@ -196,7 +207,7 @@ function ProductsPage() {
                   <div className="bpc-accent-line" />
                   <Card.Title className="bpc-title mb-1">{p.name}</Card.Title>
                   <div className="mb-2 d-flex align-items-center gap-2">
-                    <Badge bg={badgeColors[p.categoryId] || "secondary"} className="text-uppercase">
+                    <Badge bg={categoryColorMap[p.categoryId] || "secondary"} className="text-uppercase">
                       {categoriesMap[p.categoryId] || "Senza categoria"}
                     </Badge>
                     <small className="text-muted">{p.stock > 0 ? `${p.stock} rimanenti` : "Esaurito"}</small>

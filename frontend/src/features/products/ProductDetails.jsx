@@ -84,12 +84,14 @@ const ProductDetail = () => {
     return map;
   }, [categories]);
 
-  const badgeColors = {
-    "b5915bb8-869c-46b3-a2cc-82114e8fdeb1": "success",
-    "95b6d339-a765-4569-9aee-08107d27516b": "warning",
-    "7f1255a7-7c26-4bf6-972b-d285b5bc6c36": "info",
-    "ddd9e4af-8343-42ce-8f93-1b48e2d4537c": "danger",
-  };
+  const categoryColorMap = useMemo(() => {
+    const colors = ["primary", "success", "warning", "info", "danger", "secondary"];
+    const map = {};
+    categories.forEach((cat, i) => {
+      map[cat.categoryId] = colors[i % colors.length];
+    });
+    return map;
+  }, [categories]);
 
   const relatedProducts = useMemo(() => {
     if (!product || !allProducts.length) return [];
@@ -203,7 +205,7 @@ const ProductDetail = () => {
         {/* ▸ INFO */}
         <Col md={6} lg={5} className="detail-info fade-slide visible">
           <div className="detail-meta">
-            <Badge bg={badgeColors[product.categoryId] || "secondary"} className="text-uppercase detail-badge">
+            <Badge bg={categoryColorMap[product.categoryId] || "secondary"} className="text-uppercase detail-badge">
               {categoriesMap[product.categoryId] || "Senza categoria"}
             </Badge>
             <span className="detail-duration">{product.stock > 0 ? `${product.stock} disponibili` : "Esaurito"}</span>

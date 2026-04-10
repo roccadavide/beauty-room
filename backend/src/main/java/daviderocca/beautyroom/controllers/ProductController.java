@@ -29,7 +29,7 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<Page<ProductResponseDTO>> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "50") int size,
             @RequestParam(defaultValue = "name") String sort
     ) {
         log.info("Richiesta elenco prodotti [page={}, size={}, sort={}]", page, size, sort);
