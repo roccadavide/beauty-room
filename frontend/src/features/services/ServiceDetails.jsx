@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
+import { Container, Badge, Spinner } from "react-bootstrap";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import BookingModal from "../bookings/BookingModal";
@@ -93,7 +93,6 @@ const ServiceDetail = () => {
     return sameCat.sort(() => 0.5 - Math.random()).slice(0, 3);
   }, [service, allServices]);
 
-  const [imgRef, imgVisible] = useInView();
   const [relatedRef, relatedVisible] = useInView();
 
   const activeOptions = service?.options?.filter(o => o.active) ?? [];
@@ -101,22 +100,21 @@ const ServiceDetail = () => {
   const zoneOptions = activeOptions.filter(o => !o.sessions || o.sessions === 1);
   const packageOptions = activeOptions.filter(o => o.sessions && o.sessions > 1);
 
-  const zoneGroups = useMemo(() => [...new Set(zoneOptions.map(o => o.optionGroup).filter(Boolean))], [zoneOptions]);
+  const hasGenderOptions = zoneOptions.some(o => o.gender !== null && o.gender !== undefined && o.gender !== "");
+
+  const zoneGroups = useMemo(() => {
+    const all = [...new Set(zoneOptions.map(o => o.optionGroup).filter(Boolean))];
+    if (!hasGenderOptions) return all;
+    return all.filter(g => zoneOptions.some(o => o.optionGroup === g && (!o.gender || o.gender === selectedGender)));
+  }, [zoneOptions, hasGenderOptions, selectedGender]);
 
   const hasZoneGroups = zoneGroups.length > 0;
   const hasZoneOptions = zoneOptions.length > 0 && !hasZoneGroups;
-  // true se almeno una zona option ha un gender specificato
-  const hasGenderOptions = zoneOptions.some(o => o.gender !== null && o.gender !== undefined && o.gender !== "");
-
-  // filtra le zone visibili per gender: mostra "per tutti" (null/"") + gender selezionato
-  const genderFilteredZoneOptions = hasGenderOptions
-    ? zoneOptions.filter(o => !o.gender || o.gender === selectedGender)
-    : zoneOptions;
+  const genderFilteredZoneOptions = hasGenderOptions ? zoneOptions.filter(o => !o.gender || o.gender === selectedGender) : zoneOptions;
   const hasPackages = packageOptions.length > 0;
 
-  const visibleZoneOptions = hasZoneGroups && activeGroup
-    ? genderFilteredZoneOptions.filter(o => o.optionGroup === activeGroup)
-    : hasZoneGroups ? [] : genderFilteredZoneOptions;
+  const visibleZoneOptions =
+    hasZoneGroups && activeGroup ? genderFilteredZoneOptions.filter(o => o.optionGroup === activeGroup) : hasZoneGroups ? [] : genderFilteredZoneOptions;
 
   const displayPrice = selectedOption?.price ?? service?.price;
 
@@ -181,15 +179,13 @@ const ServiceDetail = () => {
           </div>
         )}
         <div className="sd-layout-grid">
-          {/* ▸ IMMAGINE */}
-          <div className="sd-col-img d-flex justify-content-center">
-            <div ref={imgRef} className={`fade-slide ${imgVisible ? "visible" : ""}`}>
-              <ImageGallery images={service.images?.filter(Boolean) ?? []} alt={service.title} />
-            </div>
+          {/* ▸ IMMAGINE — niente d-flex sul contenitore sticky */}
+          <div className="sd-col-img">
+            <ImageGallery images={service.images?.filter(Boolean) ?? []} alt={service.title} />
           </div>
 
           {/* ▸ INFO */}
-          <div className="detail-info sd-col-info fade-slide visible">
+          <div className="detail-info sd-col-info">
             <div className="detail-meta">
               <Badge bg={categoryColorMap[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
                 {categoriesMap[service.categoryId] || "Senza categoria"}
@@ -206,30 +202,33 @@ const ServiceDetail = () => {
               <span className="detail-price-note">{selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}</span>
             </div>
 
-            {/* ── Selettore ZONE (seduta singola, varianti) ── */}
+            {/* ── Selettore ZONE ── */}
             {(hasZoneGroups || hasZoneOptions) && (
               <div className="so-selector">
                 {hasGenderOptions && (
-                  <div className="of-tab-bar">
-                    <button
-                      className={`of-tab${selectedGender === "FEMALE" ? " of-tab--active" : ""}`}
-                      onClick={() => {
-                        setSelectedGender("FEMALE");
-                        setSelectedOption(null);
-                      }}
-                    >
-                      Donna
-                    </button>
-                    <button
-                      className={`of-tab${selectedGender === "MALE" ? " of-tab--active" : ""}`}
-                      onClick={() => {
-                        setSelectedGender("MALE");
-                        setSelectedOption(null);
-                      }}
-                    >
-                      Uomo
-                    </button>
-                  </div>
+                  <>
+                    <span className="so-label">Seleziona genere:</span>
+                    <div className="of-tab-bar-services">
+                      <button
+                        className={`of-tab${selectedGender === "FEMALE" ? " of-tab--active" : ""}`}
+                        onClick={() => {
+                          setSelectedGender("FEMALE");
+                          setSelectedOption(null);
+                        }}
+                      >
+                        Donna
+                      </button>
+                      <button
+                        className={`of-tab${selectedGender === "MALE" ? " of-tab--active" : ""}`}
+                        onClick={() => {
+                          setSelectedGender("MALE");
+                          setSelectedOption(null);
+                        }}
+                      >
+                        Uomo
+                      </button>
+                    </div>
+                  </>
                 )}
                 {hasZoneGroups && (
                   <div className="so-groups">
@@ -262,7 +261,7 @@ const ServiceDetail = () => {
                           className={`so-option-card${selectedOption?.optionId === opt.optionId ? " so-option-card--selected" : ""}`}
                           onClick={() => setSelectedOption(opt)}
                         >
-                          <span className="so-option-name">{opt.name}</span>
+                          <span className="so-option-name">{opt.name.replace(/\s*—\s*(Donna|Uomo)$/i, "")}</span>
                           <span className="so-option-price">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
                         </button>
                       ))}
@@ -272,7 +271,7 @@ const ServiceDetail = () => {
               </div>
             )}
 
-            {/* ── Selettore PACCHETTI (multi-seduta, opzionale) ── */}
+            {/* ── Selettore PACCHETTI ── */}
             {hasPackages && (
               <div className="so-pkg-section">
                 <div className="so-pkg-header">
@@ -307,7 +306,6 @@ const ServiceDetail = () => {
                     );
                   })}
                 </div>
-
                 {selectedOption?.sessions > 1 && <p className="so-pkg-note">Paghi ora la prima seduta · Le successive le fissi con me</p>}
               </div>
             )}
