@@ -11,6 +11,7 @@ import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices } from "../../api/modules/services.api";
 import { BadgeFlags } from "../../components/common/BadgeFlag";
 import SEO from "../../components/common/SEO";
+import useScrollRestore from "../../hooks/useScrollRestore";
 
 const ServicePage = () => {
   const [cat, setCat] = useState("all");
@@ -18,6 +19,7 @@ const ServicePage = () => {
   const [allServices, setAllServices] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  useScrollRestore("service-page");
   const [error, setError] = useState(null);
 
   const [open, setOpen] = useState(false);

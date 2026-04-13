@@ -32,6 +32,7 @@ const BookingModal = ({
   onHide,
   service,
   initialOptionId = null,
+  initialOption = null,
   promoPrice = null,
   promotionId = null,
   promoProducts = [],
@@ -80,6 +81,7 @@ const BookingModal = ({
   const [consentPmu, setConsentPmu] = useState(false);
   const hasConsentStep = needsLaserConsent(service?.title) || needsPmuConsent(service?.title);
   const summaryStep = hasConsentStep ? 5 : 4;
+  const effectiveDuration = initialOption?.durationMin ?? service?.durationMin;
 
   // Apply prefill from waitlist deep link
   useEffect(() => {
@@ -241,7 +243,7 @@ const BookingModal = ({
 
   const metaSubtitle = (service?.durationMin || service?.price != null) ? (
     <div className="bm-header__meta">
-      {service.durationMin && <span className="bm-meta-pill">⏱ {service.durationMin} min</span>}
+      {effectiveDuration && <span className="bm-meta-pill">⏱ {effectiveDuration} min</span>}
       {promoPrice != null ? (
         <>
           <span className="bm-meta-pill bm-meta-pill--orig">
@@ -523,7 +525,7 @@ const BookingModal = ({
             </div>
             <div className="bm-summary__row">
               <span>Durata</span>
-              <strong>{service?.durationMin} min</strong>
+              <strong>{effectiveDuration} min</strong>
             </div>
             {promoPrice != null && promoOriginal != null ? (
               <>

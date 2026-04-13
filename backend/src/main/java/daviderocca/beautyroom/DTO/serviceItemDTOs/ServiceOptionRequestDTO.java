@@ -12,6 +12,7 @@ public record ServiceOptionRequestDTO(
         @NotBlank String name,
         @NotNull BigDecimal price,
         @NotNull @Min(1) Integer sessions,
+        Integer durationMin,
         String optionGroup,
         String gender,
         boolean active,

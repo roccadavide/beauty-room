@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { createService, updateService, createServiceOption, deleteServiceOption } from "../../api/modules/services.api";
+import { createService, updateService, createServiceOption, updateServiceOption, deleteServiceOption } from "../../api/modules/services.api";
 import CustomSelect from "../../components/common/CustomSelect";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import MultiImageUpload from "../../components/common/MultiImageUpload";
@@ -30,12 +30,11 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
   const [existingOptions, setExistingOptions] = useState([]);
   const [optionsToDelete, setOptionsToDelete] = useState([]);
   const [optionsToAdd, setOptionsToAdd] = useState([]);
-  const [optionDraft, setOptionDraft] = useState({
-    name: "",
-    optionGroup: "",
-    price: "",
-    gender: "",
-  });
+  const [optionsToUpdate, setOptionsToUpdate] = useState([]);
+
+  const EMPTY_DRAFT = { name: "", optionGroup: "", price: "", durationMin: "", gender: "" };
+  const [optionDraft, setOptionDraft] = useState(EMPTY_DRAFT);
+  const [editingOptionId, setEditingOptionId] = useState(null);
   const [optionDraftError, setOptionDraftError] = useState("");
 
   const categoryOptions = useMemo(() => categories.map(c => ({ value: c.categoryId, label: c.label })), [categories]);
@@ -57,7 +56,9 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     setExistingOptions([]);
     setOptionsToDelete([]);
     setOptionsToAdd([]);
-    setOptionDraft({ name: "", optionGroup: "", price: "", gender: "" });
+    setOptionsToUpdate([]);
+    setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+    setEditingOptionId(null);
     setOptionDraftError("");
   };
 
@@ -85,7 +86,9 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
       }
       setOptionsToDelete([]);
       setOptionsToAdd([]);
-      setOptionDraft({ name: "", optionGroup: "", price: "", gender: "" });
+      setOptionsToUpdate([]);
+      setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+      setEditingOptionId(null);
       setOptionDraftError("");
       setNewFiles([]);
       setRemovedUrls([]);
@@ -136,24 +139,65 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     return Object.keys(newErrors).length === 0;
   };
 
-  const addOptionDraft = () => {
+  const commitOptionDraft = () => {
     if (!optionDraft.name.trim()) {
-      setOptionDraftError("Il nome zona è obbligatorio.");
+      setOptionDraftError("Il nome è obbligatorio.");
       return;
     }
     if (!optionDraft.price || isNaN(optionDraft.price) || parseFloat(optionDraft.price) <= 0) {
       setOptionDraftError("Inserisci un prezzo valido.");
       return;
     }
-    setOptionsToAdd(prev => [
-      ...prev,
-      {
-        ...optionDraft,
-        price: parseFloat(optionDraft.price),
-        _tempId: Date.now() + Math.random(),
-      },
-    ]);
-    setOptionDraft({ name: "", optionGroup: "", price: "", gender: "" });
+    const durationMin = optionDraft.durationMin ? parseInt(optionDraft.durationMin) : null;
+    if (optionDraft.durationMin && (isNaN(durationMin) || durationMin <= 0)) {
+      setOptionDraftError("Durata non valida.");
+      return;
+    }
+
+    if (editingOptionId) {
+      const isExisting = existingOptions.some(o => o.optionId === editingOptionId);
+      if (isExisting) {
+        setExistingOptions(prev =>
+          prev.map(o =>
+            o.optionId === editingOptionId
+              ? { ...o, ...optionDraft, price: parseFloat(optionDraft.price), durationMin }
+              : o
+          )
+        );
+        setOptionsToUpdate(prev => {
+          const filtered = prev.filter(o => o.optionId !== editingOptionId);
+          return [...filtered, { optionId: editingOptionId, ...optionDraft, price: parseFloat(optionDraft.price), durationMin }];
+        });
+      } else {
+        setOptionsToAdd(prev =>
+          prev.map(o =>
+            o._tempId === editingOptionId
+              ? { ...o, ...optionDraft, price: parseFloat(optionDraft.price), durationMin }
+              : o
+          )
+        );
+      }
+    } else {
+      setOptionsToAdd(prev => [
+        ...prev,
+        { ...optionDraft, price: parseFloat(optionDraft.price), durationMin, _tempId: Date.now() + Math.random() },
+      ]);
+    }
+
+    setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+    setEditingOptionId(null);
+    setOptionDraftError("");
+  };
+
+  const startEditOption = (opt, isExisting) => {
+    setEditingOptionId(isExisting ? opt.optionId : opt._tempId);
+    setOptionDraft({
+      name: opt.name ?? "",
+      optionGroup: opt.optionGroup ?? "",
+      price: String(opt.price ?? ""),
+      durationMin: opt.durationMin != null ? String(opt.durationMin) : "",
+      gender: opt.gender ?? "",
+    });
     setOptionDraftError("");
   };
 
@@ -189,20 +233,37 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         await Promise.all(optionsToDelete.map(id => deleteServiceOption(id)));
       }
 
-      if (optionsToAdd.length > 0) {
+      if (optionsToUpdate.length > 0) {
         await Promise.all(
-          optionsToAdd.map(opt => {
-            const payload = {
+          optionsToUpdate.map(opt =>
+            updateServiceOption(opt.optionId, {
               name: opt.name,
               optionGroup: opt.optionGroup || null,
               price: opt.price,
               sessions: 1,
+              durationMin: opt.durationMin ?? null,
               gender: opt.gender || null,
               active: true,
               badges: [],
-            };
-            return createServiceOption(serviceId, payload);
-          }),
+            })
+          )
+        );
+      }
+
+      if (optionsToAdd.length > 0) {
+        await Promise.all(
+          optionsToAdd.map(opt =>
+            createServiceOption(serviceId, {
+              name: opt.name,
+              optionGroup: opt.optionGroup || null,
+              price: opt.price,
+              sessions: 1,
+              durationMin: opt.durationMin ?? null,
+              gender: opt.gender || null,
+              active: true,
+              badges: [],
+            })
+          ),
         );
       }
 
@@ -309,114 +370,150 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         </Form.Group>
 
         {hasOptions && (
-          <div className="border rounded p-3 d-flex flex-column gap-3">
-            <div className="fw-semibold">Opzioni</div>
+          <div className="smo-options-editor">
+            <div className="smo-options-editor__title">Gestione opzioni / zone</div>
 
             {isEdit && existingOptions.length > 0 && (
-              <div className="d-flex flex-wrap gap-2">
+              <div className="smo-option-list">
                 {existingOptions.map(opt => (
-                  <div key={opt.optionId} className="badge text-bg-secondary d-flex align-items-center gap-2 py-2 px-3">
-                    <span>
-                      {opt.name}
-                      {opt.optionGroup ? ` - ${opt.optionGroup}` : ""}
-                      {` - €${opt.price}`}
-                      {opt.gender === "FEMALE" ? " - Donna" : opt.gender === "MALE" ? " - Uomo" : " - Tutti"}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger py-0 px-2"
-                      onClick={() => {
-                        setOptionsToDelete(prev => [...prev, opt.optionId]);
-                        setExistingOptions(prev => prev.filter(o => o.optionId !== opt.optionId));
-                      }}
-                    >
-                      X
-                    </button>
+                  <div
+                    key={opt.optionId}
+                    className={`smo-option-row${editingOptionId === opt.optionId ? " smo-option-row--editing" : ""}`}
+                  >
+                    <div className="smo-option-row__info">
+                      <span className="smo-option-row__name">{opt.name}</span>
+                      {opt.optionGroup && <span className="smo-option-row__group">{opt.optionGroup}</span>}
+                      <span className="smo-option-row__price">€{opt.price}</span>
+                      {opt.durationMin && <span className="smo-option-row__dur">{opt.durationMin} min</span>}
+                      {opt.gender && <span className="smo-option-row__gender">{opt.gender === "FEMALE" ? "♀" : "♂"}</span>}
+                    </div>
+                    <div className="smo-option-row__actions">
+                      <button
+                        type="button"
+                        className="smo-option-row__btn smo-option-row__btn--edit"
+                        onClick={() => startEditOption(opt, true)}
+                        title="Modifica"
+                      >✏️</button>
+                      <button
+                        type="button"
+                        className="smo-option-row__btn smo-option-row__btn--del"
+                        onClick={() => {
+                          setOptionsToDelete(prev => [...prev, opt.optionId]);
+                          setExistingOptions(prev => prev.filter(o => o.optionId !== opt.optionId));
+                          if (editingOptionId === opt.optionId) {
+                            setEditingOptionId(null);
+                            setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+                          }
+                        }}
+                        title="Elimina"
+                      >🗑️</button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
             {optionsToAdd.length > 0 && (
-              <div className="d-flex flex-wrap gap-2">
+              <div className="smo-option-list smo-option-list--new">
                 {optionsToAdd.map(item => (
-                  <div key={item._tempId} className="badge text-bg-success d-flex align-items-center gap-2 py-2 px-3">
-                    <span>
-                      {item.name}
-                      {item.optionGroup ? ` - ${item.optionGroup}` : ""}
-                      {` - €${item.price}`}
-                      {item.gender === "FEMALE" ? " - Donna" : item.gender === "MALE" ? " - Uomo" : " - Tutti"}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-light py-0 px-2"
-                      onClick={() => setOptionsToAdd(prev => prev.filter(o => o._tempId !== item._tempId))}
-                    >
-                      X
-                    </button>
+                  <div
+                    key={item._tempId}
+                    className={`smo-option-row smo-option-row--new${editingOptionId === item._tempId ? " smo-option-row--editing" : ""}`}
+                  >
+                    <div className="smo-option-row__info">
+                      <span className="smo-option-row__badge-new">NUOVA</span>
+                      <span className="smo-option-row__name">{item.name}</span>
+                      {item.optionGroup && <span className="smo-option-row__group">{item.optionGroup}</span>}
+                      <span className="smo-option-row__price">€{item.price}</span>
+                      {item.durationMin && <span className="smo-option-row__dur">{item.durationMin} min</span>}
+                      {item.gender && <span className="smo-option-row__gender">{item.gender === "FEMALE" ? "♀" : "♂"}</span>}
+                    </div>
+                    <div className="smo-option-row__actions">
+                      <button
+                        type="button"
+                        className="smo-option-row__btn smo-option-row__btn--edit"
+                        onClick={() => startEditOption(item, false)}
+                      >✏️</button>
+                      <button
+                        type="button"
+                        className="smo-option-row__btn smo-option-row__btn--del"
+                        onClick={() => {
+                          setOptionsToAdd(prev => prev.filter(o => o._tempId !== item._tempId));
+                          if (editingOptionId === item._tempId) {
+                            setEditingOptionId(null);
+                            setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+                          }
+                        }}
+                      >🗑️</button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="border-top pt-3 d-flex flex-column gap-2">
-              <div className="fw-semibold">Aggiungi zona</div>
+            <div className="smo-option-form">
+              <div className="smo-option-form__heading">
+                {editingOptionId ? "✏️ Modifica opzione" : "+ Aggiungi opzione"}
+              </div>
               <div className="row g-2">
                 <div className="col-12 col-md-6">
                   <Form.Control
                     type="text"
-                    placeholder="Nome zona *"
+                    placeholder="Nome opzione *  (es. Baffetti)"
                     value={optionDraft.name}
-                    onChange={e => {
-                      setOptionDraft(prev => ({ ...prev, name: e.target.value }));
-                      setOptionDraftError("");
-                    }}
+                    onChange={e => { setOptionDraft(p => ({ ...p, name: e.target.value })); setOptionDraftError(""); }}
                   />
                 </div>
                 <div className="col-12 col-md-6">
                   <Form.Control
                     type="text"
-                    placeholder="Gruppo (es. Gambe)"
+                    placeholder="Gruppo (es. Viso)"
                     value={optionDraft.optionGroup}
-                    onChange={e => {
-                      setOptionDraft(prev => ({ ...prev, optionGroup: e.target.value }));
-                      setOptionDraftError("");
-                    }}
+                    onChange={e => { setOptionDraft(p => ({ ...p, optionGroup: e.target.value })); setOptionDraftError(""); }}
                   />
                 </div>
-                <div className="col-12 col-md-6">
+                <div className="col-6 col-md-3">
                   <Form.Control
                     type="number"
                     placeholder="Prezzo €"
                     value={optionDraft.price}
-                    onChange={e => {
-                      setOptionDraft(prev => ({ ...prev, price: e.target.value }));
-                      setOptionDraftError("");
-                    }}
+                    onChange={e => { setOptionDraft(p => ({ ...p, price: e.target.value })); setOptionDraftError(""); }}
+                  />
+                </div>
+                <div className="col-6 col-md-3">
+                  <Form.Control
+                    type="number"
+                    placeholder="Durata min"
+                    value={optionDraft.durationMin}
+                    onChange={e => { setOptionDraft(p => ({ ...p, durationMin: e.target.value })); setOptionDraftError(""); }}
                   />
                 </div>
                 <div className="col-12 col-md-6">
                   <Form.Select
                     value={optionDraft.gender}
-                    onChange={e => {
-                      setOptionDraft(prev => ({ ...prev, gender: e.target.value }));
-                      setOptionDraftError("");
-                    }}
+                    onChange={e => { setOptionDraft(p => ({ ...p, gender: e.target.value })); setOptionDraftError(""); }}
                   >
-                    <option value="">Tutti</option>
+                    <option value="">Tutti i generi</option>
                     <option value="FEMALE">Donna</option>
                     <option value="MALE">Uomo</option>
                   </Form.Select>
                 </div>
               </div>
-
-              <div>
-                <button type="button" className="bm-btn bm-btn--primary" onClick={addOptionDraft}>
-                  + Aggiungi zona
+              {optionDraftError && <div className="text-danger small mt-1">{optionDraftError}</div>}
+              <div className="d-flex gap-2 mt-2">
+                <button type="button" className="bm-btn bm-btn--primary" onClick={commitOptionDraft}>
+                  {editingOptionId ? "Aggiorna opzione" : "Aggiungi opzione"}
                 </button>
+                {editingOptionId && (
+                  <button
+                    type="button"
+                    className="bm-btn bm-btn--ghost"
+                    onClick={() => { setEditingOptionId(null); setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" }); setOptionDraftError(""); }}
+                  >
+                    Annulla
+                  </button>
+                )}
               </div>
-
-              {optionDraftError && <div className="text-danger small">{optionDraftError}</div>}
             </div>
           </div>
         )}

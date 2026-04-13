@@ -129,10 +129,10 @@
   letter-spacing: 0.02em;
 }
 
-
 @media (max-width: 575px) {
   .bsc-img-wrap,
   .bpc-img-wrap {
     aspect-ratio: 16 / 9;
+    height: 390px;
   }
 }

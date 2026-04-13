@@ -118,6 +118,18 @@ const ServiceDetail = () => {
 
   const displayPrice = selectedOption?.price ?? service?.price;
 
+  const displayDuration = (() => {
+    if (selectedOption?.durationMin) return selectedOption.durationMin;
+    if (activeOptions.length > 0) {
+      const durs = activeOptions.map(o => o.durationMin).filter(Boolean);
+      return durs.length > 0 ? Math.min(...durs) : service?.durationMin;
+    }
+    return service?.durationMin;
+  })();
+
+  const durationPrefix = !selectedOption && activeOptions.length > 0 ? "da " : "";
+  const pricePrefix = !selectedOption && activeOptions.length > 0 ? "da " : "";
+
   const needsZoneSelection = (hasZoneGroups || hasZoneOptions) && selectedOption === null;
 
   const calcSavings = opt => {
@@ -190,7 +202,10 @@ const ServiceDetail = () => {
               <Badge bg={categoryColorMap[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
                 {categoriesMap[service.categoryId] || "Senza categoria"}
               </Badge>
-              <span className="detail-duration">⏱ {service.durationMin} min</span>
+              <span className="detail-duration">
+                ⏱ {durationPrefix}
+                {displayDuration} min
+              </span>
             </div>
 
             <h1 className="detail-title">{service.title}</h1>
@@ -198,8 +213,17 @@ const ServiceDetail = () => {
             <div className="detail-accent-line" />
 
             <div className="detail-price-block">
-              <span className="detail-price">{displayPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-              <span className="detail-price-note">{selectedOption?.sessions > 1 ? `pacchetto ${selectedOption.sessions} sedute` : "prezzo per seduta"}</span>
+              <span className="detail-price">
+                {pricePrefix}
+                {displayPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+              </span>
+              <span className="detail-price-note">
+                {selectedOption?.sessions > 1
+                  ? `pacchetto ${selectedOption.sessions} sedute`
+                  : activeOptions.length > 0 && !selectedOption
+                    ? "seleziona un'opzione"
+                    : "prezzo per seduta"}
+              </span>
             </div>
 
             {/* ── Selettore ZONE ── */}
@@ -263,6 +287,7 @@ const ServiceDetail = () => {
                         >
                           <span className="so-option-name">{opt.name.replace(/\s*—\s*(Donna|Uomo)$/i, "")}</span>
                           <span className="so-option-price">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                          {opt.durationMin && <span className="so-option-dur">{opt.durationMin} min</span>}
                         </button>
                       ))}
                     </div>
@@ -377,6 +402,7 @@ const ServiceDetail = () => {
           }}
           service={service}
           initialOptionId={selectedOption?.optionId ?? null}
+          initialOption={selectedOption}
           prefill={prefill}
         />
       </Container>

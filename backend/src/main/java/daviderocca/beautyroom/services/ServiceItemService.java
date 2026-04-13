@@ -81,6 +81,7 @@ public class ServiceItemService {
         opt.setOptionGroup(dto.optionGroup());
         opt.setGender(dto.gender());
         opt.setActive(dto.active());
+        opt.setDurationMin(dto.durationMin());
         opt.setService(si);
         opt.setBadges(BadgesUtil.toJson(BadgesUtil.validate(dto.badges())));
         return toOptionDTO(serviceOptionRepository.save(opt));
@@ -96,6 +97,7 @@ public class ServiceItemService {
         opt.setOptionGroup(dto.optionGroup());
         opt.setGender(dto.gender());
         opt.setActive(dto.active());
+        opt.setDurationMin(dto.durationMin());
         opt.setBadges(BadgesUtil.toJson(BadgesUtil.validate(dto.badges())));
         return toOptionDTO(serviceOptionRepository.save(opt));
     }
@@ -111,7 +113,7 @@ public class ServiceItemService {
     private ServiceOptionResponseDTO toOptionDTO(ServiceOption o) {
         return new ServiceOptionResponseDTO(
                 o.getOptionId(), o.getName(), o.getPrice(),
-                o.getSessions(), o.getGender(), o.isActive(), o.getOptionGroup(),
+                o.getSessions(), o.getDurationMin(), o.getGender(), o.isActive(), o.getOptionGroup(),
                 BadgesUtil.fromJson(o.getBadges())
         );
     }
@@ -276,17 +278,7 @@ public class ServiceItemService {
     private ServiceItemResponseDTO convertToDTO(ServiceItem serviceItem) {
         List<ServiceOptionResponseDTO> optionDTOs = serviceItem.getOptions().stream()
                 .filter(ServiceOption::isActive)
-                .map(o -> new ServiceOptionResponseDTO(
-                        o.getOptionId(),
-                        o.getName(),
-                        o.getPrice(),
-                        o.getSessions(),
-                        o.getGender(),
-                        o.isActive(),
-                        // FIX-2: includi optionGroup nel DTO
-                        o.getOptionGroup(),
-                        BadgesUtil.fromJson(o.getBadges())
-                ))
+                .map(this::toOptionDTO)
                 .toList();
 
         return new ServiceItemResponseDTO(

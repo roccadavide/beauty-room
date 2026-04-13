@@ -8,8 +8,10 @@ import ProductModal from "./ProductModal";
 import AdminAddButton from "../../components/common/AdminAddButton";
 import AdminToggle from "../../components/common/AdminToggle";
 import SEO from "../../components/common/SEO";
+import { BadgeFlags } from "../../components/common/BadgeFlag";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteProduct, fetchProducts } from "../../api/modules/products.api";
+import useScrollRestore from "../../hooks/useScrollRestore";
 
 function ProductsPage() {
   const [cat, setCat] = useState("all");
@@ -17,6 +19,7 @@ function ProductsPage() {
   const [allProducts, setAllProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  useScrollRestore("products-page");
   const [error, setError] = useState(null);
 
   const [open, setOpen] = useState(false);
@@ -203,6 +206,7 @@ function ProductsPage() {
                     </div>
                   )}
                 </div>
+                <BadgeFlags badges={p?.badges ?? []} />
                 <Card.Body className="d-flex flex-column">
                   <div className="bpc-accent-line" />
                   <Card.Title className="bpc-title mb-1">{p.name}</Card.Title>

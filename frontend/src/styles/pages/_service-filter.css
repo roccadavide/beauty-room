@@ -11,13 +11,13 @@
 }
 
 .sp-page-title {
-  font-family: "Petrona", serif;
-  font-size: clamp(1.9rem, 4vw, 2.8rem);
-  font-weight: 400;
+  font-family: "SaolDisplay-Light", serif;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 300;
   color: #2e2118;
-  letter-spacing: 0.3px;
-  margin: 0.4rem 0 0.7rem;
-  line-height: 1.2;
+  line-height: 1.08;
+  margin: 0.6rem 0 1.4rem;
+  letter-spacing: -0.025em;
 }
 
 /* ── Filter bar ── */
@@ -41,7 +41,9 @@
   background: transparent;
   cursor: pointer;
   overflow: hidden;
-  transition: border-color 0.3s ease, color 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    color 0.3s ease;
   font-family: "Montserrat", sans-serif;
   font-size: 0.78rem;
   font-weight: 500;
@@ -138,7 +140,9 @@
   font-size: 0.875rem;
   color: #3a2e26;
   outline: none;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .sp-search-input::placeholder {

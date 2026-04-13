@@ -9,6 +9,7 @@ public record ServiceOptionResponseDTO(
         String name,
         BigDecimal price,
         Integer sessions,
+        Integer durationMin,
         String gender,
         boolean active,
         // FIX-2: gruppo/zona per raggruppare visivamente le opzioni (es. "Gambe", "Ascelle")

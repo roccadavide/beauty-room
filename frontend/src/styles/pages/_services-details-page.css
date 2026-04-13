@@ -196,6 +196,14 @@
   color: #2e2118;
   white-space: nowrap;
 }
+.so-option-dur {
+  font-size: 0.75rem;
+  color: #9c8880;
+  background: rgba(46, 33, 24, 0.06);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
 
 /* ── PACCHETTI ── */
 .so-pkg-section {
@@ -429,4 +437,123 @@
   .sd-col-img .ig-wrap {
     border-radius: 0;
   }
+}
+
+/* ── ServiceModal: option editor ── */
+.smo-options-editor {
+  border: 1px solid rgba(184, 151, 106, 0.25);
+  border-radius: 14px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: #fdfaf6;
+}
+.smo-options-editor__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #b8976a;
+}
+.smo-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.smo-option-list--new {
+  opacity: 0.85;
+}
+.smo-option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(184, 151, 106, 0.2);
+  background: #fff;
+  transition: border-color 0.15s;
+}
+.smo-option-row--editing {
+  border-color: #b8976a;
+  box-shadow: 0 0 0 2px rgba(184, 151, 106, 0.18);
+}
+.smo-option-row--new {
+  border-style: dashed;
+}
+.smo-option-row__info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.smo-option-row__name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2e2118;
+}
+.smo-option-row__group {
+  font-size: 0.75rem;
+  color: #9c8880;
+  background: rgba(184, 151, 106, 0.1);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+.smo-option-row__price {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #2e2118;
+}
+.smo-option-row__dur {
+  font-size: 0.75rem;
+  color: #7a6156;
+  background: rgba(46, 33, 24, 0.06);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+.smo-option-row__gender {
+  font-size: 0.8rem;
+  color: #9c8880;
+}
+.smo-option-row__badge-new {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: #b8976a;
+  color: #fff;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+}
+.smo-option-row__actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.smo-option-row__btn {
+  background: none;
+  border: none;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.smo-option-row__btn:hover {
+  background: rgba(184, 151, 106, 0.12);
+}
+.smo-option-form {
+  border-top: 1px dashed rgba(184, 151, 106, 0.3);
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.smo-option-form__heading {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5a4a3a;
 }

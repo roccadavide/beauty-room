@@ -34,6 +34,9 @@ public class ServiceOption {
     @Column(name = "sessions")
     private Integer sessions;
 
+    @Column(name = "duration_min")
+    private Integer durationMin;
+
     @Column(name = "gender", length = 20)
     private String gender;
 
