@@ -1,7 +1,6 @@
 .ig-wrap {
   position: relative;
   width: 100%;
-  max-width: 480px;
   border-radius: 20px;
   overflow: visible;
 }
@@ -18,9 +17,7 @@
     0 8px 24px rgba(46, 33, 24, 0.08),
     0 24px 56px rgba(46, 33, 24, 0.1);
   cursor: zoom-in;
-  transition:
-    box-shadow 0.3s ease,
-    transform 0.3s ease;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
 
 .ig-main:hover {
@@ -221,6 +218,9 @@
   .ig-main {
     border-radius: 0;
     cursor: default;
+    max-width: 99%;
+    margin-inline: auto;
+    border-radius: 2%;
   }
 
   .ig-main:hover {

@@ -1,33 +1,31 @@
 import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
 
-/**
- * Salva la posizione di scroll in sessionStorage al cleanup,
- * la ripristina al mount dopo che ScrollToTop e Lenis si sono stabilizzati.
- *
- * @param {string} key - chiave univoca per questa pagina (es. "service-page")
- */
-const useScrollRestore = (key) => {
-  const location = useLocation();
+const useScrollRestore = key => {
   const storageKey = `scroll_restore_${key}`;
 
-  // ── RIPRISTINA al mount ──────────────────────────────────────────
+  // Chiamata esplicita prima di navigate() — sincrona, prima che
+  // App.jsx resetti Lenis a zero
+  const save = () => {
+    const lenis = window.__lenis;
+    const y = lenis ? lenis.scroll : window.scrollY;
+    if (y > 10) {
+      sessionStorage.setItem(storageKey, String(y));
+    }
+  };
+
   useEffect(() => {
     const saved = sessionStorage.getItem(storageKey);
     if (!saved) return;
 
     const targetY = parseFloat(saved);
-    if (isNaN(targetY) || targetY <= 0) return;
+    if (isNaN(targetY) || targetY <= 0) {
+      sessionStorage.removeItem(storageKey);
+      return;
+    }
 
-    // Pulisci subito: se l'utente fa F5 o naviga direttamente non vogliamo
-    // restaurare una posizione stantia
     sessionStorage.removeItem(storageKey);
 
-    // Aspetta che:
-    // 1. ScrollToTop abbia già portato a y=0
-    // 2. Lenis sia inizializzato
-    // 3. Il DOM sia renderizzato con i dati (gestito da un secondo timeout)
-    const restore = () => {
+    const pin = () => {
       const lenis = window.__lenis;
       if (lenis) {
         lenis.scrollTo(targetY, { immediate: true });
@@ -36,29 +34,31 @@ const useScrollRestore = (key) => {
       }
     };
 
-    // Primo tentativo dopo il paint iniziale
-    const t1 = setTimeout(restore, 80);
-    // Secondo tentativo dopo che i dati async potrebbero essere arrivati
-    const t2 = setTimeout(restore, 400);
+    // Pinna la posizione ogni frame per i primi ~350ms
+    // (durata animazione entrata ~0.9s, a 350ms è ancora quasi opaco)
+    const start = performance.now();
+    let rafId;
 
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── SALVA allo smontaggio ────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      const lenis = window.__lenis;
-      const y = lenis ? lenis.scroll : window.scrollY;
-      if (y > 10) {
-        sessionStorage.setItem(storageKey, String(y));
+    const loop = now => {
+      pin();
+      if (now - start < 350) {
+        rafId = requestAnimationFrame(loop);
       }
     };
+
+    rafId = requestAnimationFrame(loop);
+
+    // Fallback finale per dati async che cambiano l'altezza della pagina
+    const t = setTimeout(pin, 750);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  return { save };
 };
 
 export default useScrollRestore;

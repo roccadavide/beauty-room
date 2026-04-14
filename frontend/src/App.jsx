@@ -11,7 +11,6 @@ import MyProfile from "./features/profile/MyProfile";
 import BookingSuccessPage from "./features/bookings/BookingSuccessPage";
 import MyArea from "./pages/user/MyArea";
 import ResultsPage from "./features/results/ResultsPage";
-import ScrollToTop from "./components/common/ScrollToTop";
 import PageTransition from "./components/common/PageTransition";
 import AcademySection from "./components/layout/AcademySection";
 import TestimonialsSection from "./components/layout/TestimonialsSection";
@@ -53,6 +52,12 @@ import LaserSection from "./components/laser/LaserSection";
 import ScrollVelocity from "./components/common/ScrollVelocity";
 import SEO from "./components/common/SEO";
 
+// Chiavi sessionStorage usate da useScrollRestore — aggiorna se aggiungi pagine con restore
+const RESTORE_KEYS = {
+  "/trattamenti": "scroll_restore_service-page",
+  "/prodotti": "scroll_restore_products-page",
+};
+
 function App() {
   const location = useLocation();
   const nav = useNavigate();
@@ -67,23 +72,8 @@ function App() {
   useLenis();
 
   useEffect(() => {
-    const lenis = window.__lenis;
-    if (!lenis) return;
-
-    const refreshLenis = () => {
-      lenis.resize();
-      lenis.scrollTo(0, { immediate: true });
-    };
-
-    refreshLenis();
-    const id1 = setTimeout(refreshLenis, 400);
-    const id2 = setTimeout(refreshLenis, 1000);
-
-    return () => {
-      clearTimeout(id1);
-      clearTimeout(id2);
-    };
-  }, [location.pathname]);
+    history.scrollRestoration = "manual";
+  }, []);
 
   useEffect(() => {
     const lenis = window.__lenis;
@@ -125,18 +115,16 @@ function App() {
 
   const isHeroPage = location.pathname === "/";
 
-  useEffect(() => {
+  const handleExitComplete = () => {
     const lenis = window.__lenis;
     if (!lenis) return;
-
-    const observer = new ResizeObserver(() => {
-      lenis.resize();
-    });
-
-    observer.observe(document.body);
-
-    return () => observer.disconnect();
-  }, []);
+    lenis.resize();
+    const restoreKey = RESTORE_KEYS[location.pathname];
+    const hasRestore = restoreKey && sessionStorage.getItem(restoreKey);
+    if (!hasRestore) {
+      lenis.scrollTo(0, { immediate: true });
+    }
+  };
 
   return (
     <>
@@ -150,11 +138,10 @@ function App() {
         onClose={() => setToast(t => ({ ...t, show: false }))}
       />
 
-      <ScrollToTop />
       <NavBar />
 
       <main className={isHeroPage ? "has-hero" : ""}>
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence mode="wait" initial={false} onExitComplete={handleExitComplete}>
           <Routes location={location} key={location.pathname}>
             {/* HOME */}
             <Route

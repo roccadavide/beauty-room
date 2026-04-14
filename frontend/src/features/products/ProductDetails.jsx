@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { Container, Row, Col, Badge, Spinner } from "react-bootstrap";
+import { Container, Badge, Spinner } from "react-bootstrap";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/modules/stripe.api";
@@ -100,19 +100,20 @@ const ProductDetail = () => {
   }, [product, allProducts]);
 
   const [relatedRef, relatedVisible] = useInView();
-  const [imageRef, imageVisible] = useInView();
 
   const handleAddToCart = () => {
-    dispatch(addToCart({
-      id: product.productId,
-      type: "product",
-      productId: product.productId,
-      name: product.name,
-      price: product.price,
-      quantity: qty,
-      image: product.images?.[0],
-      stock: product.stock,
-    }));
+    dispatch(
+      addToCart({
+        id: product.productId,
+        type: "product",
+        productId: product.productId,
+        name: product.name,
+        price: product.price,
+        quantity: qty,
+        image: product.images?.[0],
+        stock: product.stock,
+      }),
+    );
     setAddedFeedback(true);
     setTimeout(() => setAddedFeedback(false), 1800);
   };
@@ -121,12 +122,12 @@ const ProductDetail = () => {
     setShowPayNow(true);
   };
 
-  const handleCheckoutAuth = async (orderData) => {
+  const handleCheckoutAuth = async orderData => {
     const { url } = await createCheckoutSession(orderData);
     window.location.href = url;
   };
 
-  const handleCheckoutGuest = async (orderData) => {
+  const handleCheckoutGuest = async orderData => {
     const res = await createCheckoutSessionGuest(orderData);
     window.location.href = res.url;
   };
@@ -171,192 +172,170 @@ const ProductDetail = () => {
         title={product?.name}
         description={product?.description ? product.description.slice(0, 150) : undefined}
         image={product?.images?.[0]}
-        jsonLd={product ? {
-          "@context": "https://schema.org",
-          "@type": "Product",
-          name: product.name,
-          description: product.description,
-          image: product.images?.[0],
-          offers: {
-            "@type": "Offer",
-            price: product.price,
-            priceCurrency: "EUR",
-            availability: "https://schema.org/InStock",
-            url: `https://www.beauty-room.it/products/${product.productId}`,
-          },
-          brand: {
-            "@type": "Brand",
-            name: "Beauty Room di Michela",
-          },
-        } : undefined}
+        jsonLd={
+          product
+            ? {
+                "@context": "https://schema.org",
+                "@type": "Product",
+                name: product.name,
+                description: product.description,
+                image: product.images?.[0],
+                offers: {
+                  "@type": "Offer",
+                  price: product.price,
+                  priceCurrency: "EUR",
+                  availability: "https://schema.org/InStock",
+                  url: `https://www.beauty-room.it/products/${product.productId}`,
+                },
+                brand: {
+                  "@type": "Brand",
+                  name: "Beauty Room di Michela",
+                },
+              }
+            : undefined
+        }
       />
-      <Container fluid="xxl" className="product-detail">
-      <Row className="justify-content-center align-items-start g-4 g-md-5">
-        {/* ▸ IMMAGINE */}
-        <Col md={5} lg={5} className="d-flex justify-content-center">
-          <div ref={imageRef} className={`fade-slide ${imageVisible ? "visible" : ""}`}>
-            <ImageGallery
-              images={product.images?.filter(Boolean) ?? []}
-              alt={product.name}
-            />
-          </div>
-        </Col>
-
-        {/* ▸ INFO */}
-        <Col md={6} lg={5} className="detail-info fade-slide visible">
-          <div className="detail-meta">
-            <Badge bg={categoryColorMap[product.categoryId] || "secondary"} className="text-uppercase detail-badge">
-              {categoriesMap[product.categoryId] || "Senza categoria"}
-            </Badge>
-            <span className="detail-duration">{product.stock > 0 ? `${product.stock} disponibili` : "Esaurito"}</span>
+      <Container fluid className="product-detail">
+        <div className="sd-layout-grid">
+          <div className="sd-col-img">
+            <ImageGallery images={product.images?.filter(Boolean) ?? []} alt={product.name} />
           </div>
 
-          <h1 className="detail-title">{product.name}</h1>
+          <div className="detail-info sd-col-info">
+            <div className="detail-meta">
+              <Badge bg={categoryColorMap[product.categoryId] || "secondary"} className="text-uppercase detail-badge">
+                {categoriesMap[product.categoryId] || "Senza categoria"}
+              </Badge>
+              <span className="detail-duration">{product.stock > 0 ? `${product.stock} disponibili` : "Esaurito"}</span>
+            </div>
 
-          <div className="detail-accent-line" />
+            <h1 className="detail-title">{product.name}</h1>
 
-          <div className="detail-price-block">
-            <span className="detail-price">{product.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-            <span className="detail-price-note">prezzo al pezzo</span>
-          </div>
+            <div className="detail-accent-line" />
 
-          <div className="detail-trust">
-            <span className="detail-trust-pill">✓ Ritiro in negozio</span>
-            <span className="detail-trust-pill">✓ Pagamenti sicuri</span>
-            <span className="detail-trust-pill">✓ Nessun costo al ritiro</span>
-          </div>
+            <div className="detail-price-block">
+              <span className="detail-price">{product.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+              <span className="detail-price-note">prezzo al pezzo</span>
+            </div>
 
-          {product.stock === 0 ? (
-            /* ── PRODOTTO ESAURITO ── */
-            <div className="detail-sold-out-section">
-              <div className="detail-sold-out-badge">
-                <span className="detail-sold-out-icon">◆</span>
-                Temporaneamente esaurito
-              </div>
+            <div className="detail-trust">
+              <span className="detail-trust-pill">✓ Ritiro in negozio</span>
+              <span className="detail-trust-pill">✓ Pagamenti sicuri</span>
+              <span className="detail-trust-pill">✓ Nessun costo al ritiro</span>
+            </div>
 
-              {alertStatus === "success" ? (
-                <div className="detail-alert-success">
-                  <span>✓</span> Ti avviseremo via email appena torna disponibile.
+            {product.stock === 0 ? (
+              /* ── PRODOTTO ESAURITO ── */
+              <div className="detail-sold-out-section">
+                <div className="detail-sold-out-badge">
+                  <span className="detail-sold-out-icon">◆</span>
+                  Temporaneamente esaurito
                 </div>
-              ) : alertStatus === "already" ? (
-                <div className="detail-alert-success">
-                  <span>✓</span> Sei già in lista d&apos;attesa per questo prodotto.
-                </div>
-              ) : (
-                <div className="detail-alert-form">
-                  <p className="detail-alert-title">Avvisami quando torna disponibile</p>
-                  <div className="detail-alert-inputs">
-                    {!user && (
+
+                {alertStatus === "success" ? (
+                  <div className="detail-alert-success">
+                    <span>✓</span> Ti avviseremo via email appena torna disponibile.
+                  </div>
+                ) : alertStatus === "already" ? (
+                  <div className="detail-alert-success">
+                    <span>✓</span> Sei già in lista d&apos;attesa per questo prodotto.
+                  </div>
+                ) : (
+                  <div className="detail-alert-form">
+                    <p className="detail-alert-title">Avvisami quando torna disponibile</p>
+                    <div className="detail-alert-inputs">
+                      {!user && (
+                        <input className="detail-alert-input" placeholder="Il tuo nome" value={alertName} onChange={e => setAlertName(e.target.value)} />
+                      )}
                       <input
                         className="detail-alert-input"
-                        placeholder="Il tuo nome"
-                        value={alertName}
-                        onChange={e => setAlertName(e.target.value)}
+                        type="email"
+                        placeholder="La tua email"
+                        value={alertEmail}
+                        onChange={e => setAlertEmail(e.target.value)}
                       />
-                    )}
-                    <input
-                      className="detail-alert-input"
-                      type="email"
-                      placeholder="La tua email"
-                      value={alertEmail}
-                      onChange={e => setAlertEmail(e.target.value)}
-                    />
-                    <button
-                      className="detail-alert-btn"
-                      onClick={handleStockAlert}
-                      disabled={alertLoading || !alertEmail}
-                    >
-                      {alertLoading ? "..." : "Avvisami"}
+                      <button className="detail-alert-btn" onClick={handleStockAlert} disabled={alertLoading || !alertEmail}>
+                        {alertLoading ? "..." : "Avvisami"}
+                      </button>
+                    </div>
+                    {alertStatus === "error" && <p className="detail-alert-error">Si è verificato un errore. Riprova.</p>}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* ── PRODOTTO DISPONIBILE: CTAs normali ── */
+              <>
+                <div className="detail-qty-wrap">
+                  <span className="so-label">Quantità</span>
+                  <div className="detail-qty-controls">
+                    <button className="cart-qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))} disabled={qty <= 1}>
+                      −
+                    </button>
+                    <span className="cart-qty-num">{qty}</span>
+                    <button className="cart-qty-btn" onClick={() => setQty(q => Math.min(product.stock, q + 1))} disabled={qty >= product.stock}>
+                      +
                     </button>
                   </div>
-                  {alertStatus === "error" && (
-                    <p className="detail-alert-error">Si è verificato un errore. Riprova.</p>
-                  )}
+                </div>
+
+                <div className="detail-cart-actions">
+                  <button className="detail-pay-btn" onClick={handlePayNow} disabled={payLoading}>
+                    {payLoading ? "..." : "Paga ora"}
+                  </button>
+                  <button className={`detail-cart-btn${addedFeedback ? " added" : ""}`} onClick={handleAddToCart}>
+                    {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            <div className="detail-divider" />
+
+            <div className={`detail-description ${showFullDesc ? "expanded" : ""}`}>
+              <p>{product.description}</p>
+            </div>
+
+            {product.description?.length > 200 && (
+              <button className="detail-expand-btn" onClick={() => setShowFullDesc(!showFullDesc)}>
+                {showFullDesc ? "Mostra meno ↑" : "Leggi tutto ↓"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ▸ PRODOTTI CORRELATI */}
+        {relatedProducts.length > 0 && (
+          <section ref={relatedRef} className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}>
+            <div className="related-head">
+              <span className="section-eyebrow">Scopri anche</span>
+              <h3 className="related-title">Potrebbe interessarti</h3>
+            </div>
+            <RelatedCarousel
+              items={relatedProducts}
+              getKey={p => p.productId}
+              renderCard={p => (
+                <div className="related-card text-center" onClick={() => navigate(`/prodotti/${p.productId}`)} style={{ cursor: "pointer" }}>
+                  <div className="related-img-wrap mb-3">
+                    <img src={p.images?.[0]} alt={p.name} className="img-fluid rounded-4" />
+                  </div>
+                  <h5>{p.name}</h5>
+                  <p className="text-muted mb-0">{p.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</p>
                 </div>
               )}
-            </div>
-          ) : (
-            /* ── PRODOTTO DISPONIBILE: CTAs normali ── */
-            <>
-              <div className="detail-qty-wrap">
-                <span className="so-label">Quantità</span>
-                <div className="detail-qty-controls">
-                  <button className="cart-qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))} disabled={qty <= 1}>−</button>
-                  <span className="cart-qty-num">{qty}</span>
-                  <button className="cart-qty-btn" onClick={() => setQty(q => Math.min(product.stock, q + 1))} disabled={qty >= product.stock}>+</button>
-                </div>
-              </div>
+            />
+          </section>
+        )}
 
-              <div className="detail-cart-actions">
-                <button className="detail-pay-btn" onClick={handlePayNow} disabled={payLoading}>
-                  {payLoading ? "..." : "Paga ora"}
-                </button>
-                <button
-                  className={`detail-cart-btn${addedFeedback ? " added" : ""}`}
-                  onClick={handleAddToCart}
-                >
-                  {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
-                </button>
-              </div>
-            </>
-          )}
-
-          <div className="detail-divider" />
-
-          <div className={`detail-description ${showFullDesc ? "expanded" : ""}`}>
-            <p>{product.description}</p>
-          </div>
-
-          {product.description?.length > 200 && (
-            <button className="detail-expand-btn" onClick={() => setShowFullDesc(!showFullDesc)}>
-              {showFullDesc ? "Mostra meno ↑" : "Leggi tutto ↓"}
-            </button>
-          )}
-        </Col>
-      </Row>
-
-      {/* ▸ PRODOTTI CORRELATI */}
-      {relatedProducts.length > 0 && (
-        <section
-          ref={relatedRef}
-          className={`related-section mt-5 pt-5 fade-slide ${relatedVisible ? "visible" : ""}`}
-        >
-          <div className="related-head">
-            <span className="section-eyebrow">Scopri anche</span>
-            <h3 className="related-title">Potrebbe interessarti</h3>
-          </div>
-          <RelatedCarousel
-            items={relatedProducts}
-            getKey={p => p.productId}
-            renderCard={p => (
-              <div
-                className="related-card text-center"
-                onClick={() => navigate(`/prodotti/${p.productId}`)}
-                style={{ cursor: "pointer" }}
-              >
-                <div className="related-img-wrap mb-3">
-                  <img src={p.images?.[0]} alt={p.name} className="img-fluid rounded-4" />
-                </div>
-                <h5>{p.name}</h5>
-                <p className="text-muted mb-0">
-                  {p.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                </p>
-              </div>
-            )}
-          />
-        </section>
-      )}
-
-      <PayNowModal
-        show={showPayNow}
-        onHide={() => setShowPayNow(false)}
-        product={product}
-        qty={qty}
-        user={user}
-        accessToken={accessToken}
-        onCheckoutAuth={handleCheckoutAuth}
-        onCheckoutGuest={handleCheckoutGuest}
-      />
+        <PayNowModal
+          show={showPayNow}
+          onHide={() => setShowPayNow(false)}
+          product={product}
+          qty={qty}
+          user={user}
+          accessToken={accessToken}
+          onCheckoutAuth={handleCheckoutAuth}
+          onCheckoutGuest={handleCheckoutGuest}
+        />
       </Container>
     </>
   );

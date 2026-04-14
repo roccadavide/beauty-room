@@ -183,7 +183,7 @@ const ServiceDetail = () => {
             : undefined
         }
       />
-      <Container fluid="xxl" className="service-detail">
+      <Container fluid className="service-detail">
         {wasCancelled && (
           <div className="sd-cancel-banner">
             <span className="sd-cancel-banner__icon">↩</span>
@@ -191,7 +191,6 @@ const ServiceDetail = () => {
           </div>
         )}
         <div className="sd-layout-grid">
-          {/* ▸ IMMAGINE — niente d-flex sul contenitore sticky */}
           <div className="sd-col-img">
             <ImageGallery images={service.images?.filter(Boolean) ?? []} alt={service.title} />
           </div>

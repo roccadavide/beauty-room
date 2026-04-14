@@ -32,6 +32,12 @@ export default function PageTransition({ children, routeKey }) {
         duration: 0.9,
         ease,
       }}
+      onAnimationStart={() => {
+        document.body.style.overflow = "hidden";
+      }}
+      onAnimationComplete={() => {
+        document.body.style.overflow = "";
+      }}
       style={{
         willChange: "opacity, transform, filter",
         transformOrigin: "center center",

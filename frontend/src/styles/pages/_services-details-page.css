@@ -1,53 +1,3 @@
-/* ── Layout grid detail ── */
-.sd-layout-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  padding-top: 1.5rem;
-}
-
-/* ── Colonna immagine ── */
-.sd-col-img {
-  width: 100%;
-}
-
-/* ── Desktop: immagine FIXED, colonna info con margin-left ── */
-@media (min-width: 768px) {
-  .sd-layout-grid {
-    display: block; /* no grid/flex — la colonna info è l'unico elemento in flow */
-  }
-
-  .sd-col-img {
-    position: fixed;
-    top: 100px;
-    left: 0;
-    width: 42%;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding: 0 2rem;
-    z-index: 2;
-    pointer-events: auto;
-  }
-
-  .sd-col-info {
-    margin-left: 44%;
-    width: 56%;
-  }
-}
-
-@media (min-width: 1200px) {
-  .sd-col-img {
-    width: 40%;
-    padding: 0 3rem;
-  }
-
-  .sd-col-info {
-    margin-left: 42%;
-    width: 58%;
-  }
-}
-
 /* ── Immagine hero condivisa ── */
 .detail-img-hero {
   width: 100%;
@@ -430,13 +380,6 @@
   background: #fff;
   color: #2e2118;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* ── ImageGallery nel contesto detail ── */
-@media (max-width: 767px) {
-  .sd-col-img .ig-wrap {
-    border-radius: 0;
-  }
 }
 
 /* ── ServiceModal: option editor ── */

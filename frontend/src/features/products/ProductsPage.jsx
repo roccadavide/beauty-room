@@ -19,7 +19,7 @@ function ProductsPage() {
   const [allProducts, setAllProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  useScrollRestore("products-page");
+  const { save } = useScrollRestore("products-page");
   const [error, setError] = useState(null);
 
   const [open, setOpen] = useState(false);
@@ -64,9 +64,13 @@ function ProductsPage() {
     return new Set(categories.filter(c => allowedCategoryLabels.has((c.label || "").trim().toLowerCase())).map(c => c.categoryId));
   }, [categories, allowedCategoryLabels]);
 
+  const categoryIdsWithProducts = useMemo(() => {
+    return new Set(allProducts.map(p => p.categoryId));
+  }, [allProducts]);
+
   const visibleCategories = useMemo(() => {
-    return categories.filter(c => allowedCategoryIds.has(c.categoryId));
-  }, [categories, allowedCategoryIds]);
+    return categories.filter(c => allowedCategoryIds.has(c.categoryId) && categoryIdsWithProducts.has(c.categoryId));
+  }, [categories, allowedCategoryIds, categoryIdsWithProducts]);
 
   // ---------- FILTER ----------
   const filtered = useMemo(() => {
@@ -186,7 +190,10 @@ function ProductsPage() {
             <Col key={p.productId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
               <Card
                 className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}${isAdmin && !(p.active ?? true) ? " admin-entity--inactive" : ""}`}
-                onClick={() => navigate(`/prodotti/${p.productId}`)}
+                onClick={() => {
+                    save();
+                    navigate(`/prodotti/${p.productId}`);
+                  }}
               >
                 {isAdmin && (
                   <div className="admin-card-toggle-corner" onClick={e => e.stopPropagation()}>

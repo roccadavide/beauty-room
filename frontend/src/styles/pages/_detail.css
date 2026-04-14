@@ -1,0 +1,75 @@
+/* ── Layout detail: servizi + prodotti ── */
+.sd-layout-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding-top: 1.5rem;
+}
+
+.sd-col-img {
+  width: 100%;
+}
+
+/* ── Desktop: immagine FIXED a sinistra, info in flow a destra ── */
+@media (min-width: 768px) {
+  .sd-layout-grid {
+    display: block;
+    padding-top: 2rem;
+  }
+
+  .sd-col-img {
+    position: fixed;
+    top: 90px;
+    left: 4%;
+    width: 46%;
+    z-index: 2;
+    pointer-events: auto;
+    padding-right: 1rem;
+  }
+
+  .sd-col-info {
+    margin-left: 53%;
+    width: 46%;
+    padding-right: 1rem;
+  }
+}
+
+@media (min-width: 1400px) {
+  .sd-col-img {
+    left: 7%;
+    width: 42%;
+  }
+
+  .sd-col-info {
+    margin-left: 53%;
+    width: 45%;
+  }
+}
+
+@media (max-width: 768px) {
+  .service-detail,
+  .product-detail {
+    padding: 0 0 3rem;
+  }
+
+  .sd-layout-grid {
+    gap: 0;
+    padding-top: 0;
+  }
+
+  .sd-col-img {
+    position: static;
+    width: 98%;
+    margin-inline: auto;
+    padding-right: 0;
+    margin-bottom: 1rem;
+    border-radius: 2%;
+  }
+
+  .sd-col-info {
+    margin-left: 0;
+    width: 100%;
+    padding: 1.5rem 1.25rem 0;
+    padding-right: 1.25rem;
+  }
+}
