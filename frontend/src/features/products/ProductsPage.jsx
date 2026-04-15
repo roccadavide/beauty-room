@@ -49,17 +49,6 @@ function ProductsPage() {
     loadData();
   }, []);
 
-  // Stampa data-scroll-id sui figli del Row dopo il render
-  useEffect(() => {
-    if (!rowRef.current || loading) return;
-    const children = rowRef.current.children;
-    filtered.forEach((p, i) => {
-      if (children[i]) {
-        children[i].setAttribute("data-scroll-id", p.productId);
-      }
-    });
-  }, [filtered, loading]);
-
   // ---------- CATEGORIES MAP ----------
   const categoriesMap = useMemo(() => {
     const map = {};
@@ -90,6 +79,17 @@ function ProductsPage() {
       .filter(p => (cat === "all" ? true : p.categoryId === cat))
       .filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || p.description.toLowerCase().includes(q.toLowerCase()));
   }, [allProducts, cat, q, allowedCategoryIds]);
+
+  // Stampa data-scroll-id sui figli del Row dopo il render
+  useEffect(() => {
+    if (!rowRef.current || loading) return;
+    const children = rowRef.current.children;
+    filtered.forEach((p, i) => {
+      if (children[i]) {
+        children[i].setAttribute("data-scroll-id", p.productId);
+      }
+    });
+  }, [filtered, loading]);
 
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {

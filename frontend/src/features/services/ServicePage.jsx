@@ -49,17 +49,6 @@ const ServicePage = () => {
     loadData();
   }, []);
 
-  // Stampa data-scroll-id sui figli del Row dopo il render
-  useEffect(() => {
-    if (!rowRef.current || loading) return;
-    const children = rowRef.current.children;
-    filtered.forEach((s, i) => {
-      if (children[i]) {
-        children[i].setAttribute("data-scroll-id", s.serviceId);
-      }
-    });
-  }, [filtered, loading]);
-
   // ---------- CATEGORIES MAP ----------
   const categoriesMap = useMemo(() => {
     const map = {};
@@ -75,6 +64,17 @@ const ServicePage = () => {
       .filter(s => (cat === "all" ? true : s.categoryId === cat))
       .filter(s => s.title.toLowerCase().includes(q.toLowerCase()) || s.shortDescription.toLowerCase().includes(q.toLowerCase()));
   }, [allServices, cat, q]);
+
+  // Stampa data-scroll-id sui figli del Row dopo il render
+  useEffect(() => {
+    if (!rowRef.current || loading) return;
+    const children = rowRef.current.children;
+    filtered.forEach((s, i) => {
+      if (children[i]) {
+        children[i].setAttribute("data-scroll-id", s.serviceId);
+      }
+    });
+  }, [filtered, loading]);
 
   // ---------- DELETE ----------
   const handleDeleteConfirm = async id => {
