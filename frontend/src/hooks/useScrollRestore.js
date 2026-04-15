@@ -1,4 +1,8 @@
 import { useEffect } from "react";
+
+/**
+ * useScrollRestore – salva l'ID dell'elemento cliccato e ci scrolla al ritorno.
+ */
 const useScrollRestore = key => {
   const storageKey = `scroll_restore_${key}`;
 
@@ -19,14 +23,12 @@ const useScrollRestore = key => {
     let rafId;
     let restoredAt = null;
 
-    const scrollToEl = wrapper => {
-      // display:contents → getBoundingClientRect restituisce zeri, usiamo il figlio
-      const target = wrapper.firstElementChild || wrapper;
-      const rect = target.getBoundingClientRect();
+    const scrollToEl = el => {
+      const rect = el.getBoundingClientRect();
       const lenis = window.__lenis;
       const currentScroll = lenis ? lenis.scroll : window.scrollY;
 
-      // Posizioniamo la card al ~30 % dall'alto del viewport (sensazione naturale)
+      // Posizioniamo la card al ~30 % dall'alto del viewport
       const targetY = Math.max(0, currentScroll + rect.top - window.innerHeight * 0.3);
 
       if (lenis) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Container, Row } from "react-bootstrap";
 import ServicePageSkeleton from "./ServicePageSkeleton";
 import { useNavigate } from "react-router-dom";
@@ -31,6 +31,7 @@ const ServicePage = () => {
   const isAdmin = user?.role === "ADMIN";
 
   const navigate = useNavigate();
+  const rowRef = useRef(null);
 
   // ---------- FETCH ----------
   useEffect(() => {
@@ -47,6 +48,17 @@ const ServicePage = () => {
     };
     loadData();
   }, []);
+
+  // Stampa data-scroll-id sui figli del Row dopo il render
+  useEffect(() => {
+    if (!rowRef.current || loading) return;
+    const children = rowRef.current.children;
+    filtered.forEach((s, i) => {
+      if (children[i]) {
+        children[i].setAttribute("data-scroll-id", s.serviceId);
+      }
+    });
+  }, [filtered, loading]);
 
   // ---------- CATEGORIES MAP ----------
   const categoriesMap = useMemo(() => {
@@ -163,26 +175,25 @@ const ServicePage = () => {
       )}
 
       <Container fluid="xxl">
-        <Row className="g-4 g-xl-5">
+        <Row ref={rowRef} className="g-4 g-xl-5">
           {filtered.map(s => (
-            <div key={s.serviceId} data-scroll-id={s.serviceId} style={{ display: "contents" }}>
-              <ServiceCard
-                s={s}
-                isAdmin={isAdmin}
-                categoriesMap={categoriesMap}
-                categoryColorMap={categoryColorMap}
-                onCardClick={() => {
-                  save(s.serviceId);
-                  navigate(`/trattamenti/${s.serviceId}`);
-                }}
-                onEdit={() => handleEdit(s)}
-                onDelete={() => {
-                  setSelectedService(s);
-                  setDeleteModal(true);
-                }}
-                onToggleActive={newVal => setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)))}
-              />
-            </div>
+            <ServiceCard
+              key={s.serviceId}
+              s={s}
+              isAdmin={isAdmin}
+              categoriesMap={categoriesMap}
+              categoryColorMap={categoryColorMap}
+              onCardClick={() => {
+                save(s.serviceId);
+                navigate(`/trattamenti/${s.serviceId}`);
+              }}
+              onEdit={() => handleEdit(s)}
+              onDelete={() => {
+                setSelectedService(s);
+                setDeleteModal(true);
+              }}
+              onToggleActive={newVal => setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)))}
+            />
           ))}
         </Row>
       </Container>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Container, Row } from "react-bootstrap";
 import ProductsPageSkeleton from "./ProductsPageSkeleton";
 import { useSelector } from "react-redux";
@@ -31,6 +31,7 @@ function ProductsPage() {
   const isAdmin = user?.role === "ADMIN";
 
   const navigate = useNavigate();
+  const rowRef = useRef(null);
 
   // ---------- FETCH ----------
   useEffect(() => {
@@ -47,6 +48,17 @@ function ProductsPage() {
     };
     loadData();
   }, []);
+
+  // Stampa data-scroll-id sui figli del Row dopo il render
+  useEffect(() => {
+    if (!rowRef.current || loading) return;
+    const children = rowRef.current.children;
+    filtered.forEach((p, i) => {
+      if (children[i]) {
+        children[i].setAttribute("data-scroll-id", p.productId);
+      }
+    });
+  }, [filtered, loading]);
 
   // ---------- CATEGORIES MAP ----------
   const categoriesMap = useMemo(() => {
@@ -178,26 +190,25 @@ function ProductsPage() {
       )}
 
       <Container fluid="xxl">
-        <Row className="g-4 g-xl-5">
+        <Row ref={rowRef} className="g-4 g-xl-5">
           {filtered.map(p => (
-            <div key={p.productId} data-scroll-id={p.productId} style={{ display: "contents" }}>
-              <ProductCard
-                p={p}
-                isAdmin={isAdmin}
-                categoriesMap={categoriesMap}
-                categoryColorMap={categoryColorMap}
-                onCardClick={() => {
-                  save(p.productId);
-                  navigate(`/prodotti/${p.productId}`);
-                }}
-                onEdit={() => handleEdit(p)}
-                onDelete={() => {
-                  setSelectedProduct(p);
-                  setDeleteModal(true);
-                }}
-                onToggleActive={newVal => setAllProducts(prev => prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr)))}
-              />
-            </div>
+            <ProductCard
+              key={p.productId}
+              p={p}
+              isAdmin={isAdmin}
+              categoriesMap={categoriesMap}
+              categoryColorMap={categoryColorMap}
+              onCardClick={() => {
+                save(p.productId);
+                navigate(`/prodotti/${p.productId}`);
+              }}
+              onEdit={() => handleEdit(p)}
+              onDelete={() => {
+                setSelectedProduct(p);
+                setDeleteModal(true);
+              }}
+              onToggleActive={newVal => setAllProducts(prev => prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr)))}
+            />
           ))}
         </Row>
       </Container>
