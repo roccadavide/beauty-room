@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Container, Spinner } from "react-bootstrap";
+import { Container } from "react-bootstrap";
+import MyOrdersSkeleton from "./MyOrdersSkeleton";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import DeleteOrderModal from "./DeleteOrderModal";
@@ -81,17 +82,7 @@ const MyOrders = () => {
     }
   };
 
-  if (loading)
-    return (
-      <>
-        <SEO title="I miei ordini" description="Storico dei tuoi ordini Beauty Room." noindex={true} />
-        <div className="mo-page">
-          <Container className="d-flex justify-content-center py-5">
-            <Spinner animation="border" />
-          </Container>
-        </div>
-      </>
-    );
+  if (loading) return <MyOrdersSkeleton />;
 
   if (error)
     return (

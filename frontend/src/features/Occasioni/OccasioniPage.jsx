@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Col, Container, Row, Spinner } from "react-bootstrap";
+import { Col, Container, Row } from "react-bootstrap";
+import OccasioniPageSkeleton from "./OccasioniPageSkeleton";
 import { useSelector } from "react-redux";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { EditButton } from "../../components/common/AdminActionButtons";
@@ -221,6 +222,9 @@ function OccasioniPage() {
 
   // ── render ────────────────────────────────────────────────────────────────
 
+  const isLoading = pkgLoading || promoLoading;
+  if (isLoading) return <OccasioniPageSkeleton />;
+
   return (
     <Container fluid className="py-4 px-3 px-md-4" style={{ background: "#fffdf8", minHeight: "80vh" }}>
       <SEO
@@ -257,12 +261,6 @@ function OccasioniPage() {
                   setOpenPkg(true);
                 }}
               />
-            </div>
-          )}
-
-          {pkgLoading && (
-            <div className="d-flex justify-content-center py-5">
-              <Spinner animation="border" />
             </div>
           )}
 
@@ -342,12 +340,6 @@ function OccasioniPage() {
                   setOpenPromo(true);
                 }}
               />
-            </div>
-          )}
-
-          {promoLoading && (
-            <div className="d-flex justify-content-center py-5">
-              <Spinner animation="border" />
             </div>
           )}
 

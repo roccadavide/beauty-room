@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Container, Spinner } from "react-bootstrap";
+import { Container } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import ResultCard from "./ResultCard";
 import AdminAddButton from "../../components/common/AdminAddButton";
@@ -8,6 +8,7 @@ import DeleteResultModal from "./DeleteResultModal";
 import { deleteResult, fetchResults } from "../../api/modules/results.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import SEO from "../../components/common/SEO";
+import ResultsPageSkeleton from "./ResultsPageSkeleton";
 
 export default function ResultsPage() {
   const [cat, setCat] = useState("all");
@@ -64,18 +65,7 @@ export default function ResultsPage() {
     }
   };
 
-  if (loading)
-    return (
-      <>
-        <SEO
-          title="Risultati"
-          description="Guarda i risultati reali dei trattamenti laser e estetici di Beauty Room di Michela."
-        />
-        <div className="rp-loading">
-          <Spinner animation="border" />
-        </div>
-      </>
-    );
+  if (loading) return <ResultsPageSkeleton />;
 
   if (error)
     return (

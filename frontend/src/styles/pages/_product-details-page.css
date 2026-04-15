@@ -106,11 +106,12 @@
 
 /* ── Selettore quantità (prodotti) ── */
 .detail-qty-wrap {
-  width: 20%;
   margin-bottom: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
+}
+
+.so-label {
+  display: block;
+  padding-bottom: 0.5rem;
 }
 
 .detail-qty-controls {

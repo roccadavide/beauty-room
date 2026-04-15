@@ -47,8 +47,8 @@ const AboutSection = () => {
               </h2>
               <div className="about-accent-line" />
               <p className="about-text">
-                Beauty Room non è solo un centro estetico — è il posto dove la passione di Michela per il benessere diventa cura concreta per ogni persona che
-                entra. Scopri chi c&apos;è dietro ogni trattamento.
+                Beauty Room non è solo un centro estetico — è il posto dove la mia passione per il benessere diventa cura concreta per ogni persona che entra.
+                Scopri chi c&apos;è dietro ogni trattamento.
               </p>
               <Link to="/chisono" className="about-cta-btn">
                 Ascolta la mia storia →

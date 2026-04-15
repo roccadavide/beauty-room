@@ -338,7 +338,7 @@ const ServiceDetail = () => {
 
             <div className="detail-trust">
               <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
-              <span className="detail-trust-pill">✓ Nessun anticipo</span>
+              <span className="detail-trust-pill">✓ Pagamento sicuro</span>
               <span className="detail-trust-pill">✓ Conferma immediata</span>
             </div>
 

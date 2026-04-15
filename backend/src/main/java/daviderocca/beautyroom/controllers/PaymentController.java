@@ -41,7 +41,6 @@ public class PaymentController {
 
     private final OrderService orderService;
 
-    // FIX-24: Stripe.apiKey impostato una sola volta a startup invece che per ogni chiamata
     @PostConstruct
     public void init() {
         Stripe.apiKey = this.stripeSecretKey;

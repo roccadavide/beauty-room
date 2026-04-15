@@ -2,12 +2,10 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Spinner } from "react-bootstrap";
 import { fetchBookingSummary } from "../../api/modules/stripe.api";
-// FIX-3: fallback fetch del titolo servizio se il backend non include ancora serviceTitle
 import { fetchServiceById } from "../../api/modules/services.api";
 import SEO from "../../components/common/SEO";
 
-const BOOKING_SUMMARY_ERROR_MESSAGE =
-  "Non è stato possibile recuperare i dettagli della prenotazione. Controlla la tua email per la conferma.";
+const BOOKING_SUMMARY_ERROR_MESSAGE = "Non è stato possibile recuperare i dettagli della prenotazione. Controlla la tua email per la conferma.";
 const INVALID_SESSION_MESSAGE = "Sessione di pagamento non valida o mancante.";
 
 const BookingSuccessPage = () => {
@@ -17,7 +15,6 @@ const BookingSuccessPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
-  // FIX-3: titolo servizio locale come fallback se l'API non include ancora serviceTitle
   const [serviceTitle, setServiceTitle] = useState(null);
   const [serviceTitleLoading, setServiceTitleLoading] = useState(false);
 
@@ -68,20 +65,22 @@ const BookingSuccessPage = () => {
       .then(service => {
         if (alive) setServiceTitle(service?.title ?? null);
       })
-      .catch(() => {/* silenzioso: l'UUID rimane come fallback */})
-      .finally(() => { if (alive) setServiceTitleLoading(false); });
+      .catch(() => {
+        /* silenzioso: l'UUID rimane come fallback */
+      })
+      .finally(() => {
+        if (alive) setServiceTitleLoading(false);
+      });
 
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [data]);
 
   if (loading) {
     return (
       <div className="bs-page">
-        <SEO
-          title="Prenotazione confermata"
-          description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve."
-          noindex={true}
-        />
+        <SEO title="Prenotazione confermata" description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve." noindex={true} />
         <div className="bs-loading">
           <Spinner animation="border" style={{ color: "#b8976a" }} />
           <p>Verifica prenotazione in corso…</p>
@@ -93,11 +92,7 @@ const BookingSuccessPage = () => {
   if (error) {
     return (
       <div className="bs-page">
-        <SEO
-          title="Prenotazione confermata"
-          description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve."
-          noindex={true}
-        />
+        <SEO title="Prenotazione confermata" description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve." noindex={true} />
         <div className="bs-error-card">
           <div className="bs-error-icon">⚠️</div>
           <h2>Qualcosa non ha funzionato</h2>
@@ -115,22 +110,12 @@ const BookingSuccessPage = () => {
     );
   }
 
-  const shortCode = data?.booking?.bookingId
-    ? `BR-${String(data.booking.bookingId).slice(-6).toUpperCase()}`
-    : null;
+  const shortCode = data?.booking?.bookingId ? `BR-${String(data.booking.bookingId).slice(-6).toUpperCase()}` : null;
   const paymentStatus = data?.paymentStatus;
   const isPaid = paymentStatus === "PAID";
   const isFailedOrCancelled = paymentStatus === "FAILED" || paymentStatus === "CANCELLED";
-  const eyebrowText = isPaid
-    ? "Prenotazione confermata"
-    : isFailedOrCancelled
-      ? "Pagamento non completato"
-      : "Prenotazione ricevuta";
-  const heroTitle = isPaid
-    ? "Ci vediamo presto"
-    : isFailedOrCancelled
-      ? "Qualcosa non è andato a buon fine"
-      : "In attesa di conferma pagamento";
+  const eyebrowText = isPaid ? "Prenotazione confermata" : isFailedOrCancelled ? "Pagamento non completato" : "Prenotazione ricevuta";
+  const heroTitle = isPaid ? "Ci vediamo presto" : isFailedOrCancelled ? "Qualcosa non è andato a buon fine" : "In attesa di conferma pagamento";
   const heroSubtitle = isPaid
     ? "Ti abbiamo inviato una email con tutti i dettagli."
     : isFailedOrCancelled
@@ -139,11 +124,7 @@ const BookingSuccessPage = () => {
 
   return (
     <div className="bs-page">
-      <SEO
-        title="Prenotazione confermata"
-        description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve."
-        noindex={true}
-      />
+      <SEO title="Prenotazione confermata" description="La tua prenotazione è stata confermata. Riceverai un'email di riepilogo a breve." noindex={true} />
       <div className="bs-hero">
         <div className="bs-hero__check">✓</div>
         <span className="section-eyebrow">{eyebrowText}</span>
@@ -185,7 +166,7 @@ const BookingSuccessPage = () => {
                 {/* FIX-3: mostra titolo servizio; fallback locale se non arriva dall'API */}
                 <strong>
                   {data.booking.serviceTitle || serviceTitle
-                    ? (data.booking.serviceTitle || serviceTitle)
+                    ? data.booking.serviceTitle || serviceTitle
                     : serviceTitleLoading
                       ? "Caricamento…"
                       : data.booking.serviceId}
