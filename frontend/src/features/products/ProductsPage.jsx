@@ -180,17 +180,24 @@ function ProductsPage() {
       <Container fluid="xxl">
         <Row className="g-4 g-xl-5">
           {filtered.map(p => (
-            <ProductCard
-              key={p.productId}
-              p={p}
-              isAdmin={isAdmin}
-              categoriesMap={categoriesMap}
-              categoryColorMap={categoryColorMap}
-              onCardClick={() => { save(); navigate(`/prodotti/${p.productId}`); }}
-              onEdit={() => handleEdit(p)}
-              onDelete={() => { setSelectedProduct(p); setDeleteModal(true); }}
-              onToggleActive={newVal => setAllProducts(prev => prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr)))}
-            />
+            <div key={p.productId} data-scroll-id={p.productId} style={{ display: "contents" }}>
+              <ProductCard
+                p={p}
+                isAdmin={isAdmin}
+                categoriesMap={categoriesMap}
+                categoryColorMap={categoryColorMap}
+                onCardClick={() => {
+                  save(p.productId);
+                  navigate(`/prodotti/${p.productId}`);
+                }}
+                onEdit={() => handleEdit(p)}
+                onDelete={() => {
+                  setSelectedProduct(p);
+                  setDeleteModal(true);
+                }}
+                onToggleActive={newVal => setAllProducts(prev => prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr)))}
+              />
+            </div>
           ))}
         </Row>
       </Container>

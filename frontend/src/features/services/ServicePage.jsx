@@ -165,17 +165,24 @@ const ServicePage = () => {
       <Container fluid="xxl">
         <Row className="g-4 g-xl-5">
           {filtered.map(s => (
-            <ServiceCard
-              key={s.serviceId}
-              s={s}
-              isAdmin={isAdmin}
-              categoriesMap={categoriesMap}
-              categoryColorMap={categoryColorMap}
-              onCardClick={() => { save(); navigate(`/trattamenti/${s.serviceId}`); }}
-              onEdit={() => handleEdit(s)}
-              onDelete={() => { setSelectedService(s); setDeleteModal(true); }}
-              onToggleActive={newVal => setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)))}
-            />
+            <div key={s.serviceId} data-scroll-id={s.serviceId} style={{ display: "contents" }}>
+              <ServiceCard
+                s={s}
+                isAdmin={isAdmin}
+                categoriesMap={categoriesMap}
+                categoryColorMap={categoryColorMap}
+                onCardClick={() => {
+                  save(s.serviceId);
+                  navigate(`/trattamenti/${s.serviceId}`);
+                }}
+                onEdit={() => handleEdit(s)}
+                onDelete={() => {
+                  setSelectedService(s);
+                  setDeleteModal(true);
+                }}
+                onToggleActive={newVal => setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)))}
+              />
+            </div>
           ))}
         </Row>
       </Container>
