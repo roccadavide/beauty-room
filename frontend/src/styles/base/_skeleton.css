@@ -1,0 +1,31 @@
+/* ── Skeleton shimmer ── */
+.sk {
+  background: linear-gradient(
+    90deg,
+    #f0e8df 25%,
+    #f9f3ed 50%,
+    #f0e8df 75%
+  );
+  background-size: 200% 100%;
+  animation: skShimmer 1.4s ease infinite;
+  border-radius: 8px;
+}
+
+@keyframes skShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.sk-line       { height: 13px; border-radius: 4px; margin-bottom: 10px; }
+.sk-title      { height: 44px; border-radius: 6px; margin-bottom: 16px; }
+.sk-price      { height: 52px; width: 45%; border-radius: 6px; }
+.sk-pill       { height: 34px; width: 130px; border-radius: 999px; display: inline-block; }
+.sk-btn        { height: 52px; border-radius: 14px; width: 100%; }
+.sk-card-img   { width: 100%; aspect-ratio: 4/3; border-radius: 16px 16px 0 0; }
+.sk-img        { width: 100%; aspect-ratio: 4/3; border-radius: 16px; }
+.sk-badge      { height: 22px; width: 90px; border-radius: 999px; }
+.sk-eyebrow    { height: 11px; width: 80px; border-radius: 4px; margin-bottom: 12px; }
+.sk-page-title { height: 52px; border-radius: 8px; margin-bottom: 14px; }
+.sk-subtitle   { height: 13px; border-radius: 4px; }
+.sk-chip       { height: 34px; width: 80px; border-radius: 999px; display: inline-block; }
+.sk-card-body  { padding: 16px; }

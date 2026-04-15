@@ -1,13 +1,19 @@
 import http from "../httpClient";
 import { SERVICE_ENDPOINTS } from "../endpoints";
+import { getCached, setCached, invalidateCache } from "../apiCache";
 
 // ---------------------------------- SERVICES ----------------------------------
 
 // -------------------------- GET ALL --------------------------
 export const fetchServices = async () => {
   try {
+    const KEY = "services";
+    const cached = getCached(KEY);
+    if (cached) return cached;
     const { data } = await http.get(SERVICE_ENDPOINTS.BASE);
-    return data.content || data;
+    const result = data.content || data;
+    setCached(KEY, result);
+    return result;
   } catch (error) {
     const message = error.response?.data?.message || "Impossibile recuperare i servizi.";
     throw new Error(message);
@@ -17,7 +23,11 @@ export const fetchServices = async () => {
 // -------------------------- GET BY ID --------------------------
 export const fetchServiceById = async serviceId => {
   try {
+    const KEY = "service_" + serviceId;
+    const cached = getCached(KEY);
+    if (cached) return cached;
     const { data } = await http.get(SERVICE_ENDPOINTS.BY_ID(serviceId));
+    setCached(KEY, data);
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Impossibile recuperare il servizio.";
@@ -32,6 +42,7 @@ export const createService = async formData => {
     const { data } = await http.post(SERVICE_ENDPOINTS.BASE, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+    invalidateCache("services");
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nella creazione del servizio.";
@@ -45,6 +56,7 @@ export const updateService = async (serviceId, formData) => {
     const { data } = await http.put(SERVICE_ENDPOINTS.BY_ID(serviceId), formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+    invalidateCache("services");
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nell’aggiornamento del servizio.";
@@ -56,6 +68,7 @@ export const updateService = async (serviceId, formData) => {
 export const deleteService = async serviceId => {
   try {
     await http.delete(SERVICE_ENDPOINTS.BY_ID(serviceId));
+    invalidateCache("services", "service_" + serviceId);
     return true;
   } catch (error) {
     const message = error.response?.data?.message || "Errore durante l’eliminazione del servizio.";

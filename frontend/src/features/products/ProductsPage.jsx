@@ -1,17 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
-import { Badge, Card, Col, Container, Row, Spinner } from "react-bootstrap";
+import { Container, Row } from "react-bootstrap";
+import ProductsPageSkeleton from "./ProductsPageSkeleton";
 import { useSelector } from "react-redux";
-import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import { useNavigate } from "react-router-dom";
 import DeleteProductModal from "./DeleteProductModal";
 import ProductModal from "./ProductModal";
 import AdminAddButton from "../../components/common/AdminAddButton";
-import AdminToggle from "../../components/common/AdminToggle";
 import SEO from "../../components/common/SEO";
-import { BadgeFlags } from "../../components/common/BadgeFlag";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteProduct, fetchProducts } from "../../api/modules/products.api";
 import useScrollRestore from "../../hooks/useScrollRestore";
+import ProductCard from "./ProductCard";
 
 function ProductsPage() {
   const [cat, setCat] = useState("all");
@@ -125,13 +124,7 @@ function ProductsPage() {
   }, [categories]);
 
   // ---------- UI ----------
-  if (loading) {
-    return (
-      <Container className="container-base">
-        <Spinner animation="border" role="status" />
-      </Container>
-    );
-  }
+  if (loading) return <ProductsPageSkeleton />;
 
   if (error) {
     return (
@@ -187,61 +180,17 @@ function ProductsPage() {
       <Container fluid="xxl">
         <Row className="g-4 g-xl-5">
           {filtered.map(p => (
-            <Col key={p.productId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
-              <Card
-                className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}${isAdmin && !(p.active ?? true) ? " admin-entity--inactive" : ""}`}
-                onClick={() => {
-                    save();
-                    navigate(`/prodotti/${p.productId}`);
-                  }}
-              >
-                {isAdmin && (
-                  <div className="admin-card-toggle-corner" onClick={e => e.stopPropagation()}>
-                    <AdminToggle
-                      entityId={p.productId}
-                      isActive={p.active ?? true}
-                      endpoint="/products"
-                      onToggleSuccess={newVal => setAllProducts(prev => prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr)))}
-                    />
-                  </div>
-                )}
-                <div className="bpc-img-wrap">
-                  <Card.Img src={p.images?.[0]} alt={p.name} />
-                  {p.stock === 0 && (
-                    <div className="bpc-sold-out-overlay">
-                      <span className="bpc-sold-out-label">Esaurito</span>
-                    </div>
-                  )}
-                </div>
-                <BadgeFlags badges={p?.badges ?? []} />
-                <Card.Body className="d-flex flex-column">
-                  <div className="bpc-accent-line" />
-                  <Card.Title className="bpc-title mb-1">{p.name}</Card.Title>
-                  <div className="mb-2 d-flex align-items-center gap-2">
-                    <Badge bg={categoryColorMap[p.categoryId] || "secondary"} className="text-uppercase">
-                      {categoriesMap[p.categoryId] || "Senza categoria"}
-                    </Badge>
-                    <small className="text-muted">{p.stock > 0 ? `${p.stock} rimanenti` : "Esaurito"}</small>
-                  </div>
-                  <Card.Text className="flex-grow-1">{p.shortDescription}</Card.Text>
-                  <div className="d-flex justify-content-between align-items-center mt-2">
-                    <span className="bpc-price">{p.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                    {p.stock === 0 && <span className="bpc-out-pill">Non disponibile</span>}
-                    {isAdmin && (
-                      <div className="d-flex gap-2 ms-auto">
-                        <EditButton onClick={() => handleEdit(p)} />
-                        <DeleteButton
-                          onClick={() => {
-                            setSelectedProduct(p);
-                            setDeleteModal(true);
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
+            <ProductCard
+              key={p.productId}
+              p={p}
+              isAdmin={isAdmin}
+              categoriesMap={categoriesMap}
+              categoryColorMap={categoryColorMap}
+              onCardClick={() => { save(); navigate(`/prodotti/${p.productId}`); }}
+              onEdit={() => handleEdit(p)}
+              onDelete={() => { setSelectedProduct(p); setDeleteModal(true); }}
+              onToggleActive={newVal => setAllProducts(prev => prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr)))}
+            />
           ))}
         </Row>
       </Container>

@@ -1,13 +1,19 @@
 import http from "../httpClient";
 import { PRODUCT_ENDPOINTS } from "../endpoints";
+import { getCached, setCached, invalidateCache } from "../apiCache";
 
 // ---------------------------------- PRODUCTS ----------------------------------
 
 // -------------------------- GET ALL --------------------------
 export const fetchProducts = async () => {
   try {
+    const KEY = "products";
+    const cached = getCached(KEY);
+    if (cached) return cached;
     const { data } = await http.get(PRODUCT_ENDPOINTS.BASE);
-    return data.content || data;
+    const result = data.content || data;
+    setCached(KEY, result);
+    return result;
   } catch (error) {
     const message = error.response?.data?.message || "Impossibile recuperare i prodotti.";
     throw new Error(message);
@@ -32,6 +38,7 @@ export const createProduct = async formData => {
     const { data } = await http.post(PRODUCT_ENDPOINTS.BASE, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+    invalidateCache("products");
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nella creazione del prodotto.";
@@ -45,6 +52,7 @@ export const updateProduct = async (productId, formData) => {
     const { data } = await http.put(PRODUCT_ENDPOINTS.BY_ID(productId), formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+    invalidateCache("products");
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nell’aggiornamento del prodotto.";
@@ -56,6 +64,7 @@ export const updateProduct = async (productId, formData) => {
 export const deleteProduct = async productId => {
   try {
     await http.delete(PRODUCT_ENDPOINTS.BY_ID(productId));
+    invalidateCache("products");
     return true;
   } catch (error) {
     const message = error.response?.data?.message || "Errore durante l’eliminazione del prodotto.";

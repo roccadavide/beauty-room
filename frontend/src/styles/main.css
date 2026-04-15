@@ -2,6 +2,7 @@
 @import "./base/_variables.css";
 @import "./base/_reset.css";
 @import "./base/_global.css";
+@import "./base/_skeleton.css";
 
 /* ===== LAYOUTS ===== */
 @import "./layout/_navbar.css";

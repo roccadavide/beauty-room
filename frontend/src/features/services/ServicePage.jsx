@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Container, Row, Col, Card, Badge, Spinner } from "react-bootstrap";
+import { Container, Row } from "react-bootstrap";
+import ServicePageSkeleton from "./ServicePageSkeleton";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import ServiceModal from "./ServiceModal";
 import DeleteServiceModal from "./DeleteServiceModal";
-import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import AdminAddButton from "../../components/common/AdminAddButton";
-import AdminToggle from "../../components/common/AdminToggle";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices } from "../../api/modules/services.api";
-import { BadgeFlags } from "../../components/common/BadgeFlag";
 import SEO from "../../components/common/SEO";
 import useScrollRestore from "../../hooks/useScrollRestore";
+import ServiceCard from "./ServiceCard";
 
 const ServicePage = () => {
   const [cat, setCat] = useState("all");
@@ -110,13 +109,7 @@ const ServicePage = () => {
   }, [categories]);
 
   // ---------- UI ----------
-  if (loading) {
-    return (
-      <Container className="container-base">
-        <Spinner animation="border" role="status" />
-      </Container>
-    );
-  }
+  if (loading) return <ServicePageSkeleton />;
 
   if (error) {
     return (
@@ -171,78 +164,19 @@ const ServicePage = () => {
 
       <Container fluid="xxl">
         <Row className="g-4 g-xl-5">
-          {filtered.map(s => {
-            const activeOptions = s.options?.filter(o => o.active) ?? [];
-            const hasActiveOptions = activeOptions.length > 0;
-            const minOptionDuration = activeOptions.map(o => o.durationMin).filter(Boolean);
-            const displayDuration = minOptionDuration.length > 0 ? Math.min(...minOptionDuration) : s.durationMin;
-            const pricePrefix = hasActiveOptions ? "da " : "";
-            const durationPrefix = hasActiveOptions ? "da " : "";
-
-            return (
-              <Col key={s.serviceId} xs={12} sm={6} lg={6} xl={4} className="d-flex">
-                <Card
-                  className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`}
-                  onClick={() => {
-                    save();
-                    navigate(`/trattamenti/${s.serviceId}`);
-                  }}
-                >
-                  {isAdmin && (
-                    <div className="admin-card-toggle-corner" style={{ left: 10, right: "auto" }} onClick={e => e.stopPropagation()}>
-                      <AdminToggle
-                        entityId={s.serviceId}
-                        isActive={s.active ?? true}
-                        endpoint="/service-items"
-                        onToggleSuccess={newVal => setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)))}
-                      />
-                    </div>
-                  )}
-                  <div className="bsc-img-wrap">
-                    <Card.Img src={s.images?.[0]} alt={s.title} />
-                    <div className="bsc-img-overlay">
-                      <span className="bsc-duration">
-                        {durationPrefix}
-                        {displayDuration} min
-                      </span>
-                    </div>
-                  </div>
-                  <BadgeFlags badges={s?.badges ?? []} />
-                  <Card.Body className="d-flex flex-column">
-                    <div className="bsc-accent-line" />
-                    <Card.Title className="bsc-title mb-1">{s.title}</Card.Title>
-                    <div className="mb-2 d-flex align-items-center gap-2">
-                      <Badge bg={categoryColorMap[s.categoryId] || "secondary"} className="text-uppercase">
-                        {categoriesMap[s.categoryId] || "Senza categoria"}
-                      </Badge>
-                      <small className="text-muted">
-                        {durationPrefix}
-                        {displayDuration} min
-                      </small>
-                    </div>
-                    <Card.Text className="flex-grow-1">{s.shortDescription}</Card.Text>
-                    <div className="d-flex justify-content-between align-items-center mt-2">
-                      <span className="bsc-price">
-                        {pricePrefix}
-                        {s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                      </span>
-                      {isAdmin && (
-                        <div className="d-flex gap-2 ms-auto">
-                          <EditButton onClick={() => handleEdit(s)} />
-                          <DeleteButton
-                            onClick={() => {
-                              setSelectedService(s);
-                              setDeleteModal(true);
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-            );
-          })}
+          {filtered.map(s => (
+            <ServiceCard
+              key={s.serviceId}
+              s={s}
+              isAdmin={isAdmin}
+              categoriesMap={categoriesMap}
+              categoryColorMap={categoryColorMap}
+              onCardClick={() => { save(); navigate(`/trattamenti/${s.serviceId}`); }}
+              onEdit={() => handleEdit(s)}
+              onDelete={() => { setSelectedService(s); setDeleteModal(true); }}
+              onToggleActive={newVal => setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)))}
+            />
+          ))}
         </Row>
       </Container>
 

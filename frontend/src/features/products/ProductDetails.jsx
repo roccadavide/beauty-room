@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { Container, Badge, Spinner } from "react-bootstrap";
+import { Container, Badge } from "react-bootstrap";
+import ProductDetailSkeleton from "./ProductDetailSkeleton";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/modules/stripe.api";
@@ -145,12 +146,7 @@ const ProductDetail = () => {
     }
   };
 
-  if (loading)
-    return (
-      <Container className="pt-5 text-center">
-        <Spinner animation="border" />
-      </Container>
-    );
+  if (loading) return <ProductDetailSkeleton />;
 
   if (error)
     return (

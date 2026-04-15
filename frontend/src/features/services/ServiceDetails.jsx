@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Container, Badge, Spinner } from "react-bootstrap";
+import { Container, Badge } from "react-bootstrap";
+import ServiceDetailSkeleton from "./ServiceDetailSkeleton";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import BookingModal from "../bookings/BookingModal";
@@ -139,12 +140,7 @@ const ServiceDetail = () => {
     return saved > 0 ? { fullPrice, saved } : null;
   };
 
-  if (loading)
-    return (
-      <Container className="pt-5 text-center">
-        <Spinner animation="border" />
-      </Container>
-    );
+  if (loading) return <ServiceDetailSkeleton />;
 
   if (error)
     return (

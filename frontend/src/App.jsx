@@ -1,16 +1,13 @@
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
+import { useDispatch } from "react-redux";
 
 import AboutSection from "./features/about/AboutSection";
 import Divider from "./components/layout/Divider";
 import Footer from "./components/layout/Footer";
 import HeroSection from "./components/layout/HeroSection";
 import ProductsPage from "./features/products/ProductsPage";
-import AboutDescription from "./features/about/AboutDescription";
-import MyProfile from "./features/profile/MyProfile";
-import BookingSuccessPage from "./features/bookings/BookingSuccessPage";
-import MyArea from "./pages/user/MyArea";
-import ResultsPage from "./features/results/ResultsPage";
 import PageTransition from "./components/common/PageTransition";
 import AcademySection from "./components/layout/AcademySection";
 import TestimonialsSection from "./components/layout/TestimonialsSection";
@@ -19,38 +16,42 @@ import ResultsPreview from "./features/results/ResultPreview";
 import ProductDetail from "./features/products/ProductDetails";
 import ServicePage from "./features/services/ServicePage";
 import ServiceDetail from "./features/services/ServiceDetails";
-import OccasioniPage from "./features/Occasioni/OccasioniPage";
-import Login from "./features/auth/Login";
-import Register from "./features/auth/Register";
-import CartPage from "./features/cart/CartPage";
-import OrderConfirmation from "./features/orders/OrderConfirmation";
-import MyOrders from "./features/orders/MyOrders";
-import AllOrders from "./features/orders/AllOrders";
 import NavBar from "./components/layout/NavBar";
 import PrivateRoute from "./components/common/PrivateRoute";
 import useLenis from "./hooks/useLenis";
-import { useEffect, useState } from "react";
-import AdminAgendaSettingsPage from "./components/admin/AdminAgendaSettingsPage";
-import AdminAgendaPage from "./components/admin/AdminAgendaPage";
-import ImpostazioniPage from "./components/admin/ImpostazioniPage";
-import ClientiPage from "./pages/admin/ClientiPage";
-import ReportPage from "./pages/admin/ReportPage";
-import PostItBoard from "./pages/admin/PostItBoard";
-import NotifichePage from "./pages/admin/NotifichePage";
-import { useDispatch } from "react-redux";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
 import { clearAccessToken } from "./utils/token";
 import { logoutUser } from "./api/modules/auth.api";
 import Map from "./components/layout/Map";
-import BookingConfirmation from "./features/bookings/BookingConfirmation";
-import WaitlistPage from "./features/bookings/WaitlistPage";
-import PrivacyPolicy from "./components/legal/PrivacyPolicy";
-import CookiePolicy from "./components/legal/CookiePolicy";
-import TermsAndConditions from "./components/legal/TermsAndConditions";
 import LaserSection from "./components/laser/LaserSection";
 import ScrollVelocity from "./components/common/ScrollVelocity";
 import SEO from "./components/common/SEO";
+
+const AboutDescription    = lazy(() => import("./features/about/AboutDescription"));
+const MyProfile           = lazy(() => import("./features/profile/MyProfile"));
+const BookingSuccessPage  = lazy(() => import("./features/bookings/BookingSuccessPage"));
+const MyArea              = lazy(() => import("./pages/user/MyArea"));
+const ResultsPage         = lazy(() => import("./features/results/ResultsPage"));
+const OccasioniPage       = lazy(() => import("./features/Occasioni/OccasioniPage"));
+const Login               = lazy(() => import("./features/auth/Login"));
+const Register            = lazy(() => import("./features/auth/Register"));
+const CartPage            = lazy(() => import("./features/cart/CartPage"));
+const OrderConfirmation   = lazy(() => import("./features/orders/OrderConfirmation"));
+const MyOrders            = lazy(() => import("./features/orders/MyOrders"));
+const AllOrders           = lazy(() => import("./features/orders/AllOrders"));
+const AdminAgendaPage     = lazy(() => import("./components/admin/AdminAgendaPage"));
+const AdminAgendaSettingsPage = lazy(() => import("./components/admin/AdminAgendaSettingsPage"));
+const ImpostazioniPage    = lazy(() => import("./components/admin/ImpostazioniPage"));
+const ClientiPage         = lazy(() => import("./pages/admin/ClientiPage"));
+const ReportPage          = lazy(() => import("./pages/admin/ReportPage"));
+const PostItBoard         = lazy(() => import("./pages/admin/PostItBoard"));
+const NotifichePage       = lazy(() => import("./pages/admin/NotifichePage"));
+const BookingConfirmation = lazy(() => import("./features/bookings/BookingConfirmation"));
+const WaitlistPage        = lazy(() => import("./features/bookings/WaitlistPage"));
+const PrivacyPolicy       = lazy(() => import("./components/legal/PrivacyPolicy"));
+const CookiePolicy        = lazy(() => import("./components/legal/CookiePolicy"));
+const TermsAndConditions  = lazy(() => import("./components/legal/TermsAndConditions"));
 
 // Chiavi sessionStorage usate da useScrollRestore — aggiorna se aggiungi pagine con restore
 const RESTORE_KEYS = {
@@ -141,6 +142,7 @@ function App() {
       <NavBar />
 
       <main className={isHeroPage ? "has-hero" : ""}>
+        <Suspense fallback={null}>
         <AnimatePresence mode="wait" initial={false} onExitComplete={handleExitComplete}>
           <Routes location={location} key={location.pathname}>
             {/* HOME */}
@@ -426,6 +428,7 @@ function App() {
             />
           </Routes>
         </AnimatePresence>
+        </Suspense>
       </main>
       <Footer />
     </>
