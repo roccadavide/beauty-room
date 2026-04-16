@@ -18,6 +18,8 @@ public interface ServiceItemRepository extends JpaRepository<ServiceItem, UUID> 
 
     List<ServiceItem> findByActiveTrue();
 
+    long countByFeaturedTrue();
+
     boolean existsByTitle(String title);
 
     boolean existsByTitleAndServiceIdNot(String title, UUID serviceItemId);

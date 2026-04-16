@@ -6,21 +6,9 @@ import ResultCard from "./ResultCard";
 import ResultDrawer from "./ResultDrawer";
 import DeleteResultModal from "./DeleteResultModal";
 import { fetchCategories } from "../../api/modules/categories.api";
-import { deleteResult, fetchResults } from "../../api/modules/results.api";
+import { deleteResult, fetchResults, patchResultFeatured } from "../../api/modules/results.api";
 
-const STORAGE_KEY = "michela_featured_results";
 const MAX_FEATURED = 2;
-
-function loadFeatured() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? [];
-  } catch {
-    return [];
-  }
-}
-function saveFeatured(ids) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
-}
 
 function DiamondDivider() {
   return (
@@ -37,7 +25,6 @@ export default function ResultsPreview() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [featuredIds, setFeaturedIds] = useState(loadFeatured);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const [open, setOpen] = useState(false);
@@ -45,7 +32,7 @@ export default function ResultsPreview() {
   const [selectedResult, setSelectedResult] = useState(null);
   const [editingResult, setEditingResult] = useState(null);
 
-  const { user } = useSelector(state => state.auth);
+  const { user, accessToken } = useSelector(state => state.auth);
   const isAdmin = user?.role === "ADMIN";
   const navigate = useNavigate();
 
@@ -55,12 +42,6 @@ export default function ResultsPreview() {
         const [res, cats] = await Promise.all([fetchResults(), fetchCategories()]);
         setAllResults(res);
         setCategories(cats);
-        // Se ancora nessun featured salvato, prendi i primi 2
-        if (loadFeatured().length === 0 && res.length > 0) {
-          const defaults = res.slice(0, MAX_FEATURED).map(r => r.resultId);
-          saveFeatured(defaults);
-          setFeaturedIds(defaults);
-        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -78,14 +59,19 @@ export default function ResultsPreview() {
     return map;
   }, [categories]);
 
-  const featured = useMemo(() => featuredIds.map(id => allResults.find(r => r.resultId === id)).filter(Boolean), [featuredIds, allResults]);
+  const featured = useMemo(() => allResults.filter(r => r.featured), [allResults]);
 
-  const toggleFeatured = id => {
-    setFeaturedIds(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : prev.length >= MAX_FEATURED ? prev : [...prev, id];
-      saveFeatured(next);
-      return next;
-    });
+  const toggleFeatured = async id => {
+    const result = allResults.find(r => r.resultId === id);
+    if (!result) return;
+    const newValue = !result.featured;
+    if (newValue && allResults.filter(r => r.featured).length >= MAX_FEATURED) return;
+    try {
+      const updated = await patchResultFeatured(id, newValue, accessToken);
+      setAllResults(prev => prev.map(r => (r.resultId === id ? updated : r)));
+    } catch (err) {
+      alert("Errore: " + err.message);
+    }
   };
 
   if (loading)
@@ -120,13 +106,13 @@ export default function ResultsPreview() {
               Seleziona fino a {MAX_FEATURED} risultati da mostrare in home.
               <span className="rprev-picker__count">
                 {" "}
-                ({featuredIds.length}/{MAX_FEATURED})
+                ({allResults.filter(r => r.featured).length}/{MAX_FEATURED})
               </span>
             </p>
             <div className="rprev-picker__grid">
               {allResults.map(r => {
-                const isFeatured = featuredIds.includes(r.resultId);
-                const isDisabled = !isFeatured && featuredIds.length >= MAX_FEATURED;
+                const isFeatured = r.featured;
+                const isDisabled = !isFeatured && allResults.filter(res => res.featured).length >= MAX_FEATURED;
                 return (
                   <button
                     key={r.resultId}
@@ -204,11 +190,6 @@ export default function ResultsPreview() {
               try {
                 await deleteResult(id);
                 setAllResults(prev => prev.filter(r => r.resultId !== id));
-                setFeaturedIds(prev => {
-                  const n = prev.filter(x => x !== id);
-                  saveFeatured(n);
-                  return n;
-                });
                 setDeleteModal(false);
                 setSelectedResult(null);
               } catch (err) {

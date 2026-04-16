@@ -466,8 +466,8 @@
     position: absolute;
     top: 0;
     right: 0;
-    width: 60%;
-    height: 50px;
+    width: 100%;
+    height: 90px;
     background: #2f2723;
     z-index: 3;
     pointer-events: none;
@@ -642,7 +642,7 @@
     --mob-copy-col: 60%;
     --mob-copy-pt: 0px;
     --mob-copy-pb: 12px;
-    --mob-copy-tx: -200px;
+    --mob-copy-tx: 0px;
     --mob-copy-ty: -240px;
     --mob-body-pt: 58px;
     --mob-body-min-h: 410px;
@@ -655,6 +655,10 @@
     --hand-tx: 0px;
     --hand-ty: 0px;
   }
+
+  .laser-copy {
+    margin-left: -62%;
+  }
 }
 
 @media (min-width: 481px) and (max-width: 575px) {
@@ -664,12 +668,12 @@
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(300px, 54svw);
+    --mob-machine-w: min(300px, 65svw);
     --mob-machine-col: 53%;
     --mob-machine-tx: -15px;
-    --mob-machine-ty: 0px;
+    --mob-machine-ty: 10px;
     --mob-copy-col: 60%;
-    --mob-copy-tx: -280px;
+    --mob-copy-tx: 20px;
     --mob-copy-ty: -320px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
@@ -696,7 +700,7 @@
     --mob-machine-tx: -15px;
     --mob-machine-ty: -15px;
     --mob-copy-col: 60%;
-    --mob-copy-tx: -260px;
+    --mob-copy-tx: 0px;
     --mob-copy-ty: -320px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
@@ -718,12 +722,12 @@
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(350px, 59svw);
+    --mob-machine-w: min(350px, 63svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
-    --mob-machine-ty: -25px;
+    --mob-machine-ty: 10px;
     --mob-copy-col: 60%;
-    --mob-copy-tx: -230px;
+    --mob-copy-tx: 10px;
     --mob-copy-ty: -295px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
@@ -745,13 +749,13 @@
     --mob-beam-s: 1.95;
     --mob-hand-w: 200px;
     --mob-hand-top: -35px;
-    --mob-machine-w: min(350px, 58svw);
+    --mob-machine-w: min(350px, 65svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
-    --mob-machine-ty: -35px;
+    --mob-machine-ty: 5px;
     --mob-copy-col: 60%;
-    --mob-copy-tx: -210px;
-    --mob-copy-ty: -290px;
+    --mob-copy-tx: 4px;
+    --mob-copy-ty: -300px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
     --fx-y: var(--mob-beam-y);
@@ -767,18 +771,18 @@
 
 @media (min-width: 375px) and (max-width: 399px) {
   .laser-card {
-    --mob-beam-x: calc(61vw - 130px);
+    --mob-beam-x: calc(61vw - 128.5px);
     --mob-beam-y: 140px;
     --mob-beam-s: 2.25;
     --mob-hand-w: 195px;
     --mob-hand-top: -35px;
-    --mob-machine-w: min(350px, 60svw);
-    --mob-machine-col: 47%;
+    --mob-machine-w: min(350px, 69svw);
+    --mob-machine-col: 65%;
     --mob-machine-tx: -15px;
-    --mob-machine-ty: -35px;
-    --mob-copy-col: 57%;
-    --mob-copy-tx: -185px;
-    --mob-copy-ty: -290px;
+    --mob-machine-ty: -10px;
+    --mob-copy-col: 65%;
+    --mob-copy-tx: -3px;
+    --mob-copy-ty: -310px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
     --fx-y: var(--mob-beam-y);
@@ -804,8 +808,8 @@
     --mob-machine-tx: -15px;
     --mob-machine-ty: 0px;
     --mob-copy-col: 57%;
-    --mob-copy-tx: -210px;
-    --mob-copy-ty: -240px;
+    --mob-copy-tx: 10px;
+    --mob-copy-ty: -250px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
     --fx-y: var(--mob-beam-y);
@@ -828,7 +832,7 @@
     --mob-machine-tx: -15px;
     --mob-machine-ty: 0px;
     --mob-copy-col: 57%;
-    --mob-copy-tx: -210px;
+    --mob-copy-tx: 0px;
     --mob-copy-ty: -230px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
@@ -852,8 +856,8 @@
     --mob-machine-tx: -15px;
     --mob-machine-ty: 0px;
     --mob-copy-col: 57%;
-    --mob-copy-tx: -200px;
-    --mob-copy-ty: -220px;
+    --mob-copy-tx: 0px;
+    --mob-copy-ty: -235px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
     --fx-y: var(--mob-beam-y);

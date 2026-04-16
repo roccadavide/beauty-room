@@ -7,35 +7,16 @@ import { EditButton, DeleteButton } from "../../components/common/AdminActionBut
 import ServiceModal from "./ServiceModal";
 import DeleteServiceModal from "./DeleteServiceModal";
 import { fetchCategories } from "../../api/modules/categories.api";
-import { deleteService, fetchServices } from "../../api/modules/services.api";
+import { deleteService, fetchServices, patchServiceFeatured } from "../../api/modules/services.api";
 import { BadgeFlags } from "../../components/common/BadgeFlag";
 
-const STORAGE_KEY = "michela_featured_services";
 const MAX_FEATURED = 5;
-const FEATURED_SERVICE_IDS = [
-  "268a5ef7-82ec-470f-ae6c-0598147f5dce", // Pelo Pelo
-  "9c31f234-1699-476f-bcf5-2926faf56fa9", // Laminazione ciglia
-  "785c6c1a-f392-4fca-92d2-9bf33752353a", // Translucent Lips, effetto sfumato
-];
-
-function loadFeaturedServices() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? [];
-  } catch {
-    return [];
-  }
-}
-
-function saveFeaturedServices(ids) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
-}
 
 const ServicesPreview = () => {
   const [allServices, setAllServices] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [featuredIds, setFeaturedIds] = useState(loadFeaturedServices);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -55,17 +36,6 @@ const ServicesPreview = () => {
         const [allServices, cats] = await Promise.all([fetchServices(), fetchCategories()]);
         setCategories(cats);
         setAllServices(allServices);
-
-        const stored = loadFeaturedServices();
-        if (stored.length === 0 && allServices.length > 0) {
-          const defaults = allServices
-            .filter(s => FEATURED_SERVICE_IDS.includes(s.serviceId))
-            .slice(0, MAX_FEATURED)
-            .map(s => s.serviceId);
-          const fallback = defaults.length > 0 ? defaults : allServices.slice(0, Math.min(3, allServices.length)).map(s => s.serviceId);
-          saveFeaturedServices(fallback);
-          setFeaturedIds(fallback);
-        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -84,7 +54,7 @@ const ServicesPreview = () => {
     return map;
   }, [categories]);
 
-  const services = useMemo(() => featuredIds.map(id => allServices.find(s => s.serviceId === id)).filter(Boolean), [featuredIds, allServices]);
+  const services = useMemo(() => allServices.filter(s => s.featured), [allServices]);
 
   const searchableServices = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -96,12 +66,17 @@ const ServicesPreview = () => {
     });
   }, [allServices, searchTerm]);
 
-  const toggleFeatured = id => {
-    setFeaturedIds(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : prev.length >= MAX_FEATURED ? prev : [...prev, id];
-      saveFeaturedServices(next);
-      return next;
-    });
+  const toggleFeatured = async id => {
+    const svc = allServices.find(s => s.serviceId === id);
+    if (!svc) return;
+    const newValue = !svc.featured;
+    if (newValue && allServices.filter(s => s.featured).length >= MAX_FEATURED) return;
+    try {
+      const updated = await patchServiceFeatured(id, newValue, accessToken);
+      setAllServices(prev => prev.map(s => (s.serviceId === id ? updated : s)));
+    } catch (err) {
+      alert("Errore: " + err.message);
+    }
   };
 
   // ---------- DELETE ----------
@@ -109,11 +84,6 @@ const ServicesPreview = () => {
     try {
       await deleteService(id, accessToken);
       setAllServices(prev => prev.filter(s => s.serviceId !== id));
-      setFeaturedIds(prev => {
-        const next = prev.filter(x => x !== id);
-        saveFeaturedServices(next);
-        return next;
-      });
       setDeleteModal(false);
       setSelectedService(null);
     } catch (err) {
@@ -189,7 +159,7 @@ const ServicesPreview = () => {
               Seleziona fino a {MAX_FEATURED} trattamenti da mostrare in home.
               <span className="rprev-picker__count">
                 {" "}
-                ({featuredIds.length}/{MAX_FEATURED})
+                ({allServices.filter(s => s.featured).length}/{MAX_FEATURED})
               </span>
             </p>
             <div className="mb-3">
@@ -197,8 +167,8 @@ const ServicesPreview = () => {
             </div>
             <div className="rprev-picker__grid">
               {searchableServices.map(s => {
-                const isFeatured = featuredIds.includes(s.serviceId);
-                const isDisabled = !isFeatured && featuredIds.length >= MAX_FEATURED;
+                const isFeatured = s.featured;
+                const isDisabled = !isFeatured && allServices.filter(srv => srv.featured).length >= MAX_FEATURED;
                 return (
                   <button
                     key={s.serviceId}

@@ -59,4 +59,17 @@ export const deleteResult = async resultId => {
   }
 };
 
+export const patchResultFeatured = async (id, value, token) => {
+  try {
+    const { data } = await http.patch(`${RESULT_ENDPOINTS.BY_ID(id)}/featured`, null, {
+      params: { value },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore nell’aggiornamento dell’evidenza del risultato.";
+    throw new Error(message);
+  }
+};
+
 // buildFormData rimosso — usa src/api/utils/multipart.js

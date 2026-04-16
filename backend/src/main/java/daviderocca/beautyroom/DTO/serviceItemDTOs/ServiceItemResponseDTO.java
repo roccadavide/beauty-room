@@ -16,5 +16,6 @@ public record ServiceItemResponseDTO(
         String categoryKey,
         boolean active,
         List<ServiceOptionResponseDTO> options,
-        List<String> badges
+        List<String> badges,
+        boolean featured
 ) {}

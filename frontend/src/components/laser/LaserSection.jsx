@@ -75,12 +75,6 @@ export default function LaserSection() {
   return (
     <section ref={sectionRef} className="laser-section">
       <Container className="d-flex justify-content-center align-items-center">
-        {/*
-          ── WRAPPER = MotionDiv ──
-          Il wrapper si solleva intero (border-radius incluso).
-          Il border-radius funziona perché overflow/clip è sul
-          genitore dei contenuti, non sull'elemento trasformato.
-        */}
         <MotionDiv ref={cardRef} className="laser-card-wrapper" style={{ y: liftY, scale: liftScale }}>
           <div className="laser-card laser-card--dark">
             {/* WebGL beam */}
@@ -91,15 +85,15 @@ export default function LaserSection() {
                   color="#FFD7A1"
                   horizontalBeamOffset={0.25}
                   verticalBeamOffset={-0.3}
-                  wispDensity={6.5}
-                  wispSpeed={1.5}
-                  wispIntensity={4.5}
-                  flowSpeed={0.35}
-                  flowStrength={0.05}
+                  wispDensity={5.0} // era 6.5 — meno righe, più leggibili
+                  wispSpeed={2.8} // era 1.5 — wisps si muovono più veloce
+                  wispIntensity={6.5} // era 4.5 — più luminosi, si vedono su mobile
+                  flowSpeed={0.85} // era 0.35 — il movimento principale è quasi doppio
+                  flowStrength={0.18} // era 0.05 — distorsione molto più visibile
                   fogIntensity={fogValue}
                   fogScale={0.11}
-                  decay={2.5}
-                  verticalSizing={1.9}
+                  decay={2.8} // era 2.5 — beam leggermente più definito
+                  verticalSizing={2.1} // era 1.9 — beam più lungo, scende di più
                   horizontalSizing={0.5}
                 />
               </div>

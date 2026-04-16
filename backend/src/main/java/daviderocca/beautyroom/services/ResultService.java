@@ -149,6 +149,17 @@ public class ResultService {
         resultRepository.save(entity);
     }
 
+    @Transactional
+    public ResultResponseDTO setFeatured(UUID id, boolean value) {
+        Result entity = resultRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(id));
+        if (value && resultRepository.countByFeaturedTrue() >= 2) {
+            throw new IllegalStateException("Massimo 2 risultati in evidenza");
+        }
+        entity.setFeatured(value);
+        return convertToDTO(resultRepository.save(entity));
+    }
+
     private void applyLinkedService(Result result, UUID linkedServiceId) {
         if (linkedServiceId != null) {
             ServiceItem linked = serviceItemRepository.findById(linkedServiceId)
@@ -191,7 +202,8 @@ public class ResultService {
                 result.isActive(),
                 result.getLinkedService() != null ? result.getLinkedService().getServiceId() : null,
                 result.getLinkedService() != null ? result.getLinkedService().getTitle() : null,
-                result.getCreatedAt()
+                result.getCreatedAt(),
+                result.isFeatured()
         );
     }
 }

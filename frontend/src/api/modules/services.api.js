@@ -110,3 +110,17 @@ export const deleteServiceOption = async optionId => {
   }
 };
 
+export const patchServiceFeatured = async (id, value, token) => {
+  try {
+    const { data } = await http.patch(`${SERVICE_ENDPOINTS.BY_ID(id)}/featured`, null, {
+      params: { value },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    invalidateCache("services");
+    invalidateCache("service_" + id);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore nell’aggiornamento dell’evidenza del servizio.";
+    throw new Error(message);
+  }
+};

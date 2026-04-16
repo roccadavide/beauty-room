@@ -113,6 +113,14 @@ public class ServiceItemController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{serviceItemId}/featured")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ServiceItemResponseDTO> setFeatured(
+            @PathVariable UUID serviceItemId,
+            @RequestParam boolean value) {
+        return ResponseEntity.ok(serviceItemService.setFeatured(serviceItemId, value));
+    }
+
     @PatchMapping("/{serviceItemId}/toggle-active")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> toggleActive(@PathVariable UUID serviceItemId) {

@@ -14,5 +14,6 @@ public record ResultResponseDTO(
         boolean active,
         UUID linkedServiceId,
         String linkedServiceName,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        boolean featured
 ) {}

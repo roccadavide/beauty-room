@@ -247,6 +247,17 @@ public class ServiceItemService {
     }
 
     @Transactional
+    public ServiceItemResponseDTO setFeatured(UUID id, boolean value) {
+        ServiceItem entity = serviceItemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(id));
+        if (value && serviceItemRepository.countByFeaturedTrue() >= 5) {
+            throw new IllegalStateException("Massimo 5 trattamenti in evidenza");
+        }
+        entity.setFeatured(value);
+        return convertToDTO(serviceItemRepository.save(entity));
+    }
+
+    @Transactional
     public void toggleOptionActive(UUID optionId) {
         ServiceOption opt = serviceOptionRepository.findById(optionId)
                 .orElseThrow(() -> new ResourceNotFoundException(optionId));
@@ -293,7 +304,8 @@ public class ServiceItemService {
                 serviceItem.getCategory() != null ? serviceItem.getCategory().getCategoryKey() : null,
                 serviceItem.isActive(),
                 optionDTOs,
-                BadgesUtil.fromJson(serviceItem.getBadges())
+                BadgesUtil.fromJson(serviceItem.getBadges()),
+                serviceItem.isFeatured()
         );
     }
 }

@@ -18,6 +18,8 @@ public interface ResultRepository extends JpaRepository<Result, UUID> {
 
     List<Result> findByActiveTrue();
 
+    long countByFeaturedTrue();
+
     boolean existsByTitle(String title);
 
     boolean existsByTitleAndResultIdNot(String title, UUID resultId);

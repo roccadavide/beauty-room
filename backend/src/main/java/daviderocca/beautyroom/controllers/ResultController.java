@@ -79,6 +79,14 @@ public class ResultController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{resultId}/featured")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResultResponseDTO> setFeatured(
+            @PathVariable UUID resultId,
+            @RequestParam boolean value) {
+        return ResponseEntity.ok(resultService.setFeatured(resultId, value));
+    }
+
     @PatchMapping("/{resultId}/toggle-active")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> toggleActive(@PathVariable UUID resultId) {
