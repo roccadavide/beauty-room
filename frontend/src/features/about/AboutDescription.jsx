@@ -61,10 +61,7 @@ const AboutDescription = () => {
 
   return (
     <div className="ab-root">
-      <SEO
-        title="Chi Sono"
-        description="Conosci Michela, estetista specializzata in laser e trattamenti estetici avanzati a Calusco d'Adda."
-      />
+      <SEO title="Chi Sono" description="Conosci Michela, estetista specializzata in laser e trattamenti estetici avanzati a Calusco d'Adda." />
       {/* ══ HERO ══ */}
       <section className="ab-hero">
         <Container>
@@ -93,7 +90,7 @@ const AboutDescription = () => {
               <div className={`ab-fade ab-fade--right ${visible["hero-img"] ? "ab-fade--in" : ""}`} data-key="hero-img" ref={reg("hero-img")}>
                 <div className="ab-portrait-wrap">
                   <div className="ab-portrait-frame">
-                    <img src="/chisono-michela.jpeg" alt="Michela — Beauty Room" className="ab-portrait" />
+                    <img src="/negoziomichi.jpeg" alt="Michela — Beauty Room" className="ab-portrait" />
                   </div>
                   <div className="ab-portrait-badge">
                     <span className="ab-portrait-badge__dot" />
@@ -169,7 +166,7 @@ const AboutDescription = () => {
                 ref={reg("story-img")}
               >
                 <div className="ab-story-img-frame">
-                  <img src="/chisono-michela.jpeg" alt="Beauty Room" />
+                  <img src="/michela.JPEG" alt="Beauty Room" />
                 </div>
                 <div className="ab-story-deco" />
                 <div className="circular-badge-portrait">

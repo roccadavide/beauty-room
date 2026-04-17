@@ -85,15 +85,15 @@ export default function LaserSection() {
                   color="#FFD7A1"
                   horizontalBeamOffset={0.25}
                   verticalBeamOffset={-0.3}
-                  wispDensity={5.0} // era 6.5 — meno righe, più leggibili
-                  wispSpeed={2.8} // era 1.5 — wisps si muovono più veloce
-                  wispIntensity={6.5} // era 4.5 — più luminosi, si vedono su mobile
-                  flowSpeed={0.85} // era 0.35 — il movimento principale è quasi doppio
-                  flowStrength={0.18} // era 0.05 — distorsione molto più visibile
+                  wispDensity={5.0}
+                  wispSpeed={2.8}
+                  wispIntensity={6.5}
+                  flowSpeed={0.85}
+                  flowStrength={0.18}
                   fogIntensity={fogValue}
                   fogScale={0.11}
-                  decay={2.8} // era 2.5 — beam leggermente più definito
-                  verticalSizing={2.1} // era 1.9 — beam più lungo, scende di più
+                  decay={2.8}
+                  verticalSizing={2.1}
                   horizontalSizing={0.5}
                 />
               </div>

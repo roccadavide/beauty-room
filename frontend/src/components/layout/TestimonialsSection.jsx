@@ -68,7 +68,7 @@ const TestimonialsSection = () => {
           }
         });
       },
-      { threshold: 0.25 }
+      { threshold: 0.25 },
     );
 
     if (sectionRef.current) observer.observe(sectionRef.current);
@@ -99,7 +99,7 @@ const TestimonialsSection = () => {
           }
         });
       },
-      { threshold: 0.2 }
+      { threshold: 0.2 },
     );
 
     visibleTestimonials.forEach(t => {
@@ -150,18 +150,24 @@ const TestimonialsSection = () => {
   ));
 
   return (
-    <Container ref={sectionRef} fluid className="py-5 testimonials-root position-relative" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <Container
+      ref={sectionRef}
+      fluid
+      className="py-5 testimonials-root position-relative"
+      onTouchStart={isMobileStack ? undefined : handleTouchStart}
+      onTouchEnd={isMobileStack ? undefined : handleTouchEnd}
+    >
+      {" "}
       <div className="test-head">
         <span className="test-eyebrow">Recensioni Google</span>
         {/* FIX-20: test-title → section-title (identici) */}
         <h2 className="section-title">Cosa dicono i clienti</h2>
         <p className="test-subtitle">Testimonianze reali delle persone che hanno scelto Beauty Room.</p>
       </div>
-
       {isMobileStack ? (
         <div className="tstack-wrapper">
           <div className="tstack-hint">Tocca o trascina per sfogliare</div>
-          <div className="tstack-area">
+          <div className="tstack-area" data-lenis-prevent>
             <Stack
               cards={stackCards}
               autoplay={true}
@@ -171,13 +177,11 @@ const TestimonialsSection = () => {
               sensitivity={80}
               randomRotation={true}
               animationConfig={{ stiffness: 200, damping: 22 }}
-              mobileClickOnly={true}
+              mobileClickOnly={false}
               mobileBreakpoint={768}
             />
           </div>
-          <div className="tstack-count-label">
-            {TESTIMONIALS.length} recensioni · tutte 5 stelle
-          </div>
+          <div className="tstack-count-label">{TESTIMONIALS.length} recensioni · tutte 5 stelle</div>
         </div>
       ) : (
         <div className="d-flex justify-content-center align-items-center position-relative">
@@ -228,7 +232,6 @@ const TestimonialsSection = () => {
           )}
         </div>
       )}
-
       <div className="test-cta-wrap">
         <a
           href="https://www.google.com/search?hl=it&q=Beauty%20room%20Recensioni&rflfq=1&num=20&stick=H4sIAAAAAAAAAONgkxIxNLGwNDc2MrAwtTQDYhNLY0uDDYyMrxjFnFITS0sqFYry83MVglKTU_OKM_PzMhex4pAAAPVmQURNAAAA&rldimm=14897320859685949390&tbm=lcl&sa=X&ved=0CB0Q9fQKKABqFwoTCKDEsOHdvJADFQAAAAAdAAAAABAG&biw=1728&bih=878&dpr=2#lkt=LocalPoiReviews"

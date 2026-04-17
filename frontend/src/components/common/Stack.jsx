@@ -1,5 +1,5 @@
-import { motion, useMotionValue, useTransform } from "framer-motion";
-import { useState, useEffect } from "react";
+import { motion, useMotionValue, useTransform, animate } from "framer-motion";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 const MotionDiv = motion.div;
 
@@ -13,8 +13,8 @@ function CardRotate({ children, onSendToBack, sensitivity, disableDrag = false }
     if (Math.abs(info.offset.x) > sensitivity || Math.abs(info.offset.y) > sensitivity) {
       onSendToBack();
     } else {
-      x.set(0);
-      y.set(0);
+      animate(x, 0, { type: "spring", stiffness: 300, damping: 25 });
+      animate(y, 0, { type: "spring", stiffness: 300, damping: 25 });
     }
   }
 
@@ -72,6 +72,17 @@ export default function Stack({
     setStack(cards.map((content, index) => ({ id: index + 1, content })));
   }, [cards]);
 
+  // FIX: rotazioni calcolate una volta sola e stabili — non ricalcolate ad ogni render
+  const stableRotations = useRef({});
+  useMemo(() => {
+    cards.forEach((_, index) => {
+      const id = index + 1;
+      if (stableRotations.current[id] === undefined) {
+        stableRotations.current[id] = randomRotation ? Math.random() * 10 - 5 : 0;
+      }
+    });
+  }, [cards, randomRotation]);
+
   const sendToBack = id => {
     setStack(prev => {
       const next = [...prev];
@@ -94,7 +105,7 @@ export default function Stack({
   return (
     <div className="stack-container" onMouseEnter={() => pauseOnHover && setIsPaused(true)} onMouseLeave={() => pauseOnHover && setIsPaused(false)}>
       {stack.map((card, index) => {
-        const randomRotate = randomRotation ? Math.random() * 10 - 5 : 0;
+        const randomRotate = stableRotations.current[card.id] ?? 0;
         return (
           <CardRotate key={card.id} onSendToBack={() => sendToBack(card.id)} sensitivity={sensitivity} disableDrag={shouldDisableDrag}>
             <MotionDiv

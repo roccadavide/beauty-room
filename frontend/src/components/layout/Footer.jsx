@@ -8,6 +8,7 @@ const Footer = () => {
     <footer className="br-footer" aria-label="Footer">
       <Container className="br-footer__container">
         <Row className="gy-4 text-center text-md-start align-items-start">
+          {/* Colonna 1 — Info studio */}
           <Col md={4} className="d-flex flex-column align-items-center gap-2 justify-content-center">
             <div className="br-footer__title">Beauty Room</div>
             <div className="br-footer__subtitle">Trucco permanente • Laser • Estetica avanzata</div>
@@ -40,6 +41,7 @@ const Footer = () => {
             </div>
           </Col>
 
+          {/* Colonna 2 — Orari */}
           <Col md={4} className="d-flex flex-column align-items-center">
             <div className="br-footer__sectionTitle">Orari</div>
             <ul className="br-footer__list">
@@ -67,45 +69,42 @@ const Footer = () => {
             </ul>
           </Col>
 
-          <Col md={4} className="d-flex flex-column align-items-center align-items-md-start">
-            <div className="br-footer__social">
-              <div className="br-footer__sectionTitle">Seguici</div>
-              <div className="d-flex gap-4">
-                <a
-                  className="br-footer__socialBtn"
-                  href="https://www.instagram.com/rossimichela.pmu"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  aria-label="Instagram"
-                >
-                  <Instagram size={22} />
-                  <span>Instagram</span>
-                </a>
-
-                <a
-                  className="br-footer__socialBtn"
-                  href="https://www.facebook.com/rossimichela.pmu"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  aria-label="Facebook"
-                >
-                  <Facebook size={22} />
-                  <span>Facebook</span>
-                </a>
-
-                <a className="br-footer__socialBtn" href="https://wa.me/393780921723" target="_blank" rel="noreferrer noopener" aria-label="WhatsApp">
-                  <Whatsapp size={22} />
-                  <span>WhatsApp</span>
-                </a>
-              </div>
+          {/* Colonna 3 — Social */}
+          <Col md={4} className="d-flex flex-column align-items-center">
+            <div className="br-footer__sectionTitle">Seguici</div>
+            <div className="br-footer__socialGrid">
+              <a
+                className="br-footer__socialBtn"
+                href="https://www.instagram.com/rossimichela.pmu"
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Instagram"
+              >
+                <Instagram size={20} />
+                <span>Instagram</span>
+              </a>
+              <a
+                className="br-footer__socialBtn"
+                href="https://www.facebook.com/rossimichela.pmu"
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Facebook"
+              >
+                <Facebook size={20} />
+                <span>Facebook</span>
+              </a>
+              <a className="br-footer__socialBtn" href="https://wa.me/393780921723" target="_blank" rel="noreferrer noopener" aria-label="WhatsApp">
+                <Whatsapp size={20} />
+                <span>WhatsApp</span>
+              </a>
             </div>
           </Col>
         </Row>
 
+        {/* Bottom bar */}
         <div className="br-footer__bottom">
           <div className="br-footer__bottomRow">
             <small>© {year} Beauty Room — Tutti i diritti riservati</small>
-
             <div className="br-footer__legal">
               <a className="br-footer__link" href="/privacy">
                 Privacy
@@ -120,10 +119,12 @@ const Footer = () => {
               </a>
             </div>
           </div>
-
           <div className="br-footer__dev">
             <small>
-              Sviluppato da <span className="br-footer__devName">Davide Rocca</span>
+              Sviluppato da{" "}
+              <span className="br-footer__devName" onClick={() => window.open("https://www.linkedin.com/in/davide-rocca03/", "_blank")}>
+                Davide Rocca
+              </span>
             </small>
           </div>
         </div>

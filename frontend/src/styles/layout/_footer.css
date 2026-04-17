@@ -1,13 +1,23 @@
+/* ─── Footer ─────────────────────────────────────────────────── */
 .br-footer {
   background: #f3e7dc;
   color: #3b2f2a;
   border-top: 1px solid #e7d9cc;
+  /* NO overflow-x: hidden qui — delegato al container */
 }
 
 .br-footer__container {
-  padding: 32px 0;
+  padding: 32px 16px;
+  /* niente overflow hidden: il container Bootstrap già gestisce il max-width */
 }
 
+/* Row Bootstrap: azzera il gutter orizzontale per evitare spillover */
+.br-footer .row {
+  --bs-gutter-x: 1.5rem;
+  margin-inline: 0;
+}
+
+/* ─── Colonna 1 — Brand ─── */
 .br-footer__title {
   font-size: 22px;
   font-weight: 800;
@@ -21,29 +31,41 @@
   margin-bottom: 8px;
 }
 
-.br-footer__sectionTitle {
-  font-size: 20px;
-  font-weight: 800;
-  margin-bottom: 10px;
-}
-
+/* Riga con icona + testo (indirizzo, telefono, email) */
 .br-footer__line {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  align-items: baseline; /* allinea testo e icona sulla baseline */
+  gap: 6px;
   font-size: 14px;
+  max-width: 100%;
 }
 
+/* L'icona non si riduce mai */
 .br-footer__icon {
   flex: 0 0 auto;
   opacity: 0.75;
+  position: relative;
+  top: 2px; /* aggiustamento visivo baseline SVG */
+}
+
+/* Il testo dell'indirizzo non causa wrapping prematuro tra icona e primo char */
+.br-footer__line > span,
+.br-footer__line > a {
+  min-width: 0;
+  word-break: break-word; /* l'email lunga si rompe, non va fuori */
 }
 
 .br-footer__muted {
   color: #7a6a61;
   font-size: 13px;
   margin-top: 6px;
+}
+
+/* ─── Colonna 2 — Orari ─── */
+.br-footer__sectionTitle {
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 10px;
 }
 
 .br-footer__list {
@@ -54,6 +76,44 @@
   font-size: 14px;
 }
 
+/* ─── Colonna 3 — Social ─── */
+/*
+  Grid 1×3 su schermi larghi, wrap automatico su tablet/mobile.
+  Niente gap-4 di Bootstrap che causa overflow: gestiamo noi.
+*/
+.br-footer__socialGrid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.br-footer__socialBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid #e7d9cc;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap; /* il testo del pulsante non si spezza mai */
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease;
+}
+
+.br-footer__socialBtn:hover {
+  background: rgba(255, 255, 255, 0.85);
+  transform: translateY(-1px);
+}
+
+/* ─── Link generici ─── */
 .br-footer__link {
   color: inherit;
   text-decoration: none;
@@ -69,44 +129,12 @@
   opacity: 0.5;
 }
 
-.br-footer__social {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-.br-footer__socialBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid #e7d9cc;
-  color: inherit;
-  text-decoration: none;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  transition:
-    transform 0.12s ease,
-    background 0.12s ease;
-}
-
-.br-footer__socialBtn:hover {
-  background: rgba(255, 255, 255, 0.85);
-  transform: translateY(-1px);
-}
-
+/* ─── Bottom bar ─── */
 .br-footer__bottom {
   margin-top: 22px;
   padding-top: 16px;
   border-top: 1px solid #e7d9cc;
-  margin-left: 92px;
+  /* RIMOSSO: margin-left: 92px — era la causa del taglio del bordo e del testo */
 }
 
 .br-footer__bottomRow {
@@ -122,7 +150,7 @@
   align-items: center;
   gap: 8px;
   color: #7a6a61;
-  margin-right: 52px;
+  /* RIMOSSO: margin-right: 52px — causava fuoriuscita a destra */
 }
 
 .br-footer__dev {
@@ -135,24 +163,48 @@
   font-weight: 700;
 }
 
-.br-footer .row {
-  --bs-gutter-x: 1.5rem;
-  margin-inline: 0;
-}
-
-.br-footer,
-.br-footer__container {
-  overflow-x: hidden;
-  max-width: 100%;
-}
-
-/* mobile: centra meglio */
-@media (max-width: 767px) {
-  .br-footer__bottomRow {
-    justify-content: center;
-    text-align: center;
+@media (max-width: 992px) {
+  .br-footer__container {
+    max-width: 90%;
   }
+}
+
+/* ─── Mobile (< 768px) ─── */
+@media (max-width: 767px) {
+  .br-footer__container {
+    padding: 28px 12px;
+  }
+
+  .br-footer__bottomRow {
+    flex-direction: column; /* copyright sopra, legal sotto */
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+  }
+
   .br-footer__legal {
     justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .br-footer__dev {
+    text-align: center;
+  }
+
+  .br-footer__socialGrid {
+    gap: 8px;
+  }
+}
+
+/* ─── Tablet stretto (480–767px) — social bottoni su 2 righe ─── */
+@media (max-width: 480px) {
+  .br-footer__socialBtn span {
+    /* Su schermi molto stretti mostra solo l'icona */
+    display: none;
+  }
+
+  .br-footer__socialBtn {
+    padding: 10px;
+    gap: 0;
   }
 }

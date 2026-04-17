@@ -1,78 +1,73 @@
-import { Container, Row, Col, Card } from "react-bootstrap";
+import { Container, Card } from "react-bootstrap";
 import { useEffect, useRef, useState } from "react";
 
+const ACADEMIES = [
+  {
+    id: "a2",
+    title: "PhiAcademy",
+    img: "/academy/phiaccademy.jpg",
+    tag: "Trucco Permanente",
+    desc: "Tecniche avanzate di trucco permanente.",
+    link: "https://www.phi-academy.com/it-it",
+  },
+  {
+    id: "a1",
+    title: "My Beauty Academy",
+    img: "/academy/logo-my.png",
+    tag: "Trattamenti Viso & Corpo",
+    desc: "Specializzazione in trattamenti viso e corpo.",
+    link: "https://mybeautyacademy.it/",
+  },
+  {
+    id: "a3",
+    title: "Kalentin Training Academy",
+    img: "/academy/kalentin.png",
+    tag: "Estetica Professionale",
+    desc: "Formazione completa in estetica professionale.",
+    link: "https://kalentin.com/it/",
+  },
+];
+
 const AcademySection = () => {
-  const cardsRef = useRef([]);
-  const [visible, setVisible] = useState({});
+  const sectionRef = useRef(null);
+  const [visibleIds, setVisibleIds] = useState(new Set());
 
   useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
     const obs = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            setVisible(prev => ({ ...prev, [entry.target.dataset.id]: true }));
-          }
-        });
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          // Stagger: rende visibile ogni card con delay crescente
+          ACADEMIES.forEach((a, idx) => {
+            setTimeout(() => {
+              setVisibleIds(prev => new Set([...prev, a.id]));
+            }, idx * 140);
+          });
+          obs.disconnect(); // una sola volta
+        }
       },
-      { threshold: 0.2 }
+      { threshold: 0.15 },
     );
 
-    const targets = [...cardsRef.current].filter(Boolean);
-    targets.forEach(el => obs.observe(el));
-
-    return () => {
-      targets.forEach(el => obs.unobserve(el));
-      obs.disconnect();
-    };
+    obs.observe(section);
+    return () => obs.disconnect();
   }, []);
 
-  const ACADEMIES = [
-    {
-      id: "a2",
-      title: "PhiAcademy",
-      img: "/academy/phiaccademy.jpg",
-      tag: "Trucco Permanente",
-      desc: "Tecniche avanzate di trucco permanente.",
-      link: "https://www.phi-academy.com/it-it",
-    },
-    {
-      id: "a1",
-      title: "My Beauty Academy",
-      img: "/academy/logo-my.png",
-      tag: "Trattamenti Viso & Corpo",
-      desc: "Specializzazione in trattamenti viso e corpo.",
-      link: "https://mybeautyacademy.it/",
-    },
-    {
-      id: "a3",
-      title: "Kalentin Training Academy",
-      img: "/academy/kalentin.png",
-      tag: "Estetica Professionale",
-      desc: "Formazione completa in estetica professionale.",
-      link: "https://kalentin.com/it/",
-    },
-  ];
-
   return (
-    <Container fluid className="py-5 academy-root">
+    <Container fluid className="py-5 academy-root" ref={sectionRef}>
       <div className="ac-head">
         <span className="section-eyebrow">Formazione</span>
         <h2 className="section-title ac-section-title">Le mie Accademie</h2>
-        <p className="section-subtitle">
-          Una selezione di percorsi formativi che hanno arricchito le mie competenze professionali.
-        </p>
+        <p className="section-subtitle">Una selezione di percorsi formativi che hanno arricchito le mie competenze professionali.</p>
       </div>
 
       <div className="ac-track-wrapper">
         <div className="ac-track" id="acTrack">
-          {ACADEMIES.map((a, idx) => (
+          {ACADEMIES.map(a => (
             <div key={a.id} className="ac-slide">
-              <Card
-                data-id={a.id}
-                ref={el => (cardsRef.current[idx] = el)}
-                className={`academy-card ${visible[a.id] ? "visible" : ""}`}
-                onClick={() => window.open(a.link, "_blank")}
-              >
+              <Card className={`academy-card ${visibleIds.has(a.id) ? "visible" : ""}`} onClick={() => window.open(a.link, "_blank")}>
                 <div className="ac-logo-wrap">
                   <img src={a.img} alt={a.title} className="ac-logo-img" />
                 </div>
@@ -90,18 +85,14 @@ const AcademySection = () => {
         <button
           className="ac-arrow ac-arrow--prev"
           aria-label="Precedente"
-          onClick={() =>
-            document.getElementById("acTrack")?.scrollBy({ left: -320, behavior: "smooth" })
-          }
+          onClick={() => document.getElementById("acTrack")?.scrollBy({ left: -320, behavior: "smooth" })}
         >
           ‹
         </button>
         <button
           className="ac-arrow ac-arrow--next"
           aria-label="Successivo"
-          onClick={() =>
-            document.getElementById("acTrack")?.scrollBy({ left: 320, behavior: "smooth" })
-          }
+          onClick={() => document.getElementById("acTrack")?.scrollBy({ left: 320, behavior: "smooth" })}
         >
           ›
         </button>
