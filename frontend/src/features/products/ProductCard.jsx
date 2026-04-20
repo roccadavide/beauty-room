@@ -1,11 +1,12 @@
-import { Card, Badge, Col } from "react-bootstrap";
+import { Card, Col } from "react-bootstrap";
 import AdminToggle from "../../components/common/AdminToggle";
 import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import { BadgeFlags } from "../../components/common/BadgeFlag";
 import { usePrefetch } from "../../hooks/usePrefetch";
 import { fetchProductById } from "../../api/modules/products.api";
+import CategoryBadge from "../../components/common/CategoryBadge";
 
-function ProductCard({ p, isAdmin, categoriesMap, categoryColorMap, onCardClick, onEdit, onDelete, onToggleActive }) {
+function ProductCard({ p, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
   const { onMouseEnter, onMouseLeave } = usePrefetch(() => fetchProductById(p.productId));
 
   return (
@@ -39,9 +40,7 @@ function ProductCard({ p, isAdmin, categoriesMap, categoryColorMap, onCardClick,
           <div className="bpc-accent-line" />
           <Card.Title className="bpc-title mb-1">{p.name}</Card.Title>
           <div className="mb-2 d-flex align-items-center gap-2">
-            <Badge bg={categoryColorMap[p.categoryId] || "secondary"} className="text-uppercase">
-              {categoriesMap[p.categoryId] || "Senza categoria"}
-            </Badge>
+            <CategoryBadge label={categoriesMap[p.categoryId] || ""} />
             <small className="text-muted">{p.stock > 0 ? `${p.stock} rimanenti` : "Esaurito"}</small>
           </div>
           <Card.Text className="flex-grow-1">{p.shortDescription}</Card.Text>

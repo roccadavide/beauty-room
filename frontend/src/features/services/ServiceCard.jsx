@@ -1,11 +1,12 @@
-import { Card, Badge, Col } from "react-bootstrap";
+import { Card, Col } from "react-bootstrap";
 import AdminToggle from "../../components/common/AdminToggle";
 import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import { BadgeFlags } from "../../components/common/BadgeFlag";
 import { usePrefetch } from "../../hooks/usePrefetch";
 import { fetchServiceById } from "../../api/modules/services.api";
+import CategoryBadge from "../../components/common/CategoryBadge";
 
-function ServiceCard({ s, isAdmin, categoriesMap, categoryColorMap, onCardClick, onEdit, onDelete, onToggleActive }) {
+function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
   const activeOptions = s.options?.filter(o => o.active) ?? [];
   const hasActiveOptions = activeOptions.length > 0;
   const minOptionDuration = activeOptions.map(o => o.durationMin).filter(Boolean);
@@ -47,9 +48,7 @@ function ServiceCard({ s, isAdmin, categoriesMap, categoryColorMap, onCardClick,
           <div className="bsc-accent-line" />
           <Card.Title className="bsc-title mb-1">{s.title}</Card.Title>
           <div className="mb-2 d-flex align-items-center gap-2">
-            <Badge bg={categoryColorMap[s.categoryId] || "secondary"} className="text-uppercase">
-              {categoriesMap[s.categoryId] || "Senza categoria"}
-            </Badge>
+            <CategoryBadge label={categoriesMap[s.categoryId] || ""} />
             <small className="text-muted">
               {durationPrefix}
               {displayDuration} min

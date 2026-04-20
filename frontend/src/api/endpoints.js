@@ -64,6 +64,9 @@ export const ORDER_ENDPOINTS = {
 export const PRODUCT_ENDPOINTS = {
   BASE: "/products",
   BY_ID: id => `/products/${id}`,
+  CREATE_OPTION: productId => `/products/${productId}/options`,
+  UPDATE_OPTION: optionId => `/product-options/${optionId}`,
+  DELETE_OPTION: optionId => `/product-options/${optionId}`,
 };
 
 // ---- AVAILABILITIES ----

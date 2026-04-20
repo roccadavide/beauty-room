@@ -73,6 +73,42 @@ export const deleteProduct = async productId => {
 };
 
 
+// -------------------------- PRODUCT OPTIONS --------------------------
+
+export const createProductOption = async (productId, optionPayload) => {
+  try {
+    const { data } = await http.post(PRODUCT_ENDPOINTS.CREATE_OPTION(productId), optionPayload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore nella creazione dell'opzione prodotto.";
+    throw new Error(message);
+  }
+};
+
+export const updateProductOption = async (optionId, optionPayload) => {
+  try {
+    const { data } = await http.put(PRODUCT_ENDPOINTS.UPDATE_OPTION(optionId), optionPayload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore nell'aggiornamento dell'opzione prodotto.";
+    throw new Error(message);
+  }
+};
+
+export const deleteProductOption = async optionId => {
+  try {
+    await http.delete(PRODUCT_ENDPOINTS.DELETE_OPTION(optionId));
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'eliminazione dell'opzione prodotto.";
+    throw new Error(message);
+  }
+};
+
 // -------------------------- STOCK ALERT --------------------------
 export const subscribeStockAlert = async (productId, email, customerName) => {
   try {

@@ -111,15 +111,6 @@ const ServicePage = () => {
     setEditingService(null);
   };
 
-  const categoryColorMap = useMemo(() => {
-    const colors = ["primary", "success", "warning", "info", "danger", "secondary"];
-    const map = {};
-    categories.forEach((category, index) => {
-      map[category.categoryId] = colors[index % colors.length];
-    });
-    return map;
-  }, [categories]);
-
   // ---------- UI ----------
   if (loading) return <ServicePageSkeleton />;
 
@@ -182,7 +173,6 @@ const ServicePage = () => {
               s={s}
               isAdmin={isAdmin}
               categoriesMap={categoriesMap}
-              categoryColorMap={categoryColorMap}
               onCardClick={() => {
                 save(s.serviceId);
                 navigate(`/trattamenti/${s.serviceId}`);

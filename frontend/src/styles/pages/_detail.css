@@ -73,3 +73,69 @@
     padding-right: 1.25rem;
   }
 }
+
+/* ── Detail badge ── */
+.detail-badge {
+  font-size: 0.7rem;
+}
+
+/* ── Product options selector ── */
+.detail-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.detail-options__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.detail-options__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.detail-option-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1.5px solid #e0d5c5;
+  border-radius: 50px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #4a3f35;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+.detail-option-pill:hover {
+  border-color: var(--card-gold, #b8976a);
+}
+
+.detail-option-pill--active {
+  border-color: var(--card-gold, #b8976a);
+  background: #fef7ef;
+  color: var(--card-gold-deep, #8c6d3f);
+  font-weight: 600;
+}
+
+.detail-option-pill__thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.detail-option-pill__esaurito {
+  font-size: 0.7rem;
+  color: #aaa;
+  margin-left: 2px;
+}

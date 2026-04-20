@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { Container, Badge } from "react-bootstrap";
+import { Container } from "react-bootstrap";
+import CategoryBadge from "../../components/common/CategoryBadge";
 import ProductDetailSkeleton from "./ProductDetailSkeleton";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchCategories } from "../../api/modules/categories.api";
@@ -85,15 +86,6 @@ const ProductDetail = () => {
     return map;
   }, [categories]);
 
-  const categoryColorMap = useMemo(() => {
-    const colors = ["primary", "success", "warning", "info", "danger", "secondary"];
-    const map = {};
-    categories.forEach((cat, i) => {
-      map[cat.categoryId] = colors[i % colors.length];
-    });
-    return map;
-  }, [categories]);
-
   const relatedProducts = useMemo(() => {
     if (!product || !allProducts.length) return [];
     const sameCat = allProducts.filter(p => p.categoryId === product.categoryId && p.productId !== product.productId);
@@ -102,6 +94,31 @@ const ProductDetail = () => {
 
   const [relatedRef, relatedVisible] = useInView();
 
+  const activeOptions = useMemo(
+    () => (product?.options ?? []).filter(o => o.active),
+    [product]
+  );
+  const hasOptions = activeOptions.length > 0;
+  const [selectedOption, setSelectedOption] = useState(null);
+
+  useEffect(() => {
+    if (activeOptions.length > 0) setSelectedOption(activeOptions[0]);
+  }, [activeOptions]);
+
+  const displayImages = useMemo(() => {
+    if (!hasOptions || !selectedOption?.imageUrl) return product?.images?.filter(Boolean) ?? [];
+    const rest = (product?.images ?? []).filter(img => img !== selectedOption.imageUrl);
+    return [selectedOption.imageUrl, ...rest].filter(Boolean);
+  }, [product, selectedOption, hasOptions]);
+
+  const effectiveStock = hasOptions
+    ? (selectedOption?.stock ?? 0)
+    : (product?.stock ?? 0);
+
+  const effectivePrice = hasOptions && selectedOption?.price != null
+    ? selectedOption.price
+    : product?.price;
+
   const handleAddToCart = () => {
     dispatch(
       addToCart({
@@ -109,10 +126,12 @@ const ProductDetail = () => {
         type: "product",
         productId: product.productId,
         name: product.name,
-        price: product.price,
+        price: effectivePrice,
         quantity: qty,
         image: product.images?.[0],
-        stock: product.stock,
+        stock: effectiveStock,
+        optionId: selectedOption?.productOptionId ?? null,
+        optionName: selectedOption?.name ?? null,
       }),
     );
     setAddedFeedback(true);
@@ -194,15 +213,13 @@ const ProductDetail = () => {
       <Container fluid className="product-detail">
         <div className="sd-layout-grid">
           <div className="sd-col-img">
-            <ImageGallery images={product.images?.filter(Boolean) ?? []} alt={product.name} />
+            <ImageGallery images={displayImages} alt={product.name} />
           </div>
 
           <div className="detail-info sd-col-info">
             <div className="detail-meta">
-              <Badge bg={categoryColorMap[product.categoryId] || "secondary"} className="text-uppercase detail-badge">
-                {categoriesMap[product.categoryId] || "Senza categoria"}
-              </Badge>
-              <span className="detail-duration">{product.stock > 0 ? `${product.stock} disponibili` : "Esaurito"}</span>
+              <CategoryBadge label={categoriesMap[product.categoryId] || ""} className="detail-badge" />
+              <span className="detail-duration">{effectiveStock > 0 ? `${effectiveStock} disponibili` : "Esaurito"}</span>
             </div>
 
             <h1 className="detail-title">{product.name}</h1>
@@ -210,7 +227,7 @@ const ProductDetail = () => {
             <div className="detail-accent-line" />
 
             <div className="detail-price-block">
-              <span className="detail-price">{product.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+              <span className="detail-price">{effectivePrice?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
               <span className="detail-price-note">prezzo al pezzo</span>
             </div>
 
@@ -220,7 +237,34 @@ const ProductDetail = () => {
               <span className="detail-trust-pill">✓ Nessun costo al ritiro</span>
             </div>
 
-            {product.stock === 0 ? (
+            {hasOptions && (
+              <div className="detail-options">
+                <span className="detail-options__label">
+                  {activeOptions[0]?.optionGroup || "Variante"}
+                </span>
+                <div className="detail-options__pills">
+                  {activeOptions.map(opt => (
+                    <button
+                      key={opt.productOptionId}
+                      className={`detail-option-pill${selectedOption?.productOptionId === opt.productOptionId ? " detail-option-pill--active" : ""}`}
+                      onClick={() => { setSelectedOption(opt); setQty(1); }}
+                    >
+                      {opt.imageUrl && (
+                        <img
+                          src={opt.imageUrl}
+                          alt={opt.name}
+                          className="detail-option-pill__thumb"
+                        />
+                      )}
+                      <span>{opt.name}</span>
+                      {opt.stock === 0 && <span className="detail-option-pill__esaurito">esaurito</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {effectiveStock === 0 ? (
               /* ── PRODOTTO ESAURITO ── */
               <div className="detail-sold-out-section">
                 <div className="detail-sold-out-badge">
@@ -268,7 +312,7 @@ const ProductDetail = () => {
                       −
                     </button>
                     <span className="cart-qty-num">{qty}</span>
-                    <button className="cart-qty-btn" onClick={() => setQty(q => Math.min(product.stock, q + 1))} disabled={qty >= product.stock}>
+                    <button className="cart-qty-btn" onClick={() => setQty(q => Math.min(effectiveStock, q + 1))} disabled={qty >= effectiveStock}>
                       +
                     </button>
                   </div>

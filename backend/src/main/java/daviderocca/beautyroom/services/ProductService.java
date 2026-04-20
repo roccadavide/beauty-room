@@ -3,12 +3,14 @@ package daviderocca.beautyroom.services;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import daviderocca.beautyroom.DTO.productDTOs.NewProductDTO;
+import daviderocca.beautyroom.DTO.productDTOs.ProductOptionResponse;
 import daviderocca.beautyroom.DTO.productDTOs.ProductResponseDTO;
 import daviderocca.beautyroom.entities.Category;
 import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.util.BadgesUtil;
+import daviderocca.beautyroom.repositories.ProductOptionRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +31,8 @@ import java.util.*;
 public class ProductService {
 
     private final ProductRepository productRepository;
+
+    private final ProductOptionRepository productOptionRepository;
 
     private final CategoryService categoryService;
 
@@ -190,6 +194,21 @@ public class ProductService {
 
     // ---------------------------- CONVERTER ----------------------------
     private ProductResponseDTO convertToDTO(Product product) {
+        List<ProductOptionResponse> options = productOptionRepository
+                .findByProduct_ProductIdAndActiveTrue(product.getProductId())
+                .stream()
+                .map(o -> new ProductOptionResponse(
+                        o.getProductOptionId(),
+                        o.getName(),
+                        o.getOptionGroup(),
+                        o.getPrice(),
+                        o.getStock(),
+                        o.getImageUrl(),
+                        o.getActive(),
+                        o.getCreatedAt()
+                ))
+                .toList();
+
         return new ProductResponseDTO(
                 product.getProductId(),
                 product.getName(),
@@ -200,7 +219,8 @@ public class ProductService {
                 product.getStock(),
                 product.getCategory() != null ? product.getCategory().getCategoryId() : null,
                 product.isActive(),
-                BadgesUtil.fromJson(product.getBadges())
+                BadgesUtil.fromJson(product.getBadges()),
+                options
         );
     }
 }

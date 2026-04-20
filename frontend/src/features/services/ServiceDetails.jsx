@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Container, Badge } from "react-bootstrap";
+import { Container } from "react-bootstrap";
+import CategoryBadge from "../../components/common/CategoryBadge";
 import ServiceDetailSkeleton from "./ServiceDetailSkeleton";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
@@ -76,15 +77,6 @@ const ServiceDetail = () => {
   const categoriesMap = useMemo(() => {
     const map = {};
     categories.forEach(c => (map[c.categoryId] = c.label));
-    return map;
-  }, [categories]);
-
-  const categoryColorMap = useMemo(() => {
-    const colors = ["primary", "success", "warning", "info", "danger", "secondary"];
-    const map = {};
-    categories.forEach((cat, i) => {
-      map[cat.categoryId] = colors[i % colors.length];
-    });
     return map;
   }, [categories]);
 
@@ -194,9 +186,7 @@ const ServiceDetail = () => {
           {/* ▸ INFO */}
           <div className="detail-info sd-col-info">
             <div className="detail-meta">
-              <Badge bg={categoryColorMap[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
-                {categoriesMap[service.categoryId] || "Senza categoria"}
-              </Badge>
+              <CategoryBadge label={categoriesMap[service.categoryId] || ""} className="detail-badge" />
               <span className="detail-duration">
                 ⏱ {durationPrefix}
                 {displayDuration} min

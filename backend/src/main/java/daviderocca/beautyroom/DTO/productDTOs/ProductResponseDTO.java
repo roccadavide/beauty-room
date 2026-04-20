@@ -14,5 +14,6 @@ public record ProductResponseDTO(
         int stock,
         UUID categoryId,
         boolean active,
-        List<String> badges
+        List<String> badges,
+        List<ProductOptionResponse> options
 ) {}

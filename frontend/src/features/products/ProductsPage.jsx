@@ -126,15 +126,6 @@ function ProductsPage() {
     setEditingProduct(null);
   };
 
-  const categoryColorMap = useMemo(() => {
-    const colors = ["primary", "success", "warning", "info", "danger", "secondary"];
-    const map = {};
-    categories.forEach((category, index) => {
-      map[category.categoryId] = colors[index % colors.length];
-    });
-    return map;
-  }, [categories]);
-
   // ---------- UI ----------
   if (loading) return <ProductsPageSkeleton />;
 
@@ -197,7 +188,6 @@ function ProductsPage() {
               p={p}
               isAdmin={isAdmin}
               categoriesMap={categoriesMap}
-              categoryColorMap={categoryColorMap}
               onCardClick={() => {
                 save(p.productId);
                 navigate(`/prodotti/${p.productId}`);
