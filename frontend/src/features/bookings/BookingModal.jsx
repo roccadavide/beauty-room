@@ -79,7 +79,10 @@ const BookingModal = ({
   const [waitlistSlot, setWaitlistSlot] = useState(null);
   const [consentLaser, setConsentLaser] = useState(false);
   const [consentPmu, setConsentPmu] = useState(false);
-  const hasConsentStep = needsLaserConsent(service?.title) || needsPmuConsent(service?.title);
+  // Usa consentRequired dal backend (derivato da categoria) oppure keyword matching come fallback
+  const hasConsentStep = service?.consentRequired === true || needsLaserConsent(service?.title) || needsPmuConsent(service?.title);
+  // Il blocco PMU si mostra se consentRequired=true (qualunque categoria PMU) o keyword match
+  const showPmuConsent = service?.consentRequired === true || needsPmuConsent(service?.title);
   const summaryStep = hasConsentStep ? 5 : 4;
   const effectiveDuration = initialOption?.durationMin ?? service?.durationMin;
 
@@ -485,7 +488,7 @@ const BookingModal = ({
             </div>
           )}
 
-          {needsPmuConsent(service?.title) && (
+          {showPmuConsent && (
             <div className="bm-consent__box">
               <h4 className="bm-consent__box-title">Trucco permanente (PMU)</h4>
               <div className="bm-consent__text">
@@ -508,7 +511,7 @@ const BookingModal = ({
               className="bm-btn bm-btn--primary"
               type="button"
               onClick={() => setStep(summaryStep)}
-              disabled={(needsLaserConsent(service?.title) && !consentLaser) || (needsPmuConsent(service?.title) && !consentPmu)}
+              disabled={(needsLaserConsent(service?.title) && !consentLaser) || (showPmuConsent && !consentPmu)}
             >
               Continua →
             </button>

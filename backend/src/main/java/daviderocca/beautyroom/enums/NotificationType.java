@@ -5,5 +5,6 @@ public enum NotificationType {
     BOOKING_CANCELLED,
     NO_SHOW,
     NEW_ORDER,
-    ORDER_CANCELLED
+    ORDER_CANCELLED,
+    PMU_CONSENT
 }

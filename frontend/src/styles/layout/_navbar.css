@@ -27,7 +27,6 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  overflow-x: clip;
 }
 
 .nav-transparent {
@@ -153,7 +152,6 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  overflow-x: clip;
 }
 
 .beauty-link {
@@ -909,4 +907,11 @@
 
 .toggler-cart-box {
   flex-shrink: 0;
+}
+
+/* ── Dropdown fix: evita clipping da overflow context della navbar ── */
+.beauty-dropdown .dropdown-menu {
+  position: absolute !important;
+  z-index: 1055 !important;
+  overflow: visible !important;
 }

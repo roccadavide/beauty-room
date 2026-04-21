@@ -1,6 +1,8 @@
 package daviderocca.beautyroom.controllers;
 
+import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCardDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.ConsentSignedDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.services.BookingService;
@@ -41,6 +43,28 @@ public class BookingController {
         log.info("ADMIN | agenda create booking for {} ({})", payload.customerEmail(), payload.customerName());
         BookingResponseDTO created = bookingService.createManualConfirmedBookingAsAdmin(payload, currentUser);
         return ResponseEntity.status(201).body(created);
+    }
+
+    // ---------------------------------- ADMIN: firma consenso PMU ----------------------------------
+    @PatchMapping("/{bookingId}/consent")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AdminBookingCardDTO> signConsent(
+            @PathVariable UUID bookingId,
+            @Valid @RequestBody ConsentSignedDTO body
+    ) {
+        if (!Boolean.TRUE.equals(body.signed())) {
+            return ResponseEntity.badRequest().build();
+        }
+        log.info("ADMIN | sign PMU consent | bookingId={}", bookingId);
+        return ResponseEntity.ok(bookingService.signConsent(bookingId));
+    }
+
+    // ---------------------------------- ADMIN: prenotazioni PMU da firmare ----------------------------------
+    @GetMapping("/pmu-unsigned")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<AdminBookingCardDTO>> getPmuUnsigned() {
+        log.info("ADMIN | pmu-unsigned bookings");
+        return ResponseEntity.ok(bookingService.findPmuUnsigned());
     }
 
     // ---------------------------------- AUTH DELETE (cancel) ----------------------------------

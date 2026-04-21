@@ -25,5 +25,9 @@ public record AdminBookingCardDTO(
         PackageCreditStatus packageStatus,
         String stripeSessionId,
         // Buffer minuti extra impostato dall'admin (puo' essere null).
-        Integer paddingMinutes
+        Integer paddingMinutes,
+        // Consenso PMU
+        boolean consentRequired,
+        boolean consentSigned,
+        java.time.LocalDateTime consentSignedAt
 ) {}

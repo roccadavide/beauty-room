@@ -98,6 +98,12 @@ public class Booking {
     @Column(name = "consent_at")
     private LocalDateTime consentAt;
 
+    @Column(name = "consent_signed", nullable = false)
+    private boolean consentSigned = false;
+
+    @Column(name = "consent_signed_at")
+    private LocalDateTime consentSignedAt;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_id", nullable = false)
     private ServiceItem service;

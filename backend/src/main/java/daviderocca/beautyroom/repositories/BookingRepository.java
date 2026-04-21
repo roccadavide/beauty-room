@@ -130,6 +130,24 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     Optional<Booking> findByIdForUpdate(@Param("id") UUID id);
 
     /**
+     * Prenotazioni PMU future con consenso non ancora firmato (per scheduler e pannello admin).
+     */
+    @Query("""
+        SELECT b FROM Booking b
+        JOIN FETCH b.service s
+        WHERE s.consentRequired = true
+          AND b.consentSigned = false
+          AND b.bookingStatus IN :statuses
+          AND b.startTime BETWEEN :from AND :to
+        ORDER BY b.startTime ASC
+    """)
+    List<Booking> findPmuUnsignedFuture(
+            @Param("statuses") List<BookingStatus> statuses,
+            @Param("from")     LocalDateTime from,
+            @Param("to")       LocalDateTime to
+    );
+
+    /**
      * Prenotazioni COMPLETED con completedAt tra from e to
      * a cui non è ancora stata inviata la richiesta recensione.
      */

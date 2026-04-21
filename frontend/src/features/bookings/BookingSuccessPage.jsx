@@ -27,9 +27,25 @@ const BookingSuccessPage = () => {
 
     let alive = true;
 
+    // Retry con backoff esponenziale per gestire Railway cold start
+    const fetchWithRetry = async (fetchFn, maxAttempts = 4, baseDelayMs = 1500) => {
+      let lastError;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          return await fetchFn();
+        } catch (err) {
+          lastError = err;
+          if (attempt < maxAttempts - 1) {
+            await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(1.8, attempt)));
+          }
+        }
+      }
+      throw lastError;
+    };
+
     const load = async () => {
       try {
-        const result = await fetchBookingSummary(sessionId);
+        const result = await fetchWithRetry(() => fetchBookingSummary(sessionId));
         if (!alive) return;
 
         if (result?.status === "ERROR") {

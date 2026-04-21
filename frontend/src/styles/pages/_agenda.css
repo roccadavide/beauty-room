@@ -2059,3 +2059,51 @@ body.modal-open {
 }
 
 .bsp-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── PMU Consent badges ── */
+.agenda-consent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+}
+
+.agenda-consent-badge--pending {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+}
+
+.agenda-consent-badge--signed {
+  background: #d1e7dd;
+  color: #0a5132;
+  border: 1px solid #a3cfbb;
+}
+
+.agenda-consent-btn {
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  color: var(--ag-cocoa);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 4px;
+  display: block;
+}
+
+.agenda-consent-btn:hover {
+  color: var(--ag-mocha);
+}
+
+.ag-item__consent {
+  padding: 4px 0 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}

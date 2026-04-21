@@ -114,6 +114,15 @@ function App() {
     return () => window.removeEventListener("auth:unauthorized", onUnauthorized);
   }, [dispatch, nav, location.pathname, location.search]);
 
+  // Keep-alive Railway backend (evita cold start)
+  useEffect(() => {
+    const BACKEND_URL = import.meta.env.VITE_API_URL || "";
+    const ping = () => fetch(`${BACKEND_URL}/health`, { method: "GET" }).catch(() => {});
+    ping(); // ping immediato al mount
+    const id = setInterval(ping, 14 * 60 * 1000); // ogni 14 minuti
+    return () => clearInterval(id);
+  }, []);
+
   const isHeroPage = location.pathname === "/";
 
   const handleExitComplete = () => {

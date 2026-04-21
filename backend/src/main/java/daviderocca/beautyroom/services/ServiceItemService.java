@@ -305,7 +305,8 @@ public class ServiceItemService {
                 serviceItem.isActive(),
                 optionDTOs,
                 BadgesUtil.fromJson(serviceItem.getBadges()),
-                serviceItem.isFeatured()
+                serviceItem.isFeatured(),
+                serviceItem.isConsentRequired()
         );
     }
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
-import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot, patchBookingPadding, refundBooking } from "../../api/modules/adminAgenda.api";
+import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot, patchBookingPadding, refundBooking, patchBookingConsent } from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
 import WeeklyCalendar from "./WeeklyCalendar";
@@ -597,6 +597,28 @@ export default function AdminAgendaPage() {
     }
   };
 
+  const signConsent = async b => {
+    const confirmed = window.confirm(
+      `Confermi che il consenso informato è stato firmato da ${b.customerName}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const updated = await patchBookingConsent(b.bookingId);
+      // Aggiornamento locale ottimistico della card
+      setBookings(prev =>
+        prev.map(booking =>
+          booking.bookingId === b.bookingId
+            ? { ...booking, consentSigned: updated.consentSigned, consentSignedAt: updated.consentSignedAt }
+            : booking
+        )
+      );
+      setSuccessMsg("✅ Consenso PMU registrato");
+    } catch (e) {
+      setErr(e.message || "Errore durante la firma del consenso.");
+    }
+  };
+
   const submitModal = async payload => {
     setErr("");
     setErrDetails(null);
@@ -1021,6 +1043,36 @@ export default function AdminAgendaPage() {
                               })()}
                           </div>
                         </div>
+
+                        {b.consentRequired && (
+                          <div className="ag-item__consent">
+                            {b.consentSigned ? (
+                              <span className="agenda-consent-badge agenda-consent-badge--signed">
+                                ✅ Consenso firmato
+                                {b.consentSignedAt && (
+                                  <span style={{ marginLeft: 4, fontWeight: 400, opacity: 0.8 }}>
+                                    il {new Date(b.consentSignedAt).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}
+                                  </span>
+                                )}
+                              </span>
+                            ) : (
+                              <>
+                                <span className="agenda-consent-badge agenda-consent-badge--pending">
+                                  ✍️ Consenso da firmare
+                                </span>
+                                {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
+                                  <button
+                                    type="button"
+                                    className="agenda-consent-btn"
+                                    onClick={() => signConsent(b)}
+                                  >
+                                    Segna consenso firmato
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
 
                         <div className="ag-item__actions">
                           {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (

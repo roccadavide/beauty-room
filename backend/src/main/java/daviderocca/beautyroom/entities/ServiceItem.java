@@ -44,6 +44,9 @@ public class ServiceItem {
     @Column(nullable = false)
     private boolean featured = false;
 
+    @Column(name = "consent_required", nullable = false)
+    private boolean consentRequired = false;
+
     /** Badge attivi in formato JSON array string, es. ["new","sale"] oppure null. */
     @Column(length = 500)
     private String badges;

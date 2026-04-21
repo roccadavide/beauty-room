@@ -82,6 +82,9 @@ public class SecConfig {
                         // CORS preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // HEALTH CHECK (keep-alive Railway)
+                        .requestMatchers(HttpMethod.GET, "/health").permitAll()
+
                         // PUBLIC API (chiusure, slot disponibili — nessuna auth)
                         .requestMatchers("/api/public/**").permitAll()
 

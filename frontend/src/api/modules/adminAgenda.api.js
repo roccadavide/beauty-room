@@ -74,6 +74,16 @@ export const deleteBooking = async id => {
   }
 };
 
+export const patchBookingConsent = async id => {
+  try {
+    const { data } = await http.patch(`/bookings/${id}/consent`, { signed: true });
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore firma consenso PMU.";
+    throw new Error(message);
+  }
+};
+
 export const refundBooking = async id => {
   try {
     const { data } = await http.post(`/admin/bookings/${id}/refund`);

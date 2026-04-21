@@ -686,6 +686,44 @@ public class BookingService {
         }
     }
 
+    // ============================ PMU CONSENT ============================
+
+    /**
+     * Segna il consenso informato PMU come firmato per una prenotazione.
+     * Solo per bookings che appartengono a servizi con consentRequired = true.
+     */
+    @Transactional
+    public AdminBookingCardDTO signConsent(UUID bookingId) {
+        Booking b = bookingRepository.findByIdWithDetails(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(bookingId));
+
+        if (b.getService() == null || !b.getService().isConsentRequired()) {
+            throw new BadRequestException("Questo servizio non richiede consenso informato.");
+        }
+
+        b.setConsentSigned(true);
+        b.setConsentSignedAt(LocalDateTime.now());
+        Booking saved = bookingRepository.save(b);
+        log.info("Consent PMU firmato: bookingId={} serviceId={}", bookingId, b.getService().getServiceId());
+        return toAdminCard(saved);
+    }
+
+    /**
+     * Ritorna tutte le prenotazioni future con consentRequired=true e consentSigned=false.
+     * Usato dal pannello notifiche e dal badge nell'agenda.
+     */
+    @Transactional(readOnly = true)
+    public List<AdminBookingCardDTO> findPmuUnsigned() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime future = now.plusDays(365);
+        return bookingRepository.findPmuUnsignedFuture(
+                        List.of(BookingStatus.CONFIRMED, BookingStatus.PENDING_PAYMENT),
+                        now, future)
+                .stream()
+                .map(this::toAdminCard)
+                .toList();
+    }
+
     // ============================ ADMIN AGENDA ============================
     @Transactional(readOnly = true)
     public List<AdminBookingCardDTO> getAgendaDay(LocalDate date) {
@@ -729,7 +767,10 @@ public class BookingService {
                 pkg != null ? pkg.getSessionsTotal() : null,
                 pkg != null ? pkg.getStatus() : null,
                 b.getStripeSessionId(),
-                b.getPaddingMinutes()   // FEATURE: buffer minuti extra
+                b.getPaddingMinutes(),  // FEATURE: buffer minuti extra
+                b.getService() != null && b.getService().isConsentRequired(),
+                b.isConsentSigned(),
+                b.getConsentSignedAt()
         );
     }
 
