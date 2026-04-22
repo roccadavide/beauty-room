@@ -314,10 +314,11 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
         </Form.Group>
 
         <Form.Group>
-          <Form.Label>Descrizione breve *</Form.Label>
+          <Form.Label>Descrizione breve * <small className="text-muted">({(form.shortDescription || "").length}/255)</small></Form.Label>
           <Form.Control
             as="textarea"
             rows={2}
+            maxLength={255}
             value={form.shortDescription}
             onChange={e => handleChange("shortDescription", e.target.value)}
             isInvalid={!!errors.shortDescription}

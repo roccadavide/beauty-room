@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -16,6 +17,7 @@ public record NewProductDTO (
                             @Positive(message = "Il prezzo deve essere un valore positivo")
                             BigDecimal price,
                             @NotEmpty(message = "La descrizione breve non può essere vuota")
+                            @Size(max = 255, message = "La descrizione breve non può superare 255 caratteri")
                             String shortDescription,
                             @NotEmpty(message = "La descrizione non può essere vuota")
                             String description,

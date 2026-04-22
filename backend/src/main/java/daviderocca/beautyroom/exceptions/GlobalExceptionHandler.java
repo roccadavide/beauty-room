@@ -84,6 +84,8 @@ public class GlobalExceptionHandler {
                 ? ex.getMostSpecificCause().getMessage()
                 : ex.getMessage();
 
+        log.warn("DataIntegrityViolation on {} {}: {}", req.getMethod(), req.getRequestURI(), raw);
+
         String msg = "Dati già presenti.";
 
         if (raw != null) {
