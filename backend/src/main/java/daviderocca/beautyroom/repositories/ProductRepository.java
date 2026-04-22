@@ -20,6 +20,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     boolean existsByName(String name);
 
+    boolean existsByNameAndActiveTrue(String name);
+
     boolean existsByNameAndProductIdNot(String name, UUID productId);
 
     @EntityGraph(attributePaths = {"images", "category"})

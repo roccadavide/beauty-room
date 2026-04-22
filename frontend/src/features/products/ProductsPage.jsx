@@ -37,7 +37,7 @@ function ProductsPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [products, cats] = await Promise.all([fetchProducts(), fetchCategories()]);
+        const [products, cats] = await Promise.all([fetchProducts(isAdmin), fetchCategories()]);
         setAllProducts(products);
         setCategories(cats);
       } catch (err) {
@@ -47,7 +47,7 @@ function ProductsPage() {
       }
     };
     loadData();
-  }, []);
+  }, [isAdmin]);
 
   // ---------- CATEGORIES MAP ----------
   const categoriesMap = useMemo(() => {

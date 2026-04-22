@@ -5,12 +5,13 @@ import { getCached, setCached, invalidateCache } from "../apiCache";
 // ---------------------------------- SERVICES ----------------------------------
 
 // -------------------------- GET ALL --------------------------
-export const fetchServices = async () => {
+export const fetchServices = async (includeInactive = false) => {
   try {
-    const KEY = "services";
+    const KEY = includeInactive ? "services_admin" : "services";
     const cached = getCached(KEY);
     if (cached) return cached;
-    const { data } = await http.get(SERVICE_ENDPOINTS.BASE);
+    const params = includeInactive ? { includeInactive: true } : {};
+    const { data } = await http.get(SERVICE_ENDPOINTS.BASE, { params });
     const result = data.content || data;
     setCached(KEY, result);
     return result;
@@ -42,7 +43,7 @@ export const createService = async formData => {
     const { data } = await http.post(SERVICE_ENDPOINTS.BASE, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
-    invalidateCache("services");
+    invalidateCache("services", "services_admin");
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nella creazione del servizio.";
@@ -56,7 +57,7 @@ export const updateService = async (serviceId, formData) => {
     const { data } = await http.put(SERVICE_ENDPOINTS.BY_ID(serviceId), formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
-    invalidateCache("services");
+    invalidateCache("services", "services_admin");
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nell’aggiornamento del servizio.";
@@ -68,7 +69,7 @@ export const updateService = async (serviceId, formData) => {
 export const deleteService = async serviceId => {
   try {
     await http.delete(SERVICE_ENDPOINTS.BY_ID(serviceId));
-    invalidateCache("services", "service_" + serviceId);
+    invalidateCache("services", "services_admin", "service_" + serviceId);
     return true;
   } catch (error) {
     const message = error.response?.data?.message || "Errore durante l’eliminazione del servizio.";

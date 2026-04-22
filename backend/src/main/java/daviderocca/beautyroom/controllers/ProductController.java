@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,10 +31,14 @@ public class ProductController {
     public ResponseEntity<Page<ProductResponseDTO>> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
-            @RequestParam(defaultValue = "name") String sort
+            @RequestParam(defaultValue = "name") String sort,
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            Authentication authentication
     ) {
-        log.info("Richiesta elenco prodotti [page={}, size={}, sort={}]", page, size, sort);
-        return ResponseEntity.ok(productService.findAllProducts(page, size, sort));
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        log.info("Richiesta elenco prodotti [page={}, size={}, sort={}, includeInactive={}]", page, size, sort, isAdmin && includeInactive);
+        return ResponseEntity.ok(productService.findAllProducts(page, size, sort, isAdmin && includeInactive));
     }
 
     @GetMapping("/{productId}")

@@ -121,9 +121,11 @@ public class ServiceItemService {
     // ---------------------------- FIND METHODS ----------------------------
 
     @Transactional(readOnly = true)
-    public Page<ServiceItemResponseDTO> findAllServiceItems(int pageNumber, int pageSize, String sort) {
+    public Page<ServiceItemResponseDTO> findAllServiceItems(int pageNumber, int pageSize, String sort, boolean includeInactive) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<ServiceItem> page = serviceItemRepository.findAllActiveWithDetails(pageable);
+        Page<ServiceItem> page = includeInactive
+                ? serviceItemRepository.findAllWithDetails(pageable)
+                : serviceItemRepository.findAllActiveWithDetails(pageable);
         List<ServiceItemResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
@@ -157,7 +159,7 @@ public class ServiceItemService {
 
     @Transactional
     public ServiceItemResponseDTO saveServiceItem(NewServiceItemDTO payload, List<MultipartFile> images) {
-        if (serviceItemRepository.existsByTitle(payload.title())) {
+        if (serviceItemRepository.existsByTitleAndActiveTrue(payload.title())) {
             throw new BadRequestException("Esiste già un servizio con questo titolo!");
         }
 

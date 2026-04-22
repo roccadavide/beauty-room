@@ -44,9 +44,11 @@ public class ProductService {
     // ---------------------------- FIND METHODS ----------------------------
 
     @Transactional(readOnly = true)
-    public Page<ProductResponseDTO> findAllProducts(int pageNumber, int pageSize, String sort) {
+    public Page<ProductResponseDTO> findAllProducts(int pageNumber, int pageSize, String sort, boolean includeInactive) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
-        Page<Product> page = productRepository.findAllActiveWithDetails(pageable);
+        Page<Product> page = includeInactive
+                ? productRepository.findAllWithDetails(pageable)
+                : productRepository.findAllActiveWithDetails(pageable);
         List<ProductResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
@@ -71,7 +73,7 @@ public class ProductService {
 
     @Transactional
     public ProductResponseDTO saveProduct(NewProductDTO payload, List<MultipartFile> images) {
-        if (productRepository.existsByName(payload.name())) {
+        if (productRepository.existsByNameAndActiveTrue(payload.name())) {
             throw new BadRequestException("Esiste già un prodotto con questo nome!");
         }
 

@@ -5,12 +5,13 @@ import { getCached, setCached, invalidateCache } from "../apiCache";
 // ---------------------------------- PRODUCTS ----------------------------------
 
 // -------------------------- GET ALL --------------------------
-export const fetchProducts = async () => {
+export const fetchProducts = async (includeInactive = false) => {
   try {
-    const KEY = "products";
+    const KEY = includeInactive ? "products_admin" : "products";
     const cached = getCached(KEY);
     if (cached) return cached;
-    const { data } = await http.get(PRODUCT_ENDPOINTS.BASE);
+    const params = includeInactive ? { includeInactive: true } : {};
+    const { data } = await http.get(PRODUCT_ENDPOINTS.BASE, { params });
     const result = data.content || data;
     setCached(KEY, result);
     return result;
@@ -38,7 +39,7 @@ export const createProduct = async formData => {
     const { data } = await http.post(PRODUCT_ENDPOINTS.BASE, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
-    invalidateCache("products");
+    invalidateCache("products", "products_admin");
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nella creazione del prodotto.";
@@ -52,7 +53,7 @@ export const updateProduct = async (productId, formData) => {
     const { data } = await http.put(PRODUCT_ENDPOINTS.BY_ID(productId), formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
-    invalidateCache("products");
+    invalidateCache("products", "products_admin");
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore nell’aggiornamento del prodotto.";
@@ -64,7 +65,7 @@ export const updateProduct = async (productId, formData) => {
 export const deleteProduct = async productId => {
   try {
     await http.delete(PRODUCT_ENDPOINTS.BY_ID(productId));
-    invalidateCache("products");
+    invalidateCache("products", "products_admin");
     return true;
   } catch (error) {
     const message = error.response?.data?.message || "Errore durante l’eliminazione del prodotto.";

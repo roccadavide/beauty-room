@@ -22,6 +22,8 @@ public interface ServiceItemRepository extends JpaRepository<ServiceItem, UUID> 
 
     boolean existsByTitle(String title);
 
+    boolean existsByTitleAndActiveTrue(String title);
+
     boolean existsByTitleAndServiceIdNot(String title, UUID serviceItemId);
 
     @EntityGraph(attributePaths = {"options", "category", "images"})

@@ -37,7 +37,7 @@ const ServicePage = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [services, cats] = await Promise.all([fetchServices(), fetchCategories()]);
+        const [services, cats] = await Promise.all([fetchServices(isAdmin), fetchCategories()]);
         setAllServices(services);
         setCategories(cats);
       } catch (err) {
@@ -47,7 +47,7 @@ const ServicePage = () => {
       }
     };
     loadData();
-  }, []);
+  }, [isAdmin]);
 
   // ---------- CATEGORIES MAP ----------
   const categoriesMap = useMemo(() => {
