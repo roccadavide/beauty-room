@@ -58,27 +58,18 @@ function ProductsPage() {
     return map;
   }, [categories]);
 
-  const allowedCategoryLabels = useMemo(() => new Set(["corpo", "mani", "piedi", "viso"]), []);
-
-  const allowedCategoryIds = useMemo(() => {
-    return new Set(categories.filter(c => allowedCategoryLabels.has((c.label || "").trim().toLowerCase())).map(c => c.categoryId));
-  }, [categories, allowedCategoryLabels]);
-
-  const categoryIdsWithProducts = useMemo(() => {
-    return new Set(allProducts.map(p => p.categoryId));
-  }, [allProducts]);
+  const categoryIdsWithProducts = useMemo(() => new Set(allProducts.map(p => p.categoryId)), [allProducts]);
 
   const visibleCategories = useMemo(() => {
-    return categories.filter(c => allowedCategoryIds.has(c.categoryId) && categoryIdsWithProducts.has(c.categoryId));
-  }, [categories, allowedCategoryIds, categoryIdsWithProducts]);
+    return categories.filter(c => categoryIdsWithProducts.has(c.categoryId));
+  }, [categories, categoryIdsWithProducts]);
 
   // ---------- FILTER ----------
   const filtered = useMemo(() => {
     return allProducts
-      .filter(p => allowedCategoryIds.has(p.categoryId))
       .filter(p => (cat === "all" ? true : p.categoryId === cat))
       .filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || p.description.toLowerCase().includes(q.toLowerCase()));
-  }, [allProducts, cat, q, allowedCategoryIds]);
+  }, [allProducts, cat, q]);
 
   // Stampa data-scroll-id sui figli del Row dopo il render
   useEffect(() => {

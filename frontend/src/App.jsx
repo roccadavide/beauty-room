@@ -19,6 +19,7 @@ import ServiceDetail from "./features/services/ServiceDetails";
 import NavBar from "./components/layout/NavBar";
 import PrivateRoute from "./components/common/PrivateRoute";
 import useLenis from "./hooks/useLenis";
+import { useSplashScreen } from "./hooks/useSplashScreen";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
 import { clearAccessToken } from "./utils/token";
@@ -70,6 +71,7 @@ function App() {
     variant: "success",
   });
 
+  useSplashScreen();
   useLenis();
 
   useEffect(() => {

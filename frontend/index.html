@@ -14,6 +14,64 @@
     <meta name="geo.position" content="45.69296454823625;9.465113717532258" />
     <meta name="ICBM" content="45.69296454823625, 9.465113717532258" />
 
+    <style>
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #1e1814;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 28px;
+      }
+      .splash-logo {
+        width: 140px;
+        opacity: 0;
+        animation: splashLogoIn 0.6s ease forwards 0.1s;
+      }
+      @media (max-width: 480px) {
+        .splash-logo { width: 110px; }
+      }
+      .splash-bar-track {
+        width: 140px;
+        height: 2px;
+        background: rgba(184, 151, 106, 0.25);
+        border-radius: 1px;
+        overflow: hidden;
+      }
+      @media (max-width: 480px) {
+        .splash-bar-track { width: 110px; }
+      }
+      .splash-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: #b8976a;
+        animation: splashBarFill 1.8s ease forwards 0.3s;
+      }
+      #splash-screen.splash-hidden {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.55s ease 0.1s;
+      }
+      #root {
+        opacity: 0;
+        transition: opacity 0.5s ease;
+      }
+      #root.app-visible {
+        opacity: 1;
+      }
+      @keyframes splashLogoIn {
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes splashBarFill {
+        from { width: 0%; }
+        to   { width: 100%; }
+      }
+    </style>
+
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -70,6 +128,12 @@
     </script>
   </head>
   <body>
+    <div id="splash-screen">
+      <img class="splash-logo" src="/logo.png" alt="Beauty Room" />
+      <div class="splash-bar-track">
+        <div class="splash-bar-fill"></div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
