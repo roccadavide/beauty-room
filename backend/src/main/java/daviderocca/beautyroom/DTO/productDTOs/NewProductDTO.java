@@ -3,6 +3,7 @@ package daviderocca.beautyroom.DTO.productDTOs;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -19,7 +20,7 @@ public record NewProductDTO (
                             @NotEmpty(message = "La descrizione non può essere vuota")
                             String description,
                             @NotNull(message = "Lo stock è obbligatorio")
-                            @Positive(message = "Lo stock deve essere un numero positivo")
+                            @PositiveOrZero(message = "Lo stock deve essere un numero >= 0")
                             Integer stock,
                             @NotNull(message = "La categoria è obbligatoria")
                             UUID categoryId,
