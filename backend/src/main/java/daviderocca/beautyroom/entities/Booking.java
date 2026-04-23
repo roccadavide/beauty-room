@@ -1,6 +1,7 @@
 package daviderocca.beautyroom.entities;
 
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.PaymentMethod;
 import daviderocca.beautyroom.entities.Customer;
 import jakarta.persistence.*;
 import lombok.*;
@@ -89,6 +90,10 @@ public class Booking {
     @Column(name = "created_by_admin", nullable = false)
     private boolean createdByAdmin = false;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false, length = 20)
+    private PaymentMethod paymentMethod = PaymentMethod.PAID_ONLINE;
+
     @Column(name = "consent_laser", nullable = false)
     private boolean consentLaser = false;
 
@@ -103,6 +108,9 @@ public class Booking {
 
     @Column(name = "consent_signed_at")
     private LocalDateTime consentSignedAt;
+
+    @Column(name = "is_no_show", nullable = false)
+    private boolean noShow = false;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_id", nullable = false)

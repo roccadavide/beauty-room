@@ -54,6 +54,9 @@ public class User implements UserDetails {
     @Column(name = "role", nullable = false, length = 30)
     private Role role = Role.CUSTOMER;
 
+    @Column(name = "is_verified", nullable = false)
+    private boolean isVerified = false;
+
     // Relazioni
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Booking> bookings;

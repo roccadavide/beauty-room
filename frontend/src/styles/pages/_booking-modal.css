@@ -426,6 +426,49 @@
   box-shadow: 0 8px 28px rgba(46, 33, 24, 0.35);
 }
 
+.bm-btn--pay-in-store {
+  background: rgba(184, 151, 106, 0.12);
+  color: #8c6d3f;
+  border: 1.5px solid rgba(184, 151, 106, 0.35);
+  padding: 0.7rem 1.5rem;
+  font-size: 0.88rem;
+}
+
+.bm-btn--pay-in-store:hover {
+  background: rgba(184, 151, 106, 0.22);
+}
+
+.bm-nav--col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.bm-policy-note {
+  font-size: 0.75rem;
+  color: #9c8880;
+  line-height: 1.5;
+  margin-top: 0.75rem;
+  padding: 0 0.25rem;
+  text-align: center;
+}
+
+.bm-whatsapp-footer {
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.bm-whatsapp-link {
+  font-size: 0.78rem;
+  color: #7a9e7e;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(122,158,126,0.4);
+}
+
+.bm-whatsapp-link:hover {
+  color: #4d7a52;
+}
+
 @media (max-width: 767px) {
   .bm-panel--side {
     width: 100%;

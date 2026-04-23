@@ -67,6 +67,23 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.findPmuUnsigned());
     }
 
+    // ---------------------------------- ADMIN: no-show ----------------------------------
+    @PatchMapping("/{bookingId}/no-show")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> markNoShow(@PathVariable UUID bookingId) {
+        log.info("ADMIN | no-show bookingId={}", bookingId);
+        bookingService.markAsNoShow(bookingId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/user/{userId}/no-show")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> markLatestNoShowForUser(@PathVariable UUID userId) {
+        log.info("ADMIN | no-show latest for user={}", userId);
+        bookingService.markLatestNoShowForUser(userId);
+        return ResponseEntity.noContent().build();
+    }
+
     // ---------------------------------- AUTH DELETE (cancel) ----------------------------------
     @DeleteMapping("/{bookingId}")
     @PreAuthorize("isAuthenticated()")

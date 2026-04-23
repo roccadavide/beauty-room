@@ -33,7 +33,7 @@ const fmtTime = iso => {
  */
 export default function PayNowModal({
   show, onHide, product, qty, user, accessToken,
-  onCheckoutAuth, onCheckoutGuest
+  onCheckoutAuth, onCheckoutGuest, onCheckoutPayInStore
 }) {
   const [form, setForm] = useState({
     name: "", surname: "", email: "", phone: "", pickupNote: ""
@@ -172,6 +172,30 @@ export default function PayNowModal({
     }
   };
 
+  const handlePayInStore = async () => {
+    setSubmitted(true);
+    if (!validate()) return;
+    setLoading(true);
+    setServerError(null);
+
+    const orderData = {
+      customerName: form.name,
+      customerSurname: form.surname,
+      customerEmail: form.email,
+      customerPhone: form.phone,
+      pickupNote: buildPickupNote(),
+      items: [{ productId: product.productId, quantity: qty }]
+    };
+
+    try {
+      await onCheckoutPayInStore(orderData);
+    } catch (err) {
+      setServerError(err.message || "Errore durante la creazione dell'ordine.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const onChange = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const totalStr = (product?.price * qty).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
@@ -184,11 +208,23 @@ export default function PayNowModal({
       subtitle={`${product?.name} · ${qty > 1 ? `${qty} pz · ` : ""}${totalStr}`}
       size="md"
       footer={
-        <div className="d-flex justify-content-between align-items-center w-100">
-          <button className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>Annulla</button>
-          <button className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
-            {loading ? <Spinner animation="border" size="sm" /> : "Procedi al pagamento →"}
-          </button>
+        <div className="d-flex flex-column w-100 gap-2">
+          <div className="d-flex justify-content-between align-items-center w-100">
+            <button className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>Annulla</button>
+            <button className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
+              {loading ? <Spinner animation="border" size="sm" /> : "💳 Procedi al pagamento →"}
+            </button>
+          </div>
+          {onCheckoutPayInStore && user?.isVerified && accessToken && (
+            <button
+              className="bm-btn bm-btn--pay-in-store w-100"
+              onClick={handlePayInStore}
+              disabled={loading}
+              type="button"
+            >
+              🏠 Paga al ritiro (Cliente di Fiducia)
+            </button>
+          )}
         </div>
       }
     >

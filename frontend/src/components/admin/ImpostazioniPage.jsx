@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Container } from "react-bootstrap";
 import * as api from "../../api/modules/impostazioni.api";
+import { fetchCancellationPolicy, patchCancellationHoursLimit } from "../../api/modules/users.api";
 import DateTimeField from "../common/DateTimeField";
 import SEO from "../common/SEO";
 
@@ -535,6 +536,11 @@ export default function ImpostazioniPage() {
   const [categoryDeleteConfirm, setCategoryDeleteConfirm] = useState(null);
   const [categoryDeleteLoading, setCategoryDeleteLoading] = useState(false);
 
+  // ── Politiche ──
+  const [cancellationHours, setCancellationHours] = useState(24);
+  const [cancellationSaving, setCancellationSaving] = useState(false);
+  const [cancellationMsg, setCancellationMsg] = useState(null);
+
   const sortWH = list =>
     [...list].sort((a, b) => DOW_ORDER.indexOf(a.dayOfWeek) - DOW_ORDER.indexOf(b.dayOfWeek));
 
@@ -565,6 +571,20 @@ export default function ImpostazioniPage() {
   }, [filterFutureClosures]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (tab !== "politiche") return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchCancellationPolicy();
+        if (!cancelled) setCancellationHours(data.cancellationHoursLimit ?? 24);
+      } catch {
+        // silently ignore — keep default
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tab]);
 
   useEffect(() => {
     if (tab !== "categorie") return undefined;
@@ -729,6 +749,13 @@ export default function ImpostazioniPage() {
             onClick={() => setTab("categorie")}
           >
             🏷️ Categorie
+          </button>
+          <button
+            type="button"
+            className={`imp-tab-pill${tab === "politiche" ? " imp-tab-pill--active" : ""}`}
+            onClick={() => setTab("politiche")}
+          >
+            ⚙️ Politiche
           </button>
         </div>
 
@@ -946,6 +973,79 @@ export default function ImpostazioniPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════
+            POLITICHE TAB
+            ══════════════════════════════════ */}
+        {tab === "politiche" && (
+          <div className="imp-section">
+            <div className="imp-section-header">
+              <div>
+                <div className="imp-section-title">Politiche di cancellazione</div>
+                <div className="imp-section-sub">
+                  Limite entro cui il cliente può annullare gratuitamente
+                </div>
+              </div>
+            </div>
+
+            <div className="imp-closure-form" style={{ maxWidth: 420 }}>
+              <div className="imp-form-row">
+                <div className="imp-form-group imp-form-group--full">
+                  <label className="imp-form-label">
+                    Ore di preavviso minimo per cancellazione
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <input
+                      type="number"
+                      className="imp-form-input"
+                      min={0}
+                      max={168}
+                      value={cancellationHours}
+                      onChange={e => setCancellationHours(Number(e.target.value))}
+                      style={{ width: 90 }}
+                    />
+                    <span style={{ color: "var(--imp-muted, #888)", fontSize: "0.875rem" }}>ore</span>
+                  </div>
+                  <p className="imp-form-hint">
+                    Valore 0 = nessun limite. Massimo 168 ore (7 giorni).
+                  </p>
+                </div>
+              </div>
+
+              {cancellationMsg && (
+                <div
+                  className={`imp-field-error${cancellationMsg.ok ? " imp-save-ok" : ""}`}
+                  style={cancellationMsg.ok ? { color: "var(--imp-green, #3a9e6a)" } : {}}
+                >
+                  {cancellationMsg.text}
+                </div>
+              )}
+
+              <div className="imp-form-actions">
+                <button
+                  type="button"
+                  className="imp-btn imp-btn--primary"
+                  disabled={cancellationSaving}
+                  onClick={async () => {
+                    setCancellationSaving(true);
+                    setCancellationMsg(null);
+                    try {
+                      await patchCancellationHoursLimit(cancellationHours);
+                      setCancellationMsg({ ok: true, text: "✓ Salvato" });
+                      setTimeout(() => setCancellationMsg(null), 3000);
+                    } catch (e) {
+                      setCancellationMsg({ ok: false, text: e.message || "Errore durante il salvataggio." });
+                    } finally {
+                      setCancellationSaving(false);
+                    }
+                  }}
+                >
+                  {cancellationSaving ? "Salvataggio…" : "Salva"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

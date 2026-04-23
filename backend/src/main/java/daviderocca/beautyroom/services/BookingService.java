@@ -15,6 +15,7 @@ import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WorkingHours;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.NotificationType;
+import daviderocca.beautyroom.enums.PaymentMethod;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.exceptions.UnauthorizedException;
@@ -173,6 +174,103 @@ public class BookingService {
     @Transactional
     public Booking save(Booking booking) {
         return bookingRepository.save(booking);
+    }
+
+    // ============================ PAY IN STORE CREATE (Cliente di Fiducia) ============================
+    /**
+     * Crea una prenotazione CONFERMATA con metodo PAY_IN_STORE (pagamento in loco).
+     * Richiede che l'utente sia verificato (isVerified = true).
+     * Non crea una sessione Stripe.
+     */
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public BookingResponseDTO createPayInStoreBooking(NewBookingDTO payload, User currentUser) {
+        if (currentUser == null || currentUser.getUserId() == null) {
+            throw new daviderocca.beautyroom.exceptions.UnauthorizedException("Utente non autenticato.");
+        }
+        if (!currentUser.isVerified()) {
+            throw new daviderocca.beautyroom.exceptions.UnauthorizedException(
+                    "Solo i clienti di fiducia possono prenotare con pagamento in loco.");
+        }
+
+        ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
+        serviceItemService.assertServiceActive(serviceItem);
+
+        LocalDateTime start = normalizeStart(payload.startTime());
+        LocalDateTime end = start.plusMinutes(serviceItem.getDurationMin());
+
+        ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
+
+        if (hasOverlapIncludingPadding(start, end)) {
+            throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
+        }
+
+        String name  = safeTrim(currentUser.getName() + " " + currentUser.getSurname(), "Nome cliente obbligatorio");
+        String email = currentUser.getEmail().toLowerCase();
+        String phone = safeTrim(payload.customerPhone() != null ? payload.customerPhone() : currentUser.getPhone(),
+                "Telefono cliente obbligatorio");
+
+        Booking booking = new Booking(name, email, phone, start, end, payload.notes(), serviceItem, option, currentUser);
+        booking.setCreatedByAdmin(false);
+        booking.setPaymentMethod(PaymentMethod.PAY_IN_STORE);
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setPaidAt(null);
+        booking.setStripeSessionId(null);
+        booking.setExpiresAt(null);
+        booking.setCanceledAt(null);
+        booking.setCancelReason(null);
+        booking.setCompletedAt(null);
+        booking.setConsentLaser(payload.consentLaser());
+        booking.setConsentPmu(payload.consentPmu());
+        if (payload.consentLaser() || payload.consentPmu()) {
+            booking.setConsentAt(LocalDateTime.now());
+        }
+
+        Booking saved = bookingRepository.save(booking);
+        log.info("PAY_IN_STORE booking created: id={} userId={} serviceId={}", saved.getBookingId(),
+                currentUser.getUserId(), serviceItem.getServiceId());
+
+        emailOutboxService.enqueueBookingConfirmed(saved);
+
+        try {
+            String svc  = serviceItem.getTitle();
+            String when = saved.getStartTime().format(NOTIF_FMT);
+            notificationService.create(
+                NotificationType.NEW_BOOKING,
+                "Nuova prenotazione in loco 🏠",
+                name + " · " + svc + " · " + when,
+                saved.getBookingId(),
+                "BOOKING"
+            );
+        } catch (Exception e) {
+            log.warn("Notification skipped for PAY_IN_STORE booking {}: {}", saved.getBookingId(), e.getMessage());
+        }
+
+        Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
+                .orElseThrow(() -> new daviderocca.beautyroom.exceptions.ResourceNotFoundException(saved.getBookingId()));
+        return convertToDTO(hydrated);
+    }
+
+    // ============================ NO-SHOW ============================
+
+    @Transactional
+    public void markAsNoShow(UUID bookingId) {
+        Booking b = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(bookingId));
+        b.setNoShow(true);
+        bookingRepository.save(b);
+        log.info("Booking marked no-show: id={}", bookingId);
+    }
+
+    @Transactional
+    public void markLatestNoShowForUser(UUID userId) {
+        List<Booking> bookings = bookingRepository.findByUserIdOrderByStartTimeDesc(userId);
+        Booking target = bookings.stream()
+                .filter(b -> b.getBookingStatus() != BookingStatus.CANCELLED)
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(userId));
+        target.setNoShow(true);
+        bookingRepository.save(target);
+        log.info("Latest booking marked no-show: userId={} bookingId={}", userId, target.getBookingId());
     }
 
     // ============================ MANUAL ADMIN CREATE ============================

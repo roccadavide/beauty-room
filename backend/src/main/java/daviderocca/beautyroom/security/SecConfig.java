@@ -88,6 +88,9 @@ public class SecConfig {
                         // PUBLIC API (chiusure, slot disponibili — nessuna auth)
                         .requestMatchers("/api/public/**").permitAll()
 
+                        // SETTINGS PUBBLICHE
+                        .requestMatchers(HttpMethod.GET, "/settings/public/**").permitAll()
+
                         // AUTH
                         .requestMatchers("/auth/**").permitAll()
 
@@ -99,6 +102,7 @@ public class SecConfig {
                         .requestMatchers(HttpMethod.POST, "/checkout/create-session").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session-guest").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-pay-in-store").authenticated()
 // FIX-8: booking-summary rimane permitAll per non rompere il flusso guest post-pagamento.
                                 // La sicurezza è enforcement a livello applicativo nel controller:
                                 // se l'utente è autenticato, si verifica che il booking appartenga a lui.

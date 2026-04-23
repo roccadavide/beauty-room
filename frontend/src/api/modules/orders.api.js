@@ -69,6 +69,17 @@ export const refundOrder = async orderId => {
   }
 };
 
+// -------------------------- CREATE PAY_IN_STORE --------------------------
+export const createOrderPayInStore = async payload => {
+  try {
+    const { data } = await http.post(ORDER_ENDPOINTS.PAY_IN_STORE, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante la creazione dell'ordine.";
+    throw new Error(message);
+  }
+};
+
 // -------------------------- DELETE (OWNER/ADMIN) --------------------------
 export const deleteOrder = async orderId => {
   try {

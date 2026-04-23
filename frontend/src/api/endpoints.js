@@ -15,6 +15,7 @@ export const USER_ENDPOINTS = {
   MAKE_ADMIN: id => `/users/${id}/make-admin`,
   REMOVE_ADMIN: id => `/users/${id}/remove-admin`,
   CHANGE_PASSWORD: id => `/users/${id}/password`,
+  VERIFY: id => `/users/${id}/verify`,
 };
 
 // ---- CATEGORIES ----
@@ -37,6 +38,8 @@ export const BOOKING_ENDPOINTS = {
   BASE: "/bookings",
   ME: "/bookings/me",
   BY_ID: id => `/bookings/${id}`,
+  NO_SHOW: id => `/bookings/${id}/no-show`,
+  NO_SHOW_BY_USER: userId => `/bookings/user/${userId}/no-show`,
 };
 
 // ---- BOOKINGS (ADMIN) ----
@@ -58,6 +61,7 @@ export const ORDER_ENDPOINTS = {
   ME: "/orders/me",
   STATUS: id => `/orders/${id}/status`,
   REFUND: id => `/orders/${id}/refund`,
+  PAY_IN_STORE: "/orders/pay-in-store",
 };
 
 // ---- PRODUCTS ----
@@ -81,9 +85,16 @@ export const STRIPE_ENDPOINTS = {
   CHECKOUT_GUEST: "/checkout/create-session-guest",
   CHECKOUT_BOOKING: "/checkout/bookings/create-session",
   CHECKOUT_BOOKING_GUEST: "/checkout/bookings/create-session-guest",
+  CHECKOUT_BOOKING_PAY_IN_STORE: "/checkout/bookings/create-pay-in-store",
   ORDER_SUMMARY: "/checkout/order-summary",
   BOOKING_SUMMARY: "/checkout/bookings/booking-summary",
   WEBHOOK: "/stripe/webhook",
+};
+
+// ---- APP SETTINGS ----
+export const APP_SETTINGS_ENDPOINTS = {
+  CANCELLATION_POLICY: "/settings/public/cancellation-policy",
+  CANCELLATION_HOURS_LIMIT: "/admin/settings/cancellation-hours-limit",
 };
 
 // ---- RESULTS ----

@@ -27,6 +27,7 @@ public class JWTTools {
                 .subject(user.getEmail())
                 .claim("id", user.getUserId().toString())
                 .claim("jti", UUID.randomUUID().toString())
+                .claim("isVerified", user.isVerified())
                 .signWith(Keys.hmacShaKeyFor(secret.getBytes()))
                 .compact();
     }

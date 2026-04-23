@@ -7,6 +7,7 @@ import ProductDetailSkeleton from "./ProductDetailSkeleton";
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/modules/stripe.api";
+import { createOrderPayInStore } from "../../api/modules/orders.api";
 import { subscribeStockAlert } from "../../api/modules/products.api";
 import { addToCart } from "../cart/slices/cart.slice";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
@@ -152,6 +153,12 @@ const ProductDetail = () => {
     window.location.href = res.url;
   };
 
+  const handleCheckoutPayInStore = async orderData => {
+    await createOrderPayInStore(orderData);
+    setShowPayNow(false);
+    window.location.href = "/area-personale?orderPayInStore=1";
+  };
+
   const handleStockAlert = async () => {
     if (!alertEmail || !/\S+@\S+\.\S+/.test(alertEmail)) return;
     try {
@@ -235,6 +242,7 @@ const ProductDetail = () => {
               <span className="detail-trust-pill">✓ Ritiro in negozio</span>
               <span className="detail-trust-pill">✓ Pagamenti sicuri</span>
               <span className="detail-trust-pill">✓ Nessun costo al ritiro</span>
+              <span className="detail-trust-pill">✦ Spostamento facile — Scrivici su WhatsApp</span>
             </div>
 
             {hasOptions && (
@@ -375,6 +383,7 @@ const ProductDetail = () => {
           accessToken={accessToken}
           onCheckoutAuth={handleCheckoutAuth}
           onCheckoutGuest={handleCheckoutGuest}
+          onCheckoutPayInStore={handleCheckoutPayInStore}
         />
       </Container>
     </>

@@ -64,6 +64,17 @@ public class OrderController {
         return ResponseEntity.ok(orderService.findOrdersByEmailAndConvert(email));
     }
 
+    // ---------------------------------- AUTH POST PAY_IN_STORE ----------------------------------
+    @PostMapping("/pay-in-store")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<OrderResponseDTO> createPayInStoreOrder(
+            @Valid @RequestBody NewOrderDTO payload,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        log.info("AUTH | create PAY_IN_STORE order for {}", payload.customerEmail());
+        return ResponseEntity.status(201).body(orderService.createPayInStoreOrder(payload, currentUser));
+    }
+
     // ---------------------------------- ADMIN POST (manual) ----------------------------------
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")

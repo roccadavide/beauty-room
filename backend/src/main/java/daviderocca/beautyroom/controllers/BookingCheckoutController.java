@@ -4,9 +4,9 @@ import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
+import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
-import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.entities.Promotion;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
@@ -206,6 +206,21 @@ public class BookingCheckoutController {
         resp.put("url", session.getUrl());
         resp.put("bookingId", hold.bookingId());
         return resp;
+    }
+
+    /**
+     * Prenotazione con pagamento in loco (PAY_IN_STORE).
+     * Solo per clienti di fiducia (isVerified = true).
+     * Crea una prenotazione CONFIRMED senza sessione Stripe.
+     */
+    @PostMapping("/create-pay-in-store")
+    public ResponseEntity<BookingResponseDTO> createPayInStoreBooking(
+            @Valid @RequestBody NewBookingDTO payload,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        if (currentUser == null) throw new BadRequestException("Utente non autenticato.");
+        BookingResponseDTO booking = bookingService.createPayInStoreBooking(payload, currentUser);
+        return ResponseEntity.status(201).body(booking);
     }
 
     @GetMapping("/booking-summary")

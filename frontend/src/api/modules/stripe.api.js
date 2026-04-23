@@ -55,6 +55,17 @@ export const createBookingCheckoutSessionGuest = async payload => {
   }
 };
 
+// --------------------------- CHECKOUT BOOKING PAY IN STORE (Cliente di Fiducia) ---------------------------
+export const createBookingPayInStore = async payload => {
+  try {
+    const { data } = await http.post(STRIPE_ENDPOINTS.CHECKOUT_BOOKING_PAY_IN_STORE, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante la prenotazione. Riprova più tardi.";
+    throw new Error(message);
+  }
+};
+
 // --------------------------- BOOKING SUMMARY ---------------------------
 export const fetchBookingSummary = async sessionId => {
   const { data } = await http.get(STRIPE_ENDPOINTS.BOOKING_SUMMARY, {

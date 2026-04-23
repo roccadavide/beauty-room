@@ -81,6 +81,16 @@ public class UserController {
         return ResponseEntity.ok(updated);
     }
 
+    @PatchMapping("/{userId}/verify")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponseDTO> setVerified(
+            @PathVariable UUID userId,
+            @RequestParam boolean verified
+    ) {
+        log.info("Aggiornamento is_verified={} per utente {}", verified, userId);
+        return ResponseEntity.ok(userService.setUserVerified(userId, verified));
+    }
+
     @PatchMapping("/{userId}/make-admin")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponseDTO> promoteToAdmin(@PathVariable UUID userId) {

@@ -59,14 +59,24 @@ function Steps({ items }) {
 export default function BookingConfirmation() {
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
+  const payInStore = params.get("payInStore") === "1";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [summary, setSummary] = useState(null);
   const [service, setService] = useState(null);
 
+  /* pay-in-store: no Stripe session needed */
+  useEffect(() => {
+    if (payInStore) {
+      setLoading(false);
+      return;
+    }
+  }, [payInStore]);
+
   /* polling */
   useEffect(() => {
+    if (payInStore) return; // handled above
     if (!sessionId) {
       setError("Session ID mancante.");
       setLoading(false);
@@ -185,6 +195,29 @@ export default function BookingConfirmation() {
     { label: "Prenotazione", done: false, active: paid },
     { label: "Appuntamento", done: false, active: false },
   ];
+
+  /* ── Pay-in-store success screen ── */
+  if (payInStore && !loading)
+    return (
+      <div className="conf-page">
+        <SEO title="Prenotazione confermata" noindex={true} />
+        <section className="conf-hero conf-reveal conf-reveal--visible" style={{ "--conf-delay": "0s" }}>
+          <span className="conf-spark">✦</span>
+          <span className="conf-badge conf-badge--paid"><span className="conf-badge__dot" /> Prenotazione confermata</span>
+          <h1 className="conf-title">Ci vediamo presto</h1>
+          <div className="conf-divider" />
+          <p className="conf-subtitle">
+            La tua prenotazione è confermata. Pagherai direttamente in studio.
+            Riceverai un'email di riepilogo a breve.
+          </p>
+          <div style={{ marginTop: "2rem" }}>
+            <Link to="/area-personale" className="conf-btn-primary">
+              Visualizza le mie prenotazioni
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
 
   /* ── States ── */
   if (loading)

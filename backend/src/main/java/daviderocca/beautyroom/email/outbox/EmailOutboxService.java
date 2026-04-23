@@ -4,6 +4,7 @@ import daviderocca.beautyroom.email.events.EmailAggregateType;
 import daviderocca.beautyroom.email.events.EmailEventType;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Order;
+import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WaitlistEntry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -104,6 +105,21 @@ public class EmailOutboxService {
                 EmailAggregateType.WAITLIST,
                 entry.getId(),
                 normalizeEmail(entry.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
+    /** Notifica a Michela: nuovo utente registrato. */
+    public void enqueueUserRegistered(User user) {
+        if (user == null || user.getUserId() == null) return;
+        String to = normalizeEmail(adminEmail);
+        if (to == null) return;
+
+        enqueueSafe(
+                EmailEventType.USER_REGISTERED,
+                EmailAggregateType.USER,
+                user.getUserId(),
+                to,
                 LocalDateTime.now()
         );
     }

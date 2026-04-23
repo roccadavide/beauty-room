@@ -58,6 +58,12 @@ const ServicePage = () => {
     return map;
   }, [categories]);
 
+  const categoryIdsWithServices = useMemo(() => new Set(allServices.map(s => s.categoryId)), [allServices]);
+
+  const visibleCategories = useMemo(() => {
+    return categories.filter(c => categoryIdsWithServices.has(c.categoryId));
+  }, [categories, categoryIdsWithServices]);
+
   // ---------- FILTER ----------
   const filtered = useMemo(() => {
     return allServices
@@ -139,7 +145,7 @@ const ServicePage = () => {
           <span className="sp-chip-label">Tutti</span>
         </button>
 
-        {categories.map(c => (
+        {visibleCategories.map(c => (
           <button key={c.categoryId} className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`} onClick={() => setCat(c.categoryId)}>
             <span className="sp-chip-label">{c.label}</span>
           </button>

@@ -2,7 +2,9 @@ package daviderocca.beautyroom.email.templates;
 
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Order;
+import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WaitlistEntry;
+import daviderocca.beautyroom.enums.PaymentMethod;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -67,6 +69,21 @@ public class EmailTemplateService {
         String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
         String customerName = safe(b.getCustomerName());
 
+        // Prezzo: da opzione se presente, altrimenti dal servizio base
+        BigDecimal price = null;
+        if (b.getServiceOption() != null && b.getServiceOption().getPrice() != null) {
+            price = b.getServiceOption().getPrice();
+        } else if (b.getService() != null && b.getService().getPrice() != null) {
+            price = b.getService().getPrice();
+        }
+        String priceStr = price != null ? "€\u00a0" + price.setScale(2, RoundingMode.HALF_UP).toPlainString() : null;
+
+        boolean isPis = b.getPaymentMethod() == PaymentMethod.PAY_IN_STORE;
+        String paymentLabel = isPis ? "Pagamento in studio" : "Pagamento ricevuto";
+        String paymentValue = isPis
+                ? "Da pagare in studio il giorno dell'appuntamento" + (priceStr != null ? ": " + priceStr : "")
+                : "Pagamento online ricevuto" + (priceStr != null ? ": " + priceStr : "");
+
         String viewUrl = frontUrl + "/prenotazioni";
 
         String body = """
@@ -90,6 +107,10 @@ public class EmailTemplateService {
     %s
     %s
   </div>
+
+  <p style="font-family:Arial,sans-serif; font-size:13px; color:%s; text-align:center; margin-top:24px; padding-top:16px; border-top:1px solid %s;">
+    Grazie per aver scelto %s. Non vediamo l'ora di prenderci cura di te ✦
+  </p>
 """.formatted(
                 h1Style(),
                 pStyle(),
@@ -99,13 +120,15 @@ public class EmailTemplateService {
                 detailsBox(new String[][]{
                         {"Servizio", serviceTitle},
                         {"Quando", when},
+                        {paymentLabel, paymentValue},
                         {"Email", safe(b.getCustomerEmail())}
                 }),
                 button("Visualizza prenotazione", viewUrl),
                 smallStyle(),
                 miniLink("WhatsApp", "https://wa.me/" + brandPhoneE164.replace("+","")),
                 miniLink("Chiama", "tel:" + brandPhoneE164),
-                miniLink("Email", "mailto:" + brandEmail)
+                miniLink("Email", "mailto:" + brandEmail),
+                MUTED, BORDER, esc(brandName)
         );
 
         String html = wrap(body);
@@ -117,12 +140,17 @@ public class EmailTemplateService {
 
                 Servizio: %s
                 Quando: %s
+                %s: %s
 
                 Visualizza: %s
                 WhatsApp: https://wa.me/%s
+
+                Grazie per aver scelto %s. Non vediamo l'ora di prenderci cura di te.
                 """.formatted(
                 brandName, customerName, brandAddress, serviceTitle, when,
-                viewUrl, brandPhoneE164.replace("+","")
+                paymentLabel, paymentValue,
+                viewUrl, brandPhoneE164.replace("+",""),
+                brandName
         );
 
         return new EmailContent(subject, html, text);
@@ -232,6 +260,12 @@ public class EmailTemplateService {
         String whenPaid = (o.getPaidAt() != null) ? o.getPaidAt().format(IT_DT) : "-";
         String orderId  = (o.getOrderId() != null) ? o.getOrderId().toString().toUpperCase().substring(0, 8) : "-";
 
+        boolean isPis = o.getPaymentMethod() == PaymentMethod.PAY_IN_STORE;
+        String orderIntroHtml = isPis
+                ? "il tuo ordine è confermato. Pagherai <b>€\u00a0" + totalStr + "</b> direttamente al ritiro in <b>" + esc(brandAddress) + "</b>."
+                : "il pagamento è andato a buon fine e il tuo ordine è confermato. Ti contatteremo appena sarà pronto per il ritiro in <b>" + esc(brandAddress) + "</b>.";
+        String totalLabel = isPis ? "Da pagare al ritiro" : "Totale pagato";
+
         String pickupNote = (o.getPickupNote() != null && !o.getPickupNote().isBlank())
                 ? o.getPickupNote() : null;
 
@@ -239,10 +273,7 @@ public class EmailTemplateService {
             <h1 style="%s">Ordine confermato ✦</h1>
 
             <p style="%s">Ciao <b>%s</b>,</p>
-            <p style="%s">
-              il pagamento è andato a buon fine e il tuo ordine è confermato.
-              Ti contatteremo appena sarà pronto per il ritiro in <b>%s</b>.
-            </p>
+            <p style="%s">%s</p>
 
             <!-- Riepilogo articoli -->
             <div style="margin-top:18px; background:#FFFDFB; border:1px solid %s;
@@ -258,7 +289,7 @@ public class EmailTemplateService {
                           padding:12px 0; margin-top:4px;">
                 <div style="font-family:Arial,sans-serif; font-size:11px; font-weight:700;
                             letter-spacing:0.12em; text-transform:uppercase; color:%s;">
-                  Totale pagato
+                  %s
                 </div>
                 <div style="font-family:Arial,sans-serif; font-size:20px; font-weight:700; color:%s;">
                   €&nbsp;%s
@@ -280,17 +311,21 @@ public class EmailTemplateService {
               %s
               %s
             </div>
+
+            <p style="font-family:Arial,sans-serif; font-size:13px; color:%s; text-align:center; margin-top:24px; padding-top:16px; border-top:1px solid %s;">
+              Grazie per aver scelto %s. Non vediamo l'ora di prenderci cura di te ✦
+            </p>
         """.formatted(
                 h1Style(),
                 pStyle(), esc(firstName),
-                pStyle(), esc(brandAddress),
+                pStyle(), orderIntroHtml,
                 BORDER,
                 GOLD,
                 itemsHtml,
-                GOLD, TEXT, totalStr,
+                GOLD, totalLabel, TEXT, totalStr,
                 detailsBox(new String[][]{
                         {"Numero ordine", "#" + orderId},
-                        {"Pagato il", whenPaid},
+                        {isPis ? "Consegna" : "Pagato il", isPis ? "Al ritiro" : whenPaid},
                         {"Email di conferma", safe(o.getCustomerEmail())}
                 }),
                 pickupNote != null
@@ -304,7 +339,8 @@ public class EmailTemplateService {
                 smallStyle(),
                 miniLink("WhatsApp", "https://wa.me/" + brandPhoneE164.replace("+", "")),
                 miniLink("Chiama", "tel:" + brandPhoneE164),
-                miniLink("Email", "mailto:" + brandEmail)
+                miniLink("Email", "mailto:" + brandEmail),
+                MUTED, BORDER, esc(brandName)
         );
 
         String html = wrap(body);
@@ -314,7 +350,7 @@ public class EmailTemplateService {
                 Ciao %s, il tuo ordine è confermato!
 
                 Numero ordine: #%s
-                Pagato il: %s
+                %s: %s
 
                 Articoli:
                 %s
@@ -323,14 +359,19 @@ public class EmailTemplateService {
                 Ritiro presso: %s
                 %s
                 WhatsApp: https://wa.me/%s
+
+                Grazie per aver scelto %s. Non vediamo l'ora di prenderci cura di te.
                 """.formatted(
                 brandName, firstName,
-                orderId, whenPaid,
+                orderId,
+                isPis ? "Da pagare al ritiro" : "Pagato il",
+                isPis ? "Al momento del ritiro" : whenPaid,
                 itemsText,
                 totalStr,
                 brandAddress,
                 pickupNote != null ? "Nota ritiro: " + pickupNote + "\n" : "",
-                brandPhoneE164.replace("+", "")
+                brandPhoneE164.replace("+", ""),
+                brandName
         );
 
         return new EmailContent(subject, html, text);
@@ -449,6 +490,48 @@ public class EmailTemplateService {
                 """.formatted(
                 brandName, customerName, serviceTitle, when, brandPhoneE164.replace("+", "")
         );
+
+        return new EmailContent(subject, html, text);
+    }
+
+    // ===================== USER REGISTERED (admin notification) =====================
+    public EmailContent userRegistered(User u) {
+        String subject = "Nuova registrazione - " + brandName;
+        String fullName = safe(u.getName()) + " " + safe(u.getSurname());
+        String email = safe(u.getEmail());
+        String phone = safe(u.getPhone());
+
+        String adminUrl = brandEmail; // URL pannello admin — placeholder
+
+        String body = """
+  <h1 style="%s">Nuova cliente registrata</h1>
+
+  <p style="%s">Una nuova utente si è appena registrata su <b>%s</b>.</p>
+
+  %s
+
+  <p style="%s; margin-top:16px;">
+    Puoi verificarla come <b>Cliente di Fiducia</b> dal pannello Gestione → Account.
+  </p>
+""".formatted(
+                h1Style(),
+                pStyle(),
+                esc(brandName),
+                detailsBox(new String[][]{
+                        {"Nome", fullName.trim()},
+                        {"Email", email},
+                        {"Telefono", phone}
+                }),
+                smallStyle()
+        );
+
+        String html = wrap(body);
+
+        String text = """
+                Nuova registrazione - %s
+                Una nuova utente si è appena registrata: %s (%s, %s).
+                Puoi verificarla dal pannello admin.
+                """.formatted(brandName, fullName.trim(), email, phone);
 
         return new EmailContent(subject, html, text);
     }

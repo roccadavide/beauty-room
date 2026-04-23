@@ -47,6 +47,12 @@ export default function ResultsPage() {
     return map;
   }, [categories]);
 
+  const categoryIdsWithResults = useMemo(() => new Set(allResults.map(r => r.categoryId)), [allResults]);
+
+  const visibleCategories = useMemo(() => {
+    return categories.filter(c => categoryIdsWithResults.has(c.categoryId));
+  }, [categories, categoryIdsWithResults]);
+
   const filtered = useMemo(() => {
     const byCat = cat === "all" ? allResults : allResults.filter(r => r.categoryId === cat);
     if (!q.trim()) return byCat;
@@ -99,7 +105,7 @@ export default function ResultsPage() {
           <button className={`sp-chip ${cat === "all" ? "sp-chip--active" : ""}`} onClick={() => setCat("all")}>
             <span className="sp-chip-label">Tutti</span>
           </button>
-          {categories.map(c => (
+          {visibleCategories.map(c => (
             <button key={c.categoryId} className={`sp-chip ${cat === c.categoryId ? "sp-chip--active" : ""}`} onClick={() => setCat(c.categoryId)}>
               <span className="sp-chip-label">{c.label}</span>
             </button>

@@ -666,3 +666,62 @@
   .cli-pkg-global-center { display: none; }
   .cli-pkg-global-right { min-width: auto; }
 }
+
+/* ── Account tab (Cliente di Fiducia) ── */
+
+.cli-user-card--verified {
+  border-left: 3px solid #b8976a;
+}
+
+.cli-verified-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(184, 151, 106, 0.15);
+  color: #8c6d3f;
+  border-radius: 20px;
+}
+
+.cli-btn--sm {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+
+.cli-btn--trust {
+  background: rgba(184, 151, 106, 0.15);
+  color: #8c6d3f;
+  border-color: rgba(184, 151, 106, 0.3);
+}
+.cli-btn--trust:hover {
+  background: rgba(184, 151, 106, 0.3);
+}
+
+.cli-btn--danger {
+  background: rgba(192, 57, 43, 0.1);
+  color: #c0392b;
+  border-color: rgba(192, 57, 43, 0.2);
+}
+.cli-btn--danger:hover {
+  background: rgba(192, 57, 43, 0.2);
+}
+
+.cli-verify-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  animation: fadeInUp 0.25s ease;
+}
+.cli-verify-toast--ok  { background: #2d6a4f; color: #fff; }
+.cli-verify-toast--err { background: #c0392b; color: #fff; }

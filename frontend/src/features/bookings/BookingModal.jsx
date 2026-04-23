@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { fetchAvailabilities } from "../../api/modules/availabilities.api";
-import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest } from "../../api/modules/stripe.api";
+import {
+  createBookingCheckoutSessionAuth,
+  createBookingCheckoutSessionGuest,
+  createBookingPayInStore,
+} from "../../api/modules/stripe.api";
+import { fetchCancellationPolicy } from "../../api/modules/users.api";
+import { BRAND_WHATSAPP } from "../../utils/constants";
 import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
 import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
@@ -76,6 +82,7 @@ const BookingModal = ({
   const [errors, setErrors] = useState({});
   // FIX-9: blocca doppio click su "Vai al pagamento"
   const [paying, setPaying] = useState(false);
+  const [cancellationHours, setCancellationHours] = useState(null);
   const [waitlistSlot, setWaitlistSlot] = useState(null);
   const [consentLaser, setConsentLaser] = useState(false);
   const [consentPmu, setConsentPmu] = useState(false);
@@ -85,6 +92,14 @@ const BookingModal = ({
   const showPmuConsent = service?.consentRequired === true || needsPmuConsent(service?.title);
   const summaryStep = hasConsentStep ? 5 : 4;
   const effectiveDuration = initialOption?.durationMin ?? service?.durationMin;
+
+  // Fetch cancellation policy on first open
+  useEffect(() => {
+    if (!show || cancellationHours !== null) return;
+    fetchCancellationPolicy()
+      .then(d => setCancellationHours(d.cancellationHoursLimit ?? 24))
+      .catch(() => setCancellationHours(24));
+  }, [show, cancellationHours]);
 
   // Apply prefill from waitlist deep link
   useEffect(() => {
@@ -176,6 +191,22 @@ const BookingModal = ({
     setStep(hasConsentStep ? 4 : summaryStep);
   };
 
+  const buildPayload = day => ({
+    customerName: customer.name,
+    customerEmail: customer.email,
+    customerPhone: customer.phone,
+    notes: customer.notes,
+    startTime: `${day}T${slot.start}:00`,
+    serviceId: service.serviceId,
+    serviceOptionId: initialOptionId,
+    ...(promotionId != null && { promotionId: String(promotionId) }),
+    ...(promoPrice != null && promoPrice > 0 && {
+      promoPrice: parseFloat(promoPrice.toFixed(2)),
+    }),
+    consentLaser: consentLaser,
+    consentPmu: consentPmu,
+  });
+
   const confirm = async () => {
     // FIX-9: prevenzione doppio click
     if (paying) return;
@@ -191,22 +222,7 @@ const BookingModal = ({
       }
 
       const day = date.toLocaleDateString("sv-SE");
-
-      const payload = {
-        customerName: customer.name,
-        customerEmail: customer.email,
-        customerPhone: customer.phone,
-        notes: customer.notes,
-        startTime: `${day}T${slot.start}:00`,
-        serviceId: service.serviceId,
-        serviceOptionId: initialOptionId,
-        ...(promotionId != null && { promotionId: String(promotionId) }),
-        ...(promoPrice != null && promoPrice > 0 && {
-          promoPrice: parseFloat(promoPrice.toFixed(2)),
-        }),
-        consentLaser: consentLaser,
-        consentPmu: consentPmu,
-      };
+      const payload = buildPayload(day);
 
       // NIENTE token param: ci pensa httpClient/interceptor
       const res = accessToken ? await createBookingCheckoutSessionAuth(payload) : await createBookingCheckoutSessionGuest(payload);
@@ -214,6 +230,28 @@ const BookingModal = ({
       onHide();
       reset();
       window.location.href = res.url;
+    } catch (err) {
+      setError(err.message || "Si è verificato un errore durante la prenotazione. Riprova più tardi.");
+      setPaying(false);
+    }
+  };
+
+  const confirmPayInStore = async () => {
+    if (paying) return;
+    setPaying(true);
+    try {
+      setError(null);
+      if (!service?.serviceId) throw new Error("Servizio non valido.");
+      if (!slot?.start) throw new Error("Seleziona uno slot.");
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        throw new Error("Data non valida selezionata.");
+      }
+      const day = date.toLocaleDateString("sv-SE");
+      const payload = buildPayload(day);
+      await createBookingPayInStore(payload);
+      onHide();
+      reset();
+      window.location.href = "/prenotazione-confermata?payInStore=1";
     } catch (err) {
       setError(err.message || "Si è verificato un errore durante la prenotazione. Riprova più tardi.");
       setPaying(false);
@@ -635,14 +673,35 @@ const BookingModal = ({
               </div>
             )}
           </div>
-          <div className="bm-nav">
+          <div className="bm-nav bm-nav--col">
             <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(hasConsentStep ? 4 : 3)}>
               ← Modifica
             </button>
             {/* FIX-9: disabled durante redirect Stripe */}
             <button className="bm-btn bm-btn--cta" type="button" onClick={confirm} disabled={paying}>
-              {paying ? <><Spinner size="sm" animation="border" /> Reindirizzamento…</> : "💳 Vai al pagamento"}
+              {paying ? <><Spinner size="sm" animation="border" /> Reindirizzamento…</> : "💳 Paga ora con carta"}
             </button>
+            {user?.isVerified && !paying && (
+              <button className="bm-btn bm-btn--pay-in-store" type="button" onClick={confirmPayInStore}>
+                🏠 Paga in loco (Cliente di Fiducia)
+              </button>
+            )}
+          </div>
+          {cancellationHours !== null && (
+            <p className="bm-policy-note">
+              In caso di imprevisto puoi spostare o annullare contattando Michela su WhatsApp entro{" "}
+              <strong>{cancellationHours} ore</strong> dall&apos;appuntamento. I rimborsi vengono elaborati entro 5-7 giorni lavorativi.
+            </p>
+          )}
+          <div className="bm-whatsapp-footer">
+            <a
+              href={`https://wa.me/${BRAND_WHATSAPP}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bm-whatsapp-link"
+            >
+              Hai bisogno di aiuto? → WhatsApp
+            </a>
           </div>
         </div>
       )}

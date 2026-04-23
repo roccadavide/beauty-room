@@ -330,6 +330,7 @@ const ServiceDetail = () => {
               <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
               <span className="detail-trust-pill">✓ Pagamento sicuro</span>
               <span className="detail-trust-pill">✓ Conferma immediata</span>
+              <span className="detail-trust-pill">✦ Spostamento facile — Scrivici su WhatsApp</span>
             </div>
 
             <div className="detail-cart-actions">

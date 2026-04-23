@@ -1,4 +1,5 @@
 import { BOOKING_ENDPOINTS, BOOKING_ENDPOINTS_ADMIN } from "../endpoints";
+
 import http from "../httpClient";
 
 /* =======================
@@ -28,6 +29,26 @@ export const updateBooking = async (bookingId, payload) => {
     return data;
   } catch (error) {
     throw new Error(getErrMsg(error, "Errore durante l’aggiornamento della prenotazione."));
+  }
+};
+
+// NO-SHOW (ADMIN) - PATCH /bookings/{bookingId}/no-show
+export const markBookingNoShow = async bookingId => {
+  try {
+    await http.patch(BOOKING_ENDPOINTS.NO_SHOW(bookingId));
+    return true;
+  } catch (error) {
+    throw new Error(getErrMsg(error, "Errore durante il salvataggio del no-show."));
+  }
+};
+
+// NO-SHOW BY USER (ADMIN) - PATCH /bookings/user/{userId}/no-show
+export const markLatestNoShowForUser = async userId => {
+  try {
+    await http.patch(BOOKING_ENDPOINTS.NO_SHOW_BY_USER(userId));
+    return true;
+  } catch (error) {
+    throw new Error(getErrMsg(error, "Nessuna prenotazione trovata o errore nel salvataggio."));
   }
 };
 

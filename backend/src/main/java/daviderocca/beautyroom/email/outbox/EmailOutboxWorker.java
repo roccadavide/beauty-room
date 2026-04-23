@@ -7,9 +7,11 @@ import daviderocca.beautyroom.email.templates.EmailContent;
 import daviderocca.beautyroom.email.templates.EmailTemplateService;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Order;
+import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WaitlistEntry;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.OrderRepository;
+import daviderocca.beautyroom.repositories.UserRepository;
 import daviderocca.beautyroom.repositories.WaitlistRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +36,7 @@ public class EmailOutboxWorker {
     private final BookingRepository     bookingRepo;
     private final OrderRepository       orderRepo;
     private final WaitlistRepository    waitlistRepo;
+    private final UserRepository        userRepo;
 
     private final MailgunSender         mailgunSender;
     private final EmailTemplateService  templates;
@@ -200,6 +203,15 @@ public class EmailOutboxWorker {
             return switch (type) {
                 case ORDER_PAID -> templates.orderPaid(o);
                 default -> throw new IllegalArgumentException("Unsupported order event: " + type);
+            };
+        }
+
+        if (agg == EmailAggregateType.USER) {
+            User u = userRepo.findById(e.getAggregateId())
+                    .orElseThrow(() -> new IllegalStateException("User not found: " + e.getAggregateId()));
+            return switch (type) {
+                case USER_REGISTERED -> templates.userRegistered(u);
+                default -> throw new IllegalArgumentException("Unsupported user event: " + type);
             };
         }
 

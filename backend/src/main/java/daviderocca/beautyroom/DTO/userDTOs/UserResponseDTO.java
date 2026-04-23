@@ -10,6 +10,7 @@ public record UserResponseDTO(
         String surname,
         String email,
         String phone,
-        Role role
+        Role role,
+        boolean isVerified
 )
 {}

@@ -13,6 +13,7 @@ import daviderocca.beautyroom.entities.OrderItem;
 import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.OrderStatus;
+import daviderocca.beautyroom.enums.PaymentMethod;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.DuplicateResourceException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
@@ -160,6 +161,63 @@ public class OrderService {
 
         Order saved = orderRepository.save(newOrder);
         log.info("Ordine creato: id={} status={}", saved.getOrderId(), saved.getOrderStatus());
+        return convertToDTO(saved);
+    }
+
+    // ---------------------------- CREATE (PAY_IN_STORE — Cliente di Fiducia) ----------------------------
+    @Transactional
+    public OrderResponseDTO createPayInStoreOrder(NewOrderDTO payload, User currentUser) {
+        if (currentUser == null || currentUser.getUserId() == null) {
+            throw new UnauthorizedException("Utente non autenticato.");
+        }
+        if (!currentUser.isVerified()) {
+            throw new UnauthorizedException("Opzione non disponibile.");
+        }
+        if (payload.items() == null || payload.items().isEmpty()) {
+            throw new BadRequestException("L'ordine deve contenere almeno un prodotto.");
+        }
+
+        Order newOrder = new Order(
+                payload.customerName(),
+                payload.customerSurname(),
+                payload.customerEmail(),
+                payload.customerPhone(),
+                payload.pickupNote(),
+                currentUser
+        );
+
+        newOrder.setOrderStatus(OrderStatus.PAID_PENDING_PICKUP);
+        newOrder.setPaymentMethod(PaymentMethod.PAY_IN_STORE);
+        newOrder.setExpiresAt(null);
+        newOrder.setStripeSessionId(null);
+        newOrder.setPaidAt(null);
+        newOrder.setCanceledAt(null);
+        newOrder.setCancelReason(null);
+
+        for (NewOrderItemDTO itemDTO : payload.items()) {
+            Product product = productService.findProductById(itemDTO.productId());
+            if (!product.isActive()) {
+                throw new BadRequestException("Prodotto non disponibile: " + product.getName());
+            }
+            if (product.getStock() < itemDTO.quantity()) {
+                throw new BadRequestException("Stock insufficiente per il prodotto: " + product.getName());
+            }
+            product.setStock(product.getStock() - itemDTO.quantity());
+            productRepository.save(product);
+
+            OrderItem orderItem = new OrderItem(itemDTO.quantity(), product.getPrice(), product, newOrder);
+            newOrder.getOrderItems().add(orderItem);
+        }
+
+        Order saved = orderRepository.save(newOrder);
+        log.info("PAY_IN_STORE order created: id={} userId={}", saved.getOrderId(), currentUser.getUserId());
+
+        try {
+            emailOutboxService.enqueueOrderPaid(saved);
+        } catch (Exception ex) {
+            log.warn("enqueueOrderPaid failed for PAY_IN_STORE order {}: {}", saved.getOrderId(), ex.getMessage());
+        }
+
         return convertToDTO(saved);
     }
 

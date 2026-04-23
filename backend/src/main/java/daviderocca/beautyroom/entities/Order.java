@@ -1,6 +1,7 @@
 package daviderocca.beautyroom.entities;
 
 import daviderocca.beautyroom.enums.OrderStatus;
+import daviderocca.beautyroom.enums.PaymentMethod;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -56,6 +57,10 @@ public class Order {
 
     @Column(name = "cancel_reason", length = 60)
     private String cancelReason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false, length = 20)
+    private PaymentMethod paymentMethod = PaymentMethod.PAID_ONLINE;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

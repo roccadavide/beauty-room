@@ -7,6 +7,7 @@ import daviderocca.beautyroom.DTO.userDTOs.UserResponseDTO;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.exceptions.*;
+import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder bcrypt;
+    private final EmailOutboxService emailOutboxService;
 
     // ---------------------------- FIND METHODS ----------------------------
 
@@ -78,6 +80,13 @@ public class UserService {
 
         User saved = userRepository.save(newUser);
         log.info("Utente '{}' (email: {}) creato correttamente", saved.getName(), saved.getEmail());
+
+        try {
+            emailOutboxService.enqueueUserRegistered(saved);
+        } catch (Exception e) {
+            log.warn("Notifica registrazione utente non accodata: {}", e.getMessage());
+        }
+
         return convertToDTO(saved);
     }
 
@@ -134,6 +143,17 @@ public class UserService {
         return convertToDTO(updated);
     }
 
+    // ---------------------------- TRUST MANAGEMENT ----------------------------
+
+    @Transactional
+    public UserResponseDTO setUserVerified(UUID userId, boolean verified) {
+        User found = findUserById(userId);
+        found.setVerified(verified);
+        User updated = userRepository.save(found);
+        log.info("Utente '{}' is_verified impostato a {}", updated.getEmail(), verified);
+        return convertToDTO(updated);
+    }
+
     // ---------------------------- ROLE MANAGEMENT ----------------------------
 
     @Transactional
@@ -181,7 +201,8 @@ public class UserService {
                 user.getSurname(),
                 user.getEmail(),
                 user.getPhone(),
-                user.getRole()
+                user.getRole(),
+                user.isVerified()
         );
     }
 }
