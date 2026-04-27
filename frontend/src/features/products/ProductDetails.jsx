@@ -14,6 +14,7 @@ import RelatedCarousel from "../../components/common/RelatedCarousel";
 import PayNowModal from "./PayNowModal";
 import ImageGallery from "../../components/common/ImageGallery";
 import SEO from "../../components/common/SEO";
+import WishlistHeart from "../../components/common/WishlistHeart";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -326,13 +327,16 @@ const ProductDetail = () => {
                   </div>
                 </div>
 
-                <div className="detail-cart-actions">
-                  <button className="detail-pay-btn" onClick={handlePayNow} disabled={payLoading}>
-                    {payLoading ? "..." : "Paga ora"}
-                  </button>
-                  <button className={`detail-cart-btn${addedFeedback ? " added" : ""}`} onClick={handleAddToCart}>
-                    {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
-                  </button>
+                <div className="pd-cta-stack">
+                  <WishlistHeart itemType="PRODUCT" itemId={product.productId} variant="detail" />
+                  <div className="pd-cta-row">
+                    <button className="detail-pay-btn" onClick={handlePayNow} disabled={payLoading}>
+                      {payLoading ? "..." : "Paga ora"}
+                    </button>
+                    <button className={`detail-cart-btn${addedFeedback ? " added" : ""}`} onClick={handleAddToCart}>
+                      {addedFeedback ? "✓ Aggiunto" : "Aggiungi al carrello"}
+                    </button>
+                  </div>
                 </div>
               </>
             )}

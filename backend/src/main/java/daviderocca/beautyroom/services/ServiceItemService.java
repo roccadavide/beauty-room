@@ -10,11 +10,13 @@ import daviderocca.beautyroom.DTO.serviceItemDTOs.ServiceOptionResponseDTO;
 import daviderocca.beautyroom.entities.Category;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
+import daviderocca.beautyroom.enums.WishlistItemType;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.util.BadgesUtil;
 import daviderocca.beautyroom.repositories.ServiceItemRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
+import daviderocca.beautyroom.repositories.WishlistItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -39,6 +41,11 @@ public class ServiceItemService {
 
     private final Cloudinary cloudinary;
 
+    private final WishlistItemRepository wishlistItemRepository;
+
+    @org.springframework.context.annotation.Lazy
+    private final WishlistService wishlistService;
+
     // ---------------------------- PACKAGES ----------------------------
 
     @Transactional(readOnly = true)
@@ -46,6 +53,33 @@ public class ServiceItemService {
         return serviceOptionRepository.findActivePackages()
                 .stream()
                 .filter(so -> so.getService() != null && so.getService().isActive())
+                .map(so -> {
+                    ServiceItem si = so.getService();
+                    String imageUrl = (si.getImages() == null || si.getImages().isEmpty())
+                            ? null
+                            : si.getImages().iterator().next();
+                    return new PackageResponseDTO(
+                            so.getOptionId(),
+                            si.getServiceId(),
+                            si.getTitle(),
+                            imageUrl,
+                            so.getName(),
+                            so.getSessions(),
+                            so.getPrice(),
+                            so.getOptionGroup(),
+                            so.getGender(),
+                            so.isActive(),
+                            BadgesUtil.fromJson(so.getBadges())
+                    );
+                })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PackageResponseDTO> getAllPackages() {
+        return serviceOptionRepository.findAllPackages()
+                .stream()
+                .filter(so -> so.getService() != null)
                 .map(so -> {
                     ServiceItem si = so.getService();
                     String imageUrl = (si.getImages() == null || si.getImages().isEmpty())
@@ -213,6 +247,8 @@ public class ServiceItemService {
             currentImages.addAll(uploadImagesIfPresent(images));
         }
 
+        boolean wasInactive = !found.isActive();
+
         found.setImages(currentImages);
         found.setTitle(payload.title());
         found.setDurationMin(payload.durationMin());
@@ -229,6 +265,10 @@ public class ServiceItemService {
         log.info("Servizio '{}' (ID: {}) aggiornato (categoria: {})",
                 updated.getTitle(), updated.getServiceId(), relatedCategory.getCategoryKey());
 
+        if (wasInactive && updated.isActive()) {
+            wishlistService.notifyWishlistersOnReactivation(WishlistItemType.SERVICE, updated.getServiceId(), updated.getTitle());
+        }
+
         return convertToDTO(updated);
     }
 
@@ -237,6 +277,7 @@ public class ServiceItemService {
     @Transactional
     public void deleteServiceItem(UUID serviceItemId) {
         ServiceItem found = findServiceItemById(serviceItemId);
+        wishlistItemRepository.deleteByItemTypeAndItemId(WishlistItemType.SERVICE, serviceItemId);
         serviceItemRepository.delete(found);
         log.info("Servizio '{}' (ID: {}) eliminato correttamente.", found.getTitle(), found.getServiceId());
     }
@@ -244,8 +285,12 @@ public class ServiceItemService {
     @Transactional
     public void toggleActive(UUID id) {
         ServiceItem entity = serviceItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(id));
+        boolean wasInactive = !entity.isActive();
         entity.setActive(!entity.isActive());
         serviceItemRepository.save(entity);
+        if (wasInactive && entity.isActive()) {
+            wishlistService.notifyWishlistersOnReactivation(WishlistItemType.SERVICE, entity.getServiceId(), entity.getTitle());
+        }
     }
 
     @Transactional

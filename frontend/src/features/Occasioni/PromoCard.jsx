@@ -2,6 +2,7 @@ import PromoCountdown from "./PromoCountdown";
 import AdminToggle from "../../components/common/AdminToggle";
 import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import { BadgeFlags } from "../../components/common/BadgeFlag";
+import WishlistHeart from "../../components/common/WishlistHeart";
 
 export default function PromoCard({
   promo,
@@ -33,6 +34,7 @@ export default function PromoCard({
       <div className="pcn-img-wrap">
         <img src={img} alt={promo.title} loading="lazy" />
         <div className="pcn-gradient" />
+        <WishlistHeart itemType="PROMOTION" itemId={promo.promotionId} />
         {discount && <span className="pcn-badge-discount">{discount}</span>}
         {isAdmin && isExpired && (
           <span className="pcn-badge-expired">Scaduta</span>

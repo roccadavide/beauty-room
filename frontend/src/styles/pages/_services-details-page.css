@@ -338,6 +338,24 @@
   border-top: 1px dashed rgba(184, 151, 106, 0.25);
 }
 
+/* ── CTA stack: wishlist + prenota impilati full-width ── */
+.sd-cta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  width: 100%;
+}
+
+.sd-cta-stack .wh-btn-detail {
+  width: 100%;
+  justify-content: center;
+}
+
+.sd-cta-stack .detail-pay-btn {
+  width: 100%;
+}
+
 /* ── CTA ── */
 .detail-pay-btn {
   transition:

@@ -129,6 +129,23 @@
   letter-spacing: 0.02em;
 }
 
+.bsc-inactive-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  bottom: auto;
+  left: auto;
+  z-index: 3;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+  background: #6c757d;
+  border-radius: 20px;
+  padding: 0.2rem 0.7rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
 @media (max-width: 575px) {
   .bsc-img-wrap,
   .bpc-img-wrap {

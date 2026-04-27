@@ -6,10 +6,12 @@ import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Order;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WaitlistEntry;
+import daviderocca.beautyroom.entities.WishlistItem;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -134,6 +136,38 @@ public class EmailOutboxService {
                 normalizeEmail(booking.getCustomerEmail()),
                 LocalDateTime.now()
         );
+    }
+
+    /** Notifica all'utente che un item nella sua wishlist è tornato disponibile.
+     *  Se esiste già una notifica pendente/inviata per questo item, la sostituisce
+     *  per permettere ri-notifica su future ri-attivazioni. */
+    @Transactional
+    public void enqueueWishlistBackInStock(WishlistItem wishlistItem, String itemName) {
+        if (wishlistItem == null || wishlistItem.getId() == null) return;
+        String email = normalizeEmail(wishlistItem.getUser().getEmail());
+        if (email == null) return;
+
+        // Rimuove eventuale record precedente (SENT/FAILED/PENDING) così
+        // la ri-attivazione dell'item genera sempre una nuova notifica.
+        repo.deleteByEventTypeAndAggregateTypeAndAggregateId(
+                EmailEventType.WISHLIST_BACK_IN_STOCK,
+                EmailAggregateType.WISHLIST_ITEM,
+                wishlistItem.getId()
+        );
+
+        EmailOutbox e = new EmailOutbox();
+        e.setEventType(EmailEventType.WISHLIST_BACK_IN_STOCK);
+        e.setAggregateType(EmailAggregateType.WISHLIST_ITEM);
+        e.setAggregateId(wishlistItem.getId());
+        e.setToEmail(email);
+        e.setScheduledAt(LocalDateTime.now());
+        e.setStatus(EmailOutboxStatus.PENDING);
+
+        try {
+            repo.save(e);
+        } catch (DataIntegrityViolationException dup) {
+            // race condition — già re-inserita
+        }
     }
 
     private void enqueueSafe(

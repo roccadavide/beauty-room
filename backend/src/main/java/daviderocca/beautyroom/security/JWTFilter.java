@@ -91,16 +91,6 @@ public class JWTFilter extends OncePerRequestFilter {
         if (path.equals("/checkout/create-session-guest")) return true;
         if (method.equals("GET") && path.equals("/checkout/order-summary")) return true;
 
-        // PUBLIC GET
-        if (method.equals("GET") && (
-                path.startsWith("/products") ||
-                        path.startsWith("/service-items") ||
-                        path.startsWith("/results") ||
-                        path.startsWith("/availabilities/services") ||
-                        path.startsWith("/categories") ||
-                        path.startsWith("/promotions")
-        )) return true;
-
         return false;
     }
 }

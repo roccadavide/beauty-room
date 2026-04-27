@@ -88,12 +88,14 @@
   }
 }
 
-/* ── Corner wrapper (absolute top-right inside a card) ─────────────────── */
+/* ── Corner wrapper (absolute bottom-left inside a card) ─────────────────── */
 
 .admin-card-toggle-corner {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: auto;
+  right: auto;
+  bottom: 10px;
+  left: 10px;
   z-index: 10;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 8px;
@@ -113,4 +115,8 @@
   transition:
     opacity 0.25s ease,
     filter 0.25s ease;
+}
+
+.admin-entity--inactive:hover {
+  opacity: 0.75;
 }

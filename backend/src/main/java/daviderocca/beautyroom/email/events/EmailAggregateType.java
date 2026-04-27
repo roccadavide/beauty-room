@@ -4,5 +4,6 @@ public enum EmailAggregateType {
     BOOKING,
     ORDER,
     WAITLIST,
-    USER
+    USER,
+    WISHLIST_ITEM
 }

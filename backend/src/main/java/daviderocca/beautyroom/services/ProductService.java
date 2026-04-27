@@ -7,11 +7,13 @@ import daviderocca.beautyroom.DTO.productDTOs.ProductOptionResponse;
 import daviderocca.beautyroom.DTO.productDTOs.ProductResponseDTO;
 import daviderocca.beautyroom.entities.Category;
 import daviderocca.beautyroom.entities.Product;
+import daviderocca.beautyroom.enums.WishlistItemType;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.util.BadgesUtil;
 import daviderocca.beautyroom.repositories.ProductOptionRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
+import daviderocca.beautyroom.repositories.WishlistItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -40,6 +42,11 @@ public class ProductService {
 
     @org.springframework.context.annotation.Lazy
     private final StockAlertService stockAlertService;
+
+    private final WishlistItemRepository wishlistItemRepository;
+
+    @org.springframework.context.annotation.Lazy
+    private final WishlistService wishlistService;
 
     // ---------------------------- FIND METHODS ----------------------------
 
@@ -128,6 +135,7 @@ public class ProductService {
         }
 
         int oldStock = found.getStock();
+        boolean wasInactive = !found.isActive();
 
         found.setImages(currentImages);
         found.setName(payload.name());
@@ -148,6 +156,9 @@ public class ProductService {
         if (oldStock == 0 && updated.getStock() > 0) {
             stockAlertService.notifyRestocked(updated.getProductId(), updated.getName());
         }
+        if (wasInactive && updated.isActive()) {
+            wishlistService.notifyWishlistersOnReactivation(WishlistItemType.PRODUCT, updated.getProductId(), updated.getName());
+        }
 
         return convertToDTO(updated);
     }
@@ -163,6 +174,7 @@ public class ProductService {
             throw new BadRequestException("Non è possibile eliminare un prodotto già ordinato.");
         }
 
+        wishlistItemRepository.deleteByItemTypeAndItemId(WishlistItemType.PRODUCT, productId);
         productRepository.delete(found);
         log.info("Prodotto '{}' (ID: {}) eliminato correttamente.", found.getName(), found.getProductId());
     }
@@ -170,8 +182,12 @@ public class ProductService {
     @Transactional
     public void toggleActive(UUID id) {
         Product entity = productRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(id));
+        boolean wasInactive = !entity.isActive();
         entity.setActive(!entity.isActive());
         productRepository.save(entity);
+        if (wasInactive && entity.isActive()) {
+            wishlistService.notifyWishlistersOnReactivation(WishlistItemType.PRODUCT, entity.getProductId(), entity.getName());
+        }
     }
 
     // ---------------------------- CLOUDINARY ----------------------------

@@ -155,6 +155,14 @@ export const REPORT_ENDPOINTS = {
   REPORT: "/admin/report",
 };
 
+// ---- WISHLIST ----
+export const WISHLIST_ENDPOINTS = {
+  BASE:   "/wishlist",
+  TOGGLE: "/wishlist/toggle",
+  CHECK:  "/wishlist/check",
+  STATS:  "/wishlist/stats",
+};
+
 // ---- SETTINGS (Orari & Chiusure) ----
 export const SETTINGS_ENDPOINTS = {
   WORKING_HOURS:       "/working-hours",

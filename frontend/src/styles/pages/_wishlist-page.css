@@ -1,0 +1,337 @@
+/* ==== WISHLIST PAGE — prefisso .wl- ==== */
+
+.wl-page {
+  padding-top: 7rem;
+  padding-bottom: 5rem;
+  min-height: 100dvh;
+}
+
+/* ── Header ── */
+.wl-header {
+  margin-bottom: 2rem;
+}
+
+.wl-title {
+  font-family: 'Petrona', Georgia, serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 400;
+  color: #b8976a;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+/* ── Filtri ── */
+.wl-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 2rem;
+}
+
+.wl-filter-pill {
+  padding: 6px 16px;
+  border-radius: 100px;
+  border: 1.5px solid #b8976a;
+  background: transparent;
+  color: #b8976a;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wl-filter-pill:hover {
+  background: rgba(184, 151, 106, 0.1);
+}
+
+.wl-filter-pill--active {
+  background: #b8976a;
+  color: #fffdf8;
+}
+
+/* ── Lista item ── */
+.wl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Card compatta ── */
+.wl-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid rgba(184, 151, 106, 0.2);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(30, 24, 20, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: wl-fade-in 0.2s ease;
+}
+
+.wl-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(30, 24, 20, 0.08);
+}
+
+@keyframes wl-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Thumbnail */
+.wl-card-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f5ede3;
+}
+
+.wl-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.wl-card-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #f5ede3, #ece0d0);
+}
+
+/* Info */
+.wl-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wl-card-type {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #b8976a;
+}
+
+.wl-card-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e1814;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wl-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wl-card-price {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3b2f2a;
+}
+
+.wl-card-duration {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  color: #7a6a61;
+}
+
+/* Badge inattivo */
+.wl-card-inactive-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.wl-card-inactive-badge {
+  display: inline-block;
+  background: #6c757d;
+  color: #fff;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 100px;
+}
+
+.wl-card-inactive-note {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  color: #7a6a61;
+  font-style: italic;
+}
+
+/* Azioni */
+.wl-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.wl-card-cta {
+  display: inline-block;
+  padding: 7px 14px;
+  background: #1e1814;
+  color: #fffdf8;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 100px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+}
+
+.wl-card-cta:hover {
+  background: #b8976a;
+  color: #fffdf8;
+}
+
+.wl-card-remove {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(184, 151, 106, 0.35);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.wl-card-remove:hover {
+  background: rgba(220, 80, 60, 0.08);
+  border-color: rgba(220, 80, 60, 0.3);
+}
+
+.wl-card-remove svg {
+  width: 14px;
+  height: 14px;
+  stroke: #7a6a61;
+  stroke-width: 2;
+  fill: none;
+}
+
+.wl-card-remove:hover svg {
+  stroke: #dc3545;
+}
+
+/* ── Empty state ── */
+.wl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 5rem 1rem;
+  text-align: center;
+}
+
+.wl-empty-heart svg {
+  width: 56px;
+  height: 56px;
+  stroke: #b8976a;
+  fill: none;
+  stroke-width: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+.wl-empty-title {
+  font-family: 'Petrona', Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #3b2f2a;
+  margin-bottom: 0.5rem;
+}
+
+.wl-empty-sub {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  color: #7a6a61;
+  margin-bottom: 1.5rem;
+}
+
+.wl-empty-cta {
+  display: inline-block;
+  padding: 11px 28px;
+  background: #b8976a;
+  color: #fffdf8;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border-radius: 100px;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.wl-empty-cta:hover {
+  background: #8c6d3f;
+  color: #fffdf8;
+}
+
+/* ── Skeleton loading ── */
+.wl-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wl-skeleton-card {
+  height: 88px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f0e8df 25%, #f8f2eb 50%, #f0e8df 75%);
+  background-size: 200% 100%;
+  animation: wl-shimmer 1.4s infinite;
+}
+
+@keyframes wl-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .wl-card-name {
+    font-size: 13px;
+  }
+
+  .wl-card-cta {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .wl-card-thumb {
+    width: 50px;
+    height: 50px;
+  }
+}

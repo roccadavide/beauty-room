@@ -30,9 +30,17 @@ public class ServiceItemController {
     // ---------------------------------- GET ----------------------------------
 
     @GetMapping("/options/packages")
-    public ResponseEntity<List<PackageResponseDTO>> getActivePackages() {
-        log.info("Richiesta pacchetti (ServiceOption con sessions > 1)");
-        return ResponseEntity.ok(serviceItemService.getActivePackages());
+    public ResponseEntity<List<PackageResponseDTO>> getActivePackages(
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            Authentication authentication
+    ) {
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        log.info("Richiesta pacchetti (includeInactive={})", isAdmin && includeInactive);
+        List<PackageResponseDTO> packages = (isAdmin && includeInactive)
+                ? serviceItemService.getAllPackages()
+                : serviceItemService.getActivePackages();
+        return ResponseEntity.ok(packages);
     }
 
     @GetMapping

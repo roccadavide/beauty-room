@@ -5,6 +5,7 @@ import { BadgeFlags } from "../../components/common/BadgeFlag";
 import { usePrefetch } from "../../hooks/usePrefetch";
 import { fetchServiceById } from "../../api/modules/services.api";
 import CategoryBadge from "../../components/common/CategoryBadge";
+import WishlistHeart from "../../components/common/WishlistHeart";
 
 function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
   const activeOptions = s.options?.filter(o => o.active) ?? [];
@@ -24,17 +25,14 @@ function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete,
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
-        {isAdmin && (
-          <div className="admin-card-toggle-corner" style={{ left: 10, right: "auto" }} onClick={e => e.stopPropagation()}>
-            <AdminToggle
-              entityId={s.serviceId}
-              isActive={s.active ?? true}
-              endpoint="/service-items"
-              onToggleSuccess={onToggleActive}
-            />
-          </div>
-        )}
+        <WishlistHeart itemType="SERVICE" itemId={s.serviceId} />
+        {isAdmin && !(s.active ?? true) && <span className="bsc-inactive-badge">Inattivo</span>}
         <div className="bsc-img-wrap">
+          {isAdmin && (
+            <div className="admin-card-toggle-corner" style={{ position: "absolute", left: 10, bottom: 10, top: "auto", right: "auto" }} onClick={e => e.stopPropagation()}>
+              <AdminToggle entityId={s.serviceId} isActive={s.active ?? true} endpoint="/service-items" onToggleSuccess={onToggleActive} />
+            </div>
+          )}
           <Card.Img src={s.images?.[0]} alt={s.title} />
           <div className="bsc-img-overlay">
             <span className="bsc-duration">

@@ -5,6 +5,7 @@ import daviderocca.beautyroom.entities.Order;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WaitlistEntry;
 import daviderocca.beautyroom.enums.PaymentMethod;
+import daviderocca.beautyroom.enums.WishlistItemType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -859,6 +860,62 @@ public class EmailTemplateService {
                 il prodotto "%s" \u00e8 tornato disponibile.
                 Acquista ora: %s
                 """.formatted(safeProduct, brandName, safeCustomer, safeProduct, productUrl);
+
+        return new EmailContent(subject, html, text);
+    }
+
+    // ===================== WISHLIST BACK IN STOCK =====================
+    public EmailContent wishlistBackInStock(User user, String itemName, WishlistItemType itemType, String itemUrl) {
+        String firstName = (user.getName() != null && !user.getName().isBlank())
+                ? user.getName() : "cara cliente";
+
+        String typeLabel = switch (itemType) {
+            case SERVICE   -> "trattamento";
+            case PRODUCT   -> "prodotto";
+            case PROMOTION -> "promozione";
+            case PACKAGE   -> "pacchetto";
+        };
+
+        String subject = "\u2736 " + safe(itemName) + " \u00e8 di nuovo disponibile";
+
+        String body = """
+          <h1 style="%s">Di nuovo disponibile \u2736</h1>
+
+          <p style="%s">Ciao <b>%s</b>,</p>
+          <p style="%s">
+            Il <b>%s</b> che hai salvato nella tua wishlist \u00e8 tornato disponibile.
+            Non aspettare troppo: potrebbe esaurirsi di nuovo!
+          </p>
+
+          %s
+
+          <div style="margin-top:18px;">
+            %s
+          </div>
+
+          <p style="%s; margin-top:20px;">
+            Se non sei pi\u00f9 interessata, puoi rimuoverlo dalla tua wishlist accedendo al tuo profilo.
+          </p>
+          """.formatted(
+                h1Style(),
+                pStyle(),
+                esc(firstName),
+                pStyle(),
+                esc(typeLabel),
+                detailsBox(new String[][]{
+                        {Character.toUpperCase(typeLabel.charAt(0)) + typeLabel.substring(1), safe(itemName)}
+                }),
+                button("Scopri di pi\u00f9 \u2192", itemUrl),
+                smallStyle()
+        );
+
+        String html = wrap(body);
+        String text = """
+                \u2736 %s \u00e8 di nuovo disponibile - %s
+                Ciao %s,
+                il %s "%s" che hai salvato nella tua wishlist \u00e8 tornato disponibile.
+                Scopri di pi\u00f9: %s
+                """.formatted(safe(itemName), brandName, firstName, typeLabel, safe(itemName), itemUrl);
 
         return new EmailContent(subject, html, text);
     }

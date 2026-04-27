@@ -1,106 +1,128 @@
-Refactor: custom category badge palette for Beauty Room
-Files to edit: ServiceCard, ProductCard, ServiceDetail, ProductDetail,
-ServicePage, ProductsPage, and a shared CSS file (e.g. global.css
-or a new \_badges.css imported in the relevant files).
+Progetto Beauty Room — React 19 / CSS prefissi per sezione.
+Fix puramente UI — nessuna logica backend. Leggi ogni file prima di modificarlo.
 
-=== STEP 1 — Shared palette constant ===
-Create src/constants/categoryPalette.js with this content:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 1 — Badge "Inattivo" admin: sposta da top-left a bottom-left
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export const CATEGORY_PALETTE = {
-viso: { bg: "#faeee0", color: "#8c6d3f" },
-corpo: { bg: "#f2e6d4", color: "#7a5830" },
-laser: { bg: "#e2ecf4", color: "#3d6278" },
-epilazione: { bg: "#f5e4e8", color: "#8c4055" },
-mani: { bg: "#ede6f5", color: "#6a4e8a" },
-piedi: { bg: "#e4f0e8", color: "#3d6e50" },
-"trucco permanente":{ bg: "#f0e0ec", color: "#7a2d58" },
-};
+Cerca il badge con:
+grep -rn "Inattivo\|inactive.*badge\|badge.*inattiv" src/ --include="_.jsx" --include="_.css"
 
-export function getCategoryStyle(label = "") {
-const key = label.trim().toLowerCase();
-return CATEGORY_PALETTE[key] ?? { bg: "#ede8e0", color: "#5a4a3a" };
+Nel CSS che lo posiziona, sostituisci:
+top: 12px → bottom: 12px
+left: 12px → left: 12px (invariato)
+
+Così il cuore rimane top-left libero anche per Michela.
+Non toccare nessun altro badge o posizionamento.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 2 — Pulsante Wishlist nelle pagine di dettaglio: layout stacked full-width
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OBIETTIVO: In ServiceDetail E ProductDetail, i pulsanti devono essere
+impilati verticalmente, entrambi full-width del contenitore, con questo ordine:
+[riga 1] Wishlist — full width, bordi stondati, stile outline gold
+[riga 2] Prenota ora / Acquista ora — full width, stile pieno gold
+
+Leggi ServiceDetail.jsx e ProductDetail.jsx per trovare il JSX attuale dei CTA.
+
+Sostituisci il layout CTA con questo pattern (adatta i nomi classi ai prefissi già usati nel file):
+
+── ServiceDetail ──
+
+```jsx
+<div className="sd-cta-stack">
+  <WishlistHeart itemType="SERVICE" itemId={service.id} variant="detail" />
+  <button className="sd-btn-primary" onClick={handleBooking}>
+    Prenota ora
+  </button>
+</div>
+```
+
+── ProductDetail ──
+
+```jsx
+<div className="pd-cta-stack">
+  <WishlistHeart itemType="PRODUCT" itemId={product.id} variant="detail" />
+  <button className="pd-btn-primary" onClick={handleBuyNow}>
+    Acquista ora
+  </button>
+</div>
+```
+
+Nel CSS (file \_detail.css o equivalente — scopri con grep):
+
+```css
+.sd-cta-stack,
+.pd-cta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  width: 100%;
 }
 
-=== STEP 2 — Remove categoryColorMap from all pages ===
-In ServicePage, ProductsPage, ServiceDetail, ProductDetail:
-
-- DELETE the categoryColorMap useMemo entirely.
-- REMOVE categoryColorMap from all props passed to ServiceCard/ProductCard.
-
-=== STEP 3 — CategoryBadge component ===
-Create src/components/common/CategoryBadge.jsx:
-
-import { getCategoryStyle } from "../../constants/categoryPalette";
-
-export default function CategoryBadge({ label, className = "" }) {
-if (!label) return null;
-const { bg, color } = getCategoryStyle(label);
-return (
-<span
-className={`cat-badge ${className}`}
-style={{ background: bg, color }} >
-{label}
-</span>
-);
+/* forza il WishlistHeart detail a prendere tutta la larghezza */
+.sd-cta-stack .wh-btn-detail,
+.pd-cta-stack .wh-btn-detail {
+  width: 100%;
+  justify-content: center;
 }
 
-=== STEP 4 — CSS for .cat-badge ===
-Add to global.css (or \_badges.css):
+/* stesso stile e dimensione del pulsante primario */
+.sd-cta-stack .sd-btn-primary,
+.pd-cta-stack .pd-btn-primary {
+  width: 100%;
+}
+```
 
-.cat-badge {
-display: inline-block;
-padding: 0.22em 0.72em;
-border-radius: 20px;
-font-size: 0.68rem;
-font-weight: 600;
-letter-spacing: 0.06em;
-text-transform: uppercase;
-line-height: 1.4;
-font-family: 'Montserrat', sans-serif;
-white-space: nowrap;
+Se i prefissi nel file sono diversi da sd- e pd-, usa quelli che trovi.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 3 — Cuore rimane bianco quando il pulsante wishlist è in hover/attivo
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEMA: Quando si fa hover sul pulsante wishlist (variant=detail),
+lo sfondo diventa oro (#b8976a) ma il cuore SVG scompare perché ha
+stroke/fill gold e non si vede su sfondo gold.
+
+In WishlistHeart.css, aggiungi queste regole:
+
+```css
+/* cuore vuoto su hover */
+.wh-btn-detail:hover .wh-icon-empty,
+.wh-btn-detail.wh-active .wh-icon-empty {
+  stroke: #fffdf8;
+  fill: none;
 }
 
-=== STEP 5 — Replace Badge in ServiceCard and ProductCard ===
-In both components:
-
-- Remove the import of Badge from react-bootstrap.
-- Remove categoryColorMap from props.
-- Import CategoryBadge from "../../components/common/CategoryBadge".
-- Replace:
-  <Badge bg={categoryColorMap[...] || "secondary"} className="...">
-  {categoriesMap[...] || "..."}
-  </Badge>
-  with:
-  <CategoryBadge label={categoriesMap[s.categoryId] || categoriesMap[p.categoryId] || ""} />
-
-=== STEP 6 — Replace Badge in ServiceDetail and ProductDetail ===
-Same replacement inline — use CategoryBadge in place of:
-<Badge bg={categoryColorMap[service.categoryId] || "secondary"} className="text-uppercase detail-badge">
-{categoriesMap[service.categoryId] || "Senza categoria"}
-</Badge>
-→
-<CategoryBadge label={categoriesMap[service.categoryId] || categoriesMap[product.categoryId] || ""} className="detail-badge" />
-
-Add to \_detail.css:
-.detail-badge {
-font-size: 0.7rem;
-}
-(keep existing layout rules, just update the font-size if it was Bootstrap-driven before)
-
-=== STEP 7 — sp-chip filter bar consistency ===
-In ServicePage and ProductsPage the filter chips use sp-chip / sp-chip--active classes.
-Make the active chip use the gold color instead of any Bootstrap focus ring:
-Ensure in the CSS:
-.sp-chip--active {
-background: var(--card-gold, #b8976a);
-color: #fff;
-border-color: var(--card-gold, #b8976a);
-}
-.sp-chip:focus-visible {
-outline: 2px solid var(--card-gold, #b8976a);
-outline-offset: 2px;
+/* cuore pieno su hover */
+.wh-btn-detail:hover .wh-icon-filled,
+.wh-btn-detail.wh-active .wh-icon-filled {
+  stroke: #fffdf8;
+  fill: #fffdf8;
 }
 
-Do NOT change any layout, spacing, card dimensions, animations, or other
-styling. Only touch badge/chip colors and remove the Bootstrap Badge import
-where replaced.
+/* testo colore bianco su hover — già presente, verifica che ci sia */
+.wh-btn-detail:hover,
+.wh-btn-detail.wh-active {
+  background: #b8976a;
+  color: #fffdf8;
+}
+```
+
+Verifica che la classe .wh-active venga aggiunta al pulsante quando
+wishlisted === true (controlla WishlistHeart.jsx).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Badge "Inattivo" è bottom-left su tutte le card (non top-left)
+2. Il cuore wishlist card è top-left e non si sovrappone ad altri badge
+3. In ServiceDetail: wishlist (top) e prenota ora (sotto), entrambi full-width
+4. In ProductDetail: wishlist (top) e acquista ora (sotto), entrambi full-width
+5. Il cuore SVG è bianco (#fffdf8) quando il pulsante è in hover o .wh-active
+6. Il testo del pulsante wishlist è bianco su hover
+7. Su mobile i due pulsanti rimangono impilati e full-width
+8. Nessun altro componente è stato toccato

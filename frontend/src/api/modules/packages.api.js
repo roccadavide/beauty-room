@@ -1,8 +1,9 @@
 import http from "../httpClient";
 
-export const fetchPackages = async () => {
+export const fetchPackages = async (includeInactive = false) => {
   try {
-    const { data } = await http.get("/service-items/options/packages");
+    const params = includeInactive ? { includeInactive: true } : {};
+    const { data } = await http.get("/service-items/options/packages", { params });
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Impossibile recuperare i pacchetti.";

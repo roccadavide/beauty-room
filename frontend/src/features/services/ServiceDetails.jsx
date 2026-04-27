@@ -9,6 +9,7 @@ import BookingModal from "../bookings/BookingModal";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
 import ImageGallery from "../../components/common/ImageGallery";
 import SEO from "../../components/common/SEO";
+import WishlistHeart from "../../components/common/WishlistHeart";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -330,10 +331,11 @@ const ServiceDetail = () => {
               <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
               <span className="detail-trust-pill">✓ Pagamento sicuro</span>
               <span className="detail-trust-pill">✓ Conferma immediata</span>
-              <span className="detail-trust-pill">✦ Spostamento facile — Scrivici su WhatsApp</span>
+              <span className="detail-trust-pill">✦ Spostamento facile — Scrivimi su WhatsApp</span>
             </div>
 
-            <div className="detail-cart-actions">
+            <div className="sd-cta-stack">
+              <WishlistHeart itemType="SERVICE" itemId={service.serviceId} variant="detail" />
               <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={needsZoneSelection}>
                 {needsZoneSelection
                   ? "Scegli una zona"

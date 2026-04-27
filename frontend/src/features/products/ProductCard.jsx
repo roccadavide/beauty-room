@@ -5,6 +5,7 @@ import { BadgeFlags } from "../../components/common/BadgeFlag";
 import { usePrefetch } from "../../hooks/usePrefetch";
 import { fetchProductById } from "../../api/modules/products.api";
 import CategoryBadge from "../../components/common/CategoryBadge";
+import WishlistHeart from "../../components/common/WishlistHeart";
 
 function ProductCard({ p, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
   const { onMouseEnter, onMouseLeave } = usePrefetch(() => fetchProductById(p.productId));
@@ -17,17 +18,19 @@ function ProductCard({ p, isAdmin, categoriesMap, onCardClick, onEdit, onDelete,
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
-        {isAdmin && (
-          <div className="admin-card-toggle-corner" onClick={e => e.stopPropagation()}>
-            <AdminToggle
-              entityId={p.productId}
-              isActive={p.active ?? true}
-              endpoint="/products"
-              onToggleSuccess={onToggleActive}
-            />
-          </div>
-        )}
+        <WishlistHeart itemType="PRODUCT" itemId={p.productId} />
+        {isAdmin && !(p.active ?? true) && <span className="bpc-inactive-badge">Inattivo</span>}
         <div className="bpc-img-wrap">
+          {isAdmin && (
+            <div className="admin-card-toggle-corner" style={{ position: "absolute", left: 10, bottom: 10, top: "auto", right: "auto" }} onClick={e => e.stopPropagation()}>
+              <AdminToggle
+                entityId={p.productId}
+                isActive={p.active ?? true}
+                endpoint="/products"
+                onToggleSuccess={onToggleActive}
+              />
+            </div>
+          )}
           <Card.Img src={p.images?.[0]} alt={p.name} />
           {p.stock === 0 && (
             <div className="bpc-sold-out-overlay">

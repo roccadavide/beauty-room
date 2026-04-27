@@ -53,6 +53,7 @@ const WaitlistPage = lazy(() => import("./features/bookings/WaitlistPage"));
 const PrivacyPolicy = lazy(() => import("./components/legal/PrivacyPolicy"));
 const CookiePolicy = lazy(() => import("./components/legal/CookiePolicy"));
 const TermsAndConditions = lazy(() => import("./components/legal/TermsAndConditions"));
+const WishlistPageComp = lazy(() => import("./features/wishlist/WishlistPage"));
 
 // Chiavi sessionStorage usate da useScrollRestore — aggiorna se aggiungi pagine con restore
 const RESTORE_KEYS = {
@@ -421,6 +422,17 @@ function App() {
                   <PrivateRoute>
                     <PageTransition routeKey={location.pathname}>
                       <MyArea />
+                    </PageTransition>
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/wishlist"
+                element={
+                  <PrivateRoute>
+                    <PageTransition routeKey={location.pathname}>
+                      <WishlistPageComp />
                     </PageTransition>
                   </PrivateRoute>
                 }

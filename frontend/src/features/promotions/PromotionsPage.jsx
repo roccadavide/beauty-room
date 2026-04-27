@@ -51,7 +51,7 @@ function PromotionsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [promos, prods, servs] = await Promise.all([fetchPromotions(), fetchProducts(), fetchServices()]);
+        const [promos, prods, servs] = await Promise.all([fetchPromotions(0, 40, "priority", isAdmin), fetchProducts(), fetchServices()]);
         setAllPromos(promos);
         setProducts(prods);
         setServices(servs);
@@ -62,7 +62,7 @@ function PromotionsPage() {
       }
     };
     load();
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     const obs = new IntersectionObserver(
@@ -86,7 +86,10 @@ function PromotionsPage() {
         const str = `${p.title} ${p.subtitle ?? ""} ${p.description ?? ""}`.toLowerCase();
         return str.includes(q.toLowerCase());
       })
-      .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+      .sort((a, b) => {
+        if (a.active !== b.active) return (b.active ? 1 : 0) - (a.active ? 1 : 0);
+        return (b.priority ?? 0) - (a.priority ?? 0);
+      });
   }, [allPromos, scope, q]);
 
   const handleCreate = () => {

@@ -12,6 +12,12 @@ import java.util.UUID;
 
 public interface EmailOutboxRepository extends JpaRepository<EmailOutbox, UUID> {
 
+    void deleteByEventTypeAndAggregateTypeAndAggregateId(
+            EmailEventType eventType,
+            EmailAggregateType aggregateType,
+            UUID aggregateId
+    );
+
     boolean existsByEventTypeAndAggregateTypeAndAggregateId(
             EmailEventType eventType,
             EmailAggregateType aggregateType,

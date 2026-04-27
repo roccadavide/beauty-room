@@ -211,6 +211,39 @@
   border-color: transparent;
 }
 
+/* ── CTA stack: wishlist + (paga + carrello affiancati) ── */
+.pd-cta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+.pd-cta-stack .wh-btn-detail {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Paga ora + Carrello affiancati */
+.pd-cta-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.pd-cta-row .detail-pay-btn,
+.pd-cta-row .detail-cart-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 380px) {
+  .pd-cta-row {
+    flex-direction: column;
+  }
+}
+
 /* CTA button (solo servizi — fallback senza opzioni) */
 .detail-cta-btn {
   display: inline-flex;

@@ -38,7 +38,8 @@ function ProductsPage() {
     const loadData = async () => {
       try {
         const [products, cats] = await Promise.all([fetchProducts(isAdmin), fetchCategories()]);
-        setAllProducts(products);
+        const sorted = isAdmin ? [...products].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0)) : products;
+        setAllProducts(sorted);
         setCategories(cats);
       } catch (err) {
         setError(err.message);
@@ -188,7 +189,10 @@ function ProductsPage() {
                 setSelectedProduct(p);
                 setDeleteModal(true);
               }}
-              onToggleActive={newVal => setAllProducts(prev => prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr)))}
+              onToggleActive={newVal => setAllProducts(prev => {
+                const updated = prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr));
+                return [...updated].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+              })}
             />
           ))}
         </Row>

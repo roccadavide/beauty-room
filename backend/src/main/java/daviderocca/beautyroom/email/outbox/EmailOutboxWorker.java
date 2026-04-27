@@ -9,10 +9,16 @@ import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Order;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WaitlistEntry;
+import daviderocca.beautyroom.entities.WishlistItem;
+import daviderocca.beautyroom.enums.WishlistItemType;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.OrderRepository;
+import daviderocca.beautyroom.repositories.ProductRepository;
+import daviderocca.beautyroom.repositories.PromotionRepository;
+import daviderocca.beautyroom.repositories.ServiceItemRepository;
 import daviderocca.beautyroom.repositories.UserRepository;
 import daviderocca.beautyroom.repositories.WaitlistRepository;
+import daviderocca.beautyroom.repositories.WishlistItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,11 +38,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EmailOutboxWorker {
 
-    private final EmailOutboxRepository outboxRepo;
-    private final BookingRepository     bookingRepo;
-    private final OrderRepository       orderRepo;
-    private final WaitlistRepository    waitlistRepo;
-    private final UserRepository        userRepo;
+    private final EmailOutboxRepository  outboxRepo;
+    private final BookingRepository      bookingRepo;
+    private final OrderRepository        orderRepo;
+    private final WaitlistRepository     waitlistRepo;
+    private final UserRepository         userRepo;
+    private final WishlistItemRepository wishlistItemRepo;
+    private final ServiceItemRepository  serviceItemRepo;
+    private final ProductRepository      productRepo;
+    private final PromotionRepository    promotionRepo;
 
     private final MailgunSender         mailgunSender;
     private final EmailTemplateService  templates;
@@ -215,7 +225,42 @@ public class EmailOutboxWorker {
             };
         }
 
+        if (agg == EmailAggregateType.WISHLIST_ITEM) {
+            WishlistItem w = wishlistItemRepo.findById(e.getAggregateId())
+                    .orElseThrow(() -> new SkipEmailException("WishlistItem not found: " + e.getAggregateId()));
+            User u = w.getUser();
+            WishlistItemType itemType = w.getItemType();
+            UUID itemId = w.getItemId();
+
+            // Se il WishlistItem non ha più l'utente associato, salta
+            if (u == null) throw new SkipEmailException("WishlistItem has no user: " + w.getId());
+
+            String itemUrl = switch (itemType) {
+                case SERVICE   -> frontUrl + "/trattamenti/" + itemId;
+                case PRODUCT   -> frontUrl + "/prodotti/" + itemId;
+                case PROMOTION -> frontUrl + "/promozioni/" + itemId;
+                case PACKAGE   -> frontUrl + "/trattamenti/" + itemId;
+            };
+
+            return switch (type) {
+                case WISHLIST_BACK_IN_STOCK -> templates.wishlistBackInStock(u, resolveWishlistItemName(w), itemType, itemUrl);
+                default -> throw new IllegalArgumentException("Unsupported wishlist event: " + type);
+            };
+        }
+
         throw new IllegalArgumentException("Unsupported aggregate: " + agg);
+    }
+
+    private String resolveWishlistItemName(WishlistItem w) {
+        return switch (w.getItemType()) {
+            case SERVICE   -> serviceItemRepo.findById(w.getItemId())
+                    .map(s -> s.getTitle()).orElse("trattamento");
+            case PRODUCT   -> productRepo.findById(w.getItemId())
+                    .map(p -> p.getName()).orElse("prodotto");
+            case PROMOTION -> promotionRepo.findById(w.getItemId())
+                    .map(p -> p.getTitle()).orElse("promozione");
+            case PACKAGE   -> "pacchetto";
+        };
     }
 
     private static String safeMsg(Exception ex) {

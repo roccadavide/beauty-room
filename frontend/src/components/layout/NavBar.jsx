@@ -8,6 +8,7 @@ import { persistor } from "../../app/store";
 import { logout } from "../../features/auth/slices/auth.slice";
 import { clearAccessToken } from "../../utils/token";
 import { logoutUser } from "../../api/modules/auth.api";
+import { invalidateCache } from "../../api/apiCache";
 import { fetchExpiringCount } from "../../api/modules/postits.api";
 import { fetchUnreadNotifCount } from "../../api/modules/notifications.api";
 
@@ -154,6 +155,7 @@ export default function NavBar() {
   const confirmLogout = async () => {
     await logoutUser();
     clearAccessToken();
+    invalidateCache("services", "services_admin", "products", "products_admin");
     dispatch(logout());
     persistor.purge();
     navigate("/");
@@ -237,9 +239,14 @@ export default function NavBar() {
                       Gestione Ordini
                     </NavDropdown.Item>
                   ) : (
-                    <NavDropdown.Item as={Link} to="/area-personale">
-                      La mia area
-                    </NavDropdown.Item>
+                    <>
+                      <NavDropdown.Item as={Link} to="/area-personale">
+                        La mia area
+                      </NavDropdown.Item>
+                      <NavDropdown.Item as={Link} to="/wishlist">
+                        ✦ Wishlist
+                      </NavDropdown.Item>
+                    </>
                   )}
                   {user.role === "ADMIN" && (
                     <>
@@ -359,9 +366,14 @@ export default function NavBar() {
                       Gestione Ordini
                     </Link>
                   ) : (
-                    <Link to="/area-personale" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                      La mia area
-                    </Link>
+                    <>
+                      <Link to="/area-personale" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                        La mia area
+                      </Link>
+                      <Link to="/wishlist" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                        ✦ Wishlist
+                      </Link>
+                    </>
                   )}
                   {user.role === "ADMIN" && (
                     <>

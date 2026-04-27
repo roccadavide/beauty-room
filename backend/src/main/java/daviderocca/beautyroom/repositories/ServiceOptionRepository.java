@@ -19,4 +19,12 @@ public interface ServiceOptionRepository extends JpaRepository<ServiceOption, UU
             ORDER BY si.title ASC, so.sessions ASC
             """)
     List<ServiceOption> findActivePackages();
+
+    @Query("""
+            SELECT so FROM ServiceOption so
+            JOIN FETCH so.service si
+            WHERE so.sessions > 1
+            ORDER BY si.active DESC, si.title ASC, so.active DESC, so.sessions ASC
+            """)
+    List<ServiceOption> findAllPackages();
 }

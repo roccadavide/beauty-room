@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,10 +38,14 @@ public class PromotionController {
     public ResponseEntity<Page<PromotionResponseDTO>> getAllPromotions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "priority") String sort
+            @RequestParam(defaultValue = "priority") String sort,
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            Authentication authentication
     ) {
-        log.info("Richiesta elenco promozioni [page={}, size={}, sort={}]", page, size, sort);
-        Page<PromotionResponseDTO> promotions = promotionService.findAllPromotions(page, size, sort);
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        log.info("Richiesta elenco promozioni [page={}, size={}, sort={}, includeInactive={}]", page, size, sort, isAdmin && includeInactive);
+        Page<PromotionResponseDTO> promotions = promotionService.findAllPromotions(page, size, sort, isAdmin && includeInactive);
         return ResponseEntity.ok(promotions);
     }
 

@@ -38,7 +38,8 @@ const ServicePage = () => {
     const loadData = async () => {
       try {
         const [services, cats] = await Promise.all([fetchServices(isAdmin), fetchCategories()]);
-        setAllServices(services);
+        const sorted = isAdmin ? [...services].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0)) : services;
+        setAllServices(sorted);
         setCategories(cats);
       } catch (err) {
         setError(err.message);
@@ -188,7 +189,10 @@ const ServicePage = () => {
                 setSelectedService(s);
                 setDeleteModal(true);
               }}
-              onToggleActive={newVal => setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)))}
+              onToggleActive={newVal => setAllServices(prev => {
+                const updated = prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc));
+                return [...updated].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+              })}
             />
           ))}
         </Row>

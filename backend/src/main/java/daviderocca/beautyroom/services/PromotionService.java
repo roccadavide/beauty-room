@@ -7,6 +7,7 @@ import daviderocca.beautyroom.DTO.promotionDTOs.PromotionResponseDTO;
 import daviderocca.beautyroom.entities.*;
 import daviderocca.beautyroom.enums.DiscountType;
 import daviderocca.beautyroom.enums.PromotionScope;
+import daviderocca.beautyroom.enums.WishlistItemType;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.repositories.*;
@@ -33,13 +34,22 @@ public class PromotionService {
     private final ServiceItemRepository serviceItemRepository;
     private final CategoryRepository categoryRepository;
     private final Cloudinary cloudinary;
+    private final WishlistItemRepository wishlistItemRepository;
+
+    @org.springframework.context.annotation.Lazy
+    private final WishlistService wishlistService;
 
     // ---------------------------- FIND METHODS ----------------------------
 
     @Transactional(readOnly = true)
-    public Page<PromotionResponseDTO> findAllPromotions(int pageNumber, int pageSize, String sortBy) {
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, sortBy));
-        Page<Promotion> page = promotionRepository.findAllActiveWithDetails(pageable);
+    public Page<PromotionResponseDTO> findAllPromotions(int pageNumber, int pageSize, String sortBy, boolean includeInactive) {
+        Sort sort = includeInactive
+                ? Sort.by(Sort.Direction.DESC, "active").and(Sort.by(Sort.Direction.DESC, sortBy))
+                : Sort.by(Sort.Direction.DESC, sortBy);
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
+        Page<Promotion> page = includeInactive
+                ? promotionRepository.findAllWithDetails(pageable)
+                : promotionRepository.findAllActiveWithDetails(pageable);
         List<PromotionResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
@@ -109,6 +119,7 @@ public class PromotionService {
 
         Promotion found = promotionRepository.findByIdWithDetails(promotionId)
                 .orElseThrow(() -> new ResourceNotFoundException(promotionId));
+        boolean wasInactive = !found.isActive();
         validatePromotionPayload(payload);
         mapCommonFields(found, payload);
 
@@ -121,6 +132,11 @@ public class PromotionService {
 
         Promotion updated = promotionRepository.save(found);
         log.info("Promozione '{}' aggiornata (ID: {})", updated.getTitle(), updated.getPromotionId());
+
+        if (wasInactive && updated.isActive()) {
+            wishlistService.notifyWishlistersOnReactivation(WishlistItemType.PROMOTION, updated.getPromotionId(), updated.getTitle());
+        }
+
         return convertToDTO(updated);
     }
 
@@ -129,6 +145,7 @@ public class PromotionService {
     @Transactional
     public void deletePromotion(UUID promotionId) {
         Promotion found = findById(promotionId);
+        wishlistItemRepository.deleteByItemTypeAndItemId(WishlistItemType.PROMOTION, promotionId);
         promotionRepository.delete(found);
         log.info("Promozione '{}' (ID: {}) eliminata correttamente.", found.getTitle(), found.getPromotionId());
     }
@@ -136,8 +153,12 @@ public class PromotionService {
     @Transactional
     public void toggleActive(UUID id) {
         Promotion entity = promotionRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(id));
+        boolean wasInactive = !entity.isActive();
         entity.setActive(!entity.isActive());
         promotionRepository.save(entity);
+        if (wasInactive && entity.isActive()) {
+            wishlistService.notifyWishlistersOnReactivation(WishlistItemType.PROMOTION, entity.getPromotionId(), entity.getTitle());
+        }
     }
 
     // ---------------------------- VALIDATION ----------------------------

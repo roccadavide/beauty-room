@@ -409,7 +409,7 @@
 }
 .pcn-badge-inactive {
   position: absolute;
-  top: 12px;
+  bottom: 12px;
   left: 12px;
   background: rgba(120, 100, 90, 0.7);
   color: #f0e8df;

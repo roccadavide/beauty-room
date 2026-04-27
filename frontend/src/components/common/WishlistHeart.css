@@ -1,0 +1,148 @@
+/* ==== WISHLIST HEART — prefisso .wh- ==== */
+
+/* ── CARD VARIANT ── */
+.wh-btn-card {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 253, 248, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+  box-shadow: 0 2px 8px rgba(30, 24, 20, 0.12);
+}
+
+.wh-btn-card:hover {
+  background: #fffdf8;
+  transform: scale(1.08);
+}
+
+/* tooltip */
+.wh-btn-card::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #1e1814;
+  color: #fffdf8;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.wh-btn-card:hover::after {
+  opacity: 1;
+}
+
+/* ── DETAIL VARIANT ── */
+.wh-btn-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1.5px solid #b8976a;
+  border-radius: 100px;
+  background: transparent;
+  color: #b8976a;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.wh-btn-detail:hover,
+.wh-btn-detail.wh-active {
+  background: #b8976a;
+  color: #fffdf8;
+}
+
+/* cuore vuoto su hover */
+.wh-btn-detail:hover .wh-icon-empty,
+.wh-btn-detail.wh-active .wh-icon-empty {
+  stroke: #fffdf8;
+  fill: none;
+}
+
+/* cuore pieno su hover */
+.wh-btn-detail:hover .wh-icon-filled,
+.wh-btn-detail.wh-active .wh-icon-filled {
+  stroke: #fffdf8;
+  fill: #fffdf8;
+}
+
+.wh-btn-detail .wh-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── ICONA ── */
+.wh-icon {
+  width: 18px;
+  height: 18px;
+  transition: all 0.25s ease;
+  display: block;
+  flex-shrink: 0;
+}
+
+.wh-icon-empty {
+  stroke: #b8976a;
+  fill: none;
+  stroke-width: 2;
+}
+
+.wh-icon-filled {
+  stroke: #b8976a;
+  fill: #b8976a;
+  stroke-width: 2;
+}
+
+/* ── ANIMAZIONE POP ── */
+@keyframes wh-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+.wh-pop {
+  animation: wh-pop 0.3s ease;
+}
+
+/* ── MINI TOAST ── */
+.wh-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: #1e1814;
+  color: #fffdf8;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  padding: 10px 20px;
+  border-radius: 100px;
+  box-shadow: 0 4px 16px rgba(30, 24, 20, 0.25);
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.wh-toast.wh-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

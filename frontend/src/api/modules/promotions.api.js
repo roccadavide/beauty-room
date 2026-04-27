@@ -4,8 +4,9 @@ import { PROMOTION_ENDPOINTS } from "../endpoints";
 // ---------------------------------- PROMOTIONS ----------------------------------
 
 // -------------------------- GET ALL --------------------------
-export const fetchPromotions = async (page = 0, size = 40, sort = "priority") => {
-  const { data } = await http.get(PROMOTION_ENDPOINTS.BASE, { params: { page, size, sort } });
+export const fetchPromotions = async (page = 0, size = 40, sort = "priority", includeInactive = false) => {
+  const params = includeInactive ? { page, size, sort, includeInactive: true } : { page, size, sort };
+  const { data } = await http.get(PROMOTION_ENDPOINTS.BASE, { params });
   return data?.content ?? [];
 };
 

@@ -85,9 +85,10 @@ function OccasioniPage() {
   // ── fetch ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    const isAdmin = user?.role === "ADMIN";
     const load = async () => {
       try {
-        const data = await fetchPackages();
+        const data = await fetchPackages(isAdmin);
         setPackages(data);
       } catch (err) {
         setPkgError(err.message || "Errore nel caricamento pacchetti");
@@ -96,12 +97,17 @@ function OccasioniPage() {
       }
     };
     load();
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => {
+    const isAdmin = user?.role === "ADMIN";
     const load = async () => {
       try {
-        const [promos, prods, servs] = await Promise.all([fetchPromotions(), fetchProducts(), fetchServices()]);
+        const [promos, prods, servs] = await Promise.all([
+          fetchPromotions(0, 40, "priority", isAdmin),
+          fetchProducts(),
+          fetchServices(),
+        ]);
         setAllPromos(Array.isArray(promos) ? promos : (promos.content ?? []));
         setProducts(Array.isArray(prods) ? prods : (prods.content ?? []));
         setServices(Array.isArray(servs) ? servs : (servs.content ?? []));
@@ -113,7 +119,7 @@ function OccasioniPage() {
       }
     };
     load();
-  }, []);
+  }, [user?.role]);
 
   // ── computed ──────────────────────────────────────────────────────────────
 
@@ -130,7 +136,10 @@ function OccasioniPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const base = user?.role === "ADMIN" ? allPromos : allPromos.filter(p => p.active && (!p.endDate || new Date(p.endDate) >= today));
-    return base.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+    return base.sort((a, b) => {
+      if (a.active !== b.active) return (b.active ? 1 : 0) - (a.active ? 1 : 0);
+      return (b.priority ?? 0) - (a.priority ?? 0);
+    });
   }, [allPromos, user]);
 
   // ── IntersectionObserver per promozioni ───────────────────────────────────
