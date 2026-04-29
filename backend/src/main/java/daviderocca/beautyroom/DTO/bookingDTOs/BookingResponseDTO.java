@@ -1,9 +1,10 @@
 package daviderocca.beautyroom.DTO.bookingDTOs;
 
-
 import daviderocca.beautyroom.enums.BookingStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record BookingResponseDTO(
@@ -18,7 +19,17 @@ public record BookingResponseDTO(
         LocalDateTime createdAt,
         UUID serviceId,
         UUID serviceOptionId,
-        UUID userId, // opzionale se è un utente registrato
+        UUID userId,
         // FIX-18: titolo del servizio per evitare di mostrare UUID grezzo in BookingSuccessPage
-        String serviceTitle
+        String serviceTitle,
+        // Multi-service
+        List<ServiceSummaryDTO> services,
+        Boolean isCustomService,
+        String customServiceName,
+        BigDecimal customServicePrice,
+        Integer durationMinutes,
+        Integer currentSession,
+        Integer totalSessions,
+        String linkingStatus,
+        PackageSummaryDTO linkedPackage
 ) {}

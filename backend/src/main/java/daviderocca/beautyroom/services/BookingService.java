@@ -13,9 +13,20 @@ import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WorkingHours;
+import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
+import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.LinkingStatus;
 import daviderocca.beautyroom.enums.NotificationType;
 import daviderocca.beautyroom.enums.PaymentMethod;
+import daviderocca.beautyroom.linking.LinkingOutcome;
+import daviderocca.beautyroom.linking.UserLookupService;
+import daviderocca.beautyroom.packages.BookingPackageLink;
+import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
+import daviderocca.beautyroom.packages.ClientPackageAssignment;
+import daviderocca.beautyroom.packages.ClientPackageService;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.exceptions.UnauthorizedException;
@@ -36,6 +47,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -60,6 +72,9 @@ public class BookingService {
     private final AdminNotificationService notificationService;
     private final WaitlistService waitlistService;
     private final EmailOutboxService emailOutboxService;
+    private final UserLookupService userLookupService;
+    private final ClientPackageService clientPackageService;
+    private final BookingPackageLinkRepository bookingPackageLinkRepository;
 
     @Value("${stripe.secret}")
     private String stripeSecretKey;
@@ -107,7 +122,8 @@ public class BookingService {
         if (currentUser == null || currentUser.getUserId() == null) {
             throw new UnauthorizedException("Utente non autenticato.");
         }
-        return bookingRepository.findByUserIdOrderByStartTimeDesc(currentUser.getUserId())
+        return bookingRepository.findByUserIdOrLinkedUserUserIdOrderByStartTimeDesc(
+                        currentUser.getUserId(), currentUser.getUserId())
                 .stream()
                 .map(this::convertToDTO)
                 .toList();
@@ -349,9 +365,236 @@ public class BookingService {
                 saved.getPaddingMinutes(),
                 saved.getPackageCredit() != null ? saved.getPackageCredit().getPackageCreditId() : "none");
 
+        // Auto account-linking by client name (best-effort, never blocks booking creation)
+        try {
+            LinkingOutcome outcome = userLookupService.tryLink(saved.getCustomerName());
+            saved.setLinkingStatus(outcome.status());
+            if (outcome.user() != null) {
+                saved.setLinkedUser(outcome.user());
+            }
+            bookingRepository.save(saved);
+            log.info("Account linking for booking {}: {}", saved.getBookingId(), outcome.status());
+        } catch (Exception e) {
+            log.warn("Account linking failed for booking {}: {}", saved.getBookingId(), e.getMessage());
+        }
+
         Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
                 .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
         return convertToDTO(hydrated);
+    }
+
+    // ============================ MULTI-SERVICE ADMIN CREATE ============================
+
+    /**
+     * Creates a confirmed booking that may combine:
+     *   - Multiple catalog services (summed duration)
+     *   - A free-form custom service (explicit duration)
+     *   - A client package session (linked after save)
+     *
+     * Backward-compatible: the primary catalog service is also stored in the legacy
+     * service FK so old queries and agenda views continue to work.
+     */
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public BookingResponseDTO createMultiServiceBooking(AdminBookingCreateDTO dto, User currentUser) {
+        if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni.");
+
+        // ── Step 1: validate at least one service source ──────────────────────
+        boolean hasCatalog = dto.serviceIds() != null && !dto.serviceIds().isEmpty();
+        boolean hasCustom  = Boolean.TRUE.equals(dto.hasCustomService());
+        boolean hasPkg     = dto.packageAssignmentId() != null;
+
+        if (!hasCatalog && !hasCustom && !hasPkg) {
+            throw new BadRequestException(
+                    "Specifica almeno un servizio, un servizio personalizzato o un pacchetto.");
+        }
+        if (hasCustom) {
+            if (dto.customServiceName() == null || dto.customServiceName().isBlank()) {
+                throw new BadRequestException("Nome servizio personalizzato obbligatorio.");
+            }
+            if (dto.customServiceDurationMinutes() == null || dto.customServiceDurationMinutes() < 1) {
+                throw new BadRequestException("Durata servizio personalizzato obbligatoria.");
+            }
+        }
+
+        // ── Step 2: resolve catalog services + validate package ───────────────
+        List<ServiceItem> catalogServices = hasCatalog
+                ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
+                : List.of();
+
+        ClientPackageAssignment assignment = null;
+        if (hasPkg) {
+            assignment = clientPackageService.validateActivePackage(dto.packageAssignmentId());
+        }
+
+        // ── Step 3: calculate total duration ─────────────────────────────────
+        int totalDuration = catalogServices.stream().mapToInt(ServiceItem::getDurationMin).sum();
+        if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
+        if (hasPkg && assignment != null && assignment.getServiceOption() != null) {
+            ServiceOption pkgOption = assignment.getServiceOption();
+            Integer optDuration = pkgOption.getDurationMin();
+            if (optDuration != null && optDuration > 0) {
+                totalDuration += optDuration;
+            } else if (pkgOption.getService() != null && pkgOption.getService().getDurationMin() > 0) {
+                totalDuration += pkgOption.getService().getDurationMin();
+            }
+        }
+        totalDuration = Math.max(totalDuration, 15);
+
+        // ── Step 4: overlap check ─────────────────────────────────────────────
+        LocalDateTime start = dto.date().atTime(dto.startTime()).truncatedTo(ChronoUnit.MINUTES);
+        LocalDateTime end   = start.plusMinutes(totalDuration);
+
+        if (hasOverlapIncludingPadding(start, end)) {
+            throw new BadRequestException("Lo slot selezionato non è disponibile.");
+        }
+
+        // ── Step 5: build booking ─────────────────────────────────────────────
+        // Primary FK kept for backward compat with existing agenda queries
+        ServiceItem primaryService = catalogServices.isEmpty() ? null : catalogServices.get(0);
+        ServiceOption primaryOption = (primaryService != null && dto.serviceOptionId() != null)
+                ? resolveAndValidateOption(dto.serviceOptionId(), primaryService)
+                : null;
+
+        Booking booking = new Booking(
+                safeTrim(dto.customerName(), "Nome cliente obbligatorio"),
+                dto.customerEmail() != null ? dto.customerEmail().trim().toLowerCase() : "",
+                dto.customerPhone() != null ? dto.customerPhone().trim() : "",
+                start, end, dto.notes(),
+                primaryService, primaryOption, null
+        );
+
+        if (!catalogServices.isEmpty()) booking.setServices(new ArrayList<>(catalogServices));
+        if (hasCustom) {
+            booking.setCustomService(true);
+            booking.setCustomServiceName(dto.customServiceName().trim());
+            booking.setCustomServicePrice(dto.customServicePrice());
+        }
+
+        booking.setDurationMinutes(totalDuration);
+        booking.setCurrentSession(dto.currentSession());
+        booking.setTotalSessions(dto.totalSessions());
+        booking.setConsentLaser(dto.consentLaser());
+        booking.setConsentPmu(dto.consentPmu());
+        if (dto.consentLaser() || dto.consentPmu()) booking.setConsentAt(LocalDateTime.now());
+        if (dto.paddingMinutes() != null && dto.paddingMinutes() > 0) booking.setPaddingMinutes(dto.paddingMinutes());
+
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setPaymentMethod(PaymentMethod.PAY_IN_STORE);
+        booking.setCreatedByAdmin(true);
+        booking.setStripeSessionId(null);
+        booking.setExpiresAt(null);
+
+        // Customer registry (best-effort)
+        try {
+            Customer customer = customerService.findOrCreate(
+                    booking.getCustomerName(), booking.getCustomerPhone(),
+                    booking.getCustomerEmail(), dto.notes());
+            booking.setCustomer(customer);
+        } catch (Exception e) {
+            log.warn("Customer upsert failed for multi-service booking: {}", e.getMessage());
+        }
+
+        Booking saved = bookingRepository.save(booking);
+        log.info("Multi-service booking created: id={} duration={}min services={} custom={} pkg={}",
+                saved.getBookingId(), totalDuration, catalogServices.size(), hasCustom, hasPkg);
+
+        // ── Step 6: link package session ──────────────────────────────────────
+        // NOTE: linkBooking() uses REQUIRES_NEW which opens a separate DB connection
+        // and cannot see the uncommitted booking from this SERIALIZABLE transaction.
+        // Use the already-managed entities directly instead.
+        if (hasPkg) {
+            BookingPackageLink pkgLink = new BookingPackageLink();
+            pkgLink.setBooking(saved);
+            pkgLink.setAssignment(assignment);
+            int sessionNumber = assignment.getTotalSessions() - assignment.getSessionsRemaining() + 1;
+            pkgLink.setSessionNumber(sessionNumber);
+            bookingPackageLinkRepository.save(pkgLink);
+            log.info("Linked bookingId={} to assignmentId={}", saved.getBookingId(), assignment.getId());
+        }
+
+        // ── Step 7: auto account-linking ──────────────────────────────────────
+        try {
+            LinkingOutcome outcome = userLookupService.tryLink(saved.getCustomerName());
+            saved.setLinkingStatus(outcome.status());
+            if (outcome.user() != null) saved.setLinkedUser(outcome.user());
+            bookingRepository.save(saved);
+        } catch (Exception e) {
+            log.warn("Account linking failed for booking {}: {}", saved.getBookingId(), e.getMessage());
+        }
+
+        Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
+                .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
+        return convertToDTO(hydrated);
+    }
+
+    /**
+     * Creates a CONFIRMED booking for a multi-service Stripe checkout after payment succeeds.
+     * Called from the webhook — runs at SERIALIZABLE isolation to detect slot conflicts atomically.
+     *
+     * @throws BadRequestException with message "CONFLICT" if the slot is already taken.
+     */
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public Booking createMultiServiceBookingFromWebhook(
+            List<UUID> serviceIds,
+            LocalDate date,
+            LocalTime startTime,
+            int totalDurationMinutes,
+            String customerName,
+            String customerEmail,
+            String customerPhone,
+            String notes,
+            String stripeSessionId
+    ) {
+        LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
+        LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
+
+        if (hasOverlapIncludingPadding(start, end)) {
+            throw new BadRequestException("CONFLICT");
+        }
+
+        List<ServiceItem> services = serviceIds.stream()
+                .map(serviceItemService::findServiceItemById)
+                .collect(Collectors.toList());
+
+        ServiceItem primary = services.isEmpty() ? null : services.get(0);
+        String name  = customerName != null ? customerName.trim() : "";
+        String email = customerEmail != null ? customerEmail.trim().toLowerCase() : "";
+        String phone = customerPhone != null ? customerPhone.trim() : "";
+
+        Booking booking = new Booking(name, email, phone, start, end, notes, primary, null, null);
+        if (!services.isEmpty()) booking.setServices(new ArrayList<>(services));
+        booking.setDurationMinutes(totalDurationMinutes);
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setPaidAt(LocalDateTime.now());
+        booking.setCreatedByAdmin(false);
+        booking.setStripeSessionId(stripeSessionId);
+        booking.setExpiresAt(null);
+        booking.setCanceledAt(null);
+        booking.setCancelReason(null);
+
+        // Customer registry (best-effort)
+        try {
+            Customer customer = customerService.findOrCreate(name, phone, email, notes);
+            booking.setCustomer(customer);
+        } catch (Exception e) {
+            log.warn("Customer upsert failed for multi webhook booking: {}", e.getMessage());
+        }
+
+        Booking saved = bookingRepository.save(booking);
+        log.info("Multi-service webhook booking created: id={} duration={}min services={}",
+                saved.getBookingId(), totalDurationMinutes, services.size());
+
+        // Auto account-linking (best-effort)
+        try {
+            LinkingOutcome outcome = userLookupService.tryLink(saved.getCustomerName());
+            saved.setLinkingStatus(outcome.status());
+            if (outcome.user() != null) saved.setLinkedUser(outcome.user());
+            bookingRepository.save(saved);
+        } catch (Exception e) {
+            log.warn("Account linking failed for webhook booking {}: {}", saved.getBookingId(), e.getMessage());
+        }
+
+        return saved;
     }
 
     @Transactional
@@ -706,6 +949,14 @@ public class BookingService {
         if (!wasCompleted && willBeCompleted)  packageCreditService.consumeSessionForBooking(found);
         else if (wasCompleted && !willBeCompleted) packageCreditService.restoreSessionForBooking(found);
 
+        if (!wasCompleted && willBeCompleted) {
+            try {
+                clientPackageService.decrementSessionOnCompletion(found);
+            } catch (Exception e) {
+                log.warn("Package session decrement failed for booking {}: {}", bookingId, e.getMessage());
+            }
+        }
+
         found.setBookingStatus(newStatus);
         Booking updated = bookingRepository.save(found);
 
@@ -844,9 +1095,47 @@ public class BookingService {
                 .toList();
     }
 
-    // FEATURE paddingMinutes: esposto nel DTO card dell'agenda
     private AdminBookingCardDTO toAdminCard(Booking b) {
         var pkg = b.getPackageCredit();
+
+        // Resolve display service title: primary FK takes precedence, fall back to first in list
+        String serviceTitle = null;
+        UUID serviceId = null;
+        if (b.getService() != null) {
+            serviceTitle = b.getService().getTitle();
+            serviceId = b.getService().getServiceId();
+        } else if (b.isCustomService()) {
+            serviceTitle = b.getCustomServiceName();
+        } else if (!b.getServices().isEmpty()) {
+            serviceTitle = b.getServices().get(0).getTitle();
+            serviceId = b.getServices().get(0).getServiceId();
+        }
+
+        List<ServiceSummaryDTO> services = b.getServices().stream()
+                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice()))
+                .toList();
+
+        boolean consentRequired = (b.getService() != null && b.getService().isConsentRequired())
+                || services.stream().anyMatch(s -> false); // service-level consent flag not on summary
+
+        PackageSummaryDTO linkedPkg = null;
+        try {
+            linkedPkg = bookingPackageLinkRepository
+                    .findByBookingBookingIdWithAssignment(b.getBookingId())
+                    .map(link -> {
+                        ClientPackageAssignment a = link.getAssignment();
+                        String pkgName = a.getCustomPackageName() != null
+                                ? a.getCustomPackageName()
+                                : (a.getServiceOption() != null
+                                        ? a.getServiceOption().getName()
+                                        : "Pacchetto");
+                        return new PackageSummaryDTO(pkgName, a.getSessionsRemaining());
+                    })
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("Could not resolve linkedPackage for booking {}: {}", b.getBookingId(), e.getMessage());
+        }
+
         return new AdminBookingCardDTO(
                 b.getBookingId(),
                 b.getStartTime(),
@@ -855,8 +1144,8 @@ public class BookingService {
                 b.getCustomerName(),
                 b.getCustomerPhone(),
                 b.getCustomerEmail(),
-                b.getService() != null ? b.getService().getTitle() : null,
-                b.getService() != null ? b.getService().getServiceId() : null,
+                serviceTitle,
+                serviceId,
                 b.getServiceOption() != null ? b.getServiceOption().getName() : null,
                 b.getServiceOption() != null ? b.getServiceOption().getOptionId() : null,
                 b.getNotes(),
@@ -865,10 +1154,18 @@ public class BookingService {
                 pkg != null ? pkg.getSessionsTotal() : null,
                 pkg != null ? pkg.getStatus() : null,
                 b.getStripeSessionId(),
-                b.getPaddingMinutes(),  // FEATURE: buffer minuti extra
-                b.getService() != null && b.getService().isConsentRequired(),
+                b.getPaddingMinutes(),
+                consentRequired,
                 b.isConsentSigned(),
-                b.getConsentSignedAt()
+                b.getConsentSignedAt(),
+                services,
+                b.isCustomService(),
+                b.getCustomServiceName(),
+                b.getCurrentSession(),
+                b.getTotalSessions(),
+                b.getLinkedUser() != null ? b.getLinkedUser().getUserId() : null,
+                b.getLinkingStatus() != null ? b.getLinkingStatus().name() : null,
+                linkedPkg
         );
     }
 
@@ -938,6 +1235,33 @@ public class BookingService {
     }
 
     private BookingResponseDTO convertToDTO(Booking booking) {
+        List<ServiceSummaryDTO> services = booking.getServices().stream()
+                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice()))
+                .toList();
+
+        // Fallback service title for backward compat
+        String serviceTitle = booking.getService() != null
+                ? booking.getService().getTitle()
+                : (booking.isCustomService() ? booking.getCustomServiceName() : null);
+
+        PackageSummaryDTO linkedPackage = null;
+        try {
+            linkedPackage = bookingPackageLinkRepository
+                    .findByBookingBookingIdWithAssignment(booking.getBookingId())
+                    .map(link -> {
+                        ClientPackageAssignment a = link.getAssignment();
+                        String pkgName = a.getCustomPackageName() != null
+                                ? a.getCustomPackageName()
+                                : (a.getServiceOption() != null
+                                        ? a.getServiceOption().getName()
+                                        : "Pacchetto");
+                        return new PackageSummaryDTO(pkgName, a.getSessionsRemaining());
+                    })
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("Could not resolve package summary for booking {}: {}", booking.getBookingId(), e.getMessage());
+        }
+
         return new BookingResponseDTO(
                 booking.getBookingId(),
                 booking.getCustomerName(),
@@ -951,7 +1275,16 @@ public class BookingService {
                 booking.getService() != null ? booking.getService().getServiceId() : null,
                 booking.getServiceOption() != null ? booking.getServiceOption().getOptionId() : null,
                 booking.getUser() != null ? booking.getUser().getUserId() : null,
-                booking.getService() != null ? booking.getService().getTitle() : null
+                serviceTitle,
+                services,
+                booking.isCustomService(),
+                booking.getCustomServiceName(),
+                booking.getCustomServicePrice(),
+                booking.getDurationMinutes(),
+                booking.getCurrentSession(),
+                booking.getTotalSessions(),
+                booking.getLinkingStatus() != null ? booking.getLinkingStatus().name() : null,
+                linkedPackage
         );
     }
 

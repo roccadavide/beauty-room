@@ -29,9 +29,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/stripe")
@@ -129,6 +134,13 @@ public class StripeWebhookController {
             emailOutboxService.enqueueOrderPaid(o);
 
             log.info("Pagamento completato per ordine {} (cliente: {})", orderId, customerEmail);
+            return;
+        }
+
+        // ===== MULTI-SERVICE BOOKING =====
+        String bookingType = metadata != null ? metadata.get("bookingType") : null;
+        if ("MULTI".equals(bookingType)) {
+            handleMultiServiceBooking(session, metadata, customerEmail);
             return;
         }
 
@@ -251,6 +263,88 @@ public class StripeWebhookController {
         }
 
         log.warn("checkout.session.completed senza orderId/bookingId in metadata");
+    }
+
+    private void handleMultiServiceBooking(Session session, Map<String, String> metadata, String customerEmail) {
+        String serviceIdsRaw      = metadata.getOrDefault("serviceIds", "");
+        String dateStr            = metadata.getOrDefault("date", "");
+        String startTimeStr       = metadata.getOrDefault("startTime", "");
+        String durationStr        = metadata.getOrDefault("totalDurationMinutes", "0");
+        String customerName       = metadata.getOrDefault("customerName", "");
+        String customerPhone      = metadata.getOrDefault("customerPhone", "");
+        String notes              = metadata.getOrDefault("notes", null);
+
+        if (serviceIdsRaw.isBlank() || dateStr.isBlank() || startTimeStr.isBlank()) {
+            log.error("MULTI booking: metadata incompleta — serviceIds={} date={} startTime={}",
+                    serviceIdsRaw, dateStr, startTimeStr);
+            return;
+        }
+
+        List<UUID> serviceIds;
+        try {
+            serviceIds = Arrays.stream(serviceIdsRaw.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(UUID::fromString)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("MULTI booking: impossibile parsare serviceIds='{}': {}", serviceIdsRaw, e.getMessage());
+            return;
+        }
+
+        LocalDate date;
+        LocalTime startTime;
+        int totalDurationMinutes;
+        try {
+            date = LocalDate.parse(dateStr);
+            startTime = LocalTime.parse(startTimeStr);
+            totalDurationMinutes = Integer.parseInt(durationStr);
+        } catch (Exception e) {
+            log.error("MULTI booking: impossibile parsare data/ora/durata: {}", e.getMessage());
+            return;
+        }
+
+        daviderocca.beautyroom.entities.Booking saved;
+        try {
+            saved = bookingService.createMultiServiceBookingFromWebhook(
+                    serviceIds, date, startTime, totalDurationMinutes,
+                    customerName, customerEmail, customerPhone, notes, session.getId()
+            );
+        } catch (daviderocca.beautyroom.exceptions.BadRequestException bex) {
+            if ("CONFLICT".equals(bex.getMessage())) {
+                log.error("MULTI PAID_CONFLICT: slot già occupato, sessionId={} — avvio rimborso automatico.", session.getId());
+                try {
+                    Stripe.apiKey = stripeSecretKey;
+                    String paymentIntentId = session.getPaymentIntent();
+                    if (paymentIntentId != null && !paymentIntentId.isBlank()) {
+                        RefundCreateParams refundParams = RefundCreateParams.builder()
+                                .setPaymentIntent(paymentIntentId)
+                                .build();
+                        Refund.create(refundParams);
+                        log.info("MULTI PAID_CONFLICT: rimborso Stripe creato per sessionId={}", session.getId());
+                    } else {
+                        log.error("MULTI PAID_CONFLICT: payment_intent assente — rimborso manuale necessario. sessionId={}", session.getId());
+                    }
+                } catch (StripeException ex) {
+                    log.error("MULTI PAID_CONFLICT: errore rimborso Stripe sessionId={}: {}", session.getId(), ex.getMessage());
+                }
+            } else {
+                log.error("MULTI booking: errore creazione per sessionId={}: {}", session.getId(), bex.getMessage());
+            }
+            return;
+        } catch (Exception e) {
+            log.error("MULTI booking: errore inatteso per sessionId={}: {}", session.getId(), e.getMessage(), e);
+            return;
+        }
+
+        try {
+            emailOutboxService.enqueueBookingConfirmed(saved);
+        } catch (Exception e) {
+            log.error("MULTI booking: errore invio email confermata bookingId={}: {}", saved.getBookingId(), e.getMessage());
+        }
+
+        log.info("MULTI booking confermato: bookingId={} sessionId={} servizi={} cliente={}",
+                saved.getBookingId(), session.getId(), serviceIds.size(), customerEmail);
     }
 
     private void handleCheckoutExpired(Event event) {

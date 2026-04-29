@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Container } from "react-bootstrap";
+import { useDispatch, useSelector } from "react-redux";
 import CategoryBadge from "../../components/common/CategoryBadge";
 import ServiceDetailSkeleton from "./ServiceDetailSkeleton";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
@@ -10,6 +11,7 @@ import RelatedCarousel from "../../components/common/RelatedCarousel";
 import ImageGallery from "../../components/common/ImageGallery";
 import SEO from "../../components/common/SEO";
 import WishlistHeart from "../../components/common/WishlistHeart";
+import { addToCart } from "../cart/slices/cart.slice";
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -38,9 +40,12 @@ const ServiceDetail = () => {
   const [selectedOption, setSelectedOption] = useState(null);
   const [selectedGender, setSelectedGender] = useState("FEMALE");
   const [activeGroup, setActiveGroup] = useState(null);
+  const [cartFeedback, setCartFeedback] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const wasCancelled = searchParams.get("cancel") === "1";
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const cartItems = useSelector(state => state.cart?.items ?? []);
 
   useEffect(() => {
     if (!wasCancelled) return;
@@ -125,6 +130,29 @@ const ServiceDetail = () => {
   const pricePrefix = !selectedOption && activeOptions.length > 0 ? "da " : "";
 
   const needsZoneSelection = (hasZoneGroups || hasZoneOptions) && selectedOption === null;
+
+  const isInCart = cartItems.some(i => i.id === `service-${service?.serviceId}`);
+
+  const handleAddToCart = () => {
+    if (!service) return;
+    const hasPromotion = cartItems.some(i => i.type === "promotion");
+    if (hasPromotion) {
+      alert("Non puoi aggiungere trattamenti insieme a una promozione. Rimuovi la promozione dal carrello prima.");
+      return;
+    }
+    dispatch(addToCart({
+      id: `service-${service.serviceId}`,
+      type: "service",
+      name: service.title,
+      price: displayPrice ?? 0,
+      durationMinutes: displayDuration ?? service.durationMin ?? 0,
+      serviceId: service.serviceId,
+      image: service.images?.[0] ?? null,
+      quantity: 1,
+    }));
+    setCartFeedback(true);
+    setTimeout(() => setCartFeedback(false), 2500);
+  };
 
   const calcSavings = opt => {
     if (!opt?.sessions || opt.sessions < 2 || !service?.price) return null;
@@ -336,13 +364,25 @@ const ServiceDetail = () => {
 
             <div className="sd-cta-stack">
               <WishlistHeart itemType="SERVICE" itemId={service.serviceId} variant="detail" />
-              <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={needsZoneSelection}>
-                {needsZoneSelection
-                  ? "Scegli una zona"
-                  : selectedOption?.sessions > 1
-                    ? `Prenota il pacchetto · ${selectedOption.sessions} sedute →`
-                    : "Prenota ora →"}
-              </button>
+              <div className="pd-cta-row">
+                <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={needsZoneSelection}>
+                  {needsZoneSelection
+                    ? "Scegli una zona"
+                    : selectedOption?.sessions > 1
+                      ? `Prenota il pacchetto · ${selectedOption.sessions} sedute →`
+                      : "Prenota ora →"}
+                </button>
+                {!needsZoneSelection && !(selectedOption?.sessions > 1) && (
+                  <button
+                    className={`detail-cart-btn${isInCart ? " detail-cart-btn--added" : ""}${cartFeedback ? " detail-cart-btn--feedback" : ""}`}
+                    onClick={handleAddToCart}
+                    disabled={isInCart}
+                    title={isInCart ? "Già nel carrello" : "Aggiungi al carrello"}
+                  >
+                    {cartFeedback ? "Aggiunto ✓" : isInCart ? "Nel carrello ✓" : "+ Carrello"}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="detail-divider" />

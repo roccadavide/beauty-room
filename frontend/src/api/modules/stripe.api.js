@@ -1,5 +1,5 @@
 import http from "../httpClient";
-import { STRIPE_ENDPOINTS } from "../endpoints";
+import { STRIPE_ENDPOINTS, PUBLIC_AVAIL_ENDPOINTS } from "../endpoints";
 
 // ---------------------------------- STRIPE ----------------------------------
 
@@ -64,6 +64,25 @@ export const createBookingPayInStore = async payload => {
     const message = error.response?.data?.message || "Errore durante la prenotazione. Riprova più tardi.";
     throw new Error(message);
   }
+};
+
+// --------------------------- CHECKOUT BOOKING MULTI (public) ---------------------------
+export const createMultiServiceBookingCheckout = async payload => {
+  try {
+    const { data } = await http.post(STRIPE_ENDPOINTS.CHECKOUT_BOOKING_MULTI, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante la creazione della sessione di pagamento.";
+    throw new Error(message);
+  }
+};
+
+// --------------------------- AVAILABLE SLOTS (public) ---------------------------
+export const fetchAvailableSlots = async (date, durationMinutes) => {
+  const { data } = await http.get(PUBLIC_AVAIL_ENDPOINTS.AVAILABLE_SLOTS, {
+    params: { date, durationMinutes },
+  });
+  return data; // List<String> "HH:mm"
 };
 
 // --------------------------- BOOKING SUMMARY ---------------------------

@@ -31,6 +31,17 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     """)
     List<Booking> findByUserIdOrderByStartTimeDesc(@Param("userId") UUID userId);
 
+    @Query("""
+        select b
+        from Booking b
+        where b.user.userId = :userId
+           or b.linkedUser.userId = :linkedUserId
+        order by b.startTime desc
+    """)
+    List<Booking> findByUserIdOrLinkedUserUserIdOrderByStartTimeDesc(
+            @Param("userId") UUID userId,
+            @Param("linkedUserId") UUID linkedUserId);
+
     // ===== Overlap LOCK (create) =====
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

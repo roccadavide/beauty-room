@@ -33,4 +33,4 @@ export const fetchPackageKpis = () =>
   http.get("/admin/packages/kpis").then(r => r.data);
 
 export const fetchMyPackages = () =>
-  http.get("/api/client/packages/my").then(r => r.data);
+  http.get("/client/my-packages").then(r => r.data);

@@ -1,12 +1,16 @@
 package daviderocca.beautyroom.entities;
 
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.LinkingStatus;
 import daviderocca.beautyroom.enums.PaymentMethod;
 import daviderocca.beautyroom.entities.Customer;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -112,8 +116,8 @@ public class Booking {
     @Column(name = "is_no_show", nullable = false)
     private boolean noShow = false;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "service_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id")
     private ServiceItem service;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -129,8 +133,47 @@ public class Booking {
     private PackageCredit packageCredit;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id")   
+    @JoinColumn(name = "customer_id")
     private Customer customer;
+
+    // Multi-service list — all catalog services on this booking
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "booking_services",
+        joinColumns = @JoinColumn(name = "booking_id"),
+        inverseJoinColumns = @JoinColumn(name = "service_id")
+    )
+    private List<ServiceItem> services = new ArrayList<>();
+
+    // Custom service — Michela writes a free-form service name
+    @Column(name = "is_custom_service", nullable = false)
+    private boolean customService = false;
+
+    @Column(name = "custom_service_name", length = 255)
+    private String customServiceName;
+
+    @Column(name = "custom_service_price", precision = 10, scale = 2)
+    private BigDecimal customServicePrice;
+
+    // Session tracking (e.g. "session 2 of 6")
+    @Column(name = "current_session")
+    private Integer currentSession;
+
+    @Column(name = "total_sessions")
+    private Integer totalSessions;
+
+    // Pre-computed total duration in minutes (sum of all services)
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes;
+
+    // Auto account-linking (best-effort, nullable)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "linked_user_id")
+    private User linkedUser;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "linking_status", nullable = false, length = 20)
+    private LinkingStatus linkingStatus = LinkingStatus.NONE;
 
     // NOTE: Lombok should generate this via @Getter, but we keep an explicit getter
     // because tests and services rely on it and we want to avoid any Lombok edge-cases

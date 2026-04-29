@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,6 +35,18 @@ public class AvailabilityController {
         if (date.isBefore(LocalDate.now())) throw new BadRequestException("Non è possibile richiedere disponibilità per date passate.");
 
         return ResponseEntity.ok(availabilityService.getServiceAvailabilities(serviceId, date));
+    }
+
+    // PUBLIC — available slots for a given date + total duration
+    // Used by the public multi-service booking modal.
+    // Whitelisted in SecConfig alongside /availabilities/services/**
+    @GetMapping("/available-slots")
+    public ResponseEntity<List<String>> getAvailableSlots(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam int durationMinutes
+    ) {
+        if (date == null) throw new BadRequestException("La data richiesta non può essere nulla.");
+        return ResponseEntity.ok(availabilityService.getAvailableSlots(date, durationMinutes));
     }
 
     // ADMIN - TIMELINE DAY

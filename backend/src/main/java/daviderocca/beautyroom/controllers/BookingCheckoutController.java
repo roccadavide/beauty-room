@@ -7,6 +7,8 @@ import com.stripe.param.checkout.SessionCreateParams;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PublicMultiServiceBookingDTO;
+import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.entities.Promotion;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
@@ -30,7 +32,9 @@ import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -54,6 +58,7 @@ public class BookingCheckoutController {
     private final ServiceOptionRepository serviceOptionRepository;
     private final PromotionRepository promotionRepository;
     private final ProductRepository productRepository;
+    private final BookingRepository bookingRepository;
 
     @PostConstruct
     public void init() {
@@ -209,6 +214,84 @@ public class BookingCheckoutController {
     }
 
     /**
+     * Multi-service public checkout. No pre-hold booking is created.
+     * The booking is created by the webhook after payment succeeds.
+     * Validates services, computes total price, creates Stripe session with MULTI metadata.
+     */
+    @PostMapping("/create-session-multi")
+    public Map<String, Object> createSessionMulti(
+            @Valid @RequestBody PublicMultiServiceBookingDTO payload
+    ) throws StripeException {
+
+        if (payload.serviceIds() == null || payload.serviceIds().isEmpty()) {
+            throw new BadRequestException("Seleziona almeno un servizio.");
+        }
+
+        // Resolve and validate all services
+        List<ServiceItem> services = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO;
+        for (UUID sid : payload.serviceIds()) {
+            ServiceItem svc = serviceItemService.findServiceItemById(sid);
+            serviceItemService.assertServiceActive(svc);
+            if (svc.getPrice() == null || svc.getPrice().signum() <= 0) {
+                throw new BadRequestException("Il servizio '" + svc.getTitle() + "' non ha un prezzo valido.");
+            }
+            services.add(svc);
+            total = total.add(svc.getPrice());
+        }
+
+        total = total.setScale(2, RoundingMode.HALF_UP);
+
+        // Build line items (one per service)
+        SessionCreateParams.Builder builder = SessionCreateParams.builder()
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
+                .setMode(SessionCreateParams.Mode.PAYMENT)
+                .setExpiresAt(Instant.now().plusSeconds(30 * 60L).getEpochSecond())
+                .setSuccessUrl(frontendUrl + "/prenotazione-confermata?session_id={CHECKOUT_SESSION_ID}")
+                .setCancelUrl(frontendUrl + "/carrello?cancel=1")
+                .setCustomerEmail(payload.customerEmail())
+                .putMetadata("bookingType", "MULTI")
+                .putMetadata("serviceIds", payload.serviceIds().stream()
+                        .map(UUID::toString).reduce((a, b) -> a + "," + b).orElse(""))
+                .putMetadata("date", payload.date().toString())
+                .putMetadata("startTime", payload.startTime().toString())
+                .putMetadata("totalDurationMinutes", String.valueOf(payload.totalDurationMinutes()))
+                .putMetadata("customerName", payload.customerName())
+                .putMetadata("customerPhone", payload.customerPhone() != null ? payload.customerPhone() : "");
+
+        if (payload.notes() != null && !payload.notes().isBlank()) {
+            String notes = payload.notes().length() > 490
+                    ? payload.notes().substring(0, 490) : payload.notes();
+            builder.putMetadata("notes", notes);
+        }
+
+        for (ServiceItem svc : services) {
+            builder.addLineItem(
+                    SessionCreateParams.LineItem.builder()
+                            .setQuantity(1L)
+                            .setPriceData(
+                                    SessionCreateParams.LineItem.PriceData.builder()
+                                            .setCurrency("eur")
+                                            .setUnitAmount(svc.getPrice().movePointRight(2).longValueExact())
+                                            .setProductData(
+                                                    SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                                            .setName(svc.getTitle())
+                                                            .build()
+                                            )
+                                            .build()
+                            )
+                            .build()
+            );
+        }
+
+        Session session = Session.create(builder.build());
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("url", session.getUrl());
+        return resp;
+    }
+
+    /**
      * Prenotazione con pagamento in loco (PAY_IN_STORE).
      * Solo per clienti di fiducia (isVerified = true).
      * Crea una prenotazione CONFIRMED senza sessione Stripe.
@@ -231,14 +314,26 @@ public class BookingCheckoutController {
         Session session = Session.retrieve(sessionId);
 
         boolean isPaid = "paid".equalsIgnoreCase(session.getPaymentStatus());
-        String bookingIdStr = session.getMetadata() != null ? session.getMetadata().get("bookingId") : null;
+        Map<String, String> meta = session.getMetadata();
+        String bookingIdStr = meta != null ? meta.get("bookingId") : null;
+        String bookingType  = meta != null ? meta.get("bookingType") : null;
 
-        if (bookingIdStr == null) {
+        BookingResponseDTO booking;
+        if (bookingIdStr != null) {
+            UUID bookingId = UUID.fromString(bookingIdStr);
+            booking = bookingService.findBookingByIdAndConvert(bookingId);
+        } else if ("MULTI".equals(bookingType)) {
+            // Multi-service: no pre-hold, booking created by webhook — look up by stripeSessionId
+            booking = bookingRepository.findByStripeSessionId(session.getId())
+                    .map(b -> bookingService.findBookingByIdAndConvert(b.getBookingId()))
+                    .orElse(null);
+            if (booking == null) {
+                // Webhook may not have fired yet; return a pending placeholder
+                return ResponseEntity.ok(new BookingSummaryDTO(null, isPaid ? "PAID" : "PENDING", session.getCustomerDetails() != null ? session.getCustomerDetails().getEmail() : null));
+            }
+        } else {
             return ResponseEntity.status(400).body(BookingSummaryDTO.error("bookingId assente nei metadata della sessione"));
         }
-
-        UUID bookingId = UUID.fromString(bookingIdStr);
-        BookingResponseDTO booking = bookingService.findBookingByIdAndConvert(bookingId);
 
         if (currentUser != null && booking.userId() != null
                 && !booking.userId().equals(currentUser.getUserId())) {

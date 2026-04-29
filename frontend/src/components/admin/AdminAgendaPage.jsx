@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
-import { getTimelineDay, getBookingsDay, patchBookingStatus, deleteBooking, updateBooking, getNextAvailableSlot, patchBookingPadding, refundBooking, patchBookingConsent } from "../../api/modules/adminAgenda.api";
+import {
+  getTimelineDay,
+  getBookingsDay,
+  patchBookingStatus,
+  deleteBooking,
+  updateBooking,
+  getNextAvailableSlot,
+  patchBookingPadding,
+  refundBooking,
+  patchBookingConsent,
+  getPersonalAppointmentsDay,
+} from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
+import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
 import WeeklyCalendar from "./WeeklyCalendar";
 import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
@@ -57,7 +69,7 @@ function shortCustomerName(name) {
 }
 
 /** ---------- Timeline ---------- */
-function TimelineDay({ dateISO, data, bookings = [], selectedBookingId, onBookingClick }) {
+function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selectedBookingId, onBookingClick, onPersonalApptClick }) {
   const timelineRef = useRef(null);
   const nowLineRef = useRef(null);
   const hasAutoScrolledRef = useRef(false);
@@ -134,13 +146,25 @@ function TimelineDay({ dateISO, data, bookings = [], selectedBookingId, onBookin
         {booking &&
           (isCompact ? (
             <div className="ag-tl-booking__label ag-tl-booking__label--compact">
-              <span className="ag-tl-booking__service">{booking.serviceTitle || "—"}</span>
+              <span className="ag-tl-booking__service">
+                {booking.linkedPackage?.packageName
+                  ? ` ${booking.linkedPackage.packageName}`
+                  : Array.isArray(booking.services) && booking.services.length > 0
+                    ? booking.services.map(s => s.name || s.title || "?").join(" + ")
+                    : booking.serviceTitle || booking.customServiceName || "—"}
+              </span>
               <span className="ag-tl-booking__dot"> · </span>
               <span className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</span>
             </div>
           ) : (
             <div className="ag-tl-booking__label">
-              <div className="ag-tl-booking__service">{booking.serviceTitle || "—"}</div>
+              <div className="ag-tl-booking__service">
+                {booking.linkedPackage?.packageName
+                  ? ` ${booking.linkedPackage.packageName}`
+                  : Array.isArray(booking.services) && booking.services.length > 0
+                    ? booking.services.map(s => s.name || s.title || "?").join(" + ")
+                    : booking.serviceTitle || booking.customServiceName || "—"}
+              </div>
               <div className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</div>
             </div>
           ))}
@@ -248,6 +272,47 @@ function TimelineDay({ dateISO, data, bookings = [], selectedBookingId, onBookin
             {data.openRanges?.map((s, i) => renderBlock(s, "open", i))}
             {data.closureRanges?.map((s, i) => renderBlock(s, "closure", i))}
             {data.bookingRanges?.map((s, i) => renderBlock(s, "booking", i))}
+            {personalAppts.map(pa => {
+              const startMin = minutes((pa.startTime || "").slice(0, 5));
+              const endMin = startMin + (pa.durationMinutes || 30);
+              if (endMin <= viewWindow.startMin || startMin >= viewWindow.endMin) return null;
+              const top = toPct(Math.max(startMin, viewWindow.startMin));
+              const height = toPct(Math.min(endMin, viewWindow.endMin)) - top;
+              const isCompact = endMin - startMin < 30;
+              return (
+                <div
+                  key={pa.id}
+                  className="ag-tl-block ag-tl-personal"
+                  style={{ top: `${top}%`, height: `${Math.max(height, 0)}%` }}
+                  role="button"
+                  tabIndex={0}
+                  title={pa.title}
+                  onClick={e => {
+                    e.stopPropagation();
+                    onPersonalApptClick?.(pa);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onPersonalApptClick?.(pa);
+                    }
+                  }}
+                >
+                  {isCompact ? (
+                    <div className="ag-tl-booking__label ag-tl-booking__label--compact">
+                      <span className="ag-tl-booking__service">{pa.title}</span>
+                    </div>
+                  ) : (
+                    <div className="ag-tl-booking__label">
+                      <div className="ag-tl-booking__service">{pa.title}</div>
+                      <div className="ag-tl-booking__customer">
+                        {(pa.startTime || "").slice(0, 5)} · {pa.durationMinutes}′
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             <div ref={nowLineRef} className="ag-nowline" aria-hidden="true" />
           </div>
         </div>
@@ -255,6 +320,7 @@ function TimelineDay({ dateISO, data, bookings = [], selectedBookingId, onBookin
           <span className="ag-dot ag-dot--open" /> Open
           <span className="ag-dot ag-dot--closure" /> Chiusure
           <span className="ag-dot ag-dot--booking" /> Prenotazioni
+          <span className="ag-dot ag-dot--personal" /> Personali
         </div>
       </Card.Body>
     </Card>
@@ -268,6 +334,7 @@ export default function AdminAgendaPage() {
 
   const [timeline, setTimeline] = useState(null);
   const [bookings, setBookings] = useState([]);
+  const [personalAppts, setPersonalAppts] = useState([]);
 
   const [err, setErr] = useState("");
   const [errDetails, setErrDetails] = useState(null);
@@ -283,6 +350,11 @@ export default function AdminAgendaPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [selected, setSelected] = useState(null);
+
+  // New multi-service appointment drawer (separate from the existing BookingModal)
+  const [newDrawerOpen, setNewDrawerOpen] = useState(false);
+  const [editingPersonal, setEditingPersonal] = useState(null);
+  const [editingBooking, setEditingBooking] = useState(null);
 
   const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
@@ -357,10 +429,11 @@ export default function AdminAgendaPage() {
     setErrDetails(null);
     setLoading(true);
     try {
-      const [tl, bk] = await Promise.all([getTimelineDay(dateISO), getBookingsDay(dateISO)]);
+      const [tl, bk, pa] = await Promise.all([getTimelineDay(dateISO), getBookingsDay(dateISO), getPersonalAppointmentsDay(dateISO)]);
       setTimeline(tl);
       const sorted = (bk || []).slice().sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
       setBookings(sorted);
+      setPersonalAppts(pa || []);
     } catch (e) {
       setErr(e.message || "Errore nel caricamento agenda.");
     } finally {
@@ -470,15 +543,13 @@ export default function AdminAgendaPage() {
   }, [dateISO]);
 
   const openCreate = () => {
-    setModalMode("create");
-    setSelected({ startTime: `${dateISO}T09:00` });
-    setModalOpen(true);
+    setEditingBooking(null);
+    setNewDrawerOpen(true);
   };
 
   const openEdit = b => {
-    setModalMode("edit");
-    setSelected(b);
-    setModalOpen(true);
+    setEditingBooking(b);
+    setNewDrawerOpen(true);
   };
 
   const changeStatus = async (id, status) => {
@@ -578,9 +649,7 @@ export default function AdminAgendaPage() {
   };
 
   const handleRefund = async booking => {
-    const confirmed = window.confirm(
-      "Sei sicura di voler rimborsare questo appuntamento?\nIl cliente riceverà il rimborso su Stripe e una email di conferma."
-    );
+    const confirmed = window.confirm("Sei sicura di voler rimborsare questo appuntamento?\nIl cliente riceverà il rimborso su Stripe e una email di conferma.");
     if (!confirmed) return;
 
     setErr("");
@@ -598,9 +667,7 @@ export default function AdminAgendaPage() {
   };
 
   const signConsent = async b => {
-    const confirmed = window.confirm(
-      `Confermi che il consenso informato è stato firmato da ${b.customerName}?`
-    );
+    const confirmed = window.confirm(`Confermi che il consenso informato è stato firmato da ${b.customerName}?`);
     if (!confirmed) return;
 
     try {
@@ -608,10 +675,8 @@ export default function AdminAgendaPage() {
       // Aggiornamento locale ottimistico della card
       setBookings(prev =>
         prev.map(booking =>
-          booking.bookingId === b.bookingId
-            ? { ...booking, consentSigned: updated.consentSigned, consentSignedAt: updated.consentSignedAt }
-            : booking
-        )
+          booking.bookingId === b.bookingId ? { ...booking, consentSigned: updated.consentSigned, consentSignedAt: updated.consentSignedAt } : booking,
+        ),
       );
       setSuccessMsg("✅ Consenso PMU registrato");
     } catch (e) {
@@ -639,18 +704,16 @@ export default function AdminAgendaPage() {
   };
 
   const handleWeekBookingClick = booking => {
-    setModalMode("edit");
-    setSelected(booking);
-    setModalOpen(true);
+    setEditingBooking(booking);
+    setNewDrawerOpen(true);
   };
   const handleWeekDayClick = iso => {
     setDate(fromISODateLocal(iso));
     setViewMode("day");
   };
   const handleSlotClick = (iso, hour) => {
-    setModalMode("create");
-    setSelected({ startTime: `${iso}T${pad2(hour)}:00` });
-    setModalOpen(true);
+    setEditingBooking(null);
+    setNewDrawerOpen(true);
   };
 
   const toggleStatus = key => {
@@ -720,7 +783,13 @@ export default function AdminAgendaPage() {
                     </button>
                   </div>
                 </div>
-                <Button className="ag-btn ag-btn--primary" onClick={openCreate}>
+                <Button
+                  className="ag-btn ag-btn--primary"
+                  onClick={() => {
+                    setEditingPersonal(null);
+                    setNewDrawerOpen(true);
+                  }}
+                >
                   + Nuovo
                 </Button>
               </div>
@@ -829,10 +898,8 @@ export default function AdminAgendaPage() {
                           type="button"
                           className="ag-btn ag-btn--primary ag-nextslot__more"
                           onClick={() => {
-                            const { date: slotDate, slotStart } = nextSlotResult.slot;
-                            setModalMode("create");
-                            setSelected({ startTime: `${slotDate}T${slotStart?.slice(0, 5)}` });
-                            setModalOpen(true);
+                            setEditingBooking(null);
+                            setNewDrawerOpen(true);
                           }}
                         >
                           📅 Prenota
@@ -905,8 +972,13 @@ export default function AdminAgendaPage() {
                 dateISO={dateISO}
                 data={timeline}
                 bookings={bookings}
+                personalAppts={personalAppts}
                 selectedBookingId={highlightedId}
                 onBookingClick={handleTimelineBookingClick}
+                onPersonalApptClick={pa => {
+                  setEditingPersonal(pa);
+                  setNewDrawerOpen(true);
+                }}
               />
             </div>
           )}
@@ -928,6 +1000,9 @@ export default function AdminAgendaPage() {
                     <Form.Control className="ag-search" placeholder="Cerca cliente, telefono, servizio…" value={q} onChange={e => setQ(e.target.value)} />
                     <Button className="ag-btn ag-btn--ghost" onClick={refresh} disabled={loading}>
                       {loading ? <Spinner size="sm" /> : "Aggiorna"}
+                    </Button>
+                    <Button className="ag-btn ag-btn--primary ag-new-btn-tablet" onClick={openCreate}>
+                      + Nuovo
                     </Button>
                   </div>
                 )}
@@ -1026,8 +1101,34 @@ export default function AdminAgendaPage() {
                             <span className="ag-muted">{b.customerEmail}</span>
                           </div>
                           <div className="ag-item__service">
-                            <span className="ag-service">{b.serviceTitle || "—"}</span>
-                            {b.optionName ? <span className="ag-option"> · {b.optionName}</span> : null}
+                            <span className="ag-service">
+                              {(() => {
+                                if (b.linkedPackage?.packageName) {
+                                  return (
+                                    <span>
+                                      {b.linkedPackage.packageName}
+                                      {b.linkedPackage.sessionsRemaining != null && (
+                                        <span className="ag-session-pill" style={{ marginLeft: 6 }}>
+                                          {b.linkedPackage.sessionsRemaining} sed. rimaste
+                                        </span>
+                                      )}
+                                    </span>
+                                  );
+                                }
+                                if (Array.isArray(b.services) && b.services.length > 0) {
+                                  return b.services.map(s => s.name || s.title || s.serviceName || "?").join(" + ");
+                                }
+                                if (b.serviceTitle) return b.serviceTitle;
+                                if (b.isCustomService && b.customServiceName) return <em>{b.customServiceName}</em>;
+                                return "—";
+                              })()}
+                            </span>
+                            {!Array.isArray(b.services) && b.optionName ? <span className="ag-option"> · {b.optionName}</span> : null}
+                            {b.currentSession && b.totalSessions ? (
+                              <span className="ag-session-pill">
+                                Seduta {b.currentSession}/{b.totalSessions}
+                              </span>
+                            ) : null}
                             {b.notes ? <span className="ag-notes"> · {b.notes}</span> : null}
                             {b.packageCreditId &&
                               (() => {
@@ -1057,15 +1158,9 @@ export default function AdminAgendaPage() {
                               </span>
                             ) : (
                               <>
-                                <span className="agenda-consent-badge agenda-consent-badge--pending">
-                                  ✍️ Consenso da firmare
-                                </span>
+                                <span className="agenda-consent-badge agenda-consent-badge--pending">✍️ Consenso da firmare</span>
                                 {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
-                                  <button
-                                    type="button"
-                                    className="agenda-consent-btn"
-                                    onClick={() => signConsent(b)}
-                                  >
+                                  <button type="button" className="agenda-consent-btn" onClick={() => signConsent(b)}>
                                     Segna consenso firmato
                                   </button>
                                 )}
@@ -1188,12 +1283,7 @@ export default function AdminAgendaPage() {
                                       >
                                         {isSaving ? <Spinner size="sm" animation="border" /> : "Conferma"}
                                       </button>
-                                      <button
-                                        type="button"
-                                        className="ag-padding-row__cancel"
-                                        disabled={isSaving}
-                                        onClick={() => setPaddingEditing(null)}
-                                      >
+                                      <button type="button" className="ag-padding-row__cancel" disabled={isSaving} onClick={() => setPaddingEditing(null)}>
                                         ✕
                                       </button>
                                     </div>
@@ -1217,6 +1307,42 @@ export default function AdminAgendaPage() {
                       </div>
                     )}
                   </div>
+                  {personalAppts.length > 0 && (
+                    <div className="ag-personal-section">
+                      <div className="ag-personal-section__title">Agenda personale</div>
+                      {personalAppts
+                        .slice()
+                        .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
+                        .map(pa => (
+                          <div
+                            key={pa.id}
+                            className="ag-personal-card"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
+                              setEditingPersonal(pa);
+                              setNewDrawerOpen(true);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setEditingPersonal(pa);
+                                setNewDrawerOpen(true);
+                              }
+                            }}
+                          >
+                            <div className="ag-personal-card__time">{(pa.startTime || "").slice(0, 5)}</div>
+                            <div className="ag-personal-card__body">
+                              <div className="ag-personal-card__title">{pa.title}</div>
+                              <div className="ag-personal-card__meta">
+                                {pa.durationMinutes}′{pa.notes ? ` · ${pa.notes}` : ""}
+                              </div>
+                            </div>
+                            <span className="ag-personal-badge">Personale</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                   <div className="ag-footnote mt-2">Tip: "Modifica" apre la scheda completa. Per i walk-in puoi creare velocemente senza email.</div>
                 </>
               )}
@@ -1287,6 +1413,30 @@ export default function AdminAgendaPage() {
         initial={modalMode === "edit" ? selected : selected?.startTime ? selected : null}
         services={services}
         onSubmit={submitModal}
+      />
+
+      {/* New multi-service / personal appointment drawer.
+          Rendered independently — does not interfere with BookingModal. */}
+      <NewAppointmentDrawer
+        isOpen={newDrawerOpen}
+        onClose={() => {
+          setNewDrawerOpen(false);
+          setEditingPersonal(null);
+          setEditingBooking(null);
+        }}
+        selectedDate={dateISO}
+        services={services}
+        editingPersonal={editingPersonal}
+        editBooking={editingBooking}
+        onPersonalSaved={() => {
+          refresh();
+          if (viewMode === "week") setWeekRefreshKey(k => k + 1);
+        }}
+        onAppointmentSaved={msg => {
+          refresh();
+          if (viewMode === "week") setWeekRefreshKey(k => k + 1);
+          setSuccessMsg(msg || "Appuntamento creato");
+        }}
       />
     </Container>
   );

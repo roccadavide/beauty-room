@@ -2,9 +2,11 @@ package daviderocca.beautyroom.controllers;
 
 import com.stripe.exception.StripeException;
 import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCardDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NextAvailableSlotDTO;
+import daviderocca.beautyroom.services.AvailabilityService;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
@@ -33,6 +35,7 @@ import java.util.UUID;
 public class AdminBookingController {
 
     private final BookingService bookingService;
+    private final AvailabilityService availabilityService;
 
     // LIST PAGINATA
     @GetMapping
@@ -152,6 +155,30 @@ public class AdminBookingController {
         log.info("ADMIN | hard delete bookingId={}", id);
         bookingService.hardDeleteBooking(id, currentUser);
         return ResponseEntity.noContent().build();
+    }
+
+    // MULTI-SERVICE CREATE
+    @PostMapping("/create")
+    public ResponseEntity<BookingResponseDTO> createMultiServiceBooking(
+            @Valid @RequestBody AdminBookingCreateDTO payload,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        log.info("ADMIN | multi-service create | client={}", payload.customerName());
+        BookingResponseDTO created = bookingService.createMultiServiceBooking(payload, currentUser);
+        return ResponseEntity
+                .created(java.net.URI.create("/admin/bookings/" + created.bookingId()))
+                .body(created);
+    }
+
+    // AVAILABLE SLOTS for a given date + duration (admin variant — no auth needed on result,
+    // but the endpoint itself is ROLE_ADMIN secured at class level)
+    @GetMapping("/available-slots")
+    public ResponseEntity<List<String>> getAvailableSlots(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam int durationMinutes
+    ) {
+        log.info("ADMIN | available-slots date={} duration={}min", date, durationMinutes);
+        return ResponseEntity.ok(availabilityService.getAvailableSlots(date, durationMinutes));
     }
 
     // FIX-1: rimborso Stripe per prenotazioni pagate online

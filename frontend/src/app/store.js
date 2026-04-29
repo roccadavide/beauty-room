@@ -25,13 +25,25 @@ const migrations = {
       totalPrice: state.cart?.totalPrice ?? 0,
     },
   }),
+  // v3: add image:null fallback for service items saved before image field was added
+  3: state => ({
+    ...state,
+    cart: {
+      items: (state.cart?.items ?? []).map(item => ({
+        ...item,
+        image: item.image ?? null,
+      })),
+      totalQuantity: state.cart?.totalQuantity ?? 0,
+      totalPrice: state.cart?.totalPrice ?? 0,
+    },
+  }),
 };
 
 const persistConfig = {
   key: "root",
   storage,
   whitelist: ["cart"],
-  version: 2,
+  version: 3,
   migrate: createMigrate(migrations, { debug: false }),
 };
 

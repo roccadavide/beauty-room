@@ -10,6 +10,7 @@ import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.WorkingHours;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.exceptions.BadRequestException;
+import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ClosureRepository;
 import daviderocca.beautyroom.repositories.WorkingHoursRepository;
@@ -32,6 +33,7 @@ public class AvailabilityService {
     private final ClosureRepository closureRepository;
     private final BookingRepository bookingRepository;
     private final ServiceItemService serviceItemService;
+    private final PersonalAppointmentRepository personalAppointmentRepository;
 
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -177,6 +179,69 @@ public class AvailabilityService {
                 toDTO(closureRanges),
                 toDTO(bookingRanges)
         );
+    }
+
+    // ==========================================================================
+    // 4) PUBLIC — available start times for a given duration (admin + public)
+    // ==========================================================================
+
+    /**
+     * Returns all available slot start times (HH:mm) for a given date and duration.
+     * Slots are generated every 30 minutes within working hours.
+     * Both existing bookings (with padding) and personal appointments block slots.
+     *
+     * Used by:
+     *   - GET /admin/bookings/available-slots (admin, ROLE_ADMIN)
+     *   - GET /availabilities/available-slots (public, no auth)
+     */
+    @Transactional(readOnly = true)
+    public List<String> getAvailableSlots(LocalDate date, int durationMinutes) {
+        if (date == null) throw new BadRequestException("Data obbligatoria.");
+        if (durationMinutes < 1) throw new BadRequestException("Durata non valida.");
+
+        WorkingHours wh = workingHoursRepository.findByDayOfWeek(date.getDayOfWeek())
+                .orElse(null);
+        if (wh == null || wh.isClosed()) return List.of();
+
+        List<TimeRange> openRanges = buildOpenRanges(wh, closureRepository.findByDate(date));
+        if (openRanges.isEmpty()) return List.of();
+
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime to   = date.plusDays(1).atStartOfDay();
+
+        // Blocked by existing client bookings
+        List<Booking> bookings = bookingRepository.findBookingsByStatusesIntersectingRange(from, to, BLOCKING_STATUSES);
+        List<TimeRange> blocked = new ArrayList<>(toEffectiveBlockedIntervals(bookings, date));
+
+        // Blocked by Michela's personal appointments
+        personalAppointmentRepository.findByAppointmentDateOrderByStartTime(date)
+                .forEach(pa -> {
+                    LocalTime paEnd = pa.getStartTime().plusMinutes(pa.getDurationMinutes());
+                    if (pa.getStartTime().isBefore(paEnd)) {
+                        blocked.add(new TimeRange(pa.getStartTime(), paEnd));
+                    }
+                });
+
+        // Generate slots every 30 minutes, return only available start times
+        int stepMinutes = 30;
+        List<String> available = new ArrayList<>();
+
+        for (TimeRange window : openRanges) {
+            LocalTime cursor = window.start();
+            while (true) {
+                LocalTime slotEnd = cursor.plusMinutes(durationMinutes);
+                if (slotEnd.isAfter(window.end())) break;
+
+                TimeRange slot = new TimeRange(cursor, slotEnd);
+                boolean free = blocked.stream().noneMatch(b -> b.overlaps(slot));
+                if (free) {
+                    available.add(cursor.format(HHMM));
+                }
+                cursor = cursor.plusMinutes(stepMinutes);
+            }
+        }
+
+        return available;
     }
 
     // ==========================================================================

@@ -1,0 +1,1002 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   NewAppointmentDrawer — prefix: .nad-
+   Design tokens: cream #fffdf8, gold #b8976a, border #e8e0d5
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Z-index layers (documented per task requirement):
+     .nad-backdrop  → 1200  above Bootstrap modals (max 1050) & dropdowns (1000)
+     .nad-drawer    → 1201  one level above backdrop, always rendered on top
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Backdrop ─────────────────────────────────────────────────────────────── */
+.nad-backdrop {
+  position: fixed;
+  inset: 0;                              /* top/right/bottom/left: 0 */
+  background: rgba(40, 30, 20, 0.45);
+  z-index: 1200;                         /* see z-index table above */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+
+.nad-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Drawer — shared base ─────────────────────────────────────────────────── */
+.nad-drawer {
+  position: fixed;
+  z-index: 1201;                         /* see z-index table above */
+  background: #fffdf8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+
+  /* warm shadow so the panel lifts off the backdrop */
+  box-shadow: -4px 0 32px rgba(90, 60, 20, 0.18);
+
+  /* smooth slide transition — transform drives both desktop and mobile */
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Desktop: right-side drawer (>768px) ─────────────────────────────────── */
+@media (min-width: 769px) {
+  .nad-drawer {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 480px;
+    border-radius: 0 0 0 0; /* flush against right edge */
+    transform: translateX(100%);         /* hidden: off-screen to the right */
+  }
+
+  .nad-drawer.is-open {
+    transform: translateX(0);
+  }
+}
+
+/* ── Mobile: bottom sheet (≤768px) ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  .nad-drawer {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0;       /* rounded top corners, flush bottom */
+    box-shadow: 0 -4px 32px rgba(90, 60, 20, 0.18);
+    transform: translateY(100%);         /* hidden: off-screen below viewport */
+  }
+
+  .nad-drawer.is-open {
+    transform: translateY(0);
+  }
+}
+
+/* ── Header: tabs row + close button ─────────────────────────────────────── */
+.nad-header {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  border-bottom: 1px solid #e8e0d5;
+  flex-shrink: 0;
+  padding: 0 16px 0 0;                  /* right padding to give close btn room */
+}
+
+/* ── Tabs container ───────────────────────────────────────────────────────── */
+.nad-tabs {
+  display: flex;
+  gap: 0;
+  flex: 1;
+}
+
+/* ── Individual tab button ────────────────────────────────────────────────── */
+.nad-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 14px 20px 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6c6c6c;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease;
+  white-space: nowrap;
+  outline: none;
+}
+
+.nad-tab:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: -2px;
+  border-radius: 4px 4px 0 0;
+}
+
+/* Active tab: gold accent */
+.nad-tab.is-active {
+  color: #b8976a;
+  font-weight: 600;
+  border-bottom-color: #b8976a;
+}
+
+.nad-tab:not(.is-active):hover {
+  color: #3a2e22;
+}
+
+/* ── Close button ─────────────────────────────────────────────────────────── */
+.nad-close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: #9a8878;
+  cursor: pointer;
+  padding: 12px 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+  outline: none;
+}
+
+.nad-close:hover {
+  color: #3a2e22;
+}
+
+.nad-close:focus-visible {
+  outline: 2px solid #b8976a;
+  border-radius: 4px;
+}
+
+/* ── Content area ─────────────────────────────────────────────────────────── */
+.nad-content {
+  flex: 1;
+  padding: 24px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ── Placeholder (tab content shell — replaced in next prompts) ───────────── */
+.nad-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 200px;
+  color: #a89880;
+  text-align: center;
+}
+
+.nad-placeholder__icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.nad-placeholder__text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #a89880;
+}
+
+.nad-placeholder__date {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #b8a896;
+  background: #f5ede0;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+/* ── Personal appointment form ────────────────────────────────────────────── */
+.nad-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.nad-form__row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nad-form__row--2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.nad-form__label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5a4030;
+  letter-spacing: 0.01em;
+}
+
+.nad-form__input,
+.nad-form__textarea {
+  width: 100%;
+  border: 1px solid #e0d5c8;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  color: #3a2e22;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  font-family: inherit;
+}
+
+.nad-form__input:focus,
+.nad-form__textarea:focus {
+  border-color: #b8976a;
+  box-shadow: 0 0 0 3px rgba(184, 151, 106, 0.15);
+}
+
+.nad-form__textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.nad-form__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.nad-chip {
+  background: #f5ede0;
+  border: 1px solid #e0d5c8;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #5a4030;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  outline: none;
+}
+
+.nad-chip.is-active {
+  background: #b8976a;
+  border-color: #b8976a;
+  color: #fff;
+}
+
+.nad-chip:not(.is-active):hover {
+  background: #ede0ce;
+  border-color: #c9a97a;
+}
+
+.nad-chip:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+.nad-form__input--small {
+  width: 68px;
+  text-align: center;
+  flex-shrink: 0;
+  padding: 5px 8px;
+}
+
+.nad-form__error {
+  background: #fff0f0;
+  border: 1px solid #f5c6c6;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: #c0392b;
+}
+
+.nad-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+/* ── Buttons inside drawer ────────────────────────────────────────────────── */
+.nad-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 9px 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  font-family: inherit;
+  outline: none;
+}
+
+.nad-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nad-btn:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+.nad-btn--primary {
+  background: #b8976a;
+  color: #fff;
+}
+
+.nad-btn--primary:not(:disabled):hover {
+  background: #a0834f;
+}
+
+.nad-btn--danger {
+  background: #f5e9e9;
+  color: #c0392b;
+  border: 1px solid #f5c6c6;
+}
+
+.nad-btn--danger:not(:disabled):hover {
+  background: #fad8d8;
+}
+
+/* ── Form sections ────────────────────────────────────────────────────────── */
+.nad-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nad-section__title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a8878;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0e8df;
+  margin-bottom: 0;
+}
+
+/* ── Field error ─────────────────────────────────────────────────────────── */
+.nad-field-error {
+  font-size: 0.78rem;
+  color: #c0392b;
+  margin-top: 3px;
+}
+
+/* ── Help text ───────────────────────────────────────────────────────────── */
+.nad-help {
+  font-size: 0.78rem;
+  color: #9a8878;
+  font-style: italic;
+}
+
+.nad-help-inline {
+  font-size: 0.78rem;
+  color: #b8976a;
+  font-weight: 600;
+}
+
+/* ── Walk-in toggle row ──────────────────────────────────────────────────── */
+.nad-walkin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nad-switch-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #7a6855;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nad-switch {
+  appearance: none;
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: #e0d5c8;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+  outline: none;
+}
+
+.nad-switch:checked {
+  background: #b8976a;
+}
+
+.nad-switch::before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.nad-switch:checked::before {
+  transform: translateX(16px);
+}
+
+.nad-switch:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+/* ── Package alert ───────────────────────────────────────────────────────── */
+.nad-pkg-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nad-pkg-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-left: 3px solid #b8976a;
+  background: #fdf8f0;
+  padding: 10px 12px;
+  border-radius: 0 8px 8px 0;
+}
+
+.nad-pkg-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.nad-pkg-card__name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #3a2e22;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nad-pkg-card__sessions {
+  font-size: 0.76rem;
+  color: #9a7a50;
+  margin-top: 2px;
+}
+
+.nad-pkg-card__btn {
+  flex-shrink: 0;
+  background: #b8976a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.nad-pkg-card__btn:hover {
+  background: #a0834f;
+}
+
+.nad-pkg-selected-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fdf8f0;
+  border: 1px solid #c9a97a;
+  color: #7a5c30;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.nad-pkg-selected-pill__clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9a7a50;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.nad-pkg-selected-pill__clear:hover {
+  color: #c0392b;
+}
+
+/* ── Service mode toggle ─────────────────────────────────────────────────── */
+.nad-service-toggle {
+  display: flex;
+  border: 1px solid #e0d5c8;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.nad-service-toggle__btn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: #6c6c6c;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  font-family: inherit;
+  outline: none;
+}
+
+.nad-service-toggle__btn.is-active {
+  background: #b8976a;
+  color: #fff;
+  font-weight: 600;
+}
+
+.nad-service-toggle__btn:not(.is-active):hover {
+  background: #f5ede0;
+}
+
+.nad-service-toggle__btn:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: -2px;
+}
+
+.nad-service-locked {
+  background: #f8f4ee;
+  border: 1px solid #e8d8c0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.86rem;
+  color: #7a6855;
+}
+
+/* ── Sessions row ────────────────────────────────────────────────────────── */
+.nad-sessions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nad-sessions-label {
+  font-size: 0.86rem;
+  color: #5a4030;
+}
+
+.nad-sessions-input {
+  width: 68px !important;
+  text-align: center;
+  padding: 7px 6px !important;
+}
+
+/* ── Available slots ─────────────────────────────────────────────────────── */
+.nad-slots-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.nad-slots-refresh {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9a8878;
+  font-size: 1rem;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.nad-slots-refresh:hover {
+  color: #b8976a;
+}
+
+.nad-slots-refresh:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.nad-slots-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.nad-slot {
+  background: #f5ede0;
+  border: 1px solid #e0d5c8;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5a4030;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  outline: none;
+  font-family: "Montserrat", sans-serif;
+}
+
+.nad-slot:hover {
+  background: #ede0ce;
+  border-color: #c9a97a;
+}
+
+.nad-slot.is-selected {
+  background: #b8976a;
+  border-color: #b8976a;
+  color: #fff;
+}
+
+.nad-slot:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+/* ── Multi-service builder ────────────────────────────────────────────────── */
+.nad-svc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nad-svc-card {
+  border: 1px solid #e0d5c8;
+  border-radius: 10px;
+  background: #fdfaf6;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.nad-svc-card.has-error {
+  border-color: #e8b0a8;
+}
+
+.nad-svc-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: #f8f2ea;
+  border-bottom: 1px solid #f0e8df;
+  flex-wrap: wrap;
+}
+
+.nad-svc-card__index {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9a8878;
+  flex-shrink: 0;
+}
+
+.nad-svc-card__pills {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.nad-svc-pill {
+  background: none;
+  border: 1px solid #e0d5c8;
+  border-radius: 16px;
+  padding: 3px 11px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #7a6855;
+  cursor: pointer;
+  transition: background 0.13s ease, border-color 0.13s ease, color 0.13s ease;
+  font-family: inherit;
+  outline: none;
+  white-space: nowrap;
+}
+
+.nad-svc-pill.is-active {
+  background: #b8976a;
+  border-color: #b8976a;
+  color: #fff;
+  font-weight: 600;
+}
+
+.nad-svc-pill:not(.is-active):hover {
+  background: #f0e4d2;
+  border-color: #c9a97a;
+}
+
+.nad-svc-pill:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+.nad-svc-card__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #c0392b;
+  font-size: 0.82rem;
+  padding: 2px 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.13s ease;
+}
+
+.nad-svc-card__remove:hover {
+  opacity: 1;
+}
+
+.nad-svc-card__body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nad-svc-card__footer {
+  padding: 6px 12px 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nad-svc-card__duration {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #b8976a;
+  background: #fdf5e8;
+  border: 1px solid #e8d5b0;
+  border-radius: 12px;
+  padding: 2px 10px;
+}
+
+.nad-svc-card__error {
+  font-size: 0.76rem;
+  color: #c0392b;
+}
+
+/* ── Package list inside service card ─────────────────────────────────────── */
+.nad-pkg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nad-pkg-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e0d5c8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.13s ease, background 0.13s ease;
+  outline: none;
+}
+
+.nad-pkg-item.is-selected {
+  border-color: #b8976a;
+  background: #fdf8f0;
+}
+
+.nad-pkg-item:not(.is-selected):hover {
+  border-color: #c9a97a;
+  background: #fefaf4;
+}
+
+.nad-pkg-item:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+.nad-pkg-item__name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3a2e22;
+}
+
+.nad-pkg-item__sessions {
+  font-size: 0.75rem;
+  color: #9a7a50;
+  flex-shrink: 0;
+}
+
+/* ── Active package card actions ─────────────────────────────────────────── */
+.nad-pkg-item__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nad-pkg-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.nad-pkg-action-btn {
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  color: #6c6c6c;
+}
+
+.nad-pkg-action-btn:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+.nad-pkg-delete-btn:hover {
+  color: rgba(220, 50, 50, 0.7);
+}
+
+/* ── Package sub-sections ─────────────────────────────────────────────────── */
+.nad-pkg-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nad-pkg-section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a7a50;
+  margin-bottom: 4px;
+}
+
+.nad-pkg-separator {
+  height: 1px;
+  background: #e8e0d5;
+  margin: 4px 0;
+}
+
+/* ── Add service button ───────────────────────────────────────────────────── */
+.nad-add-service {
+  background: none;
+  border: 1px dashed #c9a97a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #b8976a;
+  cursor: pointer;
+  transition: background 0.13s ease, border-color 0.13s ease;
+  font-family: inherit;
+  outline: none;
+  align-self: flex-start;
+}
+
+.nad-add-service:hover {
+  background: #fdf5e8;
+  border-color: #b8976a;
+}
+
+.nad-add-service:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+/* ── Total duration summary ───────────────────────────────────────────────── */
+.nad-duration-total {
+  font-size: 0.82rem;
+  color: #7a6855;
+  background: #f8f2ea;
+  border: 1px solid #e8d8c0;
+  border-radius: 8px;
+  padding: 7px 12px;
+}
+
+.nad-duration-total strong {
+  color: #5a4030;
+}
+
+/* ── Package mode toggle (Da catalogo / Personalizzato) ──────────────────── */
+.nad-pkg-mode-toggle {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.nad-pkg-mode-pill {
+  background: none;
+  border: 1px solid #e0d5c8;
+  border-radius: 16px;
+  padding: 4px 14px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #7a6855;
+  cursor: pointer;
+  transition: background 0.13s ease, border-color 0.13s ease, color 0.13s ease;
+  font-family: inherit;
+  outline: none;
+  white-space: nowrap;
+}
+
+.nad-pkg-mode-pill.is-active {
+  background: #b8976a;
+  border-color: #b8976a;
+  color: #fff;
+  font-weight: 600;
+}
+
+.nad-pkg-mode-pill:not(.is-active):hover {
+  background: #f0e4d2;
+  border-color: #c9a97a;
+}
+
+.nad-pkg-mode-pill:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+/* ── Service options block ────────────────────────────────────────────────── */
+.nad-svc-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid #f0e8df;
+}
+
+.nad-svc-options__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nad-svc-options__group-label {
+  font-size: 0.71rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b8a896;
+  padding: 2px 0;
+}
+
+/* ── Autofill note for sedute section ────────────────────────────────────── */
+.nad-sessions-autofilled-note {
+  color: #9a7a50;
+  background: #fdf8f0;
+  border: 1px solid #e8d5b0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-style: normal;
+  font-size: 0.78rem;
+}

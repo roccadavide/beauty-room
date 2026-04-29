@@ -37,6 +37,7 @@ body.modal-open {
 
 .ag-page {
   width: 100%;
+  overflow-x: hidden;
   color: var(--ag-text);
   background:
     radial-gradient(900px 380px at 20% -10%, rgba(139, 94, 60, 0.1), transparent 55%),
@@ -156,6 +157,41 @@ body.modal-open {
   min-height: 2.35rem;
 }
 
+/* FIX 7: left-column overflow — wrap nav between 992px and 1399px.
+   At these widths the left Col lg=4 is ~315–451px, too narrow for
+   buttons (≈288px) + gap + date-field (≈190px) on a single row. */
+@media (min-width: 992px) and (max-width: 1399px) {
+  .ag-toolbar-nav {
+    flex-wrap: wrap;
+  }
+
+  .ag-toolbar-nav__btns {
+    flex-wrap: wrap;
+  }
+
+  /* Date field takes its own full row when nav wraps */
+  .ag-date-wrap {
+    flex: 1 1 100%;
+    max-width: 100%;
+    margin-left: 0;
+  }
+
+  /* Slightly narrower chips so 7 fit closer together at ~315px cols */
+  .ag-daychip {
+    width: 46px;
+  }
+}
+
+/* FIX 8: "Nuovo" button in right column — hidden on large screens, shown on tablet */
+.ag-new-btn-tablet {
+  display: none;
+}
+@media (max-width: 1200px) {
+  .ag-new-btn-tablet {
+    display: inline-flex;
+  }
+}
+
 @media (max-width: 575px) {
   .ag-toolbar-nav {
     flex-wrap: wrap;
@@ -256,6 +292,9 @@ body.modal-open {
   overflow: auto;
   padding: 2px;
   scrollbar-width: none;
+  /* Allow shrinking so overflow:auto actually kicks in at narrow column widths */
+  flex: 1 1 0;
+  min-width: 0;
 }
 .ag-strip__days::-webkit-scrollbar {
   display: none;
@@ -321,6 +360,8 @@ body.modal-open {
   display: grid;
   grid-template-columns: 56px 1fr;
   gap: 10px;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 .ag-hour {
   position: absolute;
@@ -457,6 +498,102 @@ body.modal-open {
 }
 .ag-dot--booking {
   background: rgba(139, 94, 60, 0.75);
+}
+.ag-dot--personal {
+  background: rgba(155, 89, 182, 0.75);
+}
+
+/* ── Personal appointment block in timeline ───────────────────────────────── */
+.ag-tl-personal {
+  background: rgba(155, 89, 182, 0.13);
+  border-left: 3px solid #9b59b6;
+  border-radius: 6px 14px 14px 6px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+.ag-tl-personal:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 10px rgba(155, 89, 182, 0.22);
+}
+
+/* ── Personal appointment card in day list ────────────────────────────────── */
+.ag-personal-section {
+  margin-top: 12px;
+  border-top: 1px dashed #e8e0d5;
+  padding-top: 12px;
+}
+.ag-personal-section__title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9b59b6;
+  margin-bottom: 8px;
+}
+.ag-personal-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #faf5ff;
+  border-left: 3px solid #9b59b6;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.ag-personal-card:hover {
+  background: #f3e8ff;
+}
+.ag-personal-card__time {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #9b59b6;
+  white-space: nowrap;
+  min-width: 40px;
+  padding-top: 1px;
+}
+.ag-personal-card__body {
+  flex: 1;
+  min-width: 0;
+}
+.ag-personal-card__title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #3a2e22;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-personal-card__meta {
+  font-size: 0.76rem;
+  color: #7e6b8f;
+  margin-top: 1px;
+}
+.ag-personal-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #9b59b6;
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ── Weekly calendar personal blocks ─────────────────────────────────────── */
+.ag-week-block--personal {
+  background: rgba(155, 89, 182, 0.13);
+  border-left: 3px solid #9b59b6;
+  border-radius: 4px 6px 6px 4px;
+  cursor: pointer;
+}
+.ag-week-block--personal:hover {
+  filter: brightness(1.1);
 }
 
 /* Lista appuntamenti */
@@ -1375,6 +1512,20 @@ body.modal-open {
 .ag-pkg-indicator--expired {
   background: rgba(248, 113, 113, 0.15);
   color: #f87171;
+}
+
+/* ── Session pill on booking cards ────────────────────────────────────────── */
+.ag-session-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(184, 151, 106, 0.12);
+  color: #9a7a50;
+  border: 1px solid rgba(184, 151, 106, 0.3);
+  border-radius: 10px;
+  padding: 1px 8px;
+  margin-left: 4px;
 }
 
 .ag-confirm-overlay {

@@ -102,6 +102,7 @@ public class SecConfig {
                         .requestMatchers(HttpMethod.POST, "/checkout/create-session").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session-guest").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-session-multi").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/checkout/bookings/create-pay-in-store").authenticated()
 // FIX-8: booking-summary rimane permitAll per non rompere il flusso guest post-pagamento.
                                 // La sicurezza è enforcement a livello applicativo nel controller:
@@ -121,6 +122,7 @@ public class SecConfig {
                                 "/service-items/**",
                                 "/results/**",
                                 "/availabilities/services/**",
+                                "/availabilities/available-slots",
                                 "/categories/**",
                                 "/promotions/**"
                         ).permitAll()

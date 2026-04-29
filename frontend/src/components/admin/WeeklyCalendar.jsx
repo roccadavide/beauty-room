@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "react-bootstrap";
-import { getBookingsRange } from "../../api/modules/adminAgenda.api";
+import { getBookingsRange, getPersonalAppointmentsWeek } from "../../api/modules/adminAgenda.api";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -31,6 +31,7 @@ const GRID_START_MIN = GRID_START_HOUR * 60;
 export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick, onSlotClick, onPrevWeek, onNextWeek, refreshKey = 0 }) {
   const gridRef = useRef(null);
   const [bookings, setBookings] = useState([]);
+  const [personalAppts, setPersonalAppts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -65,11 +66,16 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
     try {
       const from = toISODate(weekStart);
       const to = toISODate(addDays(weekStart, 7));
-      const data = await getBookingsRange(from, to);
-      setBookings(Array.isArray(data) ? data : []);
+      const [bookingData, paData] = await Promise.all([
+        getBookingsRange(from, to),
+        getPersonalAppointmentsWeek(from).catch(() => []),
+      ]);
+      setBookings(Array.isArray(bookingData) ? bookingData : []);
+      setPersonalAppts(Array.isArray(paData) ? paData : []);
     } catch (e) {
       setError(e.message || "Errore caricamento prenotazioni.");
       setBookings([]);
+      setPersonalAppts([]);
     } finally {
       setLoading(false);
     }
@@ -91,6 +97,18 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
     map.forEach(arr => arr.sort((a, b) => new Date(a.startTime) - new Date(b.startTime)));
     return map;
   }, [bookings, weekDays]);
+
+  const personalByDate = useMemo(() => {
+    const map = new Map();
+    weekDays.forEach(({ iso }) => map.set(iso, []));
+    personalAppts.forEach(pa => {
+      const iso = pa.appointmentDate;
+      if (iso && map.has(iso)) {
+        map.get(iso).push(pa);
+      }
+    });
+    return map;
+  }, [personalAppts, weekDays]);
 
   const [nowLine, setNowLine] = useState(null);
 
@@ -304,6 +322,33 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                           {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </div>
                       </>
+                    )}
+                  </div>
+                );
+              })}
+              {(personalByDate.get(d.iso) || []).map(pa => {
+                const startStr = (pa.startTime || "").slice(0, 5);
+                const [sh, sm] = startStr.split(":").map(Number);
+                const startMin = (sh || 0) * 60 + (sm || 0);
+                const endMin = startMin + (pa.durationMinutes || 30);
+                if (endMin <= GRID_START_MIN || startMin >= GRID_END_HOUR * 60) return null;
+                const topPx = Math.max(startMin, GRID_START_MIN) - GRID_START_MIN;
+                const durationMin = Math.max(15, Math.min(endMin, GRID_END_HOUR * 60) - Math.max(startMin, GRID_START_MIN));
+                const heightPx = Math.max((durationMin / 60) * HOUR_HEIGHT, 20);
+                return (
+                  <div
+                    key={pa.id}
+                    className="ag-week-block ag-week-block--personal"
+                    style={{ top: topPx, height: heightPx, minHeight: 20 }}
+                    title={pa.title}
+                    role="button"
+                    tabIndex={0}
+                    onClick={e => e.stopPropagation()}
+                    onKeyDown={e => e.key === "Enter" && e.stopPropagation()}
+                  >
+                    <div className="ag-week-block__name">{pa.title}</div>
+                    {heightPx >= 40 && (
+                      <div className="ag-week-block__time">{startStr}</div>
                     )}
                   </div>
                 );

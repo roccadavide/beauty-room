@@ -6,7 +6,7 @@
   background: #fffdf8;
 }
 
-/* Welcome header */
+/* ── Welcome header ───────────────────────────────────────────────────────── */
 .ma-welcome {
   display: flex;
   align-items: center;
@@ -86,7 +86,7 @@
   margin-top: 0.2rem;
 }
 
-/* Tabs */
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
 .ma-tabs {
   display: flex;
   gap: 0;
@@ -120,10 +120,22 @@
   font-weight: 600;
 }
 
-/* Section */
+/* ── Section ──────────────────────────────────────────────────────────────── */
 .ma-section { padding-bottom: 2rem; }
 
-/* Order cards */
+/* ── Error message ────────────────────────────────────────────────────────── */
+.ma-error-msg {
+  background: #fff5f5;
+  border: 1px solid rgba(192, 57, 43, 0.2);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  font-size: 0.88rem;
+  color: #c0392b;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+/* ── Order cards ──────────────────────────────────────────────────────────── */
 .ma-order-card {
   background: #fff;
   border-radius: 16px;
@@ -141,13 +153,119 @@
   transform: translateY(-1px);
 }
 
-/* Card prenotazione */
+/* ── Booking cards ────────────────────────────────────────────────────────── */
 .ma-booking-card {
-  background: var(--warm-cream, #fffdf8);
+  background: #fffdf8;
   border: 1.5px solid rgba(184, 151, 106, 0.18);
-  border-radius: 16px;
+  border-radius: 20px;
+  border-left-width: 4px;
+  border-left-color: rgba(184, 151, 106, 0.15);
   padding: 18px 20px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  transition: box-shadow 0.2s ease;
+}
+
+/* Upcoming appointment: gold left accent */
+.ma-booking-card--upcoming {
+  border-left-color: #b8976a;
+  box-shadow: 0 2px 14px rgba(184, 151, 106, 0.1);
+}
+
+.ma-booking-card--upcoming:hover {
+  box-shadow: 0 6px 22px rgba(184, 151, 106, 0.16);
+}
+
+/* Past / completed / cancelled: de-emphasized */
+.ma-booking-card--past {
+  opacity: 0.72;
+  border-left-color: #e0d5c8;
+}
+
+.ma-booking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.ma-booking-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ma-booking-service {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #2a1b15;
+  margin: 0 0 4px;
+  line-height: 1.35;
+}
+
+.ma-booking-service em {
+  font-style: italic;
+  color: #7a6855;
+}
+
+.ma-booking-duration {
+  color: #b8976a;
+  font-weight: 600;
+}
+
+.ma-booking-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* "Aggiunto da Michela" badge — subtle gold */
+.ma-linked-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #8c6d3f;
+  background: rgba(184, 151, 106, 0.12);
+  border: 1px solid rgba(184, 151, 106, 0.28);
+  border-radius: 20px;
+  padding: 0.18rem 0.6rem;
+  white-space: nowrap;
+}
+
+/* Session pill + package pill row */
+.ma-booking-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ma-session-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #5a4030;
+  background: rgba(184, 151, 106, 0.1);
+  border: 1px solid rgba(184, 151, 106, 0.22);
+  border-radius: 20px;
+  padding: 0.2rem 0.65rem;
+}
+
+.ma-pkg-pill {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #7a6040;
+  background: rgba(140, 109, 63, 0.08);
+  border: 1px solid rgba(140, 109, 63, 0.18);
+  border-radius: 20px;
+  padding: 0.2rem 0.65rem;
+}
+
+.ma-booking-notes {
+  font-size: 0.78rem;
+  color: #b8976a;
+  margin: 6px 0 0;
 }
 
 .ma-booking-actions {
@@ -158,7 +276,32 @@
   flex-wrap: wrap;
 }
 
-/* Bottone calendario */
+/* ── Shared row / label styles ────────────────────────────────────────────── */
+.ma-order-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ma-order-num   { font-weight: 600; color: #2a1b15; font-size: 0.9rem; margin: 0 0 0.15rem; }
+.ma-order-date  { font-size: 0.78rem; color: #9e8272; margin: 0; }
+.ma-order-total { font-family: "SaolDisplay-Light", serif; font-size: 1.2rem; color: #2a1b15; }
+.ma-order-items-preview { font-size: 0.78rem; color: #b8976a; margin: 0.5rem 0 0; }
+
+/* ── Status pill (shared) ─────────────────────────────────────────────────── */
+.ma-status-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-radius: 20px;
+  padding: 0.22rem 0.65rem;
+  white-space: nowrap;
+}
+
+/* ── Calendar / cancel buttons ────────────────────────────────────────────── */
 .ma-cal-btn {
   font-family: "Montserrat", sans-serif;
   font-size: 11px;
@@ -168,17 +311,16 @@
   border-radius: 20px;
   border: 1.5px solid rgba(184, 151, 106, 0.4);
   background: transparent;
-  color: var(--card-gold, #b8976a);
+  color: #b8976a;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .ma-cal-btn:hover {
   background: rgba(184, 151, 106, 0.1);
-  border-color: var(--card-gold, #b8976a);
+  border-color: #b8976a;
 }
 
-/* Bottone/nota cancella */
 .ma-cancel-btn {
   font-family: "Montserrat", sans-serif;
   font-size: 11px;
@@ -200,33 +342,11 @@
 
 .ma-cancel-note {
   font-size: 11px;
-  color: var(--color-text-secondary, #9c8880);
+  color: #9c8880;
   font-style: italic;
 }
 
-.ma-order-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.ma-order-num { font-weight: 600; color: #2a1b15; font-size: 0.9rem; margin: 0 0 0.15rem; }
-.ma-order-date { font-size: 0.78rem; color: #9e8272; margin: 0; }
-.ma-order-total { font-family: "SaolDisplay-Light", serif; font-size: 1.2rem; color: #2a1b15; }
-.ma-order-items-preview { font-size: 0.78rem; color: #b8976a; margin: 0.5rem 0 0; }
-
-.ma-status-pill {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  border-radius: 20px;
-  padding: 0.22rem 0.65rem;
-}
-
-/* Empty */
+/* ── Empty state ──────────────────────────────────────────────────────────── */
 .ma-empty { text-align: center; padding: 3rem 1rem; color: #9e8272; }
 .ma-empty p { margin-bottom: 1.5rem; }
 
@@ -244,18 +364,24 @@
 
 .ma-cta-btn:hover { color: #8c6d3f; }
 
-/* ── Package cards ── */
+/* ── Package cards ────────────────────────────────────────────────────────── */
 .ma-pkg-card {
-  background: var(--warm-cream, #fffdf8);
+  background: #fffdf8;
   border: 1.5px solid rgba(184, 151, 106, 0.18);
-  border-radius: 16px;
+  border-radius: 20px;
   padding: 20px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   transition: box-shadow 0.18s ease;
 }
+
 .ma-pkg-card:hover {
   box-shadow: 0 4px 18px rgba(184, 151, 106, 0.13);
 }
+
+.ma-pkg-card--exhausted {
+  opacity: 0.75;
+}
+
 .ma-pkg-header {
   display: flex;
   align-items: flex-start;
@@ -263,6 +389,7 @@
   gap: 12px;
   margin-bottom: 14px;
 }
+
 .ma-pkg-name {
   font-family: "Petrona", serif;
   font-size: 1rem;
@@ -270,40 +397,47 @@
   color: #2e2118;
   margin: 0 0 4px;
 }
+
 .ma-pkg-desc {
   font-size: 0.82rem;
   color: #9c8880;
   margin: 0;
   line-height: 1.4;
 }
-.ma-pkg-progress-wrap {
-  margin-bottom: 14px;
-}
+
+/* Progress bar — accessible */
+.ma-pkg-progress-wrap { margin-bottom: 14px; }
+
 .ma-pkg-progress-bar {
   height: 6px;
-  background: rgba(184, 151, 106, 0.15);
-  border-radius: 99px;
+  background: #e8e0d5;
+  border-radius: 3px;
   overflow: hidden;
   margin-bottom: 6px;
 }
+
 .ma-pkg-progress-fill {
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    var(--card-gold, #b8976a),
-    var(--card-gold-deep, #8c6d3f)
-  );
-  border-radius: 99px;
+  background: linear-gradient(90deg, #b8976a, #8c6d3f);
+  border-radius: 3px;
   transition: width 0.4s ease;
 }
+
 .ma-pkg-progress-label {
   font-size: 0.78rem;
   color: #9c8880;
 }
+
 .ma-pkg-progress-label strong {
-  color: var(--card-gold-deep, #8c6d3f);
+  color: #8c6d3f;
   font-weight: 600;
 }
+
+.ma-pkg-exhausted {
+  color: #9c8880;
+  font-weight: 600;
+}
+
 .ma-pkg-footer {
   display: flex;
   align-items: center;
@@ -312,13 +446,17 @@
   padding-top: 10px;
   border-top: 1px solid rgba(184, 151, 106, 0.12);
 }
+
 .ma-pkg-date {
   font-size: 0.78rem;
   color: #b0a09a;
 }
 
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
 @media (max-width: 576px) {
   .ma-welcome { flex-direction: column; text-align: center; }
   .ma-stats { width: 100%; justify-content: center; }
   .ma-welcome-avatar { margin: 0 auto; }
+  .ma-booking-header { flex-direction: column; }
+  .ma-booking-badges { flex-direction: row; }
 }

@@ -45,12 +45,19 @@ export const BOOKING_ENDPOINTS = {
 // ---- BOOKINGS (ADMIN) ----
 export const BOOKING_ENDPOINTS_ADMIN = {
   BASE: "/admin/bookings",
-  CREATE_MANUAL: "/admin/bookings/manual", // POST /admin/bookings/manual
+  CREATE_MANUAL: "/admin/bookings/manual",
+  CREATE_MULTI: "/admin/bookings/create",
   BY_ID: id => `/admin/bookings/${id}`,
-  BY_EMAIL: "/admin/bookings/by-email", // params: { email }
-  DAY: "/admin/bookings/day", // params: { date }
-  RANGE: "/admin/bookings/range", // params: { from, to }
-  STATUS: id => `/admin/bookings/${id}/status`, // params: { status }
+  BY_EMAIL: "/admin/bookings/by-email",
+  DAY: "/admin/bookings/day",
+  RANGE: "/admin/bookings/range",
+  STATUS: id => `/admin/bookings/${id}/status`,
+  AVAILABLE_SLOTS: "/admin/bookings/available-slots",
+};
+
+// ---- PACKAGE ASSIGNMENTS (ADMIN) ----
+export const PACKAGE_ASSIGNMENT_ENDPOINTS = {
+  CLIENT: "/admin/package-assignments/client",
 };
 
 // ---- ORDERS ----
@@ -85,10 +92,16 @@ export const STRIPE_ENDPOINTS = {
   CHECKOUT_GUEST: "/checkout/create-session-guest",
   CHECKOUT_BOOKING: "/checkout/bookings/create-session",
   CHECKOUT_BOOKING_GUEST: "/checkout/bookings/create-session-guest",
+  CHECKOUT_BOOKING_MULTI: "/checkout/bookings/create-session-multi",
   CHECKOUT_BOOKING_PAY_IN_STORE: "/checkout/bookings/create-pay-in-store",
   ORDER_SUMMARY: "/checkout/order-summary",
   BOOKING_SUMMARY: "/checkout/bookings/booking-summary",
   WEBHOOK: "/stripe/webhook",
+};
+
+// ---- AVAILABILITIES (PUBLIC SLOTS) ----
+export const PUBLIC_AVAIL_ENDPOINTS = {
+  AVAILABLE_SLOTS: "/availabilities/available-slots",
 };
 
 // ---- APP SETTINGS ----
@@ -153,6 +166,13 @@ export const CUSTOMER_ENDPOINTS = {
 
 export const REPORT_ENDPOINTS = {
   REPORT: "/admin/report",
+};
+
+// ---- PERSONAL APPOINTMENTS ----
+export const PERSONAL_APPT_ENDPOINTS = {
+  BASE: "/admin/personal-appointments",
+  BY_ID: id => `/admin/personal-appointments/${id}`,
+  WEEK: "/admin/personal-appointments/week",
 };
 
 // ---- WISHLIST ----

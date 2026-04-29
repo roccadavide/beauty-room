@@ -6,6 +6,7 @@ import CheckoutModal from "./CheckoutModal";
 import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/modules/stripe.api";
 import { removeFromCart, updateCartQuantity } from "./slices/cart.slice";
 import SEO from "../../components/common/SEO";
+import MultiServiceBookingModal from "../bookings/MultiServiceBookingModal";
 
 const CartPage = () => {
   const items = useSelector(state => state.cart?.items ?? []);
@@ -17,7 +18,11 @@ const CartPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const hasNonProducts = items.some(i => i.type !== "product");
+  const serviceItems = items.filter(i => i.type === "service");
+  const productItems = items.filter(i => i.type === "product");
+  const hasServices = serviceItems.length > 0;
+  const hasProducts = productItems.length > 0;
+  const [showMultiBooking, setShowMultiBooking] = useState(false);
 
   const handleStripeCheckoutAuth = async () => {
     try {
@@ -28,10 +33,7 @@ const CartPage = () => {
         customerEmail: user?.email || "",
         customerPhone: user?.phone || "",
         pickupNote: note,
-        // TODO: endpoint misto pacchetti — for now only product items go to Stripe
-        items: items
-          .filter(i => i.type === "product")
-          .map(i => ({ productId: i.productId, quantity: i.quantity })),
+        items: productItems.map(i => ({ productId: i.productId, quantity: i.quantity })),
       };
       const { url } = await createCheckoutSession(orderData);
       window.location.href = url;
@@ -54,7 +56,7 @@ const CartPage = () => {
     }
   };
 
-  const handleProceed = () => {
+  const handleProceedProducts = () => {
     if (accessToken) handleStripeCheckoutAuth();
     else setShowCheckout(true);
   };
@@ -97,7 +99,7 @@ const CartPage = () => {
           <h1 className="cart-title">Carrello</h1>
         </div>
 
-        <Row className="g-5">
+        <Row className="g-5 align-items-start">
           <Col lg={7} xl={8}>
             <div className="cart-items-list">
               {items.map((item, idx) => (
@@ -170,33 +172,66 @@ const CartPage = () => {
 
           <Col lg={5} xl={4}>
             <div className="cart-summary">
-              <h3 className="cart-summary-title">Riepilogo ordine</h3>
-              <div className="cart-summary-rows">
-                {items.map(item => (
-                  <div key={item.id} className="cart-summary-row">
-                    <span>{item.name} ×{item.quantity}</span>
-                    <span>€ {(item.price * item.quantity).toFixed(2)}</span>
+              <h3 className="cart-summary-title">Il tuo ordine</h3>
+
+              {/* Sezione Trattamenti */}
+              {hasServices && (
+                <>
+                  <p className="cart-summary-section-label">Trattamenti</p>
+                  <div className="cart-summary-rows">
+                    {serviceItems.map(item => (
+                      <div key={item.id} className="cart-summary-row">
+                        <span>{item.name}</span>
+                        <span>€ {item.price.toFixed(2)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
+
+              {/* Sezione Prodotti */}
+              {hasProducts && (
+                <>
+                  {hasServices && <div className="cart-summary-divider" />}
+                  <p className="cart-summary-section-label">Prodotti</p>
+                  <div className="cart-summary-rows">
+                    {productItems.map(item => (
+                      <div key={item.id} className="cart-summary-row">
+                        <span>{item.name} ×{item.quantity}</span>
+                        <span>€ {(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
               <div className="cart-summary-divider" />
+
               <div className="cart-summary-total">
                 <span>Totale</span>
                 <span className="cart-total-price">€ {totalPrice.toFixed(2)}</span>
               </div>
-              {hasNonProducts && (
-                <p className="cart-summary-notice">
-                  ⚠️ I pacchetti richiedono conferma telefonica. Sarai contattata dopo il pagamento.
-                </p>
-              )}
-              <p className="cart-summary-note">Ritiro in negozio · Pagamento sicuro</p>
+
+              <p className="cart-summary-note">
+                {hasServices && hasProducts
+                  ? "Prenota la data · I prodotti si ritirano lo stesso giorno"
+                  : hasServices
+                    ? "Scegli data e orario · Pagamento sicuro"
+                    : "Ritiro in negozio · Pagamento sicuro"}
+              </p>
+
               <button
                 className="cart-checkout-btn"
-                onClick={handleProceed}
+                onClick={hasServices ? () => setShowMultiBooking(true) : handleProceedProducts}
                 disabled={loading}
               >
-                {loading ? <Spinner animation="border" size="sm" /> : "Procedi al pagamento"}
+                {loading
+                  ? <Spinner animation="border" size="sm" />
+                  : hasServices
+                    ? "Procedi al pagamento →"
+                    : "Procedi al pagamento"}
               </button>
+
               <Link to="/prodotti" className="cart-continue-link">← Continua lo shopping</Link>
             </div>
           </Col>
@@ -207,8 +242,15 @@ const CartPage = () => {
         show={showCheckout}
         onHide={() => setShowCheckout(false)}
         onConfirm={handleStripeCheckoutGuest}
-        totalPrice={totalPrice}
-        cartItems={items}
+        totalPrice={productItems.reduce((s, i) => s + i.price * i.quantity, 0)}
+        cartItems={productItems}
+      />
+
+      <MultiServiceBookingModal
+        show={showMultiBooking}
+        onHide={() => setShowMultiBooking(false)}
+        services={serviceItems}
+        products={productItems}
       />
     </div>
   );

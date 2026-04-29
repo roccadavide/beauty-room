@@ -4,6 +4,7 @@ import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.PackageCreditStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record AdminBookingCardDTO(
@@ -24,10 +25,20 @@ public record AdminBookingCardDTO(
         Integer sessionsTotal,
         PackageCreditStatus packageStatus,
         String stripeSessionId,
-        // Buffer minuti extra impostato dall'admin (puo' essere null).
         Integer paddingMinutes,
         // Consenso PMU
         boolean consentRequired,
         boolean consentSigned,
-        java.time.LocalDateTime consentSignedAt
+        LocalDateTime consentSignedAt,
+        // Multi-service / custom service / session tracking
+        List<ServiceSummaryDTO> services,
+        Boolean isCustomService,
+        String customServiceName,
+        Integer currentSession,
+        Integer totalSessions,
+        // Account linking
+        UUID linkedUserId,
+        String linkingStatus,
+        // New package assignment system
+        PackageSummaryDTO linkedPackage
 ) {}

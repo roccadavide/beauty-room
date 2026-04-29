@@ -1,4 +1,4 @@
-import { AGENDA_ENDPOINTS, AVAIL_ENDPOINTS, CLOSURE_ENDPOINTS, WORKING_HOURS_ENDPOINTS } from "../endpoints";
+import { AGENDA_ENDPOINTS, AVAIL_ENDPOINTS, BOOKING_ENDPOINTS_ADMIN, CLOSURE_ENDPOINTS, PACKAGE_ASSIGNMENT_ENDPOINTS, PERSONAL_APPT_ENDPOINTS, WORKING_HOURS_ENDPOINTS } from "../endpoints";
 import http from "../httpClient";
 
 /* ================= TIMELINE ================= */
@@ -106,6 +106,88 @@ export const getNextAvailableSlot = async (durationMin, afterISO) => {
   }
 };
 
+/* ================= MULTI-SERVICE BOOKINGS (ADMIN) ================= */
+export const createMultiServiceBooking = async payload => {
+  try {
+    const { data } = await http.post(BOOKING_ENDPOINTS_ADMIN.CREATE_MULTI, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore creazione appuntamento.";
+    throw new Error(message);
+  }
+};
+
+export const getAdminAvailableSlots = async (date, durationMinutes) => {
+  try {
+    const { data } = await http.get(BOOKING_ENDPOINTS_ADMIN.AVAILABLE_SLOTS, { params: { date, durationMinutes } });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile caricare gli slot disponibili.";
+    throw new Error(message);
+  }
+};
+
+export const getClientPackageAssignmentsByName = async name => {
+  try {
+    const { data } = await http.get(PACKAGE_ASSIGNMENT_ENDPOINTS.CLIENT, { params: { name } });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile caricare i pacchetti del cliente.";
+    throw new Error(message);
+  }
+};
+
+/* ================= PERSONAL APPOINTMENTS (ADMIN) ================= */
+export const getPersonalAppointmentsDay = async date => {
+  try {
+    const { data } = await http.get(PERSONAL_APPT_ENDPOINTS.BASE, { params: { date } });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile recuperare gli appuntamenti personali.";
+    throw new Error(message);
+  }
+};
+
+export const getPersonalAppointmentsWeek = async start => {
+  try {
+    const { data } = await http.get(PERSONAL_APPT_ENDPOINTS.WEEK, { params: { start } });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile recuperare gli appuntamenti personali della settimana.";
+    throw new Error(message);
+  }
+};
+
+export const createPersonalAppointment = async payload => {
+  try {
+    const { data } = await http.post(PERSONAL_APPT_ENDPOINTS.BASE, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore creazione appuntamento personale.";
+    throw new Error(message);
+  }
+};
+
+export const updatePersonalAppointment = async (id, payload) => {
+  try {
+    const { data } = await http.put(PERSONAL_APPT_ENDPOINTS.BY_ID(id), payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore aggiornamento appuntamento personale.";
+    throw new Error(message);
+  }
+};
+
+export const deletePersonalAppointment = async id => {
+  try {
+    await http.delete(PERSONAL_APPT_ENDPOINTS.BY_ID(id));
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore eliminazione appuntamento personale.";
+    throw new Error(message);
+  }
+};
+
 /* ================= AVAILABILITY ================= */
 export const getAvailSlotsForServiceDay = async (serviceId, date) => {
   try {
@@ -185,6 +267,37 @@ export const updateWorkingHours = async (id, payload) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || "Errore aggiornamento orari di lavoro.";
+    throw new Error(message);
+  }
+};
+
+/* ================= CATALOGUE PACKAGES ================= */
+export const fetchCatalogPackages = async () => {
+  try {
+    const { data } = await http.get("/service-items/options/packages");
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile caricare i pacchetti catalogo.";
+    throw new Error(message);
+  }
+};
+
+/* ================= PACKAGE ASSIGNMENTS ================= */
+export const createPackageAssignment = async payload => {
+  try {
+    const { data } = await http.post("/admin/package-assignments", payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante la creazione del pacchetto.";
+    throw new Error(message);
+  }
+};
+
+export const cancelPackageAssignment = async assignmentId => {
+  try {
+    await http.delete(`/admin/package-assignments/${assignmentId}/cancel`);
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante la cancellazione del pacchetto.";
     throw new Error(message);
   }
 };

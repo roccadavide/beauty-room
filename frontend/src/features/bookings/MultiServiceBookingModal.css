@@ -1,0 +1,387 @@
+/* ── Multi-Service Booking Modal ── */
+
+/* Progress dots */
+.msb-progress {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 0.5rem 0 0.75rem;
+}
+
+.msb-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e0d5c8;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.msb-progress-dot--done {
+  background: rgba(184, 151, 106, 0.5);
+}
+
+.msb-progress-dot--active {
+  background: #b8976a;
+  transform: scale(1.3);
+}
+
+/* ── STEP 1: Summary ── */
+.msb-summary {
+  padding: 0 0.25rem;
+}
+
+.msb-summary-section {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #b8976a;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+
+.msb-summary-intro {
+  font-size: 0.88rem;
+  color: #7a6855;
+  margin-bottom: 1.25rem;
+}
+
+.msb-service-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.msb-service-item {
+  background: #fdf8f2;
+  border: 1px solid rgba(184, 151, 106, 0.18);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+}
+
+.msb-service-item__name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #2a1b15;
+  margin-bottom: 4px;
+}
+
+.msb-service-item__meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: #b8976a;
+}
+
+.msb-summary-totals {
+  border-top: 1px solid rgba(184, 151, 106, 0.15);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 1rem;
+}
+
+.msb-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  color: #7a6855;
+}
+
+.msb-total-row--price {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2a1b15;
+  margin-top: 4px;
+}
+
+.msb-total-val {
+  font-weight: 600;
+  color: #2a1b15;
+}
+
+.msb-summary-note {
+  font-size: 0.78rem;
+  color: #b8976a;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+/* ── STEP 2: Date ── */
+.msb-date-step {
+  padding: 0.25rem 0;
+}
+
+.msb-step-hint {
+  font-size: 0.88rem;
+  color: #7a6855;
+  margin-bottom: 1.25rem;
+}
+
+/* ── STEP 3: Slots ── */
+.msb-slots-step {
+  padding: 0.25rem 0;
+}
+
+.msb-slots-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: #9e8272;
+  padding: 1rem 0;
+}
+
+.msb-slots-error {
+  font-size: 0.85rem;
+  color: #c0392b;
+  padding: 0.75rem;
+  background: #fff5f5;
+  border-radius: 10px;
+}
+
+.msb-slots-empty {
+  font-size: 0.85rem;
+  color: #9e8272;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.msb-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  margin-top: 0.5rem;
+}
+
+.msb-slot-btn {
+  border: 1.5px solid rgba(184, 151, 106, 0.3);
+  border-radius: 10px;
+  padding: 0.5rem 0.25rem;
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #5a4030;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.msb-slot-btn:hover {
+  border-color: #b8976a;
+  background: rgba(184, 151, 106, 0.06);
+}
+
+.msb-slot-btn--active {
+  border-color: #b8976a;
+  background: #b8976a;
+  color: #fff;
+}
+
+/* ── STEP 4: Customer ── */
+.msb-customer-step {
+  padding: 0.25rem 0;
+}
+
+.msb-booking-recap {
+  display: flex;
+  justify-content: space-between;
+  background: rgba(184, 151, 106, 0.08);
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-size: 0.82rem;
+  color: #8c6d3f;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+}
+
+.msb-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.msb-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5a4030;
+  margin-bottom: 4px;
+}
+
+.msb-field .form-control {
+  border: 1.5px solid rgba(184, 151, 106, 0.25);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  padding: 0.55rem 0.85rem;
+  background: #fdfaf6;
+  transition: border-color 0.15s;
+}
+
+.msb-field .form-control:focus {
+  border-color: #b8976a;
+  box-shadow: 0 0 0 3px rgba(184, 151, 106, 0.12);
+}
+
+.msb-checkout-error {
+  background: #fff5f5;
+  border: 1px solid rgba(192, 57, 43, 0.2);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: #c0392b;
+  margin-top: 1rem;
+}
+
+.msb-price-final {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(184, 151, 106, 0.15);
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  font-size: 0.9rem;
+  color: #5a4030;
+}
+
+.msb-price-final__val {
+  font-family: "SaolDisplay-Light", serif;
+  font-size: 1.3rem;
+  font-weight: 300;
+  color: #2a1b15;
+}
+
+.msb-payment-note {
+  font-size: 0.75rem;
+  color: #9e8272;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+/* ── Compact cart header (topSlot) ── */
+.msb-cart-header {
+  background: rgba(184, 151, 106, 0.07);
+  border: 1px solid rgba(184, 151, 106, 0.18);
+  border-radius: 12px;
+  padding: 0.65rem 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.msb-cart-header__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.msb-cart-header__pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(184, 151, 106, 0.15);
+  color: #7a5c30;
+  border-radius: 20px;
+  padding: 0.2rem 0.65rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.msb-cart-header__pill--product {
+  background: rgba(140, 109, 63, 0.1);
+  color: #8c6d3f;
+}
+
+.msb-cart-header__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: #9e8272;
+}
+
+.msb-cart-header__price {
+  font-family: "SaolDisplay-Light", serif;
+  font-size: 1rem;
+  font-weight: 300;
+  color: #2a1b15;
+}
+
+/* ── Footer ── */
+.msb-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.5rem 0;
+}
+
+.msb-back-btn {
+  background: none;
+  border: 1.5px solid rgba(184, 151, 106, 0.3);
+  border-radius: 20px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.85rem;
+  color: #9e8272;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.msb-back-btn:hover:not(:disabled) {
+  border-color: #b8976a;
+  color: #b8976a;
+}
+
+.msb-next-btn {
+  margin-left: auto;
+  background: none;
+  border: 2px solid #b8976a;
+  border-radius: 24px;
+  padding: 0.6rem 1.6rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #b8976a;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.msb-next-btn:hover:not(:disabled) {
+  background: #b8976a;
+  color: #fff;
+}
+
+.msb-next-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.msb-confirm-btn {
+  margin-left: auto;
+  background: linear-gradient(135deg, #b8976a, #8c6d3f);
+  border: none;
+  border-radius: 24px;
+  padding: 0.65rem 1.8rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.msb-confirm-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.msb-confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
