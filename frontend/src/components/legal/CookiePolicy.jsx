@@ -54,6 +54,9 @@ const CookiePolicy = () => {
             <li>
               <strong>localStorage - carrello</strong>: salva i prodotti aggiunti al carrello anche se si chiude il browser. Non contiene dati personali.
             </li>
+            <li>
+              <strong>Cookie tecnici Stripe</strong> (<code>__stripe_mid</code>, <code>__stripe_sid</code>): impostati da Stripe Inc. esclusivamente nelle pagine di pagamento per prevenire frodi e garantire la sicurezza della transazione. Non contengono dati personali identificativi e non richiedono consenso.
+            </li>
           </ul>
           <p>
             <strong>Non utilizziamo</strong> cookie di profilazione, cookie di terze parti, pixel pubblicitari o strumenti di analytics che richiedano

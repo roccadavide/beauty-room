@@ -344,6 +344,7 @@
   flex-direction: column;
   gap: 12px;
   margin-top: 24px;
+  margin-bottom: 2rem;
   width: 100%;
 }
 
@@ -366,7 +367,6 @@
 
 /* ── Add to cart button ── */
 .detail-cart-btn {
-  width: 100%;
   padding: 0.6rem 1.5rem;
   border: 1.5px solid rgba(184, 151, 106, 0.45);
   border-radius: 12px;
@@ -376,7 +376,10 @@
   font-weight: 600;
   letter-spacing: 0.3px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .detail-cart-btn:hover:not(:disabled) {

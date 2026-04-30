@@ -12,6 +12,7 @@ import { setAccessToken, clearAccessToken } from "./utils/token.js";
 import { fetchCurrentUser } from "./api/modules/users.api.js";
 import { authInitialized, loginSuccess, logout } from "./features/auth/slices/auth.slice.js";
 import { HelmetProvider } from "react-helmet-async";
+import { Analytics } from "@vercel/analytics/react";
 import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
@@ -51,9 +52,10 @@ createRoot(document.getElementById("root")).render(
         <BrowserRouter>
           <HelmetProvider>
             <App />
+            <Analytics />
           </HelmetProvider>
         </BrowserRouter>
       </PersistGate>
     </Provider>
-  </ErrorBoundary>
+  </ErrorBoundary>,
 );
