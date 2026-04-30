@@ -15,6 +15,24 @@ import PayNowModal from "./PayNowModal";
 import ImageGallery from "../../components/common/ImageGallery";
 import SEO from "../../components/common/SEO";
 import WishlistHeart from "../../components/common/WishlistHeart";
+import { useLike } from "../../hooks/useLike";
+import LikePill from "../../components/common/LikePill";
+import LikeBurst from "../../components/common/LikeBurst";
+
+function ProductLikesRow({ productId, initialCount }) {
+  const { count, liked, burst, triggerLike } = useLike("PRODUCT", productId, initialCount);
+  return (
+    <div className="sd-likes-row">
+      <LikeBurst active={burst} />
+      <LikePill count={count} liked={liked} onClick={triggerLike} />
+      {count > 0 && (
+        <span className="sd-likes-label">
+          {count === 1 ? "persona ama questo prodotto" : "persone amano questo prodotto"}
+        </span>
+      )}
+    </div>
+  );
+}
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -231,6 +249,8 @@ const ProductDetail = () => {
             </div>
 
             <h1 className="detail-title">{product.name}</h1>
+
+            <ProductLikesRow productId={product.productId} initialCount={product.likesCount ?? 0} />
 
             <div className="detail-accent-line" />
 

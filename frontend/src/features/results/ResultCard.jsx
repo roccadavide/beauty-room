@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminToggle from "../../components/common/AdminToggle";
 import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
+import { useLike } from "../../hooks/useLike";
+import LikePill from "../../components/common/LikePill";
 
 /**
  * ResultCard — layout editoriale alternato Prima/Dopo
@@ -19,6 +21,7 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
   const rowRef = useRef(null);
   const [visible, setVisible] = useState(false);
   const isEven = index % 2 === 0;
+  const { count, liked, triggerLike } = useLike("RESULT", result.resultId, result.likesCount ?? 0);
 
   useEffect(() => {
     const el = rowRef.current;
@@ -73,6 +76,10 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
         <div className="rc-accent-line" />
         <h3 className="rc-title">{result.title}</h3>
         <p className="rc-desc">{result.shortDescription}</p>
+
+        <div className="rc-likes">
+          <LikePill count={count} liked={liked} onClick={triggerLike} />
+        </div>
 
         {result.linkedServiceId && (
           <Link

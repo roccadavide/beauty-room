@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -39,4 +40,12 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @EntityGraph(attributePaths = {"images", "category"})
     @Query("select p from Product p where p.active = true")
     Page<Product> findAllActiveWithDetails(Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE Product p SET p.likesCount = p.likesCount + 1 WHERE p.productId = :id")
+    void incrementLikes(@Param("id") UUID id);
+
+    @Modifying
+    @Query("UPDATE Product p SET p.likesCount = GREATEST(p.likesCount - 1, 0) WHERE p.productId = :id")
+    void decrementLikes(@Param("id") UUID id);
 }

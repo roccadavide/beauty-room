@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { Container, Row, Col, Card, Badge, Button, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -9,8 +9,64 @@ import DeleteServiceModal from "./DeleteServiceModal";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteService, fetchServices, patchServiceFeatured } from "../../api/modules/services.api";
 import { BadgeFlags } from "../../components/common/BadgeFlag";
+import { useLike } from "../../hooks/useLike";
+import LikePill from "../../components/common/LikePill";
+import LikeBurst from "../../components/common/LikeBurst";
 
 const MAX_FEATURED = 5;
+
+function PreviewCard({ s, onNavigate, isAdmin, onEdit, onDelete }) {
+  const { count, liked, burst, triggerLike, showHint } = useLike("SERVICE", s.serviceId, s.likesCount ?? 0);
+
+  const lastTapRef  = useRef(0);
+  const navTimerRef = useRef(null);
+
+  const handleCardClick = useCallback(() => {
+    const now = Date.now();
+    const delta = now - lastTapRef.current;
+    lastTapRef.current = now;
+
+    if (delta < 350 && delta > 0) {
+      clearTimeout(navTimerRef.current);
+      triggerLike();
+    } else {
+      navTimerRef.current = setTimeout(() => {
+        onNavigate?.();
+      }, 360);
+    }
+  }, [triggerLike, onNavigate]);
+
+  return (
+    <div
+      className="sp-card"
+      onClick={handleCardClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => e.key === "Enter" && onNavigate()}
+    >
+      <div className="sp-card__img-wrap">
+        {s.images?.[0] ? <img src={s.images[0]} alt={s.title} /> : <div className="sp-card__img-placeholder" />}
+        <div className="sp-card__overlay">
+          <span className="sp-card__duration">{s.durationMin} min</span>
+          <h3 className="sp-card__title">{s.title}</h3>
+          <p className="sp-card__desc">{s.shortDescription}</p>
+          <span className="sp-card__price">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+        </div>
+        <LikeBurst active={burst} />
+        <div className="sp-like-corner">
+          <LikePill count={count} liked={liked} compact onClick={triggerLike} hint={showHint} />
+        </div>
+      </div>
+      <BadgeFlags badges={s?.badges ?? []} />
+      {isAdmin && (
+        <div className="sp-card-actions" onClick={e => e.stopPropagation()}>
+          <EditButton onClick={onEdit} />
+          <DeleteButton onClick={onDelete} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 const ServicesPreview = () => {
   const [allServices, setAllServices] = useState([]);
@@ -193,36 +249,13 @@ const ServicesPreview = () => {
           <div className="sp-track" id="spTrack">
             {services.map(s => (
               <div key={s.serviceId} className="sp-slide">
-                <div
-                  className="sp-card"
-                  onClick={() => navigate(`/trattamenti/${s.serviceId}`)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => e.key === "Enter" && navigate(`/trattamenti/${s.serviceId}`)}
-                >
-                  <div className="sp-card__img-wrap">
-                    {s.images?.[0] ? <img src={s.images[0]} alt={s.title} /> : <div className="sp-card__img-placeholder" />}
-                    <div className="sp-card__overlay">
-                      <span className="sp-card__duration">{s.durationMin} min</span>
-                      <h3 className="sp-card__title">{s.title}</h3>
-                      <p className="sp-card__desc">{s.shortDescription}</p>
-                      <span className="sp-card__price">{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                    </div>
-                  </div>
-                  <BadgeFlags badges={s?.badges ?? []} />
-
-                  {user?.role === "ADMIN" && (
-                    <div className="sp-card-actions" onClick={e => e.stopPropagation()}>
-                      <EditButton onClick={() => handleEdit(s)} />
-                      <DeleteButton
-                        onClick={() => {
-                          setSelectedService(s);
-                          setDeleteModal(true);
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
+                <PreviewCard
+                  s={s}
+                  onNavigate={() => navigate(`/trattamenti/${s.serviceId}`)}
+                  isAdmin={user?.role === "ADMIN"}
+                  onEdit={() => handleEdit(s)}
+                  onDelete={() => { setSelectedService(s); setDeleteModal(true); }}
+                />
               </div>
             ))}
           </div>

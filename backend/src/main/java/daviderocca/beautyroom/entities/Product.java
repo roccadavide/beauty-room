@@ -50,6 +50,9 @@ public class Product {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "likes_count", nullable = false)
+    private int likesCount = 0;
+
     /** Badge attivi in formato JSON array string, es. ["new","sale"] oppure null. */
     @Column(length = 500)
     private String badges;

@@ -11,6 +11,7 @@ import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteProduct, fetchProducts } from "../../api/modules/products.api";
 import useScrollRestore from "../../hooks/useScrollRestore";
 import ProductCard from "./ProductCard";
+import DoubleTapHint from "../../components/common/DoubleTapHint";
 
 function ProductsPage() {
   const [cat, setCat] = useState("all");
@@ -130,7 +131,7 @@ function ProductsPage() {
   }
 
   return (
-    <Container fluid className="pb-5 container-base flex-column">
+    <Container fluid className="pb-5 container-base flex-column" style={{ position: "relative" }}>
       <SEO
         title="Prodotti"
         description="Acquista i prodotti professionali di Beauty Room: creme, sieri e trattamenti selezionati per la cura di viso e corpo."
@@ -172,6 +173,7 @@ function ProductsPage() {
         </div>
       )}
 
+      <DoubleTapHint />
       <Container fluid="xxl">
         <Row ref={rowRef} className="g-4 g-xl-5">
           {filtered.map(p => (

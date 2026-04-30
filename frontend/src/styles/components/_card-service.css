@@ -146,6 +146,44 @@
   text-transform: uppercase;
 }
 
+/* Like pill — angolo in basso a destra dell'immagine service card */
+.bsc-img-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Badge durata fuori immagine — stile raffinato */
+.sp-duration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .72rem;
+  color: var(--card-gold-deep, #8c6d3f);
+  background: rgba(184,151,106,.1);
+  border: 1px solid rgba(184,151,106,.25);
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-weight: 500;
+}
+
+.sp-duration-badge svg {
+  width: 11px;
+  height: 11px;
+  stroke: var(--card-gold-deep, #8c6d3f);
+  fill: none;
+  stroke-width: 2;
+  flex-shrink: 0;
+}
+
+/* Like corner — ServicePreview carousel */
+.sp-like-corner {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 4;
+}
+
 @media (max-width: 575px) {
   .bsc-img-wrap,
   .bpc-img-wrap {

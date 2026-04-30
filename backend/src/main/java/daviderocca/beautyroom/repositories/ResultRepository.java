@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -35,4 +36,12 @@ public interface ResultRepository extends JpaRepository<Result, UUID> {
     @EntityGraph(attributePaths = {"images", "category", "linkedService"})
     @Query("select r from Result r where r.active = true")
     Page<Result> findAllActiveWithDetails(Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE Result r SET r.likesCount = r.likesCount + 1 WHERE r.resultId = :id")
+    void incrementLikes(@Param("id") UUID id);
+
+    @Modifying
+    @Query("UPDATE Result r SET r.likesCount = GREATEST(r.likesCount - 1, 0) WHERE r.resultId = :id")
+    void decrementLikes(@Param("id") UUID id);
 }

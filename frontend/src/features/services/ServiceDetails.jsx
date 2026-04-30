@@ -12,6 +12,24 @@ import ImageGallery from "../../components/common/ImageGallery";
 import SEO from "../../components/common/SEO";
 import WishlistHeart from "../../components/common/WishlistHeart";
 import { addToCart } from "../cart/slices/cart.slice";
+import { useLike } from "../../hooks/useLike";
+import LikePill from "../../components/common/LikePill";
+import LikeBurst from "../../components/common/LikeBurst";
+
+function ServiceLikesRow({ serviceId, initialCount }) {
+  const { count, liked, burst, triggerLike } = useLike("SERVICE", serviceId, initialCount);
+  return (
+    <div className="sd-likes-row">
+      <LikeBurst active={burst} />
+      <LikePill count={count} liked={liked} onClick={triggerLike} />
+      {count > 0 && (
+        <span className="sd-likes-label">
+          {count === 1 ? "persona ama questo trattamento" : "persone amano questo trattamento"}
+        </span>
+      )}
+    </div>
+  );
+}
 
 const useInView = (options = { threshold: 0.15 }) => {
   const ref = useRef(null);
@@ -223,6 +241,8 @@ const ServiceDetail = () => {
             </div>
 
             <h1 className="detail-title">{service.title}</h1>
+
+            <ServiceLikesRow serviceId={service.serviceId} initialCount={service.likesCount ?? 0} />
 
             <div className="detail-accent-line" />
 

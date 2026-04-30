@@ -203,7 +203,8 @@ public class ResultService {
                 result.getLinkedService() != null ? result.getLinkedService().getServiceId() : null,
                 result.getLinkedService() != null ? result.getLinkedService().getTitle() : null,
                 result.getCreatedAt(),
-                result.isFeatured()
+                result.isFeatured(),
+                result.getLikesCount()
         );
     }
 }

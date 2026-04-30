@@ -44,6 +44,9 @@ public class Result {
     @Column(nullable = false)
     private boolean featured = false;
 
+    @Column(name = "likes_count", nullable = false)
+    private int likesCount = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id")
     private ServiceItem linkedService;

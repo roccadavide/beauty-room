@@ -238,7 +238,8 @@ public class ProductService {
                 product.getCategory() != null ? product.getCategory().getCategoryId() : null,
                 product.isActive(),
                 BadgesUtil.fromJson(product.getBadges()),
-                options
+                options,
+                product.getLikesCount()
         );
     }
 }

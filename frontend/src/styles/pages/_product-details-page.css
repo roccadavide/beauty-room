@@ -54,6 +54,21 @@
   margin: 0 0 1rem;
 }
 
+/* Like row — service e product detail */
+.sd-likes-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 20px;
+}
+
+.sd-likes-label {
+  font-size: .82rem;
+  color: #888;
+  font-style: italic;
+}
+
 /* Linea oro */
 .detail-accent-line {
   width: 48px;

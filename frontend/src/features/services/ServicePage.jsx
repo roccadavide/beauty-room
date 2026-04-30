@@ -11,6 +11,7 @@ import { deleteService, fetchServices } from "../../api/modules/services.api";
 import SEO from "../../components/common/SEO";
 import useScrollRestore from "../../hooks/useScrollRestore";
 import ServiceCard from "./ServiceCard";
+import DoubleTapHint from "../../components/common/DoubleTapHint";
 
 const ServicePage = () => {
   const [cat, setCat] = useState("all");
@@ -130,7 +131,7 @@ const ServicePage = () => {
   }
 
   return (
-    <Container fluid className="pb-5 container-base flex-column">
+    <Container fluid className="pb-5 container-base flex-column" style={{ position: "relative" }}>
       <SEO
         title="Servizi"
         description="Scopri tutti i trattamenti estetici di Beauty Room: laser, viso, corpo, estetica avanzata. Prenota il tuo appuntamento online."
@@ -172,6 +173,7 @@ const ServicePage = () => {
         </div>
       )}
 
+      <DoubleTapHint />
       <Container fluid="xxl">
         <Row ref={rowRef} className="g-4 g-xl-5">
           {filtered.map(s => (

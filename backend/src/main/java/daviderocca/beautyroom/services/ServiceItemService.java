@@ -353,7 +353,8 @@ public class ServiceItemService {
                 optionDTOs,
                 BadgesUtil.fromJson(serviceItem.getBadges()),
                 serviceItem.isFeatured(),
-                serviceItem.isConsentRequired()
+                serviceItem.isConsentRequired(),
+                serviceItem.getLikesCount()
         );
     }
 }

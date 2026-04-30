@@ -1,3 +1,4 @@
+import { useRef, useCallback } from "react";
 import { Card, Col } from "react-bootstrap";
 import AdminToggle from "../../components/common/AdminToggle";
 import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
@@ -6,15 +7,37 @@ import { usePrefetch } from "../../hooks/usePrefetch";
 import { fetchProductById } from "../../api/modules/products.api";
 import CategoryBadge from "../../components/common/CategoryBadge";
 import WishlistHeart from "../../components/common/WishlistHeart";
+import { useLike } from "../../hooks/useLike";
+import LikePill from "../../components/common/LikePill";
+import LikeBurst from "../../components/common/LikeBurst";
 
 function ProductCard({ p, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
   const { onMouseEnter, onMouseLeave } = usePrefetch(() => fetchProductById(p.productId));
+  const { count, liked, burst, triggerLike, showHint } = useLike("PRODUCT", p.productId, p.likesCount ?? 0);
+
+  const lastTapRef  = useRef(0);
+  const navTimerRef = useRef(null);
+
+  const handleCardClick = useCallback(() => {
+    const now = Date.now();
+    const delta = now - lastTapRef.current;
+    lastTapRef.current = now;
+
+    if (delta < 350 && delta > 0) {
+      clearTimeout(navTimerRef.current);
+      triggerLike();
+    } else {
+      navTimerRef.current = setTimeout(() => {
+        onCardClick?.();
+      }, 360);
+    }
+  }, [triggerLike, onCardClick]);
 
   return (
     <Col xs={12} sm={6} lg={6} xl={4} className="d-flex">
       <Card
         className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}${isAdmin && !(p.active ?? true) ? " admin-entity--inactive" : ""}`}
-        onClick={onCardClick}
+        onClick={handleCardClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
@@ -32,6 +55,10 @@ function ProductCard({ p, isAdmin, categoriesMap, onCardClick, onEdit, onDelete,
             </div>
           )}
           <Card.Img src={p.images?.[0]} alt={p.name} />
+          <LikeBurst active={burst} />
+          <div className="bpc-img-overlay">
+            <LikePill count={count} liked={liked} compact onClick={triggerLike} hint={showHint} />
+          </div>
           {p.stock === 0 && (
             <div className="bpc-sold-out-overlay">
               <span className="bpc-sold-out-label">Esaurito</span>

@@ -1,3 +1,4 @@
+import { useRef, useCallback } from "react";
 import { Card, Col } from "react-bootstrap";
 import AdminToggle from "../../components/common/AdminToggle";
 import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
@@ -6,6 +7,9 @@ import { usePrefetch } from "../../hooks/usePrefetch";
 import { fetchServiceById } from "../../api/modules/services.api";
 import CategoryBadge from "../../components/common/CategoryBadge";
 import WishlistHeart from "../../components/common/WishlistHeart";
+import { useLike } from "../../hooks/useLike";
+import LikePill from "../../components/common/LikePill";
+import LikeBurst from "../../components/common/LikeBurst";
 
 function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
   const activeOptions = s.options?.filter(o => o.active) ?? [];
@@ -16,12 +20,31 @@ function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete,
   const durationPrefix = hasActiveOptions ? "da " : "";
 
   const { onMouseEnter, onMouseLeave } = usePrefetch(() => fetchServiceById(s.serviceId));
+  const { count, liked, burst, triggerLike, showHint } = useLike("SERVICE", s.serviceId, s.likesCount ?? 0);
+
+  const lastTapRef  = useRef(0);
+  const navTimerRef = useRef(null);
+
+  const handleCardClick = useCallback(() => {
+    const now = Date.now();
+    const delta = now - lastTapRef.current;
+    lastTapRef.current = now;
+
+    if (delta < 350 && delta > 0) {
+      clearTimeout(navTimerRef.current);
+      triggerLike();
+    } else {
+      navTimerRef.current = setTimeout(() => {
+        onCardClick?.();
+      }, 360);
+    }
+  }, [triggerLike, onCardClick]);
 
   return (
     <Col xs={12} sm={6} lg={6} xl={4} className="d-flex">
       <Card
         className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`}
-        onClick={onCardClick}
+        onClick={handleCardClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
@@ -34,11 +57,9 @@ function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete,
             </div>
           )}
           <Card.Img src={s.images?.[0]} alt={s.title} />
+          <LikeBurst active={burst} />
           <div className="bsc-img-overlay">
-            <span className="bsc-duration">
-              {durationPrefix}
-              {displayDuration} min
-            </span>
+            <LikePill count={count} liked={liked} compact onClick={triggerLike} hint={showHint} />
           </div>
         </div>
         <BadgeFlags badges={s?.badges ?? []} />

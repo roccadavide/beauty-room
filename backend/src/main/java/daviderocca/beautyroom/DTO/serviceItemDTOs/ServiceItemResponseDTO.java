@@ -18,5 +18,6 @@ public record ServiceItemResponseDTO(
         List<ServiceOptionResponseDTO> options,
         List<String> badges,
         boolean featured,
-        boolean consentRequired
+        boolean consentRequired,
+        int likesCount
 ) {}

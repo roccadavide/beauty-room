@@ -15,5 +15,6 @@ public record ResultResponseDTO(
         UUID linkedServiceId,
         String linkedServiceName,
         LocalDateTime createdAt,
-        boolean featured
+        boolean featured,
+        int likesCount
 ) {}

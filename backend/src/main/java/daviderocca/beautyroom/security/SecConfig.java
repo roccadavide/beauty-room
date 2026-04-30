@@ -134,6 +134,10 @@ public class SecConfig {
                         .requestMatchers(HttpMethod.POST, "/waitlist").permitAll()
                         .requestMatchers(HttpMethod.GET,  "/waitlist/token/*").permitAll()
 
+                        // LIKES — pubblico, rate limit applicativo interno
+                        .requestMatchers(HttpMethod.POST, "/api/likes/**").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/api/likes/**").permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)

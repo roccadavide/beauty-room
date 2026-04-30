@@ -311,6 +311,11 @@
   margin: 0;
 }
 
+/* ── Like pill ─────────────── */
+.rc-likes {
+  margin-top: 12px;
+}
+
 /* ── CTA "Scopri il trattamento" ─────────────── */
 
 .rc-service-link {
