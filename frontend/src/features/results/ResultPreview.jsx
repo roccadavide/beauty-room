@@ -1,22 +1,96 @@
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Container, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import ResultCard from "./ResultCard";
 import ResultDrawer from "./ResultDrawer";
 import DeleteResultModal from "./DeleteResultModal";
+import DiamondDivider from "../../components/common/DiamondDivider";
+import LikeBurst from "../../components/common/LikeBurst";
+import { useLike } from "../../hooks/useLike";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { deleteResult, fetchResults, patchResultFeatured } from "../../api/modules/results.api";
 
 const MAX_FEATURED = 2;
 
-function DiamondDivider() {
+function PreviewCard({ res, categoriesMap, isAdmin, onEdit, onDelete, navigate }) {
+  const { count, liked, burst, triggerLike, showHint } = useLike("RESULT", res.resultId, res.likesCount ?? 0);
+  const lastTapRef = useRef(0);
+  const navTimerRef = useRef(null);
+
+  const handleClick = useCallback(() => {
+    const now = Date.now();
+    const delta = now - lastTapRef.current;
+    lastTapRef.current = now;
+
+    if (delta < 350 && delta > 0) {
+      clearTimeout(navTimerRef.current);
+      triggerLike();
+    } else {
+      navTimerRef.current = setTimeout(() => {
+        navigate(`/risultati?highlight=${res.resultId}`);
+      }, 360);
+    }
+  }, [triggerLike, navigate, res.resultId]);
+
   return (
-    <div className="rc-diamond-divider" aria-hidden="true">
-      <div className="rc-diamond-divider__line" />
-      <div className="rc-diamond-divider__gem">◆</div>
-      <div className="rc-diamond-divider__line" />
-    </div>
+    <article
+      className="rprev-card"
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => e.key === "Enter" && navigate(`/risultati?highlight=${res.resultId}`)}
+    >
+      <div className="rprev-card__images">
+        <div className="rprev-card__slot">
+          {res.images?.[0]
+            ? <img src={res.images[0]} alt={`Prima - ${res.title}`} loading="lazy" />
+            : <div className="rprev-card__placeholder">◆</div>
+          }
+          <span className="rprev-card__label rprev-card__label--before">Prima</span>
+        </div>
+        <div className="rprev-card__divider" aria-hidden="true" />
+        <div className="rprev-card__slot">
+          {res.images?.[1]
+            ? <img src={res.images[1]} alt={`Dopo - ${res.title}`} loading="lazy" />
+            : <div className="rprev-card__placeholder">◆</div>
+          }
+          <span className="rprev-card__label rprev-card__label--after">Dopo</span>
+        </div>
+        <LikeBurst active={burst} />
+        <div className="rprev-card__likes">
+          <span className="rprev-card__likes-icon">♥</span>
+          <span className="rprev-card__likes-count">{count}</span>
+        </div>
+        {showHint && (
+          <div className="rprev-like-hint">Tocca due volte per mettere mi piace</div>
+        )}
+      </div>
+
+      <div className="rprev-card__overlay">
+        {categoriesMap[res.categoryId] && (
+          <span className="rprev-card__eyebrow">{categoriesMap[res.categoryId]}</span>
+        )}
+        <h3 className="rprev-card__title">{res.title}</h3>
+        <span className="rprev-card__cta">
+          Scopri il risultato <span className="rprev-card__arrow">→</span>
+        </span>
+      </div>
+
+      {isAdmin && (
+        <div className="rprev-card__admin" onClick={e => e.stopPropagation()}>
+          <button
+            className="rc-admin-btn btn btn-sm btn-light"
+            onClick={() => onEdit(res)}
+            title="Modifica"
+          >✎</button>
+          <button
+            className="rc-admin-btn btn btn-sm btn-light"
+            onClick={() => onDelete(res)}
+            title="Elimina"
+          >✕</button>
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -59,7 +133,10 @@ export default function ResultsPreview() {
     return map;
   }, [categories]);
 
-  const featured = useMemo(() => allResults.filter(r => r.featured), [allResults]);
+  const featured = useMemo(() => {
+    const f = allResults.filter(r => r.featured);
+    return f.length > 0 ? f : allResults.slice(0, 2);
+  }, [allResults]);
 
   const toggleFeatured = async id => {
     const result = allResults.find(r => r.resultId === id);
@@ -83,7 +160,7 @@ export default function ResultsPreview() {
       </section>
     );
 
-  if (error || featured.length === 0) return null;
+  if (error || allResults.length === 0) return null;
 
   return (
     <section className="rprev-section">
@@ -133,34 +210,22 @@ export default function ResultsPreview() {
         )}
 
         {/* Cards */}
-        <div className="rp-list">
+        <div className="rprev-cards">
           {featured.map((res, idx) => (
             <div key={res.resultId}>
-              <ResultCard
-                result={res}
-                categoryLabel={categoriesMap[res.categoryId]}
-                index={idx}
+              <PreviewCard
+                res={res}
+                categoriesMap={categoriesMap}
                 isAdmin={isAdmin}
-                onEdit={r => {
-                  setEditingResult(r);
-                  setOpen(true);
-                }}
-                onDelete={r => {
-                  setSelectedResult(r);
-                  setDeleteModal(true);
-                }}
+                onEdit={r => { setEditingResult(r); setOpen(true); }}
+                onDelete={r => { setSelectedResult(r); setDeleteModal(true); }}
+                navigate={navigate}
               />
               {idx < featured.length - 1 && <DiamondDivider />}
             </div>
           ))}
         </div>
 
-        <div className="rprev-cta">
-          <button className="rprev-cta__btn" onClick={() => navigate("/risultati")}>
-            Scopri tutti i risultati
-            <span className="rprev-cta__arrow">→</span>
-          </button>
-        </div>
       </Container>
 
       {isAdmin && (

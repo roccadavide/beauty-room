@@ -149,13 +149,16 @@ public class ResultService {
 
     @Transactional
     public ResultResponseDTO setFeatured(UUID id, boolean value) {
-        Result entity = resultRepository.findById(id)
+        Result entity = resultRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException(id));
         if (value && resultRepository.countByFeaturedTrue() >= 2) {
             throw new IllegalStateException("Massimo 2 risultati in evidenza");
         }
         entity.setFeatured(value);
-        return convertToDTO(resultRepository.save(entity));
+        resultRepository.save(entity);
+        Result refreshed = resultRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException(id));
+        return convertToDTO(refreshed);
     }
 
     private void applyLinkedService(Result result, UUID linkedServiceId) {

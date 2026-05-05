@@ -9,6 +9,7 @@ import { deleteResult, fetchResults } from "../../api/modules/results.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import SEO from "../../components/common/SEO";
 import ResultsPageSkeleton from "./ResultsPageSkeleton";
+import DiamondDivider from "../../components/common/DiamondDivider";
 
 export default function ResultsPage() {
   const [cat, setCat] = useState("all");
@@ -141,25 +142,34 @@ export default function ResultsPage() {
         ) : (
           <div className="rp-list">
             {filtered.map((res, idx) => (
-              <ResultCard
-                key={res.resultId}
-                result={res}
-                categoryLabel={categoriesMap[res.categoryId]}
-                index={idx}
-                isAdmin={isAdmin}
-                onEdit={r => {
-                  setEditingResult(r);
-                  setOpen(true);
-                }}
-                onDelete={r => {
-                  setSelectedResult(r);
-                  setDeleteModal(true);
-                }}
-                onToggle={(id, newVal) => setAllResults(prev => prev.map(r => (r.resultId === id ? { ...r, active: newVal } : r)))}
-              />
+              <div key={res.resultId}>
+                <ResultCard
+                  result={res}
+                  categoryLabel={categoriesMap[res.categoryId]}
+                  index={idx}
+                  isAdmin={isAdmin}
+                  onEdit={r => {
+                    setEditingResult(r);
+                    setOpen(true);
+                  }}
+                  onDelete={r => {
+                    setSelectedResult(r);
+                    setDeleteModal(true);
+                  }}
+                  onToggle={(id, newVal) => setAllResults(prev => prev.map(r => (r.resultId === id ? { ...r, active: newVal } : r)))}
+                />
+                {idx < filtered.length - 1 && <DiamondDivider />}
+              </div>
             ))}
           </div>
         )}
+
+        <div className="rp-coming-soon">
+          <span className="rc-diamond-divider__gem" aria-hidden="true">◆</span>
+          <p className="rp-coming-soon__text">
+            Altri risultati in arrivo presto — ogni trattamento racconta una storia.
+          </p>
+        </div>
       </Container>
 
       {isAdmin && (

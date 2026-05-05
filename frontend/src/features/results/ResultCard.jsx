@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminToggle from "../../components/common/AdminToggle";
 import { EditButton, DeleteButton } from "../../components/common/AdminActionButtons";
 import { useLike } from "../../hooks/useLike";
 import LikePill from "../../components/common/LikePill";
+import LikeBurst from "../../components/common/LikeBurst";
 
 /**
  * ResultCard — layout editoriale alternato Prima/Dopo
@@ -21,7 +22,15 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
   const rowRef = useRef(null);
   const [visible, setVisible] = useState(false);
   const isEven = index % 2 === 0;
-  const { count, liked, triggerLike } = useLike("RESULT", result.resultId, result.likesCount ?? 0);
+  const { count, liked, burst, triggerLike, showHint } = useLike("RESULT", result.resultId, result.likesCount ?? 0);
+  const lastTapRef = useRef(0);
+
+  const handleDoubleTap = useCallback(() => {
+    const now = Date.now();
+    const delta = now - lastTapRef.current;
+    lastTapRef.current = now;
+    if (delta < 350 && delta > 0) triggerLike();
+  }, [triggerLike]);
 
   useEffect(() => {
     const el = rowRef.current;
@@ -78,11 +87,7 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
         <p className="rc-desc">{result.description}</p>
 
         {result.linkedServiceId && (
-          <Link
-            to={`/trattamenti/${result.linkedServiceId}`}
-            className="rc-service-link"
-            onClick={e => e.stopPropagation()}
-          >
+          <Link to={`/trattamenti/${result.linkedServiceId}`} className="rc-service-link" onClick={e => e.stopPropagation()}>
             Scopri il trattamento →
           </Link>
         )}
@@ -98,7 +103,10 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
       ref={rowRef}
       className={`rc-row ${visible ? "rc-row--visible" : ""} ${isEven ? "rc-row--even" : "rc-row--odd"}${isAdmin && !(result.active ?? true) ? " admin-entity--inactive" : ""}`}
       data-index={index}
+      onClick={handleDoubleTap}
     >
+      <LikeBurst active={burst} />
+      {showHint && <div className="rc-like-hint">Tocca due volte per mettere mi piace</div>}
       {isAdmin && (
         <div className="rc-admin-floating" onClick={e => e.stopPropagation()}>
           {onToggle && (
