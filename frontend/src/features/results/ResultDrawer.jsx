@@ -12,7 +12,6 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
   const isEdit = Boolean(result);
 
   const [title, setTitle] = useState("");
-  const [shortDescription, setShortDescription] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [linkedServiceId, setLinkedServiceId] = useState("");
@@ -41,13 +40,11 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
     if (show) {
       if (isEdit) {
         setTitle(result.title || "");
-        setShortDescription(result.shortDescription || "");
         setDescription(result.description || "");
         setCategoryId(result.categoryId || "");
         setLinkedServiceId(result.linkedServiceId || "");
       } else {
         setTitle("");
-        setShortDescription("");
         setDescription("");
         setCategoryId("");
         setLinkedServiceId("");
@@ -62,7 +59,6 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
   const validate = () => {
     const errs = {};
     if (!title.trim()) errs.title = "Il titolo è obbligatorio.";
-    if (!shortDescription.trim()) errs.shortDescription = "La descrizione breve è obbligatoria.";
     if (!description.trim()) errs.description = "La descrizione è obbligatoria.";
     if (!categoryId) errs.categoryId = "La categoria è obbligatoria.";
     return errs;
@@ -80,7 +76,6 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
     try {
       const payload = {
         title,
-        shortDescription,
         description,
         categoryId,
         linkedServiceId: linkedServiceId || null,
@@ -172,30 +167,10 @@ const ResultDrawer = ({ show, onHide, categories, result, onResultSaved }) => {
         </Form.Group>
 
         <Form.Group className="rd-field">
-          <div className="d-flex justify-content-between">
-            <Form.Label>Descrizione breve *</Form.Label>
-            <small className="text-muted">{shortDescription.length}/180</small>
-          </div>
+          <Form.Label>Descrizione *</Form.Label>
           <Form.Control
             as="textarea"
-            rows={2}
-            maxLength={180}
-            value={shortDescription}
-            onChange={e => {
-              setShortDescription(e.target.value);
-              setErrors(p => ({ ...p, shortDescription: null }));
-            }}
-            isInvalid={!!errors.shortDescription}
-            placeholder="Breve descrizione del risultato…"
-          />
-          <Form.Control.Feedback type="invalid">{errors.shortDescription}</Form.Control.Feedback>
-        </Form.Group>
-
-        <Form.Group className="rd-field">
-          <Form.Label>Descrizione completa</Form.Label>
-          <Form.Control
-            as="textarea"
-            rows={3}
+            rows={4}
             value={description}
             onChange={e => {
               setDescription(e.target.value);

@@ -7,7 +7,6 @@ import java.util.UUID;
 public record ResultResponseDTO(
         UUID resultId,
         String title,
-        String shortDescription,
         String description,
         List<String> images,
         UUID categoryId,

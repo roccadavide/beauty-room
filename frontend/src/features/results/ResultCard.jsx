@@ -75,11 +75,7 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
         <span className="rc-eyebrow">{categoryLabel || "Risultato"}</span>
         <div className="rc-accent-line" />
         <h3 className="rc-title">{result.title}</h3>
-        <p className="rc-desc">{result.shortDescription}</p>
-
-        <div className="rc-likes">
-          <LikePill count={count} liked={liked} onClick={triggerLike} />
-        </div>
+        <p className="rc-desc">{result.description}</p>
 
         {result.linkedServiceId && (
           <Link
@@ -90,25 +86,9 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
             Scopri il trattamento →
           </Link>
         )}
-
-        {isAdmin && (
-          <>
-            {onToggle && (
-              <div className="rc-admin-toggle" onClick={e => e.stopPropagation()}>
-                <AdminToggle
-                  entityId={result.resultId}
-                  isActive={result.active ?? true}
-                  endpoint="/results"
-                  onToggleSuccess={newVal => onToggle(result.resultId, newVal)}
-                />
-              </div>
-            )}
-            <div className="rc-admin-actions">
-              <EditButton onClick={() => onEdit(result)} />
-              <DeleteButton onClick={() => onDelete(result)} />
-            </div>
-          </>
-        )}
+      </div>
+      <div className="rc-likes">
+        <LikePill count={count} liked={liked} onClick={triggerLike} />
       </div>
     </div>
   );
@@ -119,6 +99,20 @@ export default function ResultCard({ result, categoryLabel, index, isAdmin, onEd
       className={`rc-row ${visible ? "rc-row--visible" : ""} ${isEven ? "rc-row--even" : "rc-row--odd"}${isAdmin && !(result.active ?? true) ? " admin-entity--inactive" : ""}`}
       data-index={index}
     >
+      {isAdmin && (
+        <div className="rc-admin-floating" onClick={e => e.stopPropagation()}>
+          {onToggle && (
+            <AdminToggle
+              entityId={result.resultId}
+              isActive={result.active ?? true}
+              endpoint="/results"
+              onToggleSuccess={newVal => onToggle(result.resultId, newVal)}
+            />
+          )}
+          <EditButton onClick={() => onEdit(result)} />
+          <DeleteButton onClick={() => onDelete(result)} />
+        </div>
+      )}
       {/* Desktop: alterna immagini/testo. Mobile: sempre immagini sopra, testo sotto */}
       <div className="rc-row__desktop">
         {isEven ? (

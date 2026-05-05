@@ -13,7 +13,6 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
 
   const [form, setForm] = useState({
     title: "",
-    shortDescription: "",
     description: "",
     date: "",
     categoryId: "",
@@ -27,7 +26,6 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
   const resetForm = () => {
     setForm({
       title: "",
-      shortDescription: "",
       description: "",
       date: "",
       categoryId: "",
@@ -40,7 +38,6 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
     if (isEdit) {
       setForm({
         title: result.title || "",
-        shortDescription: result.shortDescription || "",
         description: result.description || "",
         date: result.date ? result.date.split("T")[0] : "",
         categoryId: result.categoryId || "",
@@ -54,9 +51,6 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
     switch (field) {
       case "title":
         if (!value.trim()) return "Il titolo è obbligatorio.";
-        break;
-      case "shortDescription":
-        if (!value.trim()) return "La descrizione breve è obbligatoria.";
         break;
       case "description":
         if (!value.trim()) return "La descrizione è obbligatoria.";
@@ -100,7 +94,6 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
 
       const payload = {
         title: form.title,
-        shortDescription: form.shortDescription,
         description: form.description,
         date: form.date,
         categoryId: form.categoryId,
@@ -147,18 +140,6 @@ const ResultModal = ({ show, onHide, categories, onResultSaved, result }) => {
           <Form.Label>Titolo *</Form.Label>
           <Form.Control type="text" value={form.title} onChange={e => handleChange("title", e.target.value)} isInvalid={!!errors.title} />
           <Form.Control.Feedback type="invalid">{errors.title}</Form.Control.Feedback>
-        </Form.Group>
-
-        <Form.Group>
-          <Form.Label>Descrizione breve *</Form.Label>
-          <Form.Control
-            as="textarea"
-            rows={2}
-            value={form.shortDescription}
-            onChange={e => handleChange("shortDescription", e.target.value)}
-            isInvalid={!!errors.shortDescription}
-          />
-          <Form.Control.Feedback type="invalid">{errors.shortDescription}</Form.Control.Feedback>
         </Form.Group>
 
         <Form.Group>

@@ -4,7 +4,6 @@ import { AnimatePresence } from "framer-motion";
 import { useDispatch } from "react-redux";
 
 import AboutSection from "./features/about/AboutSection";
-import Divider from "./components/layout/Divider";
 import Footer from "./components/layout/Footer";
 import HeroSection from "./components/layout/HeroSection";
 import PageTransition from "./components/common/PageTransition";
@@ -178,13 +177,9 @@ function App() {
                         numCopies={8}
                       />
                       <ResultsPreview />
-                      <Divider />
                       <TestimonialsSection />
-                      <Divider />
                       <AboutSection />
-                      <Divider />
                       <AcademySection />
-                      <Divider />
                       <Map />
                     </>
                   </PageTransition>
@@ -232,7 +227,6 @@ function App() {
                   <PageTransition routeKey={location.pathname}>
                     <>
                       <AboutDescription />
-                      <Divider />
                       <Map />
                     </>
                   </PageTransition>

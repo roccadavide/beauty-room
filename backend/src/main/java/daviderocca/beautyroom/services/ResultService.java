@@ -73,7 +73,6 @@ public class ResultService {
 
         Result newResult = new Result(
                 payload.title(),
-                payload.shortDescription(),
                 payload.description(),
                 imageUrls,
                 relatedCategory
@@ -117,7 +116,6 @@ public class ResultService {
         }
 
         found.setTitle(payload.title());
-        found.setShortDescription(payload.shortDescription());
         found.setDescription(payload.description());
         found.setCategory(relatedCategory);
         found.setImages(currentImages);
@@ -195,7 +193,6 @@ public class ResultService {
         return new ResultResponseDTO(
                 result.getResultId(),
                 result.getTitle(),
-                result.getShortDescription(),
                 result.getDescription(),
                 result.getImages(),
                 result.getCategory() != null ? result.getCategory().getCategoryId() : null,

@@ -57,7 +57,7 @@ export default function ResultsPage() {
     const byCat = cat === "all" ? allResults : allResults.filter(r => r.categoryId === cat);
     if (!q.trim()) return byCat;
     const lower = q.trim().toLowerCase();
-    return byCat.filter(r => r.title?.toLowerCase().includes(lower) || r.shortDescription?.toLowerCase().includes(lower));
+    return byCat.filter(r => r.title?.toLowerCase().includes(lower) || r.description?.toLowerCase().includes(lower));
   }, [allResults, cat, q]);
 
   const handleDeleteConfirm = async id => {
@@ -76,10 +76,7 @@ export default function ResultsPage() {
   if (error)
     return (
       <>
-        <SEO
-          title="Risultati"
-          description="Guarda i risultati reali dei trattamenti laser e estetici di Beauty Room di Michela."
-        />
+        <SEO title="Risultati" description="Guarda i risultati reali dei trattamenti laser e estetici di Beauty Room di Michela." />
         <div className="rp-loading">
           <p className="text-danger">{error}</p>
         </div>
@@ -88,10 +85,7 @@ export default function ResultsPage() {
 
   return (
     <div className="results-root">
-      <SEO
-        title="Risultati"
-        description="Guarda i risultati reali dei trattamenti laser e estetici di Beauty Room di Michela."
-      />
+      <SEO title="Risultati" description="Guarda i risultati reali dei trattamenti laser e estetici di Beauty Room di Michela." />
       <Container fluid="xl" className="px-3 px-md-4">
         {/* ── Header centrato (come ProductsPage) ── */}
         <div className="sp-page-head">
