@@ -10,16 +10,10 @@
   z-index: 3;
 }
 
-/* ────────────────────────────────────────
-     WRAPPER STATICO (nuovo)
-     Gestisce border-radius + overflow separati dal transform framer.
-     Su desktop: trasparente, nessun effetto visivo.
-     Su mobile ≤575px: border-radius + overflow:hidden + margin-top.
-     ──────────────────────────────────────── */
+/* Wrapper: entry animation via `translate` (proprietà CSS separata,
+     non conflita con il `transform` inline di Framer Motion) */
 .laser-card-wrapper {
   width: min(1140px, 100%);
-  /* Animazione entrata — su opacity e translate, non su transform
-       per non conflittare con framer-motion che usa transform inline */
   opacity: 0;
   translate: 0 32px;
   transition:
@@ -32,20 +26,27 @@
   translate: 0 0;
 }
 
-/* ────────────────────────────────────────
-     CARD BASE (desktop)
-     ──────────────────────────────────────── */
+/* ── Card base ── */
 .laser-card {
   margin-top: 30px;
   position: relative;
   overflow: hidden;
   border-radius: 24px;
-  min-height: 520px;
-  width: 100%; /* il wrapper gestisce la larghezza max */
+  min-height: 590px;
+  width: 100%;
   box-shadow: 0 18px 40px rgba(59, 47, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  /*
+      isolation: isolate → crea un nuovo stacking context che contiene
+      il layer WebGL. Su Safari Metal evita che il compositor faccia
+      "color bleed" (fringing ciano/blu) tra il canvas e gli elementi
+      sovrapposti con border-radius + GPU transform di Framer.
+    */
+  isolation: isolate;
 
   --fx-x: 257px;
-  --fx-y: 170px;
+  --fx-y: 75px;
   --fx-s: 1.5;
 
   --pad-y: 26px;
@@ -53,8 +54,8 @@
   --gap: 0px;
 
   --machine-w: 370px;
-  --copy-w: 490px;
-  --copy-tx: 0px;
+  --copy-w: 550px;
+  --copy-tx: -35px;
 
   --hand-w: 290px;
   --hand-right: -10px;
@@ -68,9 +69,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-/* ────────────────────────────────────────
-     WEBGL BEAM
-     ──────────────────────────────────────── */
+/* ── WebGL beam ── */
 .laser-fx {
   position: absolute;
   inset: 0;
@@ -91,9 +90,7 @@
   height: 100%;
 }
 
-/* ────────────────────────────────────────
-     OVERLAY
-     ──────────────────────────────────────── */
+/* ── Overlay ── */
 .laser-overlay {
   position: absolute;
   inset: 0;
@@ -102,13 +99,10 @@
   background:
     radial-gradient(1200px 700px at 20% 30%, rgba(255, 255, 255, 0.07), transparent 60%),
     radial-gradient(900px 600px at 80% 70%, rgba(255, 210, 140, 0.06), transparent 55%);
-  mix-blend-mode: screen;
   opacity: 0.35;
 }
 
-/* ────────────────────────────────────────
-     HANDPIECE
-     ──────────────────────────────────────── */
+/* ── Handpiece ── */
 .laser-handpiece {
   position: absolute;
   z-index: 4;
@@ -122,16 +116,19 @@
   filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.28));
 }
 
-/* ────────────────────────────────────────
-     BEAM MASK (mobile only)
-     ──────────────────────────────────────── */
 .laser-beam-mask {
-  display: none;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+  background: linear-gradient(to bottom, #2f2723 60%, transparent 100%);
+  z-index: 3;
+  pointer-events: none;
 }
 
-/* ────────────────────────────────────────
-     LAYOUT CONTENT
-     ──────────────────────────────────────── */
+/* ── Layout content ── */
 .laser-content {
   display: flex;
   align-items: center;
@@ -140,6 +137,7 @@
   z-index: 5;
   padding: var(--pad-y) var(--pad-x);
   width: 100%;
+  flex: 1;
 }
 
 .laser-top {
@@ -149,48 +147,135 @@
   width: 100%;
 }
 
+/* ── Colonna sinistra (macchinario) ── */
+.laser-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--machine-w);
+  flex: 0 0 auto;
+}
+
 .laser-machine {
   width: var(--machine-w);
   height: auto;
   flex: 0 0 auto;
 }
 
+.laser-left .laser-machine {
+  display: block;
+  margin: 0 auto;
+}
+
+/* ── Copy ── */
 .laser-copy {
   max-width: var(--copy-w);
   transform: translateX(var(--copy-tx));
 }
 
-.laser-side {
+/* ── Elementi solo mobile (nascosti di default) ── */
+.laser-machine-mobile {
   display: none;
-  width: var(--machine-w);
-  flex: 0 0 auto;
 }
 
-/* ────────────────────────────────────────
-     TYPOGRAPHY
-     ──────────────────────────────────────── */
+.laser-body-mobile {
+  display: contents;
+}
+
+/* ── Kicker ── */
 .laser-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: rgba(255, 255, 255, 0.72);
   letter-spacing: 0.6px;
   font-size: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
+.laser-kicker-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffd7a1;
+  animation: laser-dot-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes laser-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 215, 161, 0.5);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 7px rgba(255, 215, 161, 0);
+  }
+}
+
+/* ── Titolo (entry animation) ── */
 .laser-title {
+  display: block;
   color: #fff3ea;
   font-weight: 850;
   line-height: 1.12;
-  margin-bottom: 12px;
+  margin-bottom: 18px;
   font-size: clamp(22px, 2.1vw, 34px);
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.05s;
 }
 
+.laser-card-wrapper.laser-card--visible .laser-title {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.laser-title--gold {
+  background: linear-gradient(135deg, #ffd7a1 20%, #c9a87c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Divisore animato ── */
+.laser-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 215, 161, 0.5) 0%, rgba(255, 215, 161, 0.12) 70%, transparent 100%);
+  margin: 18px 0 20px;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.25s;
+}
+
+.laser-card-wrapper.laser-card--visible .laser-divider {
+  transform: scaleX(1);
+}
+
+/* ── Testo body (entry animation) ── */
 .laser-text {
   color: rgba(255, 255, 255, 0.74);
   font-size: clamp(13px, 1.05vw, 15px);
   line-height: 1.7;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.6s ease 0.28s,
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.28s;
 }
 
+.laser-card-wrapper.laser-card--visible .laser-text {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Testo solo mobile (nascosto di default) ── */
 .laser-text-mobile {
   display: none;
 }
@@ -199,14 +284,49 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* ────────────────────────────────────────
-     BOTTONI
-     ──────────────────────────────────────── */
-.laser-btn-primary {
-  color: #2f2723 !important;
-  font-weight: 700;
+/* ── Benefit pills ── */
+.laser-benefits {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 18px;
 }
 
+.laser-benefit-pill {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  background: rgba(255, 215, 161, 0.07);
+  border: 1px solid rgba(255, 215, 161, 0.18);
+  color: rgba(255, 215, 161, 0.75);
+  font-size: 11.5px;
+  letter-spacing: 0.2px;
+  padding: 5px 13px;
+  border-radius: 100px;
+  opacity: 0;
+  transform: translateX(-12px);
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.laser-benefit-pill:nth-child(1) {
+  transition-delay: 0.42s;
+}
+.laser-benefit-pill:nth-child(2) {
+  transition-delay: 0.55s;
+}
+.laser-benefit-pill:nth-child(3) {
+  transition-delay: 0.68s;
+}
+
+.laser-card-wrapper.laser-card--visible .laser-benefit-pill {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ── Bottone gold ── */
 .laser-btn-gold {
   background: linear-gradient(135deg, #c9a87c 0%, #b8976a 100%) !important;
   border: none !important;
@@ -214,8 +334,7 @@
   font-weight: 700 !important;
   box-shadow: 0 4px 18px rgba(184, 151, 106, 0.42) !important;
   letter-spacing: 0.2px;
-  width: 100%;
-  padding: 14px 20px !important;
+  padding: 14px 48px !important;
   font-size: 15px !important;
   border-radius: 100px !important;
   transition:
@@ -233,15 +352,7 @@
   transform: scale(0.98) !important;
 }
 
-/* ────────────────────────────────────────
-     META
-     ──────────────────────────────────────── */
-.laser-meta {
-  margin-top: 12px;
-  display: grid;
-  gap: 6px;
-}
-
+/* ── Info / pay ── */
 .laser-info {
   color: rgba(255, 255, 255, 0.7);
   font-size: 12px;
@@ -262,50 +373,71 @@
   font-size: 12px;
 }
 
-/* ────────────────────────────────────────
-     COLONNA SINISTRA desktop/tablet
-     ──────────────────────────────────────── */
-.laser-left {
+/* ── Strip CTA (tutti i viewport) ── */
+.laser-strip {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  width: var(--machine-w);
-  flex: 0 0 auto;
+  gap: 10px;
+  padding: 20px 36px 24px;
+  position: relative;
+  z-index: 6;
+  background: #1e1814;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s ease;
 }
 
-.laser-left .laser-machine {
-  display: block;
-  margin: 0 auto;
+.laser-strip::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: radial-gradient(ellipse 45% 160% at 68% 0%, rgba(255, 200, 120, 0.2), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* Elementi solo mobile — nascosti di default */
-.laser-machine-mobile {
-  display: none;
+.laser-strip.laser-strip--visible {
+  opacity: 1;
+  transform: translateY(0);
 }
-.laser-body-mobile {
-  display: contents;
-}
-.laser-strip {
-  display: none;
+
+.laser-strip > * {
+  position: relative;
+  z-index: 1;
 }
 
 .laser-strip-meta {
   display: flex;
   justify-content: center;
-  gap: 16px;
+  gap: 20px;
   flex-wrap: wrap;
 }
 
-/* ══════════════════════════════════════════════════════════════
-     BREAKPOINTS DESKTOP / TABLET — invariati
-     ══════════════════════════════════════════════════════════════ */
+.laser-strip-meta .laser-info,
+.laser-strip-meta .laser-pay {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.laser-strip-meta .laser-whatsapp {
+  color: #ffd7a1;
+}
+
+/* ════════════════════════════════════════════════════════════════
+     MEDIA QUERIES — dalla più grande alla più piccola
+     ════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 1399px) {
   .laser-card {
     --fx-x: 248px;
-    --fx-y: 170px;
+    --fx-y: 75px;
     --fx-s: 1.5;
   }
 }
@@ -313,7 +445,7 @@
 @media (max-width: 1199px) {
   .laser-card {
     --fx-x: 205px;
-    --fx-y: 162px;
+    --fx-y: 65px;
     --fx-s: 1.55;
     --gap: 22px;
     --copy-tx: -50px;
@@ -326,77 +458,36 @@
 
 @media (max-width: 991px) {
   .laser-card {
-    --fx-x: 110px;
-    --fx-y: 132px;
-    --fx-s: 1.25;
-    --pad-y: 75px;
+    --fx-x: 173px;
+    --fx-y: 75px;
+    --fx-s: 1.7;
+    --pad-y: 44px;
     --pad-x: 0px;
     --gap: 0px;
-    --machine-w: 255px;
-    --copy-w: 310px;
-    --copy-tx: -25px;
-    --hand-w: 180px;
-    --hand-top: -20px;
+    --machine-w: 260px;
+    --copy-w: 290px;
+    --copy-tx: -30px;
+    --hand-w: 205px;
+    --hand-top: -45px;
     --hand-right: -8px;
+  }
+
+  .laser-benefits {
+    display: none;
   }
 }
 
 @media (max-width: 768px) {
   .laser-card {
-    min-height: auto;
-    --fx-x: 110px;
-    --fx-y: 125px;
-    --fx-s: 1.25;
-    --pad-y: 75px;
+    --fx-x: 191px;
+    --fx-y: 88px;
+    --fx-s: 1.8;
+    --pad-y: 36px;
     --pad-x: 0px;
-    --gap: 12px;
-    --machine-w: 220px;
-    --copy-w: 350px;
-    --copy-tx: -28px;
-  }
-
-  .laser-content {
-    flex-direction: column;
-    align-items: stretch;
-    padding: var(--pad-y) var(--pad-x);
-  }
-
-  .laser-top {
-    align-items: flex-start;
-  }
-  .laser-side {
-    display: none;
-  }
-
-  .laser-ctas--main,
-  .laser-meta--main {
-    display: block !important;
-  }
-  .laser-ctas .btn {
-    margin-bottom: 10px;
-  }
-
-  .laser-kicker {
-    font-size: 11px;
-    margin-bottom: 6px;
-  }
-  .laser-title {
-    font-size: 20px;
-    line-height: 1.12;
-    margin-bottom: 8px;
-  }
-  .laser-text {
-    font-size: 13px;
-    line-height: 1.55;
-    margin-bottom: 12px;
-  }
-  .laser-meta {
-    gap: 4px;
-    margin-top: 10px;
-  }
-  .laser-info,
-  .laser-pay {
-    font-size: 11px;
+    --gap: 8px;
+    --machine-w: 280px;
+    --copy-w: 280px;
+    --copy-tx: -40px;
   }
 }
 
@@ -408,13 +499,16 @@
   }
 }
 
-/* ══════════════════════════════════════════════════════════════
-     MOBILE FULL-BLEED ≤ 575px
-     ══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+     MOBILE FULL-BLEED ≤ 725px
+     Layout sovrapposto machine + copy con variabili CSS.
+     Framer NON anima (isMobile=true nel JSX → style={}) →
+     nessun GPU compositing → overflow:hidden funziona nativamente →
+     nessun -webkit-mask-image necessario → nessun fringing Safari.
+     ════════════════════════════════════════════════════════════════ */
 
-@media (max-width: 575px) {
+@media (max-width: 725px) {
   .laser-section {
-    padding-top: 0;
     padding-bottom: 0;
   }
 
@@ -425,7 +519,12 @@
     width: 100% !important;
   }
 
-  /* ── WRAPPER: gestisce border-radius + overflow su mobile ── */
+  /*
+      SENZA -webkit-mask-image: il border-radius + overflow:hidden
+      funzionano nativamente perché Framer non applica transform
+      (isMobile=true → motionStyle={}).
+      Questo elimina anche il potenziale fringing Safari su mobile.
+    */
   .laser-card-wrapper {
     width: 100%;
     margin-top: 24px;
@@ -434,33 +533,23 @@
     box-shadow:
       0 -4px 24px rgba(47, 39, 35, 0.18),
       0 18px 40px rgba(47, 39, 35, 0.1);
-    /*
-        Fix Safari/Chrome mobile: forza il rispetto di border-radius
-        su elementi GPU-composited (transform da framer-motion).
-      */
-    -webkit-mask-image: -webkit-radial-gradient(white, black);
-    mask-image: radial-gradient(white, black);
   }
 
-  /* ── CARD: niente border-radius (lo fa il wrapper) ── */
   .laser-card {
     border-radius: 0;
     margin-top: 0;
     width: 100%;
     min-height: 0;
     height: auto;
-    box-shadow: none; /* shadow sul wrapper */
-    display: flex;
-    flex-direction: column;
-    --machine-w: 100%;
-    --copy-w: 100%;
-    --copy-tx: 0px;
-    --pad-y: 0px;
-    --pad-x: 0px;
-    --gap: 0px;
+    box-shadow: none;
   }
 
-  /* Beam mask */
+  /*
+      Beam mask: mostrata solo qui (≤725px).
+      Su desktop era rimasta display:block per errore → causava il
+      fringing ciano in Safari perché -webkit-mask-image su un elemento
+      sopra il canvas WebGL genera artefatti nel Metal compositor.
+    */
   .laser-beam-mask {
     display: block;
     position: absolute;
@@ -476,12 +565,6 @@
   }
 
   .laser-left {
-    display: none !important;
-  }
-  .laser-ctas--main {
-    display: none !important;
-  }
-  .laser-meta--main {
     display: none !important;
   }
 
@@ -530,17 +613,11 @@
     flex: 0 0 var(--mob-machine-col);
     align-items: flex-end;
     justify-content: center;
-    padding-bottom: 0;
     position: relative;
     z-index: 5;
   }
 
   .laser-machine-mobile .laser-machine {
-    /*
-        svw (small viewport width) = viewport senza toolbar Safari/Chrome mobile.
-        Più stabile di vw che include la barra degli indirizzi.
-        Cambia solo il valore numerico in --mob-machine-w nei breakpoint.
-      */
     width: var(--mob-machine-w);
     height: auto;
     transform: translate(var(--mob-machine-tx), var(--mob-machine-ty));
@@ -570,44 +647,49 @@
     color: rgba(255, 255, 255, 0.65);
   }
 
+  .laser-kicker-dot {
+    width: 5px;
+    height: 5px;
+  }
+
   .laser-title {
     font-size: clamp(15px, 4.2vw, 20px);
     line-height: 1.2;
     margin-bottom: 0;
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .laser-divider {
+    margin: 8px 0 10px;
+    background: linear-gradient(90deg, rgba(255, 215, 161, 0.35) 0%, rgba(255, 215, 161, 0.06) 60%, transparent 100%);
   }
 
   .laser-text {
     display: none;
+    transition: none;
   }
 
-  /* Strip */
+  .laser-benefits {
+    display: none;
+  }
+
   .laser-strip {
-    display: flex !important;
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
     padding: 18px 20px 32px;
-    position: relative;
-    z-index: 6;
-    background: #1e1814;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    opacity: 0;
-    transform: translateY(12px);
-    transition:
-      opacity 0.5s ease,
-      transform 0.5s ease;
   }
 
-  .laser-strip.laser-strip--visible {
-    opacity: 1;
-    transform: translateY(0);
+  .laser-btn-gold {
+    padding: 14px 20px !important;
+    font-size: 15px !important;
+    width: 100%;
   }
 
   .laser-strip-meta {
-    display: flex;
     justify-content: center;
     gap: 14px;
-    flex-wrap: wrap;
   }
 
   .laser-strip-meta .laser-info,
@@ -615,37 +697,31 @@
     font-size: 11px;
     color: rgba(255, 255, 255, 0.5);
   }
-
-  .laser-strip-meta .laser-whatsapp {
-    color: #ffd7a1;
-  }
 }
 
-/* ══════════════════════════════════════════════════════════════
-     BREAKPOINT SPECIFICI MOBILE
-     I tuoi valori preservati integralmente.
-     Unica modifica: vw → svw in --mob-machine-w
-     (svw non include la barra URL su mobile → più stabile)
-     ══════════════════════════════════════════════════════════════ */
-
-@media (max-width: 575px) {
+/* ════════════════════════════════════════════════════════════════
+     VARIABILI MOBILE — da più larga a più stretta
+     Tutti i valori sono modificabili liberamente nel rispettivo
+     breakpoint senza toccare il layout.
+     ════════════════════════════════════════════════════════════════ */
+@media (min-width: 576px) and (max-width: 725px) {
   .laser-card {
-    --mob-beam-x: calc(44.2vw - 130px);
-    --mob-beam-y: 50px;
-    --mob-beam-s: 1.65;
-    --mob-hand-w: 210px;
-    --mob-hand-top: -45px;
-    --mob-machine-w: min(350px, 54svw);
-    --mob-machine-col: 47%;
-    --mob-machine-tx: 10px;
-    --mob-machine-ty: -15px;
-    --mob-copy-col: 60%;
+    --mob-beam-x: calc(40vw - 137px);
+    --mob-beam-y: 88px;
+    --mob-beam-s: 1.7;
+    --mob-hand-w: 270px;
+    --mob-hand-top: -50px;
+    --mob-machine-w: min(400px, 46svw);
+    --mob-machine-col: 48%;
+    --mob-machine-tx: -20px;
+    --mob-machine-ty: 20px;
+    --mob-copy-col: 62%;
     --mob-copy-pt: 0px;
-    --mob-copy-pb: 12px;
+    --mob-copy-pb: 16px;
     --mob-copy-tx: 0px;
-    --mob-copy-ty: -240px;
-    --mob-body-pt: 58px;
-    --mob-body-min-h: 410px;
+    --mob-copy-ty: 0px;
+    --mob-body-pt: 30px;
+    --mob-body-min-h: 200px;
     --fx-x: var(--mob-beam-x);
     --fx-y: var(--mob-beam-y);
     --fx-s: var(--mob-beam-s);
@@ -657,24 +733,25 @@
   }
 
   .laser-copy {
-    margin-left: -62%;
+    margin-left: -45%;
+    margin-bottom: 50%;
   }
 }
 
 @media (min-width: 481px) and (max-width: 575px) {
   .laser-card {
-    --mob-beam-x: calc(50.9vw - 130px);
+    --mob-beam-x: calc(50.9vw - 137px);
     --mob-beam-y: 124px;
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(300px, 65svw);
+    --mob-machine-w: min(280px, 55svw);
     --mob-machine-col: 53%;
     --mob-machine-tx: -15px;
     --mob-machine-ty: 10px;
     --mob-copy-col: 60%;
     --mob-copy-tx: 20px;
-    --mob-copy-ty: -320px;
+    --mob-copy-ty: -310px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
     --fx-y: var(--mob-beam-y);
@@ -683,22 +760,27 @@
     --hand-top: var(--mob-hand-top);
     --hand-right: -8px;
   }
+
   .laser-body-mobile {
     min-height: 500px;
+  }
+
+  .laser-copy {
+    margin-left: -54.5%;
   }
 }
 
 @media (min-width: 441px) and (max-width: 480px) {
   .laser-card {
-    --mob-beam-x: calc(50.9vw - 130px);
+    --mob-beam-x: calc(50.9vw - 135px);
     --mob-beam-y: 124px;
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
-    --mob-machine-w: min(350px, 62svw);
+    --mob-machine-w: min(310px, 63svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
-    --mob-machine-ty: -15px;
+    --mob-machine-ty: 20px;
     --mob-copy-col: 60%;
     --mob-copy-tx: 0px;
     --mob-copy-ty: -320px;
@@ -710,15 +792,20 @@
     --hand-top: var(--mob-hand-top);
     --hand-right: -8px;
   }
+
   .laser-body-mobile {
     min-height: 500px;
+  }
+
+  .laser-copy {
+    margin-left: -60.5%;
   }
 }
 
 @media (min-width: 421px) and (max-width: 440px) {
   .laser-card {
-    --mob-beam-x: calc(50.9vw - 130px);
-    --mob-beam-y: 110px;
+    --mob-beam-x: calc(50.9vw - 135px);
+    --mob-beam-y: 120px;
     --mob-beam-s: 2;
     --mob-hand-w: 220px;
     --mob-hand-top: -45px;
@@ -728,7 +815,7 @@
     --mob-machine-ty: 10px;
     --mob-copy-col: 60%;
     --mob-copy-tx: 10px;
-    --mob-copy-ty: -295px;
+    --mob-copy-ty: -310px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
     --fx-y: var(--mob-beam-y);
@@ -737,14 +824,19 @@
     --hand-top: var(--mob-hand-top);
     --hand-right: -8px;
   }
+
   .laser-body-mobile {
-    min-height: 470px;
+    min-height: 490px;
+  }
+
+  .laser-copy {
+    margin-left: -62.5%;
   }
 }
 
 @media (min-width: 400px) and (max-width: 420px) {
   .laser-card {
-    --mob-beam-x: calc(52.8vw - 130px);
+    --mob-beam-x: calc(52.8vw - 136px);
     --mob-beam-y: 105px;
     --mob-beam-s: 1.95;
     --mob-hand-w: 200px;
@@ -752,7 +844,7 @@
     --mob-machine-w: min(350px, 65svw);
     --mob-machine-col: 47%;
     --mob-machine-tx: -15px;
-    --mob-machine-ty: 5px;
+    --mob-machine-ty: 15px;
     --mob-copy-col: 60%;
     --mob-copy-tx: 4px;
     --mob-copy-ty: -300px;
@@ -764,14 +856,19 @@
     --hand-top: var(--mob-hand-top);
     --hand-right: -8px;
   }
+
   .laser-body-mobile {
     min-height: 470px;
+  }
+
+  .laser-copy {
+    margin-left: -63.5%;
   }
 }
 
 @media (min-width: 375px) and (max-width: 399px) {
   .laser-card {
-    --mob-beam-x: calc(61vw - 128.5px);
+    --mob-beam-x: calc(61vw - 134.5px);
     --mob-beam-y: 140px;
     --mob-beam-s: 2.25;
     --mob-hand-w: 195px;
@@ -779,9 +876,73 @@
     --mob-machine-w: min(350px, 69svw);
     --mob-machine-col: 65%;
     --mob-machine-tx: -15px;
-    --mob-machine-ty: -10px;
+    --mob-machine-ty: 10px;
     --mob-copy-col: 65%;
     --mob-copy-tx: -3px;
+    --mob-copy-ty: -305px;
+    --mob-body-min-h: 410px;
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+  }
+
+  .laser-body-mobile {
+    min-height: 470px;
+  }
+
+  .laser-copy {
+    margin-left: -66.5%;
+  }
+}
+
+@media (min-width: 358px) and (max-width: 374px) {
+  .laser-card {
+    --mob-beam-x: calc(64.2vw - 149px);
+    --mob-beam-y: 143px;
+    --mob-beam-s: 2.25;
+    --mob-hand-w: 200px;
+    --mob-hand-top: -20px;
+    --mob-machine-w: min(350px, 71svw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -15px;
+    --mob-machine-ty: 0px;
+    --mob-copy-col: 59%;
+    --mob-copy-tx: 10px;
+    --mob-copy-ty: -320px;
+    --mob-body-min-h: 410px;
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+  }
+
+  .laser-body-mobile {
+    min-height: 480px;
+  }
+
+  .laser-copy {
+    margin-left: -71.5%;
+  }
+}
+
+@media (min-width: 344px) and (max-width: 357px) {
+  .laser-card {
+    --mob-beam-x: calc(64.7vw - 110px);
+    --mob-beam-y: 175px;
+    --mob-beam-s: 2.55;
+    --mob-hand-w: 180px;
+    --mob-hand-top: -20px;
+    --mob-machine-w: min(350px, 78svw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -25px;
+    --mob-machine-ty: 15px;
+    --mob-copy-col: 59%;
+    --mob-copy-tx: 0px;
     --mob-copy-ty: -310px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
@@ -791,73 +952,30 @@
     --hand-top: var(--mob-hand-top);
     --hand-right: -8px;
   }
+
   .laser-body-mobile {
     min-height: 470px;
   }
-}
 
-@media (min-width: 358px) and (max-width: 374px) {
-  .laser-card {
-    --mob-beam-x: calc(64.2vw - 130px);
-    --mob-beam-y: 113px;
-    --mob-beam-s: 2.25;
-    --mob-hand-w: 180px;
-    --mob-hand-top: -20px;
-    --mob-machine-w: min(350px, 62svw);
-    --mob-machine-col: 47%;
-    --mob-machine-tx: -15px;
-    --mob-machine-ty: 0px;
-    --mob-copy-col: 57%;
-    --mob-copy-tx: 10px;
-    --mob-copy-ty: -250px;
-    --mob-body-min-h: 410px;
-    --fx-x: var(--mob-beam-x);
-    --fx-y: var(--mob-beam-y);
-    --fx-s: var(--mob-beam-s);
-    --hand-w: var(--mob-hand-w);
-    --hand-top: var(--mob-hand-top);
-    --hand-right: -8px;
-  }
-}
-
-@media (min-width: 344px) and (max-width: 357px) {
-  .laser-card {
-    --mob-beam-x: calc(64.7vw - 130px);
-    --mob-beam-y: 95px;
-    --mob-beam-s: 2.25;
-    --mob-hand-w: 180px;
-    --mob-hand-top: -20px;
-    --mob-machine-w: min(350px, 65svw);
-    --mob-machine-col: 47%;
-    --mob-machine-tx: -15px;
-    --mob-machine-ty: 0px;
-    --mob-copy-col: 57%;
-    --mob-copy-tx: 0px;
-    --mob-copy-ty: -230px;
-    --mob-body-min-h: 410px;
-    --fx-x: var(--mob-beam-x);
-    --fx-y: var(--mob-beam-y);
-    --fx-s: var(--mob-beam-s);
-    --hand-w: var(--mob-hand-w);
-    --hand-top: var(--mob-hand-top);
-    --hand-right: -8px;
+  .laser-copy {
+    margin-left: -75.5%;
   }
 }
 
 @media (max-width: 343px) {
   .laser-card {
-    --mob-beam-x: calc(67.3vw - 130px);
-    --mob-beam-y: 100px;
-    --mob-beam-s: 2.35;
+    --mob-beam-x: calc(67.3vw - 111px);
+    --mob-beam-y: 184px;
+    --mob-beam-s: 2.65;
     --mob-hand-w: 180px;
     --mob-hand-top: -20px;
-    --mob-machine-w: min(350px, 65svw);
+    --mob-machine-w: min(350px, 78svw);
     --mob-machine-col: 47%;
-    --mob-machine-tx: -15px;
-    --mob-machine-ty: 0px;
-    --mob-copy-col: 57%;
+    --mob-machine-tx: -30px;
+    --mob-machine-ty: 15px;
+    --mob-copy-col: 65%;
     --mob-copy-tx: 0px;
-    --mob-copy-ty: -235px;
+    --mob-copy-ty: -303px;
     --mob-body-min-h: 410px;
     --fx-x: var(--mob-beam-x);
     --fx-y: var(--mob-beam-y);
@@ -866,18 +984,80 @@
     --hand-top: var(--mob-hand-top);
     --hand-right: -8px;
   }
+
+  .laser-body-mobile {
+    min-height: 460px;
+  }
+
+  .laser-copy {
+    margin-left: -75.5%;
+  }
 }
 
-/* Accessibilità */
+@media (min-width: 320px) and (max-width: 340px) {
+  .laser-card {
+    --mob-beam-x: calc(67.3vw - 111px);
+    --mob-beam-y: 190px;
+    --mob-beam-s: 2.65;
+    --mob-hand-w: 180px;
+    --mob-hand-top: -20px;
+    --mob-machine-w: min(350px, 78svw);
+    --mob-machine-col: 47%;
+    --mob-machine-tx: -30px;
+    --mob-machine-ty: 15px;
+    --mob-copy-col: 61%;
+    --mob-copy-tx: 0px;
+    --mob-copy-ty: -290px;
+    --mob-body-min-h: 410px;
+    --fx-x: var(--mob-beam-x);
+    --fx-y: var(--mob-beam-y);
+    --fx-s: var(--mob-beam-s);
+    --hand-w: var(--mob-hand-w);
+    --hand-top: var(--mob-hand-top);
+    --hand-right: -8px;
+  }
+
+  .laser-body-mobile {
+    min-height: 460px;
+  }
+
+  .laser-copy {
+    margin-left: -75.5%;
+  }
+
+  .laser-strip-meta {
+    gap: 5px;
+  }
+
+  .laser-strip {
+    padding: 18px 20px 10px;
+  }
+}
+
+/* ── Accessibilità ── */
 @media (prefers-reduced-motion: reduce) {
   .laser-card-wrapper {
     opacity: 1 !important;
     translate: none !important;
     transition: none !important;
   }
+
+  .laser-title,
+  .laser-divider,
+  .laser-text,
+  .laser-benefit-pill {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
   .laser-strip {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
+  }
+
+  .laser-kicker-dot {
+    animation: none !important;
   }
 }

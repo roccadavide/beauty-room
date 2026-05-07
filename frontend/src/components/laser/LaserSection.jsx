@@ -2,18 +2,34 @@ import LaserFlow from "./LaserFlow";
 import { Button, Container } from "react-bootstrap";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const MotionDiv = motion.div;
+
+// ID stabile in produzione — aggiornare solo se il record viene ricreato
+const LASER_SERVICE_UUID = "ea41a8cd-bfec-49d3-bfa4-206c297ecd9d";
+
+// ── Fog: compensa DPR per densità uniforme su Retina / Safari Metal ──
+// Il canvas WebGL renderizza a DPR×risoluzione → fog appare DPR× più
+// densa. Dividiamo per min(DPR, 2) per riallineare tutti i display.
+const getFog = () => {
+  if (typeof window === "undefined") return 2.1;
+  if (window.innerWidth <= 725) return 0.05;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  return 2.1 / dpr;
+  // DPR 1 (non-Retina, Chrome/Firefox) → 2.1
+  // DPR 2 (Retina MacBook, iPhone)     → 1.05
+  // DPR 3 (Android high-end, capped 2) → 1.05
+};
 
 export default function LaserSection() {
   const reduce = useReducedMotion();
   const sectionRef = useRef(null);
   const cardRef = useRef(null);
   const stripRef = useRef(null);
+  const navigate = useNavigate();
 
-  // Desktop: 2.1 (compensa il moltiplicatore 0.9 nel shader → risultato 1.89, identico a prima)
-  // Mobile:  0.05 (× 0.9 nel shader = 0.045, fog molto ridotta)
-  const [fogValue, setFogValue] = useState(typeof window !== "undefined" && window.innerWidth <= 575 ? 0.05 : 2.1);
+  const [fogValue, setFogValue] = useState(getFog);
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -23,14 +39,18 @@ export default function LaserSection() {
   const liftY = useTransform(scrollYProgress, [0, 0.25, 1], [0, 0, reduce ? 0 : -70]);
   const liftScale = useTransform(scrollYProgress, [0, 1], [1, reduce ? 1 : 1.02]);
 
-  // Fog adattivo al resize
+  // Su mobile nessun parallax (evita GPU compositing e fringing Safari)
+  const motionStyle = reduce ? {} : { y: liftY, scale: liftScale };
+
   useEffect(() => {
-    const handler = () => setFogValue(window.innerWidth <= 575 ? 0.05 : 2.1);
+    const handler = () => {
+      setFogValue(getFog());
+    };
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
 
-  // Animazione entrata card — osserva il WRAPPER, non la MotionDiv
+  // Entry animation — osserva il WRAPPER, non la MotionDiv
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
@@ -51,7 +71,7 @@ export default function LaserSection() {
     return () => observer.disconnect();
   }, [reduce]);
 
-  // Fade-in strip mobile
+  // Fade-in strip
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
@@ -75,7 +95,7 @@ export default function LaserSection() {
   return (
     <section ref={sectionRef} className="laser-section">
       <Container className="d-flex justify-content-center align-items-center">
-        <MotionDiv ref={cardRef} className="laser-card-wrapper" style={{ y: liftY, scale: liftScale }}>
+        <MotionDiv ref={cardRef} className="laser-card-wrapper" style={motionStyle}>
           <div className="laser-card laser-card--dark">
             {/* WebGL beam */}
             <div className="laser-fx" aria-hidden="true">
@@ -99,38 +119,17 @@ export default function LaserSection() {
               </div>
             </div>
 
-            {/* Handpiece — assoluto top-right */}
+            {/* Handpiece */}
             <img src="/handpiece.png" alt="Manipolo laser" className="laser-handpiece" draggable="false" />
 
-            {/* Maschera beam sopra manipolo (mobile) */}
+            {/* Beam mask — solo mobile, gestita da CSS */}
             <div className="laser-beam-mask" aria-hidden="true" />
 
             <div className="laser-content">
               <div className="laser-top">
-                {/* Colonna sinistra desktop/tablet */}
+                {/* Colonna sinistra: macchinario (desktop/tablet) */}
                 <div className="laser-left">
                   <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
-                  <div className="laser-side">
-                    <div className="laser-ctas d-flex gap-2 flex-column px-3">
-                      <Button variant="light" className="rounded-pill px-4 laser-btn-primary">
-                        Prenota una consulenza
-                      </Button>
-                      <Button variant="outline-light" className="rounded-pill px-4">
-                        Guarda i risultati
-                      </Button>
-                    </div>
-                    <div className="laser-meta">
-                      <div className="laser-info">
-                        Per info rapide:{" "}
-                        <a href="https://wa.me/393780921723" target="_blank" rel="noreferrer" className="laser-whatsapp">
-                          WhatsApp
-                        </a>
-                      </div>
-                    </div>
-                    <div className="laser-pay">
-                      Disponibile pagamento in <strong>3 rate</strong> con Scalapay
-                    </div>
-                  </div>
                 </div>
 
                 {/* Wrapper mobile */}
@@ -141,15 +140,24 @@ export default function LaserSection() {
                       <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
                     </div>
 
-                    {/* Copy — sempre visibile */}
                     <div className="laser-copy">
-                      <div className="laser-kicker">Laser • Estetica avanzata</div>
-                      <h2 className="laser-title">Stanca di lamette e cerette ogni settimana?</h2>
-                      {/* Testo breve solo mobile */}
+                      <div className="laser-kicker">
+                        <span className="laser-kicker-dot" aria-hidden="true" />
+                        Laser • Estetica avanzata
+                      </div>
+
+                      <h2 className="laser-title">
+                        Stanca di lamette e cerette <span className="laser-title--gold">ogni settimana?</span>
+                      </h2>
+
+                      <div className="laser-divider" aria-hidden="true" />
+
+                      {/* Testo breve — solo mobile */}
                       <p className="laser-text-mobile">
                         Con <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni una pelle più liscia.
                       </p>
-                      {/* Testo lungo tablet/desktop */}
+
+                      {/* Testo lungo — tablet/desktop */}
                       <p className="laser-text">
                         Con il nuovo macchinario <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni
                         una pelle più liscia.
@@ -159,25 +167,11 @@ export default function LaserSection() {
                         </span>
                       </p>
 
-                      {/* CTA tablet/desktop */}
-                      <div className="laser-ctas d-flex gap-2 flex-wrap laser-ctas--main">
-                        <Button variant="light" className="rounded-pill px-4 laser-btn-primary">
-                          Prenota una consulenza
-                        </Button>
-                        <Button variant="outline-light" className="rounded-pill px-4">
-                          Guarda i risultati
-                        </Button>
-                      </div>
-                      <div className="laser-meta laser-meta--main">
-                        <div className="laser-info">
-                          Per info rapide:{" "}
-                          <a href="https://wa.me/393780921723" target="_blank" rel="noreferrer" className="laser-whatsapp">
-                            WhatsApp
-                          </a>
-                        </div>
-                        <div className="laser-pay">
-                          Disponibile pagamento in <strong>3 rate</strong> con Scalapay
-                        </div>
+                      {/* Benefit pills — solo desktop */}
+                      <div className="laser-benefits">
+                        <span className="laser-benefit-pill">✦ Zero rasatura</span>
+                        <span className="laser-benefit-pill">✦ Visibile già dalla 1ª seduta</span>
+                        <span className="laser-benefit-pill">✦ HiTek Milano</span>
                       </div>
                     </div>
                   </div>
@@ -185,9 +179,11 @@ export default function LaserSection() {
               </div>
             </div>
 
-            {/* Strip inferiore — solo mobile */}
+            {/* Strip CTA — visibile su tutti i viewport */}
             <div ref={stripRef} className="laser-strip">
-              <Button className="laser-btn-gold">Prenota una consulenza</Button>
+              <Button className="laser-btn-gold" onClick={() => navigate(`/trattamenti/${LASER_SERVICE_UUID}`)}>
+                Prenota la tua seduta
+              </Button>
               <div className="laser-strip-meta">
                 <span className="laser-info">
                   Per info rapide:{" "}
@@ -195,16 +191,13 @@ export default function LaserSection() {
                     WhatsApp
                   </a>
                 </span>
-                <span className="laser-pay">
-                  Pagamento in <strong>3 rate</strong> con Scalapay
-                </span>
+                <span className="laser-pay">Pagamento con carta o PayPal</span>
               </div>
             </div>
 
             <div className="laser-overlay" aria-hidden="true" />
           </div>
         </MotionDiv>
-        {/* fine laser-card-wrapper */}
       </Container>
     </section>
   );
