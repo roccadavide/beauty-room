@@ -74,7 +74,7 @@ uniform float uFade;
 #define FOG_BEAM_MIN 0.0
 #define FOG_BEAM_MAX 0.75
 #define FOG_MASK_GAMMA 0.5
-#define FOG_EXPAND_SHAPE 12.2
+#define FOG_EXPAND_SHAPE 32.0
 #define FOG_EDGE_MIX 0.5
 
 #define HFOG_EDGE_START 0.20
@@ -215,7 +215,7 @@ float sc = 512.0 / minRes * 0.4;
   float bBias=mix(1.0,1.0-sPix,FOG_BOTTOM_BIAS);
 
   float browserFogIntensity = uFogIntensity * 0.9;
-  float radialFade = 1.0 - smoothstep(0.0, 1.05, length(uvc) / 170.0);
+  float radialFade = 1.0 - smoothstep(0.0, 1.0, length(uvc) / 70.0);
   fog = n * browserFogIntensity * bBias * bm * hW * radialFade;
 #endif
 

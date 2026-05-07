@@ -9,17 +9,13 @@ const MotionDiv = motion.div;
 // ID stabile in produzione — aggiornare solo se il record viene ricreato
 const LASER_SERVICE_UUID = "ea41a8cd-bfec-49d3-bfa4-206c297ecd9d";
 
-// ── Fog: compensa DPR per densità uniforme su Retina / Safari Metal ──
-// Il canvas WebGL renderizza a DPR×risoluzione → fog appare DPR× più
-// densa. Dividiamo per min(DPR, 2) per riallineare tutti i display.
 const getFog = () => {
   if (typeof window === "undefined") return 2.1;
   if (window.innerWidth <= 725) return 0.05;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  return 2.1 / dpr;
-  // DPR 1 (non-Retina, Chrome/Firefox) → 2.1
-  // DPR 2 (Retina MacBook, iPhone)     → 1.05
-  // DPR 3 (Android high-end, capped 2) → 1.05
+  const ua = navigator.userAgent || "";
+  const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua) && !/Chromium/.test(ua);
+  return isSafari ? 2.1 / (dpr * 2.5) : 4.1 / dpr;
 };
 
 export default function LaserSection() {
@@ -30,6 +26,16 @@ export default function LaserSection() {
   const navigate = useNavigate();
 
   const [fogValue, setFogValue] = useState(getFog);
+
+  useEffect(() => {
+    setFogValue(getFog());
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setFogValue(getFog());
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
