@@ -1,0 +1,2 @@
+ALTER TABLE booking_package_link
+    ADD COLUMN IF NOT EXISTS linked_at TIMESTAMP NOT NULL DEFAULT NOW();
