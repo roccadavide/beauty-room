@@ -163,6 +163,7 @@ export const CUSTOMER_ENDPOINTS = {
   SUMMARY: id => `/admin/customers/${id}/summary`,
   NOTES: id => `/admin/customers/${id}/notes`,
   BASE: id => `/admin/customers/${id}`,
+  ACTIVE_PACKAGES: id => `/admin/customers/${id}/active-packages`,
 };
 
 export const REPORT_ENDPOINTS = {

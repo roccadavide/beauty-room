@@ -32,3 +32,8 @@ export const updateCustomer = async (customerId, payload) => {
   const { data } = await http.patch(CUSTOMER_ENDPOINTS.BASE(customerId), payload);
   return data;
 };
+
+export const getActivePackages = async customerId => {
+  const { data } = await http.get(CUSTOMER_ENDPOINTS.ACTIVE_PACKAGES(customerId));
+  return Array.isArray(data) ? data : [];
+};

@@ -2367,3 +2367,11 @@ body.modal-open {
 .ag-selected-services__total { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .84rem; flex-wrap: wrap; }
 .ag-selected-services__manual-note { font-size: .72rem; color: #f59e0b; font-style: italic; }
 .ag-service-item__selected-count { font-size: .68rem; font-weight: 700; background: rgba(34,197,94,.2); color: #166534; border-radius: 10px; padding: 1px 6px; }
+
+/* ── Active package selection cards ── */
+.ag-packages-section { margin-bottom: 12px; }
+.ag-pkg-select-card { border: 1px solid rgba(184,151,106,.25); border-radius: 10px; padding: 10px 14px; cursor: pointer; background: rgba(255,255,255,.7); transition: all .15s; min-width: 160px; }
+.ag-pkg-select-card:hover { border-color: rgba(184,151,106,.5); background: rgba(231,214,195,.3); }
+.ag-pkg-select-card.is-selected { border-color: #b8976a; background: rgba(184,151,106,.15); box-shadow: 0 0 0 2px rgba(184,151,106,.3); }
+.ag-pkg-select-card__name { font-size: .82rem; font-weight: 700; color: #3a2e22; }
+.ag-pkg-select-card__meta { font-size: .74rem; color: #9a7a50; margin-top: 2px; }

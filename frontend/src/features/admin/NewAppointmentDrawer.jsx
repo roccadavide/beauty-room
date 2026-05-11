@@ -13,7 +13,7 @@ import {
   updateBooking,
   updatePersonalAppointment,
 } from "../../api/modules/adminAgenda.api";
-import { updateCustomer } from "../../api/modules/customer.api";
+import { getActivePackages, updateCustomer } from "../../api/modules/customer.api";
 import "./NewAppointmentDrawer.css";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -607,6 +607,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
   // ── Customer inline edit ───────────────────────────────────────────────────
   const [customerId, setCustomerId] = useState(null);
+  const [activePackages, setActivePackages] = useState([]);
+  const [selectedPackageId, setSelectedPackageId] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState({ fullName: "", phone: "", email: "" });
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
@@ -726,6 +728,18 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       .catch(() => setCatalogPackages([]));
   }, []);
 
+  // Load active package assignments when customer is identified
+  useEffect(() => {
+    if (customerId) {
+      getActivePackages(customerId)
+        .then(pkgs => setActivePackages(pkgs.filter(p => p.status === "ACTIVE")))
+        .catch(() => setActivePackages([]));
+    } else {
+      setActivePackages([]);
+      setSelectedPackageId(null);
+    }
+  }, [customerId]);
+
   // Pre-fetch client packages in edit mode or duplicate mode
   useEffect(() => {
     if ((isEditMode || isDuplicate) && editBooking.customerName) {
@@ -796,6 +810,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const handleCustomerNameChange = useCallback(text => {
     setCustomerName(text);
     setClientPackages([]);
+    setActivePackages([]);
+    setSelectedPackageId(null);
   }, []);
 
   const handleCustomerSelect = useCallback(c => {
@@ -961,8 +977,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         startTime: customTime || selectedSlot,
         notes: notes.trim() || null,
         paddingMinutes: paddingMinutes > 0 ? paddingMinutes : null,
-        currentSession: currentSession ? parseInt(currentSession, 10) : null,
-        totalSessions: totalSessions ? parseInt(totalSessions, 10) : null,
+        currentSession: selectedPackageId ? null : (currentSession ? parseInt(currentSession, 10) : null),
+        totalSessions: selectedPackageId ? null : (totalSessions ? parseInt(totalSessions, 10) : null),
         serviceIds: catalogIds,
         services: selectedServices.map(ss => ({
           serviceId: ss.serviceId,
@@ -979,7 +995,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         customServicePrice: customItems.length > 0 && customItems[0].customPrice
           ? parseFloat(customItems[0].customPrice)
           : null,
-        packageAssignmentId: resolvedPackageAssignmentId,
+        packageAssignmentId: selectedPackageId ?? resolvedPackageAssignmentId,
         serviceOptionId: null,
         paidInStore,
       };
@@ -1343,34 +1359,78 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       {/* ── Section 3: Sedute ──────────────────────────────────────────────── */}
       <div className="nad-section">
         <div className="nad-section__title">Numero seduta (opzionale)</div>
-        {sessionsAutoFilled && (
-          <div className="nad-help nad-sessions-autofilled-note">
-            Compilato automaticamente dal pacchetto. Puoi modificarlo.
+
+        {/* Active package cards — shown only when customer has active packages */}
+        {activePackages.length > 0 && (
+          <div className="ag-packages-section">
+            <div className="ag-customer-panel__label">Pacchetti attivi</div>
+            <div className="d-flex flex-wrap gap-2 mt-1">
+              {activePackages.map(pkg => {
+                const sessionsUsed = pkg.totalSessions - pkg.sessionsRemaining;
+                const isSelected = selectedPackageId === pkg.id;
+                return (
+                  <div
+                    key={pkg.id}
+                    className={`ag-pkg-select-card${isSelected ? " is-selected" : ""}`}
+                    onClick={() => setSelectedPackageId(isSelected ? null : pkg.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => e.key === "Enter" && setSelectedPackageId(isSelected ? null : pkg.id)}
+                  >
+                    <div className="ag-pkg-select-card__name">
+                      {pkg.displayName || pkg.serviceOptionName || "Pacchetto"}
+                    </div>
+                    <div className="ag-pkg-select-card__meta">
+                      Seduta {sessionsUsed + 1}/{pkg.totalSessions}
+                      {pkg.sessionsRemaining === 1 && (
+                        <span style={{ color: "#fbbf24" }}> · ultima!</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {selectedPackageId && (
+              <div className="nad-help mt-1">
+                Seduta scalata automaticamente dal pacchetto al salvataggio.
+              </div>
+            )}
           </div>
         )}
-        <div className="nad-sessions-row">
-          <span className="nad-sessions-label">Seduta n°</span>
-          <input
-            type="number"
-            className="nad-form__input nad-sessions-input"
-            value={currentSession}
-            onChange={e => { setCurrentSession(e.target.value); setSessionsAutoFilled(false); }}
-            min={1}
-            placeholder="es. 3"
-          />
-          <span className="nad-sessions-label">di</span>
-          <input
-            type="number"
-            className="nad-form__input nad-sessions-input"
-            value={totalSessions}
-            onChange={e => { setTotalSessions(e.target.value); setSessionsAutoFilled(false); }}
-            min={1}
-            placeholder="es. 10"
-          />
-        </div>
-        <div className="nad-help">
-          Solo per tenere traccia manuale. Non crea un pacchetto e non decrementa automaticamente. Per gestire le sedute in modo automatico, usa Servizi → Pacchetto.
-        </div>
+
+        {/* Manual session fields — hidden when a package card is selected */}
+        {!selectedPackageId && (
+          <>
+            {sessionsAutoFilled && (
+              <div className="nad-help nad-sessions-autofilled-note">
+                Compilato automaticamente dal pacchetto. Puoi modificarlo.
+              </div>
+            )}
+            <div className="nad-sessions-row">
+              <span className="nad-sessions-label">Seduta n°</span>
+              <input
+                type="number"
+                className="nad-form__input nad-sessions-input"
+                value={currentSession}
+                onChange={e => { setCurrentSession(e.target.value); setSessionsAutoFilled(false); }}
+                min={1}
+                placeholder="es. 3"
+              />
+              <span className="nad-sessions-label">di</span>
+              <input
+                type="number"
+                className="nad-form__input nad-sessions-input"
+                value={totalSessions}
+                onChange={e => { setTotalSessions(e.target.value); setSessionsAutoFilled(false); }}
+                min={1}
+                placeholder="es. 10"
+              />
+            </div>
+            <div className="nad-help">
+              Solo per tenere traccia manuale. Non crea un pacchetto e non decrementa automaticamente. Per gestire le sedute in modo automatico, usa Servizi → Pacchetto.
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Section 4: Data e ora ──────────────────────────────────────────── */}
