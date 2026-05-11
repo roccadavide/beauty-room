@@ -116,6 +116,9 @@ public class Booking {
     @Column(name = "is_no_show", nullable = false)
     private boolean noShow = false;
 
+    @Column(name = "paid_in_store", nullable = false)
+    private boolean paidInStore = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id")
     private ServiceItem service;

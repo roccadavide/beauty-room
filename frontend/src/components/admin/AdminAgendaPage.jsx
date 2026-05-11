@@ -11,6 +11,7 @@ import {
   refundBooking,
   patchBookingConsent,
   getPersonalAppointmentsDay,
+  createPersonalAppointment,
 } from "../../api/modules/adminAgenda.api";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
@@ -38,6 +39,22 @@ const minutes = hhmm => {
 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmtTime = dt => new Date(dt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+const CATEGORY_PALETTE = [
+  { bg: "rgba(139,94,60,.24)",  border: "#b8976a", text: "#6b4226" },
+  { bg: "rgba(99,102,241,.2)",  border: "#818cf8", text: "#4338ca" },
+  { bg: "rgba(34,197,94,.18)",  border: "#4ade80", text: "#166534" },
+  { bg: "rgba(251,191,36,.2)",  border: "#fbbf24", text: "#92400e" },
+  { bg: "rgba(236,72,153,.2)",  border: "#f472b6", text: "#9d174d" },
+  { bg: "rgba(20,184,166,.2)",  border: "#2dd4bf", text: "#134e4a" },
+  { bg: "rgba(249,115,22,.2)",  border: "#fb923c", text: "#7c2d12" },
+];
+const categoryColor = cat => {
+  if (!cat) return CATEGORY_PALETTE[0];
+  let h = 0;
+  for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) & 0xffff;
+  return CATEGORY_PALETTE[h % CATEGORY_PALETTE.length];
+};
 
 const openWhatsApp = phone => {
   if (!phone) return;
@@ -115,12 +132,14 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const isSelected = bookingId != null && bookingId === selectedBookingId;
     const durationMin = end - start;
     const isCompact = durationMin < 30;
+    const cat = booking?.categoryName ?? booking?.category ?? null;
+    const color = categoryColor(cat);
 
     return (
       <div
         key={`${kind}-${idx}`}
         className={`ag-tl-block ag-tl-booking${booking ? " ag-tl-booking--clickable" : ""}${isSelected ? " ag-tl-booking--selected" : ""}`}
-        style={{ top: `${top}%`, height: `${Math.max(height, 0)}%` }}
+        style={{ top: `${top}%`, height: `${Math.max(height, 0)}%`, background: color.bg, borderColor: color.border, borderLeft: `3px solid ${color.border}` }}
         role={booking ? "button" : undefined}
         tabIndex={booking ? 0 : undefined}
         title={booking ? `${booking.serviceTitle || ""} — ${booking.customerName || ""}` : undefined}
@@ -319,7 +338,7 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
         <div className="ag-legend">
           <span className="ag-dot ag-dot--open" /> Open
           <span className="ag-dot ag-dot--closure" /> Chiusure
-          <span className="ag-dot ag-dot--booking" /> Prenotazioni
+          <span className="ag-dot ag-dot--booking" /> Prenotazioni (colore = categoria)
           <span className="ag-dot ag-dot--personal" /> Personali
         </div>
       </Card.Body>
@@ -359,6 +378,9 @@ export default function AdminAgendaPage() {
   const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [blockSlotOpen, setBlockSlotOpen] = useState(false);
+  const [blockForm, setBlockForm] = useState({ date: "", startTime: "", endTime: "", reason: "" });
+  const [blockSaving, setBlockSaving] = useState(false);
   const [openSalePanel, setOpenSalePanel] = useState(null);
   const [paddingEditing, setPaddingEditing] = useState(null); // bookingId in edit
   const [paddingSaving, setPaddingSaving] = useState(null); // bookingId in saving
@@ -519,12 +541,14 @@ export default function AdminAgendaPage() {
     const openMin = (timeline?.openRanges || []).reduce((sum, r) => sum + Math.max(0, minutes(r.end) - minutes(r.start)), 0);
     const occ = openMin > 0 ? Math.round((bookedMin / openMin) * 100) : 0;
     const priceMap = new Map(services.map(s => [String(s.serviceId), Number(s.price)]));
-    const revenue = active.reduce((sum, b) => {
+    const revenueKnown = active.some(b => Number.isFinite(priceMap.get(String(b.serviceId))));
+    const calcRevenue = list => list.reduce((sum, b) => {
       const p = priceMap.get(String(b.serviceId));
       return sum + (Number.isFinite(p) ? p : 0);
     }, 0);
-    const revenueKnown = active.some(b => Number.isFinite(priceMap.get(String(b.serviceId))));
-    return { count, bookedMin, openMin, occ, revenue, revenueKnown };
+    const onlineRevenue = calcRevenue(active.filter(b => !b.paidInStore));
+    const inStoreRevenue = calcRevenue(active.filter(b => b.paidInStore));
+    return { count, bookedMin, openMin, occ, onlineRevenue, inStoreRevenue, revenueKnown };
   }, [bookings, timeline, services]);
 
   // FIX B2: azzerare nextSlotResult solo se il cambio data è stato manuale,
@@ -783,15 +807,23 @@ export default function AdminAgendaPage() {
                     </button>
                   </div>
                 </div>
-                <Button
-                  className="ag-btn ag-btn--primary"
-                  onClick={() => {
-                    setEditingPersonal(null);
-                    setNewDrawerOpen(true);
-                  }}
-                >
-                  + Nuovo
-                </Button>
+                <div className="d-flex gap-2">
+                  <Button
+                    className="ag-btn ag-btn--ghost"
+                    onClick={() => { setBlockForm({ date: dateISO, startTime: "", endTime: "", reason: "" }); setBlockSlotOpen(true); }}
+                  >
+                    🔒 Blocca
+                  </Button>
+                  <Button
+                    className="ag-btn ag-btn--primary"
+                    onClick={() => {
+                      setEditingPersonal(null);
+                      setNewDrawerOpen(true);
+                    }}
+                  >
+                    + Nuovo
+                  </Button>
+                </div>
               </div>
 
               <div className="ag-strip mt-3">
@@ -927,8 +959,14 @@ export default function AdminAgendaPage() {
                 </div>
                 <div className="ag-kpi__item">
                   <div className="ag-kpi__label">Incasso stimato</div>
-                  <div className="ag-kpi__value">{kpi.revenueKnown ? `€${kpi.revenue.toFixed(0)}` : "—"}</div>
+                  <div className="ag-kpi__value">{kpi.revenueKnown ? `€${kpi.onlineRevenue.toFixed(0)}` : "—"}</div>
                 </div>
+                {kpi.inStoreRevenue > 0 && (
+                  <div className="ag-kpi__item">
+                    <div className="ag-kpi__label">In negozio</div>
+                    <div className="ag-kpi__value">€{kpi.inStoreRevenue.toFixed(0)}</div>
+                  </div>
+                )}
                 <div className="ag-kpi__item">
                   <div className="ag-kpi__label">Giornata</div>
                   <div className="ag-kpi__value">
@@ -1077,6 +1115,9 @@ export default function AdminAgendaPage() {
                             </div>
                           </div>
                           <StatusPill status={b.status} />
+                          {b.paidInStore && (
+                            <span className="ag-paid-badge">💵 Pagato</span>
+                          )}
                         </div>
 
                         <div className="ag-item__body">
@@ -1173,6 +1214,30 @@ export default function AdminAgendaPage() {
                           {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
                             <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => openEdit(b)}>
                               Modifica
+                            </Button>
+                          )}
+                          {b.status !== "CANCELLED" && (
+                            <Button
+                              className="ag-btn ag-btn--soft"
+                              size="sm"
+                              title="Crea un nuovo appuntamento con gli stessi dati"
+                              onClick={() => {
+                                setEditingBooking({
+                                  _duplicate: true,
+                                  customerName: b.customerName,
+                                  customerEmail: b.customerEmail,
+                                  customerPhone: b.customerPhone,
+                                  customerId: b.customerId ?? null,
+                                  services: b.services ?? null,
+                                  serviceId: b.serviceId ?? null,
+                                  serviceOptionId: b.serviceOptionId ?? null,
+                                  notes: b.notes ?? "",
+                                  startTime: null,
+                                });
+                                setNewDrawerOpen(true);
+                              }}
+                            >
+                              Ripeti
                             </Button>
                           )}
                           {(b.status === "PENDING" || b.status === "PENDING_PAYMENT") && (
@@ -1388,6 +1453,72 @@ export default function AdminAgendaPage() {
                 }}
               >
                 {confirmModal.type === "delete" ? "Elimina" : "Annulla appuntamento"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {blockSlotOpen && (
+        <div className="ag-confirm-overlay" onClick={() => setBlockSlotOpen(false)}>
+          <div className="ag-confirm-box" onClick={e => e.stopPropagation()}>
+            <div className="ag-confirm-title">🔒 Blocca fascia oraria</div>
+            <div className="d-flex flex-column gap-2 mt-2">
+              <input
+                type="date"
+                className="form-control form-control-sm"
+                value={blockForm.date}
+                onChange={e => setBlockForm(f => ({ ...f, date: e.target.value }))}
+              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="time"
+                  className="form-control form-control-sm"
+                  placeholder="Dalle"
+                  value={blockForm.startTime}
+                  onChange={e => setBlockForm(f => ({ ...f, startTime: e.target.value }))}
+                />
+                <input
+                  type="time"
+                  className="form-control form-control-sm"
+                  placeholder="Alle"
+                  value={blockForm.endTime}
+                  onChange={e => setBlockForm(f => ({ ...f, endTime: e.target.value }))}
+                />
+              </div>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                placeholder="Motivo (opzionale) — es. Pranzo, Formazione"
+                value={blockForm.reason}
+                onChange={e => setBlockForm(f => ({ ...f, reason: e.target.value }))}
+              />
+            </div>
+            <div className="ag-confirm-actions">
+              <button className="ag-btn ag-btn--ghost" onClick={() => setBlockSlotOpen(false)}>Annulla</button>
+              <button
+                className="ag-btn ag-btn--primary"
+                disabled={blockSaving || !blockForm.date || !blockForm.startTime || !blockForm.endTime}
+                onClick={async () => {
+                  setBlockSaving(true);
+                  try {
+                    const [sh, sm] = blockForm.startTime.split(":").map(Number);
+                    const [eh, em] = blockForm.endTime.split(":").map(Number);
+                    const durationMin = (eh * 60 + em) - (sh * 60 + sm);
+                    await createPersonalAppointment({
+                      appointmentDate: blockForm.date,
+                      startTime: blockForm.startTime,
+                      durationMinutes: durationMin,
+                      title: blockForm.reason || "Blocco",
+                    });
+                    setBlockSlotOpen(false);
+                    setBlockForm({ date: "", startTime: "", endTime: "", reason: "" });
+                    await refresh();
+                  } catch (e) { setErr(e.message); }
+                  finally { setBlockSaving(false); }
+                }}
+              >
+                {blockSaving ? "…" : "🔒 Blocca"}
               </button>
             </div>
           </div>

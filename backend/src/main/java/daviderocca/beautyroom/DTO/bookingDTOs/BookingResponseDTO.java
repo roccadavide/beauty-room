@@ -31,5 +31,6 @@ public record BookingResponseDTO(
         Integer currentSession,
         Integer totalSessions,
         String linkingStatus,
-        PackageSummaryDTO linkedPackage
+        PackageSummaryDTO linkedPackage,
+        boolean paidInStore
 ) {}

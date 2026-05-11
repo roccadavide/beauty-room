@@ -18,6 +18,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.ClientPackageStatus;
 import daviderocca.beautyroom.enums.LinkingStatus;
 import daviderocca.beautyroom.enums.NotificationType;
 import daviderocca.beautyroom.enums.PaymentMethod;
@@ -427,15 +428,21 @@ public class BookingService {
         }
 
         // ── Step 3: calculate total duration ─────────────────────────────────
-        int totalDuration = catalogServices.stream().mapToInt(ServiceItem::getDurationMin).sum();
-        if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
-        if (hasPkg && assignment != null && assignment.getServiceOption() != null) {
-            ServiceOption pkgOption = assignment.getServiceOption();
-            Integer optDuration = pkgOption.getDurationMin();
-            if (optDuration != null && optDuration > 0) {
-                totalDuration += optDuration;
-            } else if (pkgOption.getService() != null && pkgOption.getService().getDurationMin() > 0) {
-                totalDuration += pkgOption.getService().getDurationMin();
+        int totalDuration;
+        if (dto.customTotalDurationMin() != null && dto.customTotalDurationMin() > 0) {
+            // Admin explicitly overrode total (e.g. parallel services)
+            totalDuration = dto.customTotalDurationMin();
+        } else {
+            totalDuration = catalogServices.stream().mapToInt(ServiceItem::getDurationMin).sum();
+            if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
+            if (hasPkg && assignment != null && assignment.getServiceOption() != null) {
+                ServiceOption pkgOption = assignment.getServiceOption();
+                Integer optDuration = pkgOption.getDurationMin();
+                if (optDuration != null && optDuration > 0) {
+                    totalDuration += optDuration;
+                } else if (pkgOption.getService() != null && pkgOption.getService().getDurationMin() > 0) {
+                    totalDuration += pkgOption.getService().getDurationMin();
+                }
             }
         }
         totalDuration = Math.max(totalDuration, 15);
@@ -483,6 +490,7 @@ public class BookingService {
         booking.setCreatedByAdmin(true);
         booking.setStripeSessionId(null);
         booking.setExpiresAt(null);
+        if (Boolean.TRUE.equals(dto.paidInStore())) booking.setPaidInStore(true);
 
         // Customer registry (best-effort)
         try {
@@ -498,18 +506,71 @@ public class BookingService {
         log.info("Multi-service booking created: id={} duration={}min services={} custom={} pkg={}",
                 saved.getBookingId(), totalDuration, catalogServices.size(), hasCustom, hasPkg);
 
-        // ── Step 6: link package session ──────────────────────────────────────
-        // NOTE: linkBooking() uses REQUIRES_NEW which opens a separate DB connection
-        // and cannot see the uncommitted booking from this SERIALIZABLE transaction.
-        // Use the already-managed entities directly instead.
+        // ── Step 6: link / create / update package session ────────────────────
+        // NOTE: linkBooking() uses REQUIRES_NEW and cannot see the uncommitted booking.
+        // Use managed entities directly to stay within this SERIALIZABLE transaction.
+        boolean hasSessionNumbers = dto.currentSession() != null && dto.totalSessions() != null;
+
         if (hasPkg) {
+            // CASE C — packageAssignmentId provided without manual session numbers:
+            //   Decrement sessionsRemaining by 1 now (at booking creation).
+            //   decrementSessionOnCompletion will skip this link (sessionTrackedAtCreation=true).
+            if (assignment.getSessionsRemaining() <= 0) {
+                throw new BadRequestException("Il pacchetto non ha sessioni rimanenti.");
+            }
+            int sessionNumber = assignment.getTotalSessions() - assignment.getSessionsRemaining() + 1;
+            assignment.setSessionsRemaining(assignment.getSessionsRemaining() - 1);
+            if (assignment.getSessionsRemaining() <= 0) {
+                assignment.setStatus(ClientPackageStatus.EXHAUSTED);
+                log.info("Package {} EXHAUSTED after booking creation for client '{}'",
+                        assignment.getId(), assignment.getClientName());
+            }
+            clientPackageService.saveAssignment(assignment);
+
             BookingPackageLink pkgLink = new BookingPackageLink();
             pkgLink.setBooking(saved);
             pkgLink.setAssignment(assignment);
-            int sessionNumber = assignment.getTotalSessions() - assignment.getSessionsRemaining() + 1;
             pkgLink.setSessionNumber(sessionNumber);
+            pkgLink.setSessionTrackedAtCreation(true);
             bookingPackageLinkRepository.save(pkgLink);
-            log.info("Linked bookingId={} to assignmentId={}", saved.getBookingId(), assignment.getId());
+            log.info("CASE C: linked bookingId={} to assignmentId={} (sessionNumber={}, remaining={})",
+                    saved.getBookingId(), assignment.getId(), sessionNumber, assignment.getSessionsRemaining());
+
+        } else if (hasSessionNumbers) {
+            // CASE A / CASE B — admin filled in currentSession + totalSessions manually.
+            //   Find or create a ClientPackageAssignment and set sessionsRemaining directly.
+            int sessionsRemaining = dto.totalSessions() - dto.currentSession();
+            ClientPackageAssignment pkg = clientPackageService
+                    .findFirstActiveAssignmentByClientName(saved.getCustomerName())
+                    .orElse(null);
+
+            if (pkg == null) {
+                // CASE A: no active package found — create one
+                pkg = new ClientPackageAssignment();
+                pkg.setClientName(saved.getCustomerName());
+                pkg.setTotalSessions(dto.totalSessions());
+                log.info("CASE A: creating new assignment for client '{}'", saved.getCustomerName());
+            } else {
+                // CASE B: update existing active assignment
+                pkg.setTotalSessions(dto.totalSessions());
+                log.info("CASE B: updating existing assignmentId={} for client '{}'",
+                        pkg.getId(), saved.getCustomerName());
+            }
+
+            pkg.setSessionsRemaining(Math.max(sessionsRemaining, 0));
+            pkg.setStatus(sessionsRemaining > 0
+                    ? ClientPackageStatus.ACTIVE
+                    : ClientPackageStatus.EXHAUSTED);
+            pkg = clientPackageService.saveAssignment(pkg);
+
+            BookingPackageLink pkgLink = new BookingPackageLink();
+            pkgLink.setBooking(saved);
+            pkgLink.setAssignment(pkg);
+            pkgLink.setSessionNumber(dto.currentSession());
+            pkgLink.setSessionTrackedAtCreation(true);
+            bookingPackageLinkRepository.save(pkgLink);
+            log.info("CASE A/B: linked bookingId={} to assignmentId={} (session {}/{}, remaining={})",
+                    saved.getBookingId(), pkg.getId(), dto.currentSession(), dto.totalSessions(), sessionsRemaining);
         }
 
         // ── Step 7: auto account-linking ──────────────────────────────────────
@@ -896,6 +957,9 @@ public class BookingService {
             if (payload.paddingMinutes() != null) {
                 found.setPaddingMinutes(payload.paddingMinutes() > 0 ? payload.paddingMinutes() : null);
             }
+            if (payload.paidInStore() != null) {
+                found.setPaidInStore(payload.paidInStore());
+            }
         }
 
         Booking updated = bookingRepository.save(found);
@@ -1165,7 +1229,8 @@ public class BookingService {
                 b.getTotalSessions(),
                 b.getLinkedUser() != null ? b.getLinkedUser().getUserId() : null,
                 b.getLinkingStatus() != null ? b.getLinkingStatus().name() : null,
-                linkedPkg
+                linkedPkg,
+                b.isPaidInStore()
         );
     }
 
@@ -1284,7 +1349,8 @@ public class BookingService {
                 booking.getCurrentSession(),
                 booking.getTotalSessions(),
                 booking.getLinkingStatus() != null ? booking.getLinkingStatus().name() : null,
-                linkedPackage
+                linkedPackage,
+                booking.isPaidInStore()
         );
     }
 

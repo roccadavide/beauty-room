@@ -178,6 +178,11 @@ public class ClientPackageService {
     @Transactional
     public void decrementSessionOnCompletion(Booking booking) {
         linkRepo.findByBookingBookingId(booking.getBookingId()).ifPresent(link -> {
+            if (link.isSessionTrackedAtCreation()) {
+                log.info("decrementSession: booking {} already tracked at creation — skipping completion decrement",
+                        booking.getBookingId());
+                return;
+            }
             ClientPackageAssignment assignment = link.getAssignment();
             if (assignment.getStatus() != ClientPackageStatus.ACTIVE) {
                 log.warn("decrementSession: assignment {} is not ACTIVE — skipping", assignment.getId());
@@ -224,6 +229,32 @@ public class ClientPackageService {
                     : (a.getServiceOption() != null ? a.getServiceOption().getName() : a.getClientName());
             return new PackageSummaryDTO(name, a.getSessionsRemaining());
         });
+    }
+
+    // ── Package persistence for admin booking integration ─────────────────────
+
+    /**
+     * Saves (insert or update) a ClientPackageAssignment entity directly.
+     * Used by BookingService within its own SERIALIZABLE transaction to avoid
+     * REQUIRES_NEW propagation issues.
+     */
+    @Transactional
+    public ClientPackageAssignment saveAssignment(ClientPackageAssignment assignment) {
+        return assignmentRepo.save(assignment);
+    }
+
+    // ── Package lookup for admin booking integration ──────────────────────────
+
+    /**
+     * Returns the first ACTIVE ClientPackageAssignment for the given client name, if any.
+     * Used during admin booking creation (CASE B: update existing package session count).
+     */
+    @Transactional(readOnly = true)
+    public Optional<ClientPackageAssignment> findFirstActiveAssignmentByClientName(String clientName) {
+        return assignmentRepo.findByClientNameIgnoreCase(clientName)
+                .stream()
+                .filter(a -> a.getStatus() == ClientPackageStatus.ACTIVE)
+                .findFirst();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

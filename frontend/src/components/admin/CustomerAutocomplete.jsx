@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { searchCustomers } from "../../api/modules/customer.api";
 
+const toTitleCase = str =>
+  str ? str.replace(/\b\w/g, c => c.toUpperCase()) : str;
+
 export default function CustomerAutocomplete({ value, onChange, onSelect, isInvalid = false, placeholder = "Cerca o inserisci nome cliente…" }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -110,6 +113,10 @@ export default function CustomerAutocomplete({ value, onChange, onSelect, isInva
           onKeyDown={handleKeyDown}
           onFocus={() => {
             if (suggestions.length > 0) setShowDropdown(true);
+          }}
+          onBlur={e => {
+            const titled = toTitleCase(e.target.value);
+            if (titled !== e.target.value) onChange(titled);
           }}
           placeholder={placeholder}
           autoComplete="off"

@@ -40,5 +40,6 @@ public record AdminBookingCardDTO(
         UUID linkedUserId,
         String linkingStatus,
         // New package assignment system
-        PackageSummaryDTO linkedPackage
+        PackageSummaryDTO linkedPackage,
+        boolean paidInStore
 ) {}

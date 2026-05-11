@@ -61,5 +61,9 @@ public record AdminBookingCreateDTO(
         Integer paddingMinutes,
         boolean consentLaser,
         boolean consentPmu,
-        UUID serviceOptionId
+        UUID serviceOptionId,
+        Boolean paidInStore,
+
+        // Multi-service overrides (new — backwards compatible)
+        Integer customTotalDurationMin
 ) {}

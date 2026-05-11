@@ -35,5 +35,6 @@ public record NewBookingDTO(
         boolean consentPmu,
         BigDecimal promoPrice,
         UUID promotionId,
-        Integer paddingMinutes
+        Integer paddingMinutes,
+        Boolean paidInStore
 ) {}

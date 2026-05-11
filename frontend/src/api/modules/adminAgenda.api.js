@@ -117,9 +117,11 @@ export const createMultiServiceBooking = async payload => {
   }
 };
 
-export const getAdminAvailableSlots = async (date, durationMinutes) => {
+export const getAdminAvailableSlots = async (date, durationMinutes, excludeBookingId = null) => {
   try {
-    const { data } = await http.get(BOOKING_ENDPOINTS_ADMIN.AVAILABLE_SLOTS, { params: { date, durationMinutes } });
+    const params = { date, durationMinutes };
+    if (excludeBookingId) params.excludeBookingId = excludeBookingId;
+    const { data } = await http.get(BOOKING_ENDPOINTS_ADMIN.AVAILABLE_SLOTS, { params });
     return Array.isArray(data) ? data : [];
   } catch (error) {
     const message = error.response?.data?.message || "Impossibile caricare gli slot disponibili.";

@@ -27,3 +27,8 @@ export const getCustomerSummary = async customerId => {
 export const updateCustomerNotes = async (customerId, notes) => {
   await http.patch(CUSTOMER_ENDPOINTS.NOTES(customerId), { notes });
 };
+
+export const updateCustomer = async (customerId, payload) => {
+  const { data } = await http.patch(CUSTOMER_ENDPOINTS.BASE(customerId), payload);
+  return data;
+};

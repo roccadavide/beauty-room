@@ -2,6 +2,7 @@ package daviderocca.beautyroom.services;
 
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
+import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
 import daviderocca.beautyroom.entities.Customer;
 import daviderocca.beautyroom.enums.PackageCreditStatus;
 import daviderocca.beautyroom.exceptions.BadRequestException;
@@ -196,11 +197,35 @@ public class CustomerService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public String getFullName(UUID customerId) {
+        return customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException(customerId))
+                .getFullName();
+    }
+
     @Transactional
     public void updateNotes(UUID customerId, String notes) {
         Customer c = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException(customerId));
         c.setNotes(notes != null ? notes.trim() : null);
         customerRepository.save(c);
+    }
+
+    @Transactional
+    public CustomerSummaryDTO updateCustomer(UUID customerId, UpdateCustomerDTO payload) {
+        Customer c = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException(customerId));
+        if (payload.fullName() != null && !payload.fullName().isBlank()) {
+            c.setFullName(payload.fullName().trim());
+        }
+        if (payload.phone() != null) {
+            c.setPhone(payload.phone().isBlank() ? null : payload.phone().trim());
+        }
+        if (payload.email() != null) {
+            c.setEmail(payload.email().isBlank() ? null : payload.email().trim().toLowerCase());
+        }
+        Customer saved = customerRepository.save(c);
+        return new CustomerSummaryDTO(saved.getCustomerId(), saved.getFullName(), saved.getPhone(), saved.getEmail());
     }
 }

@@ -175,10 +175,11 @@ public class AdminBookingController {
     @GetMapping("/available-slots")
     public ResponseEntity<List<String>> getAvailableSlots(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam int durationMinutes
+            @RequestParam int durationMinutes,
+            @RequestParam(required = false) UUID excludeBookingId
     ) {
-        log.info("ADMIN | available-slots date={} duration={}min", date, durationMinutes);
-        return ResponseEntity.ok(availabilityService.getAvailableSlots(date, durationMinutes));
+        log.info("ADMIN | available-slots date={} duration={}min excludeBookingId={}", date, durationMinutes, excludeBookingId);
+        return ResponseEntity.ok(availabilityService.getAvailableSlots(date, durationMinutes, excludeBookingId));
     }
 
     // FIX-1: rimborso Stripe per prenotazioni pagate online

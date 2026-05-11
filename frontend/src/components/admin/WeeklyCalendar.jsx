@@ -23,6 +23,22 @@ const addDays = (date, n) => {
   return d;
 };
 
+const CATEGORY_PALETTE = [
+  { bg: "rgba(139,94,60,.24)",  border: "#b8976a" },
+  { bg: "rgba(99,102,241,.2)",  border: "#818cf8" },
+  { bg: "rgba(34,197,94,.18)",  border: "#4ade80" },
+  { bg: "rgba(251,191,36,.2)",  border: "#fbbf24" },
+  { bg: "rgba(236,72,153,.2)",  border: "#f472b6" },
+  { bg: "rgba(20,184,166,.2)",  border: "#2dd4bf" },
+  { bg: "rgba(249,115,22,.2)",  border: "#fb923c" },
+];
+const categoryColor = cat => {
+  if (!cat) return CATEGORY_PALETTE[0];
+  let h = 0;
+  for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) & 0xffff;
+  return CATEGORY_PALETTE[h % CATEGORY_PALETTE.length];
+};
+
 const GRID_START_HOUR = 8;
 const GRID_END_HOUR = 22;
 const HOUR_HEIGHT = 60;
@@ -296,6 +312,8 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                     : b.status
                   : "PENDING";
 
+              const cat = b.categoryName ?? b.category ?? null;
+              const color = categoryColor(cat);
               return (
                   <div
                     key={b.bookingId}
@@ -304,6 +322,8 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                       top: topPx,
                       height: heightPx,
                       minHeight: 30,
+                      background: color.bg,
+                      borderLeft: `3px solid ${color.border}`,
                     }}
                     onClick={e => {
                       e.stopPropagation();

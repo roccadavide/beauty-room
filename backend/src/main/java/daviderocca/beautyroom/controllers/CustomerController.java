@@ -2,7 +2,10 @@ package daviderocca.beautyroom.controllers;
 
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
+import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerNotesDTO;
+import daviderocca.beautyroom.packages.ClientPackageAssignmentDTO;
+import daviderocca.beautyroom.packages.ClientPackageService;
 import daviderocca.beautyroom.services.CustomerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,7 @@ import java.util.UUID;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final ClientPackageService clientPackageService;
 
     @GetMapping("/search")
     public ResponseEntity<List<CustomerSummaryDTO>> search(
@@ -39,5 +43,23 @@ public class CustomerController {
     ) {
         customerService.updateNotes(id, payload.notes());
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<CustomerSummaryDTO> updateCustomer(
+            @PathVariable UUID id,
+            @RequestBody UpdateCustomerDTO payload
+    ) {
+        return ResponseEntity.ok(customerService.updateCustomer(id, payload));
+    }
+
+    /**
+     * GET /admin/customers/{id}/active-packages
+     * Returns active ClientPackageAssignments for the customer, looked up by full name.
+     */
+    @GetMapping("/{id}/active-packages")
+    public ResponseEntity<List<ClientPackageAssignmentDTO>> activePackages(@PathVariable UUID id) {
+        String fullName = customerService.getFullName(id);
+        return ResponseEntity.ok(clientPackageService.findActiveByClientName(fullName));
     }
 }

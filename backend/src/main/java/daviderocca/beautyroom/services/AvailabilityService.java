@@ -196,6 +196,11 @@ public class AvailabilityService {
      */
     @Transactional(readOnly = true)
     public List<String> getAvailableSlots(LocalDate date, int durationMinutes) {
+        return getAvailableSlots(date, durationMinutes, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getAvailableSlots(LocalDate date, int durationMinutes, UUID excludeBookingId) {
         if (date == null) throw new BadRequestException("Data obbligatoria.");
         if (durationMinutes < 1) throw new BadRequestException("Durata non valida.");
 
@@ -209,8 +214,13 @@ public class AvailabilityService {
         LocalDateTime from = date.atStartOfDay();
         LocalDateTime to   = date.plusDays(1).atStartOfDay();
 
-        // Blocked by existing client bookings
+        // Blocked by existing client bookings (exclude the booking being edited so its own slot is free)
         List<Booking> bookings = bookingRepository.findBookingsByStatusesIntersectingRange(from, to, BLOCKING_STATUSES);
+        if (excludeBookingId != null) {
+            bookings = bookings.stream()
+                    .filter(b -> !excludeBookingId.equals(b.getBookingId()))
+                    .toList();
+        }
         List<TimeRange> blocked = new ArrayList<>(toEffectiveBlockedIntervals(bookings, date));
 
         // Blocked by Michela's personal appointments
@@ -386,7 +396,9 @@ public class AvailabilityService {
             if (!cs.isBefore(ce)) continue;
             out.add(new TimeRange(cs.toLocalTime(), ce.toLocalTime()));
         }
-        return mergeAdjacent(out);
+        // Do NOT merge: each booking must remain a separate range for timeline rendering.
+        // Adjacent bookings (e.g. 09:00–10:00 and 10:00–10:45) must render as distinct blocks.
+        return out.stream().sorted(Comparator.comparing(TimeRange::start)).toList();
     }
 
     // ==========================================================================

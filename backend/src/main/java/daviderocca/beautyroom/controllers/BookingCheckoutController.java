@@ -87,7 +87,8 @@ public class BookingCheckoutController {
                 payload.consentPmu(),   // consenso informato PMU
                 payload.promoPrice(),   // propaga prezzo promo
                 payload.promotionId(),  // propaga id promo
-                null                    // paddingMinutes: non applicabile nel flow Stripe
+                null,
+                false                   // paddingMinutes: non applicabile nel flow Stripe
         );
 
         return createStripeSessionForBooking(dto, currentUser);

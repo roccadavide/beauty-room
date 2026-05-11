@@ -162,6 +162,7 @@ export const CUSTOMER_ENDPOINTS = {
   SEARCH: "/admin/customers/search",
   SUMMARY: id => `/admin/customers/${id}/summary`,
   NOTES: id => `/admin/customers/${id}/notes`,
+  BASE: id => `/admin/customers/${id}`,
 };
 
 export const REPORT_ENDPOINTS = {

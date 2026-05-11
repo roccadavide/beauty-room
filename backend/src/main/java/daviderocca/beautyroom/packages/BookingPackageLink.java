@@ -46,6 +46,13 @@ public class BookingPackageLink {
     @Column(name = "linked_at", nullable = false, updatable = false)
     private LocalDateTime linkedAt;
 
+    /**
+     * True when sessions were decremented / directly set at booking-creation time
+     * (admin CASE A/B/C). Prevents double-counting if booking is later marked COMPLETED.
+     */
+    @Column(name = "session_tracked_at_creation", nullable = false)
+    private boolean sessionTrackedAtCreation = false;
+
     @PrePersist
     void onCreate() {
         linkedAt = LocalDateTime.now();
