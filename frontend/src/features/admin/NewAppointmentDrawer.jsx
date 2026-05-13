@@ -540,24 +540,37 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [selectedServices, setSelectedServices] = useState(() => {
     if (!hasBookingData) return [];
     // Case 1: new multi-service array
+    // ServiceSummaryDTO now carries per-entry optionId/optionName from booking_services.
+    // Fall back to booking-level optionName for legacy single-service bookings (pre-V54).
     if (Array.isArray(editBooking.services) && editBooking.services.length > 0) {
-      return editBooking.services.map(s => ({
-        uid: crypto.randomUUID(),
-        serviceId: s.serviceId ?? s.id,
-        title: s.title ?? s.name ?? s.serviceName ?? "",
-        defaultDurationMin: s.durationMin ?? s.duration ?? 30,
-        overrideDurationMin: s.overrideDurationMin ?? null,
-      }));
+      const isSingle = editBooking.services.length === 1;
+      return editBooking.services.map(s => {
+        const baseTitle = s.title ?? s.name ?? s.serviceName ?? "";
+        const optId   = s.optionId   ?? (isSingle ? (editBooking.optionId   ?? null) : null);
+        const optName = s.optionName ?? (isSingle ? (editBooking.optionName ?? null) : null);
+        return {
+          uid: crypto.randomUUID(),
+          serviceId: s.serviceId ?? s.id,
+          optionId: optId,
+          title: optName ? `${baseTitle} · ${optName}` : baseTitle,
+          defaultDurationMin: optId
+            ? (editBooking.optionDuration ?? s.durationMinutes ?? s.durationMin ?? s.duration ?? 30)
+            : (s.durationMinutes ?? s.durationMin ?? s.duration ?? 30),
+          overrideDurationMin: s.overrideDurationMin ?? null,
+        };
+      });
     }
     // Case 2: legacy single serviceId — look up from services catalog for accurate data
     if (editBooking.serviceId) {
       const match = services.find(s => String(s.serviceId) === String(editBooking.serviceId));
+      const baseTitle = match?.title ?? editBooking.serviceTitle ?? "";
+      const optionName = editBooking.optionName ?? null;
       return [
         {
           uid: crypto.randomUUID(),
           serviceId: match?.serviceId ?? editBooking.serviceId,
-          title: match?.title ?? editBooking.serviceTitle ?? "",
-          defaultDurationMin: match?.durationMin ?? 30,
+          title: optionName ? `${baseTitle} · ${optionName}` : baseTitle,
+          defaultDurationMin: editBooking.optionDuration ?? match?.durationMin ?? 30,
           overrideDurationMin: null,
         },
       ];
@@ -568,6 +581,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [editingTotalDuration, setEditingTotalDuration] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogCatFilter, setCatalogCatFilter] = useState("all");
+  const [expandedServiceId, setExpandedServiceId] = useState(null);
 
   // ── Custom & package service items ────────────────────────────────────────
   const [serviceItems, setServiceItems] = useState(() => {
@@ -679,10 +693,44 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
     const needle = catalogSearch.trim().toLowerCase();
     if (needle) {
-      list = list.filter(s => s.title?.toLowerCase().includes(needle) || s.durationMin?.toString().includes(needle));
+      list = list.filter(s => {
+        if (s.title?.toLowerCase().includes(needle)) return true;
+        if (s.durationMin?.toString().includes(needle)) return true;
+        const opts = s.options || s.serviceOptionList || s.serviceOptions || [];
+        return opts.some(o => o.name?.toLowerCase().includes(needle));
+      });
     }
     return list;
   }, [services, catalogSearch, catalogCatFilter]);
+
+  // Auto-expand a service when search matches only its option names
+  useEffect(() => {
+    const needle = catalogSearch.trim().toLowerCase();
+    if (!needle) { setExpandedServiceId(null); return; }
+    const match = filteredCatalogServices.find(s => {
+      if (s.title?.toLowerCase().includes(needle)) return false;
+      const opts = s.options || s.serviceOptionList || s.serviceOptions || [];
+      return opts.some(o => o.name?.toLowerCase().includes(needle));
+    });
+    if (match) setExpandedServiceId(match.serviceId);
+  }, [catalogSearch, filteredCatalogServices]);
+
+  // Add a catalog service that has a specific option selected.
+  // Accordion stays open so the user can pick additional options.
+  const addServiceWithOption = useCallback((service, option) => {
+    setSelectedServices(prev => [
+      ...prev,
+      {
+        uid: crypto.randomUUID(),
+        serviceId: service.serviceId,
+        optionId: option.optionId ?? option.id,
+        title: `${service.title} · ${option.name}`,
+        defaultDurationMin: option.durationMin ?? service.durationMin ?? 30,
+        overrideDurationMin: null,
+      },
+    ]);
+    // Do NOT collapse accordion — user may want to add another option.
+  }, []);
 
   // Total duration: catalog sum (with per-item or total override) + custom/package items
   const totalDuration = useMemo(() => {
@@ -1134,9 +1182,9 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         currentSession: (selectedPackageId || selectedPackageCreditId) ? null : currentSession ? parseInt(currentSession, 10) : null,
         totalSessions: (selectedPackageId || selectedPackageCreditId) ? null : totalSessions ? parseInt(totalSessions, 10) : null,
         serviceIds: catalogIds,
-        services: selectedServices.map(ss => ({
+        serviceEntries: selectedServices.map(ss => ({
           serviceId: ss.serviceId,
-          durationMin: ss.overrideDurationMin ?? ss.defaultDurationMin,
+          optionId: ss.optionId ?? null,
         })),
         customTotalDurationMin: totalDurationOverride ?? ((selectedPackageId != null || selectedPackageCreditId != null) ? totalDuration : null),
         hasCustomService: customItems.length > 0,
@@ -1145,7 +1193,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         customServicePrice: customItems.length > 0 && customItems[0].customPrice ? parseFloat(customItems[0].customPrice) : null,
         packageAssignmentId: selectedPackageId ?? resolvedPackageAssignmentId,
         packageCreditId: selectedPackageCreditId ?? null,
-        serviceOptionId: null,
+        serviceOptionId: selectedServices[0]?.optionId ?? null, // backward compat; serviceEntries takes precedence
         paidInStore,
       };
 
@@ -1418,7 +1466,51 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         <div className="ag-service-list">
           {filteredCatalogServices.length === 0 && <div className="ag-service-empty">Nessun servizio trovato.</div>}
           {filteredCatalogServices.map(s => {
+            const opts = (s.options || s.serviceOptionList || s.serviceOptions || []).filter(o => o.active !== false && (o.sessions ?? 1) <= 1);
+            const hasOpts = opts.length > 0;
+            const isExpanded = expandedServiceId === s.serviceId;
             const countInSelected = selectedServices.filter(ss => ss.serviceId === s.serviceId).length;
+
+            if (hasOpts) {
+              return (
+                <div key={s.serviceId} className={`ag-service-item-wrapper${isExpanded ? " is-expanded" : ""}`}>
+                  <button
+                    type="button"
+                    className="ag-service-item ag-service-item--has-options"
+                    onClick={() => setExpandedServiceId(isExpanded ? null : s.serviceId)}
+                  >
+                    <span className="ag-service-item__title">{s.title}</span>
+                    <span className="ag-service-item__meta">
+                      {countInSelected > 0 && <span className="ag-service-item__selected-count">×{countInSelected}</span>}
+                      <span className="ag-service-expand-icon">{isExpanded ? "▾" : "▸"}</span>
+                    </span>
+                  </button>
+                  {isExpanded && (
+                    <div className="ag-service-options">
+                      {opts.map(opt => {
+                        const optCount = selectedServices.filter(ss => ss.serviceId === s.serviceId && ss.optionId === (opt.optionId ?? opt.id)).length;
+                        return (
+                          <button
+                            key={opt.optionId ?? opt.id}
+                            type="button"
+                            className="ag-service-option-item"
+                            onClick={() => addServiceWithOption(s, opt)}
+                          >
+                            <span className="ag-service-option-item__name">{opt.name}</span>
+                            <span className="ag-service-item__meta">
+                              {opt.durationMin ? `${opt.durationMin} min` : s.durationMin ? `${s.durationMin} min` : ""}
+                              {opt.price != null ? ` · €${Number(opt.price).toFixed(0)}` : ""}
+                              {optCount > 0 && <span className="ag-option-check"> ×{optCount}</span>}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <button
                 key={s.serviceId}

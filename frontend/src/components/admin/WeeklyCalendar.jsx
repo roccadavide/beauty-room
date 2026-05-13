@@ -301,7 +301,8 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                 const end = new Date(b.endTime);
                 const startMin = start.getHours() * 60 + start.getMinutes();
                 const endMin = end.getHours() * 60 + end.getMinutes();
-                const durationMin = Math.max(30, endMin - startMin);
+                // Fix B: usa optionDuration se disponibile (corregge endTime errati)
+                const durationMin = Math.max(30, b.optionDuration != null ? b.optionDuration : (endMin - startMin));
                 const topPx = startMin - GRID_START_MIN;
                 const heightPx = Math.max((durationMin / 60) * HOUR_HEIGHT, 30);
 
@@ -336,7 +337,7 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                     <div className="ag-week-block__name">{b.customerName || "—"}</div>
                     {heightPx >= 50 && (
                       <>
-                        <div className="ag-week-block__service">{b.serviceTitle || ""}</div>
+                        <div className="ag-week-block__service">{b.serviceTitle ? (b.optionName ? `${b.serviceTitle} · ${b.optionName}` : b.serviceTitle) : ""}</div>
                         <div className="ag-week-block__time">
                           {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} –{" "}
                           {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

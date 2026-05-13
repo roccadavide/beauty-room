@@ -7,5 +7,7 @@ public record ServiceSummaryDTO(
         UUID id,
         String name,
         int durationMinutes,
-        BigDecimal price
+        BigDecimal price,
+        UUID optionId,
+        String optionName
 ) {}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
 import {
   getTimelineDay,
@@ -137,7 +137,10 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const booking = bookingMap.get(slot.start);
     const bookingId = booking?.bookingId;
     const isSelected = bookingId != null && bookingId === selectedBookingId;
-    const durationMin = end - start;
+    // Fix B: usa optionDuration se disponibile (corregge endTime errati per prenotazioni con opzione)
+    const effectiveEnd = (booking?.optionDuration != null) ? (start + booking.optionDuration) : end;
+    const bookingHeight = toPct(Math.min(effectiveEnd, viewWindow.endMin)) - top;
+    const durationMin = effectiveEnd - start;
     const tier = durationMin < 20 ? "tiny" : durationMin < 40 ? "compact" : "full";
     const cat = booking?.categoryName ?? booking?.category ?? null;
     const color = categoryColor(cat);
@@ -149,17 +152,21 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const sessionBadge = sessionNum
       ? ` S.${sessionNum}${booking?.totalSessions ? `/${booking.totalSessions}` : ""}`
       : "";
-    const serviceName = pkgName
+    const baseServiceName = pkgName
       ? `${pkgName}${sessionBadge}${extraSvcs.length > 0 ? ` +${extraSvcs.length}` : ""}`
       : extraSvcs.length > 1
         ? `${extraSvcs[0].name || extraSvcs[0].title || "?"} +${extraSvcs.length - 1}`
         : (extraSvcs[0]?.name || extraSvcs[0]?.title || booking?.serviceTitle || booking?.customServiceName || "—");
+    // Fix C: aggiungi optionName al label (solo se non è già un pacchetto o multi-servizio)
+    const serviceName = (!pkgName && extraSvcs.length <= 1 && booking?.optionName)
+      ? `${baseServiceName} · ${booking.optionName}`
+      : baseServiceName;
 
     return (
       <div
         key={`${kind}-${idx}`}
         className={`ag-tl-block ag-tl-booking${booking ? " ag-tl-booking--clickable" : ""}${isSelected ? " ag-tl-booking--selected" : ""}`}
-        style={{ top: `${top}%`, height: `${Math.max(height, 0)}%`, background: color.bg, borderColor: color.border, borderLeft: `3px solid ${color.border}` }}
+        style={{ top: `${top}%`, height: `${Math.max(bookingHeight, 0)}%`, background: color.bg, borderColor: color.border, borderLeft: `3px solid ${color.border}` }}
         role={booking ? "button" : undefined}
         tabIndex={booking ? 0 : undefined}
         title={booking ? `${booking.serviceTitle || ""} — ${booking.customerName || ""}` : undefined}
@@ -188,8 +195,9 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
           </div>
         )}
         {booking && tier === "compact" && (
-          <div className="ag-tl-booking__label ag-tl-booking__label--compact">
-            <span className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</span>
+          <div className="ag-tl-booking__label">
+            <div className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</div>
+            <div className="ag-tl-booking__service">{serviceName}</div>
           </div>
         )}
         {booking && tier === "full" && (
@@ -559,9 +567,27 @@ export default function AdminAgendaPage() {
     const openMin = (timeline?.openRanges || []).reduce((sum, r) => sum + Math.max(0, minutes(r.end) - minutes(r.start)), 0);
     const occ = openMin > 0 ? Math.round((bookedMin / openMin) * 100) : 0;
     const priceMap = new Map(services.map(s => [String(s.serviceId), Number(s.price)]));
-    const revenueKnown = active.some(b => Number.isFinite(priceMap.get(String(b.serviceId))));
+    // Priorità per servizio: optionPrice (se option su quell'entry) → price catalog
+    // Per multi-servizio: somma tutte le entry; per singolo: fallback a optionPrice booking-level
+    const effectivePrice = b => {
+      if (Array.isArray(b.services) && b.services.length > 0) {
+        const sum = b.services.reduce((acc, s, i) => {
+          const unitPrice = (i === 0 && b.optionPrice != null && !s.optionId)
+            ? Number(b.optionPrice)  // legacy: booking-level option on first service
+            : (s.optionId && s.price != null
+                ? Number(s.price)   // future: per-entry price (catalog price of optioned service)
+                : (s.price != null ? Number(s.price) : (priceMap.get(String(s.id ?? s.serviceId)) ?? 0)));
+          return acc + unitPrice;
+        }, 0);
+        return sum + (b.customServicePrice != null ? Number(b.customServicePrice) : 0);
+      }
+      if (b.optionPrice != null) return Number(b.optionPrice);
+      if (b.customServicePrice != null) return Number(b.customServicePrice);
+      return priceMap.get(String(b.serviceId));
+    };
+    const revenueKnown = active.some(b => Number.isFinite(effectivePrice(b)));
     const calcRevenue = list => list.reduce((sum, b) => {
-      const p = priceMap.get(String(b.serviceId));
+      const p = effectivePrice(b);
       return sum + (Number.isFinite(p) ? p : 0);
     }, 0);
     const onlineRevenue = calcRevenue(active.filter(b => !b.paidInStore));
@@ -1169,21 +1195,25 @@ export default function AdminAgendaPage() {
                                   if (Array.isArray(b.services) && b.services.length > 0) {
                                     return (
                                       <div className="ag-svc-list-block">
-                                        {b.services.map((s, i) => (
-                                          <div key={i} className="ag-svc-list-block__item">
-                                            {s.name || s.title || s.serviceName || "?"}
-                                          </div>
-                                        ))}
+                                        {b.services.map((s, i) => {
+                                          const svcLabel = (s.name || s.title || s.serviceName || "?");
+                                          const label = b.optionName && String(s.id ?? s.serviceId) === String(b.serviceId)
+                                            ? `${svcLabel} · ${b.optionName}`
+                                            : svcLabel;
+                                          return (
+                                            <Fragment key={i}>
+                                              {i > 0 && <hr className="ag-svc-list-block__divider" />}
+                                              <div className="ag-svc-list-block__item">{label}</div>
+                                            </Fragment>
+                                          );
+                                        })}
                                       </div>
                                     );
                                   }
-                                  if (b.serviceTitle) return <span className="ag-service">{b.serviceTitle}</span>;
+                                  if (b.serviceTitle) return <span className="ag-service">{b.serviceTitle}{b.optionName ? ` · ${b.optionName}` : ""}</span>;
                                   if (b.isCustomService && b.customServiceName) return <span className="ag-service"><em>{b.customServiceName}</em></span>;
                                   return <span className="ag-service">—</span>;
                                 })()}
-                                {!b.linkedPackage && !Array.isArray(b.services) && b.optionName && (
-                                  <span className="ag-option"> · {b.optionName}</span>
-                                )}
                                 {!b.linkedPackage && b.currentSession && b.totalSessions && (
                                   <span className="ag-session-pill">
                                     Seduta {b.currentSession}/{b.totalSessions}
@@ -1234,7 +1264,7 @@ export default function AdminAgendaPage() {
                                 {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
                               </div>
                               <div className="ag-item__timeSub">
-                                {Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
+                                {b.optionDuration != null ? b.optionDuration : Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
                                 {b.paddingMinutes > 0 && <span> · +{b.paddingMinutes}′</span>}
                               </div>
                             </div>

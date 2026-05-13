@@ -20,6 +20,8 @@ public record AdminBookingCardDTO(
         UUID serviceId,
         String optionName,
         UUID optionId,
+        Integer optionDuration,
+        BigDecimal optionPrice,
         String notes,
         UUID packageCreditId,
         Integer sessionsRemaining,

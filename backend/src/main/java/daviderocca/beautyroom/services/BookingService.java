@@ -14,6 +14,7 @@ import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WorkingHours;
 import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.ServiceEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
@@ -155,9 +156,11 @@ public class BookingService {
         serviceItemService.assertServiceActive(serviceItem);
 
         LocalDateTime start = normalizeStart(payload.startTime());
-        LocalDateTime end = start.plusMinutes(serviceItem.getDurationMin());
-
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
+        int effectiveDurationMin = (option != null && option.getDurationMin() != null && option.getDurationMin() > 0)
+                ? option.getDurationMin()
+                : serviceItem.getDurationMin();
+        LocalDateTime end = start.plusMinutes(effectiveDurationMin);
 
         if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
@@ -220,9 +223,11 @@ public class BookingService {
         serviceItemService.assertServiceActive(serviceItem);
 
         LocalDateTime start = normalizeStart(payload.startTime());
-        LocalDateTime end = start.plusMinutes(serviceItem.getDurationMin());
-
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
+        int effectiveDurationMin = (option != null && option.getDurationMin() != null && option.getDurationMin() > 0)
+                ? option.getDurationMin()
+                : serviceItem.getDurationMin();
+        LocalDateTime end = start.plusMinutes(effectiveDurationMin);
 
         if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
@@ -306,9 +311,11 @@ public class BookingService {
         serviceItemService.assertServiceActive(serviceItem);
 
         LocalDateTime start = payload.startTime().truncatedTo(ChronoUnit.MINUTES);
-        LocalDateTime end   = start.plusMinutes(serviceItem.getDurationMin());
-
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
+        int effectiveDurationMin = (option != null && option.getDurationMin() != null && option.getDurationMin() > 0)
+                ? option.getDurationMin()
+                : serviceItem.getDurationMin();
+        LocalDateTime end = start.plusMinutes(effectiveDurationMin);
 
         if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
@@ -407,7 +414,8 @@ public class BookingService {
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni.");
 
         // ── Step 1: validate at least one service source ──────────────────────
-        boolean hasCatalog    = dto.serviceIds() != null && !dto.serviceIds().isEmpty();
+        boolean useEntries    = dto.serviceEntries() != null && !dto.serviceEntries().isEmpty();
+        boolean hasCatalog    = useEntries || (dto.serviceIds() != null && !dto.serviceIds().isEmpty());
         boolean hasCustom     = Boolean.TRUE.equals(dto.hasCustomService());
         boolean hasPkg        = dto.packageAssignmentId() != null;
         boolean hasPkgCredit  = dto.packageCreditId() != null;
@@ -426,9 +434,13 @@ public class BookingService {
         }
 
         // ── Step 2: resolve catalog services + validate package ───────────────
-        List<ServiceItem> catalogServices = hasCatalog
-                ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
-                : List.of();
+        List<ServiceItem> catalogServices = useEntries
+                ? dto.serviceEntries().stream()
+                        .map(e -> serviceItemService.findServiceItemById(e.serviceId()))
+                        .toList()
+                : (hasCatalog
+                        ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
+                        : List.of());
 
         ClientPackageAssignment assignment = null;
         if (hasPkg) {
@@ -486,8 +498,11 @@ public class BookingService {
         // ── Step 5: build booking ─────────────────────────────────────────────
         // Primary FK kept for backward compat with existing agenda queries
         ServiceItem primaryService = catalogServices.isEmpty() ? null : catalogServices.get(0);
-        ServiceOption primaryOption = (primaryService != null && dto.serviceOptionId() != null)
-                ? resolveAndValidateOption(dto.serviceOptionId(), primaryService)
+        UUID primaryOptionId = useEntries
+                ? (dto.serviceEntries().get(0).optionId())
+                : dto.serviceOptionId();
+        ServiceOption primaryOption = (primaryService != null && primaryOptionId != null)
+                ? resolveAndValidateOption(primaryOptionId, primaryService)
                 : null;
 
         Booking booking = new Booking(
@@ -498,7 +513,15 @@ public class BookingService {
                 primaryService, primaryOption, null
         );
 
-        if (!catalogServices.isEmpty()) booking.setServices(new ArrayList<>(catalogServices));
+        // For the serviceEntries path, booking_services rows are inserted manually
+        // (with option_id) after save — do NOT let @ManyToMany insert them here.
+        if (!catalogServices.isEmpty()) {
+            if (useEntries) {
+                booking.setServices(new ArrayList<>()); // native INSERT handles booking_services
+            } else {
+                booking.setServices(new ArrayList<>(catalogServices));
+            }
+        }
         if (hasCustom) {
             booking.setCustomService(true);
             booking.setCustomServiceName(dto.customServiceName().trim());
@@ -539,6 +562,24 @@ public class BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Multi-service booking created: id={} duration={}min services={} custom={} pkg={}",
                 saved.getBookingId(), totalDuration, catalogServices.size(), hasCustom, hasPkg);
+
+        // ── Step 5b: persist per-service option_id in booking_services ───────
+        if (useEntries) {
+            entityManager.flush(); // ensure booking row is committed before FK insert
+            List<ServiceEntryDTO> entries = dto.serviceEntries();
+            for (int i = 0; i < entries.size(); i++) {
+                ServiceEntryDTO e = entries.get(i);
+                entityManager.createNativeQuery("""
+                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order)
+                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder)
+                        """)
+                        .setParameter("bookingId", saved.getBookingId())
+                        .setParameter("serviceId", e.serviceId())
+                        .setParameter("optionId", e.optionId())
+                        .setParameter("sortOrder", i + 1)
+                        .executeUpdate();
+            }
+        }
 
         // ── Step 6: link / create / update package session ────────────────────
         // NOTE: linkBooking() uses REQUIRES_NEW and cannot see the uncommitted booking.
@@ -1094,9 +1135,11 @@ public class BookingService {
         ServiceItem serviceItem = serviceItemService.findServiceItemById(primaryServiceId);
         serviceItemService.assertServiceActive(serviceItem);
         LocalDateTime start = normalizeStart(payload.startTime());
-        LocalDateTime end   = start.plusMinutes(serviceItem.getDurationMin());
-
         ServiceOption option = resolveAndValidateOption(payload.serviceOptionId(), serviceItem);
+        int effectiveDurationMin = (option != null && option.getDurationMin() != null && option.getDurationMin() > 0)
+                ? option.getDurationMin()
+                : serviceItem.getDurationMin();
+        LocalDateTime end = start.plusMinutes(effectiveDurationMin);
 
         if (hasOverlapIncludingPaddingExcluding(found.getBookingId(), start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
@@ -1145,7 +1188,8 @@ public class BookingService {
             throw new BadRequestException("Non puoi modificare una prenotazione già " + found.getBookingStatus());
         }
 
-        boolean hasCatalog = dto.serviceIds() != null && !dto.serviceIds().isEmpty();
+        boolean useEntries = dto.serviceEntries() != null && !dto.serviceEntries().isEmpty();
+        boolean hasCatalog = useEntries || (dto.serviceIds() != null && !dto.serviceIds().isEmpty());
         boolean hasCustom  = Boolean.TRUE.equals(dto.hasCustomService());
 
         if (hasCustom) {
@@ -1157,9 +1201,13 @@ public class BookingService {
             }
         }
 
-        List<ServiceItem> catalogServices = hasCatalog
-                ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
-                : List.of();
+        List<ServiceItem> catalogServices = useEntries
+                ? dto.serviceEntries().stream()
+                        .map(e -> serviceItemService.findServiceItemById(e.serviceId()))
+                        .toList()
+                : (hasCatalog
+                        ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
+                        : List.of());
 
         // Total duration: explicit override → computed from services → keep existing
         int totalDuration;
@@ -1189,13 +1237,18 @@ public class BookingService {
 
         // Update catalog services (only if provided in payload)
         if (hasCatalog) {
-            found.setServices(new ArrayList<>(catalogServices));
             ServiceItem primary = catalogServices.get(0);
             found.setService(primary);
-            ServiceOption option = dto.serviceOptionId() != null
-                    ? resolveAndValidateOption(dto.serviceOptionId(), primary)
+            UUID updPrimaryOptId = useEntries
+                    ? dto.serviceEntries().get(0).optionId()
+                    : dto.serviceOptionId();
+            ServiceOption option = updPrimaryOptId != null
+                    ? resolveAndValidateOption(updPrimaryOptId, primary)
                     : null;
             found.setServiceOption(option);
+            // For the entries path, clear the JPA-managed collection so JPA deletes
+            // old booking_services rows; native INSERT will add them back with option_id.
+            found.setServices(useEntries ? new ArrayList<>() : new ArrayList<>(catalogServices));
         }
 
         // Update custom service fields
@@ -1227,6 +1280,25 @@ public class BookingService {
         if (dto.totalSessions() != null) found.setTotalSessions(dto.totalSessions());
 
         Booking updated = bookingRepository.save(found);
+
+        // Persist per-service option_id: flush JPA deletes first, then re-insert with option_id
+        if (useEntries && hasCatalog) {
+            entityManager.flush();
+            List<ServiceEntryDTO> entries = dto.serviceEntries();
+            for (int i = 0; i < entries.size(); i++) {
+                ServiceEntryDTO e = entries.get(i);
+                entityManager.createNativeQuery("""
+                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order)
+                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder)
+                        """)
+                        .setParameter("bookingId", updated.getBookingId())
+                        .setParameter("serviceId", e.serviceId())
+                        .setParameter("optionId", e.optionId())
+                        .setParameter("sortOrder", i + 1)
+                        .executeUpdate();
+            }
+        }
+
         maybeRecalculatePackage(bookingId);
         emailOutboxService.enqueueBookingConfirmed(updated);
         log.info("Multi-service booking updated: id={} start={} duration={}min custom={}",
@@ -1435,8 +1507,32 @@ public class BookingService {
             serviceId = b.getServices().get(0).getServiceId();
         }
 
-        List<ServiceSummaryDTO> services = b.getServices().stream()
-                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice()))
+        // Fetch services with per-entry option_id from booking_services join table
+        @SuppressWarnings("unchecked")
+        List<Object[]> svcRows = entityManager.createNativeQuery("""
+                SELECT bs.service_id, s.title, s.duration_min, s.price,
+                       bs.option_id, so.name AS option_name
+                FROM booking_services bs
+                JOIN services s ON s.service_id = bs.service_id
+                LEFT JOIN service_options so ON so.option_id = bs.option_id
+                WHERE bs.booking_id = :bookingId
+                ORDER BY bs.sort_order
+                """)
+                .setParameter("bookingId", b.getBookingId())
+                .getResultList();
+        List<ServiceSummaryDTO> services = svcRows.stream()
+                .map(r -> {
+                    UUID sId = r[0] instanceof UUID u ? u : UUID.fromString(r[0].toString());
+                    UUID oId = r[4] == null ? null : (r[4] instanceof UUID u ? u : UUID.fromString(r[4].toString()));
+                    return new ServiceSummaryDTO(
+                            sId,
+                            (String) r[1],
+                            r[2] != null ? ((Number) r[2]).intValue() : 0,
+                            r[3] instanceof BigDecimal bd ? bd : (r[3] != null ? new BigDecimal(r[3].toString()) : null),
+                            oId,
+                            (String) r[5]
+                    );
+                })
                 .toList();
 
         boolean consentRequired = (b.getService() != null && b.getService().isConsentRequired())
@@ -1497,6 +1593,8 @@ public class BookingService {
                 serviceId,
                 b.getServiceOption() != null ? b.getServiceOption().getName() : null,
                 b.getServiceOption() != null ? b.getServiceOption().getOptionId() : null,
+                b.getServiceOption() != null ? b.getServiceOption().getDurationMin() : null,
+                b.getServiceOption() != null ? b.getServiceOption().getPrice() : null,
                 b.getNotes(),
                 pkg != null ? pkg.getPackageCreditId() : null,
                 pkg != null ? pkg.getSessionsRemaining() : null,
@@ -1604,7 +1702,7 @@ public class BookingService {
 
     private BookingResponseDTO convertToDTO(Booking booking) {
         List<ServiceSummaryDTO> services = booking.getServices().stream()
-                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice()))
+                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice(), null, null))
                 .toList();
 
         // Fallback service title for backward compat

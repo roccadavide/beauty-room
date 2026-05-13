@@ -433,7 +433,7 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
                   <div className="cli-history-main">
                     <div className="cli-history-title">
                       {b.serviceTitle || "Servizio"}
-                      {b.optionName && ` — ${b.optionName}`}
+                      {b.optionName && ` · ${b.optionName}`}
                     </div>
                     <div className="cli-history-meta">{formatDateTimeIT(b.startTime)}</div>
                   </div>

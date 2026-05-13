@@ -68,5 +68,9 @@ public record AdminBookingCreateDTO(
         Boolean paidInStore,
 
         // Multi-service overrides (new — backwards compatible)
-        Integer customTotalDurationMin
+        Integer customTotalDurationMin,
+
+        // Per-service option mapping — replaces the flat serviceOptionId for multi-service bookings.
+        // When present and non-empty, takes precedence over serviceIds + serviceOptionId.
+        List<ServiceEntryDTO> serviceEntries
 ) {}
