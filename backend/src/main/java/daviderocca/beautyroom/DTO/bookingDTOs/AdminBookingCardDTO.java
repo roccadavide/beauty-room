@@ -3,6 +3,7 @@ package daviderocca.beautyroom.DTO.bookingDTOs;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.PackageCreditStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +35,8 @@ public record AdminBookingCardDTO(
         List<ServiceSummaryDTO> services,
         Boolean isCustomService,
         String customServiceName,
+        Integer customServiceDurationMinutes,
+        BigDecimal customServicePrice,
         Integer currentSession,
         Integer totalSessions,
         // Account linking
@@ -41,5 +44,9 @@ public record AdminBookingCardDTO(
         String linkingStatus,
         // New package assignment system
         PackageSummaryDTO linkedPackage,
-        boolean paidInStore
+        boolean paidInStore,
+        // Payment / refund
+        LocalDateTime paidAt,
+        boolean paidOnline,
+        boolean refundable
 ) {}

@@ -21,6 +21,9 @@ public record ClientPackageAssignmentRequestDTO(
         @Min(1)
         int totalSessions,
 
+        // Optional: if provided, directly sets sessionsRemaining (admin correction use case)
+        Integer sessionsRemaining,
+
         @DecimalMin(value = "0.00")
         BigDecimal pricePaid,
 

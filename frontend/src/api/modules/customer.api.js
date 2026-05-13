@@ -37,3 +37,7 @@ export const getActivePackages = async customerId => {
   const { data } = await http.get(CUSTOMER_ENDPOINTS.ACTIVE_PACKAGES(customerId));
   return Array.isArray(data) ? data : [];
 };
+
+export const deleteCustomer = async customerId => {
+  await http.delete(CUSTOMER_ENDPOINTS.BASE(customerId));
+};

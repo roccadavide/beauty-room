@@ -4,14 +4,17 @@ import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerNotesDTO;
-import daviderocca.beautyroom.packages.ClientPackageAssignmentDTO;
+import daviderocca.beautyroom.DTO.packageDTOs.UnifiedActivePackageDTO;
+import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.packages.ClientPackageService;
 import daviderocca.beautyroom.services.CustomerService;
+import daviderocca.beautyroom.services.PackageCreditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +26,7 @@ public class CustomerController {
 
     private final CustomerService customerService;
     private final ClientPackageService clientPackageService;
+    private final PackageCreditService packageCreditService;
 
     @GetMapping("/search")
     public ResponseEntity<List<CustomerSummaryDTO>> search(
@@ -55,11 +59,66 @@ public class CustomerController {
 
     /**
      * GET /admin/customers/{id}/active-packages
-     * Returns active ClientPackageAssignments for the customer, looked up by full name.
+     * Returns active packages for the customer — both admin-assigned (ClientPackageAssignment)
+     * and online-purchased (PackageCredit) — as a unified list.
      */
     @GetMapping("/{id}/active-packages")
-    public ResponseEntity<List<ClientPackageAssignmentDTO>> activePackages(@PathVariable UUID id) {
+    public ResponseEntity<List<UnifiedActivePackageDTO>> activePackages(@PathVariable UUID id) {
         String fullName = customerService.getFullName(id);
-        return ResponseEntity.ok(clientPackageService.findActiveByClientName(fullName));
+        String email    = customerService.getEmail(id);
+
+        List<UnifiedActivePackageDTO> result = new ArrayList<>();
+
+        // ADMIN-assigned packages
+        clientPackageService.findActiveByClientName(fullName).forEach(a ->
+            result.add(new UnifiedActivePackageDTO(
+                a.id(),
+                a.displayName(),
+                a.serviceTitle(),
+                a.serviceOptionId(),
+                a.totalSessions(),
+                a.sessionsRemaining(),
+                a.status().name(),
+                "ADMIN",
+                a.clientName(),
+                a.customPackageName(),
+                a.pricePaid(),
+                a.notes(),
+                a.linkedUserId()
+            ))
+        );
+
+        // ONLINE packages (Stripe-purchased PackageCredit)
+        if (email != null && !email.isBlank()) {
+            for (PackageCredit pc : packageCreditService.findActiveByEmail(email)) {
+                String displayName = pc.getServiceOption() != null
+                        ? pc.getServiceOption().getName()
+                        : (pc.getService() != null ? pc.getService().getTitle() : "Pacchetto online");
+                String serviceTitle = pc.getService() != null ? pc.getService().getTitle() : null;
+                result.add(new UnifiedActivePackageDTO(
+                    pc.getPackageCreditId(),
+                    displayName,
+                    serviceTitle,
+                    pc.getServiceOption() != null ? pc.getServiceOption().getOptionId() : null,
+                    pc.getSessionsTotal(),
+                    pc.getSessionsRemaining(),
+                    pc.getStatus().name(),
+                    "ONLINE",
+                    null, null, null, null, null
+                ));
+            }
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * DELETE /admin/customers/{id}
+     * Deletes a customer. Returns 409 if they have active bookings or packages.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteCustomer(@PathVariable UUID id) {
+        customerService.deleteCustomer(id);
+        return ResponseEntity.noContent().build();
     }
 }

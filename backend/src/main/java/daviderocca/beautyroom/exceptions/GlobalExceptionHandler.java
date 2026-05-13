@@ -99,6 +99,8 @@ public class GlobalExceptionHandler {
                 msg = "Email già registrata.";
             } else if (low.contains("key (phone)") || low.contains("(phone)=") || low.contains("key (telefono)") ) {
                 msg = "Telefono già registrato.";
+            } else if (low.contains("idx_client_pkg_active_unique_option")) {
+                msg = "Questa cliente ha già un pacchetto attivo per questo trattamento con questa opzione.";
             }
         }
 

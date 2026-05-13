@@ -12,6 +12,7 @@ import daviderocca.beautyroom.entities.Order;
 import daviderocca.beautyroom.entities.OrderItem;
 import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.User;
+import daviderocca.beautyroom.enums.NotificationType;
 import daviderocca.beautyroom.enums.OrderStatus;
 import daviderocca.beautyroom.enums.PaymentMethod;
 import daviderocca.beautyroom.exceptions.BadRequestException;
@@ -44,6 +45,7 @@ public class OrderService {
     private final ProductService productService;
     private final ProductRepository productRepository;
     private final EmailOutboxService emailOutboxService;
+    private final AdminNotificationService notificationService;
 
     @Value("${stripe.secret}")
     private String stripeSecretKey;
@@ -430,6 +432,18 @@ public class OrderService {
             emailOutboxService.enqueueOrderPaid(order);
         } catch (Exception ex) {
             log.warn("enqueueOrderPaid failed (non-blocking): orderId={} err={}", orderId, ex.getMessage());
+        }
+
+        try {
+            notificationService.create(
+                NotificationType.NEW_ORDER,
+                "Nuovo ordine ricevuto 🛍️",
+                (customerEmail != null ? customerEmail : "Cliente") + " · Ordine #" + orderId.toString().substring(0, 8),
+                orderId,
+                "ORDER"
+            );
+        } catch (Exception ex) {
+            log.warn("Notification failed for order {}: {}", orderId, ex.getMessage());
         }
 
         log.info("Order paid: id={} email={}", orderId, customerEmail);

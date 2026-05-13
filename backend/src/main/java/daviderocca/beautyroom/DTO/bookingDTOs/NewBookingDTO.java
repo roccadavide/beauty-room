@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Pattern;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record NewBookingDTO(
@@ -26,8 +27,11 @@ public record NewBookingDTO(
 
         String notes,
 
-        @NotNull(message = "ID del servizio obbligatorio")
+        // Nullable — multi-service updates send serviceIds[] instead
         UUID serviceId,
+
+        // Multi-service support: primary service is serviceIds[0] when serviceId is null
+        List<UUID> serviceIds,
 
         UUID serviceOptionId,
         UUID packageCreditId,

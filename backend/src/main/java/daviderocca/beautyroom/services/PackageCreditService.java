@@ -282,6 +282,23 @@ public class PackageCreditService {
         return packageCreditRepository.findByStripeSessionId(stripeSessionId.trim());
     }
 
+    @Transactional
+    public void markAsRefunded(PackageCredit pc) {
+        pc.setStatus(PackageCreditStatus.REFUNDED);
+        packageCreditRepository.save(pc);
+    }
+
+    /**
+     * Recupera tutti i pacchetti ACTIVE per l'email cliente.
+     * Usato da CustomerController per popolare il pannello pacchetti nel drawer admin.
+     */
+    @Transactional(readOnly = true)
+    public List<PackageCredit> findActiveByEmail(String email) {
+        if (email == null || email.isBlank()) return List.of();
+        return packageCreditRepository.findByCustomerEmailAndStatus(
+                email.trim().toLowerCase(), PackageCreditStatus.ACTIVE);
+    }
+
     /**
      * Recupera il pacchetto ACTIVE più vecchio (FIFO) per email + serviceOption.
      * Utile per futuri flow automatici di selezione pacchetto.

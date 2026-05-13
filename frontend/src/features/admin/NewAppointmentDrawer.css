@@ -4,16 +4,16 @@
    ═══════════════════════════════════════════════════════════════════════════
 
    Z-index layers (documented per task requirement):
-     .nad-backdrop  → 1200  above Bootstrap modals (max 1050) & dropdowns (1000)
-     .nad-drawer    → 1201  one level above backdrop, always rendered on top
+     .nad-backdrop  → var(--z-drawer-backdrop) = 1040
+     .nad-drawer    → var(--z-drawer-panel)    = 1050  (above backdrop; modals use 1060+)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Backdrop ─────────────────────────────────────────────────────────────── */
 .nad-backdrop {
   position: fixed;
-  inset: 0;                              /* top/right/bottom/left: 0 */
+  inset: 0; /* top/right/bottom/left: 0 */
   background: rgba(40, 30, 20, 0.45);
-  z-index: 1200;                         /* see z-index table above */
+  z-index: var(--z-drawer-backdrop); /* see z-index table above */
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.28s ease;
@@ -27,12 +27,12 @@
 /* ── Drawer — shared base ─────────────────────────────────────────────────── */
 .nad-drawer {
   position: fixed;
-  z-index: 1201;                         /* see z-index table above */
+  z-index: var(--z-drawer-panel); /* see z-index table above */
   background: #fffdf8;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   overscroll-behavior: contain;
+  touch-action: pan-y;
 
   /* warm shadow so the panel lifts off the backdrop */
   box-shadow: -4px 0 32px rgba(90, 60, 20, 0.18);
@@ -49,7 +49,7 @@
     bottom: 0;
     width: 480px;
     border-radius: 0 0 0 0; /* flush against right edge */
-    transform: translateX(100%);         /* hidden: off-screen to the right */
+    transform: translateX(100%); /* hidden: off-screen to the right */
   }
 
   .nad-drawer.is-open {
@@ -65,9 +65,9 @@
     bottom: 0;
     width: 100%;
     max-height: 92dvh;
-    border-radius: 20px 20px 0 0;       /* rounded top corners, flush bottom */
+    border-radius: 20px 20px 0 0; /* rounded top corners, flush bottom */
     box-shadow: 0 -4px 32px rgba(90, 60, 20, 0.18);
-    transform: translateY(100%);         /* hidden: off-screen below viewport */
+    transform: translateY(100%); /* hidden: off-screen below viewport */
   }
 
   .nad-drawer.is-open {
@@ -82,7 +82,7 @@
   justify-content: space-between;
   border-bottom: 1px solid #e8e0d5;
   flex-shrink: 0;
-  padding: 0 16px 0 0;                  /* right padding to give close btn room */
+  padding: 0 16px 0 0; /* right padding to give close btn room */
 }
 
 /* ── Tabs container ───────────────────────────────────────────────────────── */
@@ -152,6 +152,7 @@
 /* ── Content area ─────────────────────────────────────────────────────────── */
 .nad-content {
   flex: 1;
+  min-height: 0;
   padding: 24px 20px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -227,7 +228,9 @@
   color: #3a2e22;
   background: #fff;
   outline: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
   font-family: inherit;
 }
 
@@ -258,7 +261,10 @@
   font-weight: 500;
   color: #5a4030;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
   outline: none;
 }
 
@@ -309,7 +315,9 @@
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
   font-family: inherit;
   outline: none;
 }
@@ -538,7 +546,9 @@
   font-weight: 500;
   color: #6c6c6c;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
   font-family: inherit;
   outline: none;
 }
@@ -630,7 +640,9 @@
   font-weight: 600;
   color: #5a4030;
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
   outline: none;
   font-family: "Montserrat", sans-serif;
 }
@@ -705,7 +717,10 @@
   font-weight: 500;
   color: #7a6855;
   cursor: pointer;
-  transition: background 0.13s ease, border-color 0.13s ease, color 0.13s ease;
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease,
+    color 0.13s ease;
   font-family: inherit;
   outline: none;
   white-space: nowrap;
@@ -794,7 +809,9 @@
   cursor: pointer;
   text-align: left;
   font-family: inherit;
-  transition: border-color 0.13s ease, background 0.13s ease;
+  transition:
+    border-color 0.13s ease,
+    background 0.13s ease;
   outline: none;
 }
 
@@ -894,7 +911,9 @@
   font-weight: 600;
   color: #b8976a;
   cursor: pointer;
-  transition: background 0.13s ease, border-color 0.13s ease;
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease;
   font-family: inherit;
   outline: none;
   align-self: flex-start;
@@ -942,7 +961,10 @@
   font-weight: 500;
   color: #7a6855;
   cursor: pointer;
-  transition: background 0.13s ease, border-color 0.13s ease, color 0.13s ease;
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease,
+    color 0.13s ease;
   font-family: inherit;
   outline: none;
   white-space: nowrap;
@@ -999,4 +1021,113 @@
   padding: 6px 10px;
   font-style: normal;
   font-size: 0.78rem;
+}
+
+/* ── "Prossimo disponibile" button (B1) ─────────────────────────────────── */
+.nad-next-slot-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.nad-next-slot-btn {
+  font-size: 0.75rem;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--card-gold, #b8976a);
+  background: transparent;
+  color: var(--card-gold, #b8976a);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  line-height: 1.4;
+}
+
+.nad-next-slot-btn:hover:not(:disabled) {
+  background: var(--card-gold, #b8976a);
+  color: #fff;
+}
+
+.nad-next-slot-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.nad-next-slot-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--card-gold-deep, #8a6233);
+  margin-top: 6px;
+}
+
+.nad-next-slot-hint--error {
+  color: #c0392b;
+}
+
+.nad-next-slot-hint--muted {
+  color: #b4a090;
+  font-style: italic;
+}
+
+/* ── Package price calculator (H1) ─────────────────────────────────────── */
+.nad-price-calc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(184, 151, 106, 0.08);
+  border: 1px solid rgba(184, 151, 106, 0.2);
+  border-radius: 8px;
+  font-size: 0.78rem;
+}
+
+.nad-price-calc__ref {
+  color: #9a8878;
+  text-decoration: line-through;
+}
+
+.nad-price-calc__pps {
+  font-weight: 600;
+  color: #5a4030;
+}
+
+.nad-price-calc__savings {
+  color: #7a9a50;
+  font-weight: 600;
+}
+
+/* ── Catalog package groups (B2) ────────────────────────────────────────── */
+.nad-pkg-group + .nad-pkg-group {
+  margin-top: 12px;
+}
+
+.nad-pkg-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: var(--card-gold, #b8976a);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nad-pkg-group-header::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.nad-pkg-item__sessions {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: #a0876a;
+  flex-shrink: 0;
 }

@@ -11,6 +11,8 @@ public record ClientPackageAssignmentDTO(
         String clientName,
         UUID serviceOptionId,
         String serviceOptionName,
+        String serviceTitle,
+        UUID serviceId,
         String customPackageName,
         String displayName,
         int totalSessions,

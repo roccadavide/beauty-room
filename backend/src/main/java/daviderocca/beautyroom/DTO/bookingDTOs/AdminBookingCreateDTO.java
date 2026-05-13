@@ -45,6 +45,9 @@ public record AdminBookingCreateDTO(
         // Package session (links one session of an existing ClientPackageAssignment)
         UUID packageAssignmentId,
 
+        // Package session (links one session of an online/Stripe-purchased PackageCredit)
+        UUID packageCreditId,
+
         // Session tracking
         Integer currentSession,
         Integer totalSessions,

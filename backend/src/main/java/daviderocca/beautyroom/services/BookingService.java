@@ -21,6 +21,7 @@ import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
 import daviderocca.beautyroom.enums.LinkingStatus;
 import daviderocca.beautyroom.enums.NotificationType;
+import daviderocca.beautyroom.enums.PackageCreditStatus;
 import daviderocca.beautyroom.enums.PaymentMethod;
 import daviderocca.beautyroom.linking.LinkingOutcome;
 import daviderocca.beautyroom.linking.UserLookupService;
@@ -42,6 +43,8 @@ import com.stripe.model.checkout.Session;
 import com.stripe.param.RefundCreateParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -55,6 +58,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -76,6 +80,9 @@ public class BookingService {
     private final UserLookupService userLookupService;
     private final ClientPackageService clientPackageService;
     private final BookingPackageLinkRepository bookingPackageLinkRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Value("${stripe.secret}")
     private String stripeSecretKey;
@@ -400,11 +407,12 @@ public class BookingService {
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni.");
 
         // ── Step 1: validate at least one service source ──────────────────────
-        boolean hasCatalog = dto.serviceIds() != null && !dto.serviceIds().isEmpty();
-        boolean hasCustom  = Boolean.TRUE.equals(dto.hasCustomService());
-        boolean hasPkg     = dto.packageAssignmentId() != null;
+        boolean hasCatalog    = dto.serviceIds() != null && !dto.serviceIds().isEmpty();
+        boolean hasCustom     = Boolean.TRUE.equals(dto.hasCustomService());
+        boolean hasPkg        = dto.packageAssignmentId() != null;
+        boolean hasPkgCredit  = dto.packageCreditId() != null;
 
-        if (!hasCatalog && !hasCustom && !hasPkg) {
+        if (!hasCatalog && !hasCustom && !hasPkg && !hasPkgCredit) {
             throw new BadRequestException(
                     "Specifica almeno un servizio, un servizio personalizzato o un pacchetto.");
         }
@@ -427,6 +435,17 @@ public class BookingService {
             assignment = clientPackageService.validateActivePackage(dto.packageAssignmentId());
         }
 
+        PackageCredit packageCredit = null;
+        if (hasPkgCredit) {
+            packageCredit = packageCreditService.findById(dto.packageCreditId());
+            if (packageCredit.getStatus() != PackageCreditStatus.ACTIVE) {
+                throw new BadRequestException("Il pacchetto online non è attivo (stato: " + packageCredit.getStatus() + ").");
+            }
+            if (packageCredit.getSessionsRemaining() <= 0) {
+                throw new BadRequestException("Il pacchetto online non ha sedute residue.");
+            }
+        }
+
         // ── Step 3: calculate total duration ─────────────────────────────────
         int totalDuration;
         if (dto.customTotalDurationMin() != null && dto.customTotalDurationMin() > 0) {
@@ -442,6 +461,15 @@ public class BookingService {
                     totalDuration += optDuration;
                 } else if (pkgOption.getService() != null && pkgOption.getService().getDurationMin() > 0) {
                     totalDuration += pkgOption.getService().getDurationMin();
+                }
+            }
+            if (hasPkgCredit && packageCredit != null && packageCredit.getServiceOption() != null) {
+                ServiceOption pcOption = packageCredit.getServiceOption();
+                Integer optDuration = pcOption.getDurationMin();
+                if (optDuration != null && optDuration > 0) {
+                    totalDuration += optDuration;
+                } else if (pcOption.getService() != null && pcOption.getService().getDurationMin() > 0) {
+                    totalDuration += pcOption.getService().getDurationMin();
                 }
             }
         }
@@ -491,6 +519,12 @@ public class BookingService {
         booking.setStripeSessionId(null);
         booking.setExpiresAt(null);
         if (Boolean.TRUE.equals(dto.paidInStore())) booking.setPaidInStore(true);
+        if (hasPkgCredit && packageCredit != null) {
+            booking.setPackageCredit(packageCredit);
+            if (primaryOption == null && packageCredit.getServiceOption() != null) {
+                booking.setServiceOption(packageCredit.getServiceOption());
+            }
+        }
 
         // Customer registry (best-effort)
         try {
@@ -512,65 +546,78 @@ public class BookingService {
         boolean hasSessionNumbers = dto.currentSession() != null && dto.totalSessions() != null;
 
         if (hasPkg) {
-            // CASE C — packageAssignmentId provided without manual session numbers:
-            //   Decrement sessionsRemaining by 1 now (at booking creation).
-            //   decrementSessionOnCompletion will skip this link (sessionTrackedAtCreation=true).
+            // CASE C — packageAssignmentId provided: link the booking and recalculate from scratch.
             if (assignment.getSessionsRemaining() <= 0) {
                 throw new BadRequestException("Il pacchetto non ha sessioni rimanenti.");
             }
-            int sessionNumber = assignment.getTotalSessions() - assignment.getSessionsRemaining() + 1;
-            assignment.setSessionsRemaining(assignment.getSessionsRemaining() - 1);
-            if (assignment.getSessionsRemaining() <= 0) {
-                assignment.setStatus(ClientPackageStatus.EXHAUSTED);
-                log.info("Package {} EXHAUSTED after booking creation for client '{}'",
-                        assignment.getId(), assignment.getClientName());
-            }
-            clientPackageService.saveAssignment(assignment);
 
             BookingPackageLink pkgLink = new BookingPackageLink();
             pkgLink.setBooking(saved);
             pkgLink.setAssignment(assignment);
-            pkgLink.setSessionNumber(sessionNumber);
+            pkgLink.setSessionNumber(0); // placeholder; set correctly by recalculate below
             pkgLink.setSessionTrackedAtCreation(true);
             bookingPackageLinkRepository.save(pkgLink);
-            log.info("CASE C: linked bookingId={} to assignmentId={} (sessionNumber={}, remaining={})",
-                    saved.getBookingId(), assignment.getId(), sessionNumber, assignment.getSessionsRemaining());
+
+            clientPackageService.recalculatePackageSessions(assignment.getId());
+            log.info("CASE C: linked bookingId={} to assignmentId={} → recalculated",
+                    saved.getBookingId(), assignment.getId());
+
+        } else if (hasPkgCredit) {
+            // CASE D — packageCreditId provided: PackageCredit FK already set before save.
+            // Session will be decremented by packageCreditService.consumeSessionForBooking()
+            // when the booking is marked COMPLETED (wired in updateBookingStatus).
+            log.info("CASE D: bookingId={} linked to packageCreditId={}",
+                    saved.getBookingId(), packageCredit.getPackageCreditId());
 
         } else if (hasSessionNumbers) {
-            // CASE A / CASE B — admin filled in currentSession + totalSessions manually.
-            //   Find or create a ClientPackageAssignment and set sessionsRemaining directly.
-            int sessionsRemaining = dto.totalSessions() - dto.currentSession();
+            // CASE A / CASE B — admin filled in totalSessions; link and recalculate.
+            // CASE B only reuses an existing package when it is for the same catalog service
+            // (matched by serviceOption.service.serviceId). A custom-service booking or a booking
+            // whose primary service does not match any active package always takes CASE A.
+            final UUID primaryServiceId = (primaryService != null) ? primaryService.getServiceId() : null;
             ClientPackageAssignment pkg = clientPackageService
-                    .findFirstActiveAssignmentByClientName(saved.getCustomerName())
+                    .findActiveAssignmentsByClientName(saved.getCustomerName())
+                    .stream()
+                    .filter(a -> primaryServiceId != null
+                            && a.getServiceOption() != null
+                            && a.getServiceOption().getService() != null
+                            && a.getServiceOption().getService().getServiceId().equals(primaryServiceId))
+                    .findFirst()
                     .orElse(null);
 
             if (pkg == null) {
-                // CASE A: no active package found — create one
+                // CASE A: no matching active package found — create one
                 pkg = new ClientPackageAssignment();
                 pkg.setClientName(saved.getCustomerName());
                 pkg.setTotalSessions(dto.totalSessions());
+                pkg.setSessionsRemaining(dto.totalSessions()); // recalculate will override
+                pkg.setStatus(ClientPackageStatus.ACTIVE);
+                // Derive a display name from the booking's primary service so the
+                // package card shows a meaningful title instead of nothing.
+                if (!catalogServices.isEmpty()) {
+                    pkg.setCustomPackageName(catalogServices.get(0).getTitle());
+                } else if (saved.isCustomService() && saved.getCustomServiceName() != null) {
+                    pkg.setCustomPackageName(saved.getCustomServiceName().trim());
+                }
                 log.info("CASE A: creating new assignment for client '{}'", saved.getCustomerName());
             } else {
-                // CASE B: update existing active assignment
+                // CASE B: update total sessions; recalculate will set remaining
                 pkg.setTotalSessions(dto.totalSessions());
                 log.info("CASE B: updating existing assignmentId={} for client '{}'",
                         pkg.getId(), saved.getCustomerName());
             }
-
-            pkg.setSessionsRemaining(Math.max(sessionsRemaining, 0));
-            pkg.setStatus(sessionsRemaining > 0
-                    ? ClientPackageStatus.ACTIVE
-                    : ClientPackageStatus.EXHAUSTED);
             pkg = clientPackageService.saveAssignment(pkg);
 
             BookingPackageLink pkgLink = new BookingPackageLink();
             pkgLink.setBooking(saved);
             pkgLink.setAssignment(pkg);
-            pkgLink.setSessionNumber(dto.currentSession());
+            pkgLink.setSessionNumber(0); // placeholder; set correctly by recalculate below
             pkgLink.setSessionTrackedAtCreation(true);
             bookingPackageLinkRepository.save(pkgLink);
-            log.info("CASE A/B: linked bookingId={} to assignmentId={} (session {}/{}, remaining={})",
-                    saved.getBookingId(), pkg.getId(), dto.currentSession(), dto.totalSessions(), sessionsRemaining);
+
+            clientPackageService.recalculatePackageSessions(pkg.getId());
+            log.info("CASE A/B: linked bookingId={} to assignmentId={} totalSessions={} → recalculated",
+                    saved.getBookingId(), pkg.getId(), dto.totalSessions());
         }
 
         // ── Step 7: auto account-linking ──────────────────────────────────────
@@ -644,6 +691,21 @@ public class BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Multi-service webhook booking created: id={} duration={}min services={}",
                 saved.getBookingId(), totalDurationMinutes, services.size());
+
+        // Notifica admin
+        try {
+            String svc  = primary != null ? primary.getTitle() : (services.isEmpty() ? "Trattamento" : services.get(0).getTitle());
+            String when = saved.getStartTime().format(NOTIF_FMT);
+            notificationService.create(
+                NotificationType.NEW_BOOKING,
+                "Nuova prenotazione online 🗓",
+                name + " · " + svc + " · " + when,
+                saved.getBookingId(),
+                "BOOKING"
+            );
+        } catch (Exception e) {
+            log.warn("Notification failed for multi-service webhook booking {}: {}", saved.getBookingId(), e.getMessage());
+        }
 
         // Auto account-linking (best-effort)
         try {
@@ -875,41 +937,131 @@ public class BookingService {
             );
         }
 
-        bookingRepository.delete(found);
+        // Capture assignmentId before delete — the link row will cascade-delete with the booking
+        UUID pkgAssignmentId = null;
+        try {
+            pkgAssignmentId = bookingPackageLinkRepository.findByBookingBookingIdWithAssignment(bookingId)
+                    .map(l -> l.getAssignment().getId())
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("Could not load package link before delete for booking {}: {}", bookingId, e.getMessage());
+        }
+
+        // Delete the link first via bulk JPQL — bypasses L1 cache entirely, goes straight to DB.
+        // We cannot call bookingRepository.delete(found) while a MANAGED BookingPackageLink entity
+        // still references 'found': when flush() fires Hibernate detects a MANAGED→REMOVED
+        // reference and throws TransientObjectException before any SQL runs.
+        entityManager.createQuery(
+                        "DELETE FROM BookingPackageLink bpl WHERE bpl.booking.bookingId = :id")
+                .setParameter("id", bookingId)
+                .executeUpdate();
+
+        // Wipe L1 cache: the previously loaded BookingPackageLink (and 'found') are now stale.
+        // 'found' will be re-fetched fresh below.
+        entityManager.clear();
+
+        // Delete the booking through the JPA lifecycle (respects any @PreRemove callbacks).
+        // L1 cache is clean — no stale link entity pointing at the about-to-be-removed booking.
+        bookingRepository.deleteById(bookingId);
+        bookingRepository.flush();
         log.info("Booking hard-deleted by admin: id={}", bookingId);
+
+        // Link is now gone (cascade); recalculate so remaining count drops correctly
+        if (pkgAssignmentId != null) {
+            final UUID assignmentId = pkgAssignmentId;
+            try {
+                clientPackageService.recalculatePackageSessions(assignmentId);
+            } catch (Exception e) {
+                log.warn("Package recalculate after delete failed for assignmentId={}: {}", assignmentId, e.getMessage());
+            }
+        }
     }
 
     // ============================ REFUND (ADMIN) ============================
-    @Transactional(rollbackFor = StripeException.class)
+    @Transactional
     public void refundBooking(UUID bookingId) throws StripeException {
         Booking booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException(bookingId));
 
-        if (booking.getBookingStatus() != BookingStatus.CONFIRMED) {
-            throw new BadRequestException("Il rimborso è possibile solo per prenotazioni in stato CONFIRMED.");
+        // CASE 1 — paid in store: no Stripe refund possible
+        if (booking.isPaidInStore()) {
+            throw new BadRequestException(
+                    "Questa prenotazione è stata pagata in negozio. Il rimborso deve essere gestito manualmente.");
         }
-        if (booking.getStripeSessionId() == null) {
-            throw new BadRequestException("Questa prenotazione non è stata pagata online (nessuna sessione Stripe).");
+
+        // CASE 2 — admin-created, never went through Stripe
+        if (booking.getStripeSessionId() == null || booking.getStripeSessionId().isBlank()) {
+            throw new BadRequestException(
+                    "Nessun pagamento Stripe associato a questa prenotazione.");
+        }
+
+        // CASE 3 — already terminal
+        BookingStatus status = booking.getBookingStatus();
+        if (status == BookingStatus.REFUNDED || status == BookingStatus.CANCELLED) {
+            throw new BadRequestException(
+                    "Questa prenotazione è già stata rimborsata o annullata.");
         }
 
         Stripe.apiKey = stripeSecretKey;
 
+        // CASE 4 — PENDING_PAYMENT: check if stripe session was actually paid
+        if (status == BookingStatus.PENDING_PAYMENT) {
+            Session pendingSession = Session.retrieve(booking.getStripeSessionId());
+            if (!"paid".equals(pendingSession.getPaymentStatus())) {
+                // Session unpaid or expired — just cancel, no refund needed
+                booking.setBookingStatus(BookingStatus.CANCELLED);
+                booking.setCanceledAt(LocalDateTime.now());
+                booking.setCancelReason("ADMIN_CANCEL_UNPAID");
+                booking.setExpiresAt(null);
+                bookingRepository.save(booking);
+                log.info("Booking PENDING_PAYMENT cancelled without refund: bookingId={}", bookingId);
+                return;
+            }
+            // Fall through — webhook was missed, payment was collected → full refund below
+        }
+
+        // CASE 5 — CONFIRMED or COMPLETED (or PENDING_PAYMENT that turned out paid)
+        // 60-day limit check
+        if (booking.getPaidAt() != null && booking.getPaidAt().isBefore(LocalDateTime.now().minusDays(60))) {
+            throw new BadRequestException(
+                    "Il termine per il rimborso automatico è scaduto (60 giorni). Procedi manualmente dal pannello Stripe.");
+        }
+
         Session stripeSession = Session.retrieve(booking.getStripeSessionId());
         String paymentIntentId = stripeSession.getPaymentIntent();
         if (paymentIntentId == null || paymentIntentId.isBlank()) {
-            throw new BadRequestException("Nessun payment_intent trovato per la sessione Stripe di questa prenotazione.");
+            throw new BadRequestException(
+                    "Nessun payment_intent trovato per la sessione Stripe di questa prenotazione.");
         }
 
-        Refund.create(RefundCreateParams.builder().setPaymentIntent(paymentIntentId).build());
+        // CASE 6 — StripeException is caught in the catch block below; DB not updated on failure
+        try {
+            Refund.create(Map.of("payment_intent", paymentIntentId));
+        } catch (StripeException e) {
+            log.error("Stripe refund failed for bookingId={} paymentIntent={}: {}", bookingId, paymentIntentId, e.getMessage(), e);
+            throw new BadRequestException(
+                    "Errore Stripe durante il rimborso: " + e.getMessage() + ". Riprova o procedi manualmente dal pannello Stripe.");
+        }
 
-        booking.setBookingStatus(BookingStatus.CANCELLED);
+        // Stripe refund succeeded — update booking
+        booking.setBookingStatus(BookingStatus.REFUNDED);
         booking.setCanceledAt(LocalDateTime.now());
         booking.setCancelReason("ADMIN_REFUND");
         booking.setExpiresAt(null);
         bookingRepository.save(booking);
-        emailOutboxService.enqueueBookingRefunded(booking);
 
-        log.info("Booking refunded and cancelled: bookingId={} stripeSession={}", bookingId, booking.getStripeSessionId());
+        // Deactivate linked PackageCredit if present
+        PackageCredit pc = booking.getPackageCredit();
+        if (pc == null && booking.getStripeSessionId() != null) {
+            pc = packageCreditService.findByStripeSessionId(booking.getStripeSessionId()).orElse(null);
+        }
+        if (pc != null) {
+            packageCreditService.markAsRefunded(pc);
+            log.info("PackageCredit {} marked REFUNDED for bookingId={}", pc.getPackageCreditId(), bookingId);
+        }
+
+        emailOutboxService.enqueueBookingRefunded(booking);
+        log.info("Booking rimborsato via Stripe: id={} paymentIntent={}", bookingId, paymentIntentId);
     }
 
     // ============================ UPDATE (ADMIN/OWNER) ============================
@@ -932,7 +1084,14 @@ public class BookingService {
             throw new BadRequestException("Prenotazione già confermata: contatta il centro per modifiche.");
         }
 
-        ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
+        UUID primaryServiceId = payload.serviceId() != null
+                ? payload.serviceId()
+                : (payload.serviceIds() != null && !payload.serviceIds().isEmpty()
+                        ? payload.serviceIds().get(0)
+                        : null);
+        if (primaryServiceId == null) throw new BadRequestException("Almeno un servizio obbligatorio");
+
+        ServiceItem serviceItem = serviceItemService.findServiceItemById(primaryServiceId);
         serviceItemService.assertServiceActive(serviceItem);
         LocalDateTime start = normalizeStart(payload.startTime());
         LocalDateTime end   = start.plusMinutes(serviceItem.getDurationMin());
@@ -963,8 +1122,115 @@ public class BookingService {
         }
 
         Booking updated = bookingRepository.save(found);
+        maybeRecalculatePackage(bookingId);
         emailOutboxService.enqueueBookingConfirmed(updated);
         log.info("Booking updated: id={} status={} padding={}min", updated.getBookingId(), updated.getBookingStatus(), updated.getPaddingMinutes());
+        return convertToDTO(updated);
+    }
+
+    // ============================ UPDATE — MULTI-SERVICE (admin drawer) ============================
+    /**
+     * Full-featured update used by the new multi-service admin drawer.
+     * Accepts AdminBookingCreateDTO so it handles catalog services, custom services,
+     * and package sessions uniformly — fixing the "JSON malformato" bug caused by
+     * the old endpoint expecting LocalDateTime but receiving only HH:mm.
+     */
+    @Transactional
+    public BookingResponseDTO updateMultiServiceBooking(UUID bookingId, AdminBookingCreateDTO dto, User currentUser) {
+        if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può modificare prenotazioni.");
+
+        Booking found = findBookingById(bookingId);
+
+        if (found.getBookingStatus() == BookingStatus.CANCELLED || found.getBookingStatus() == BookingStatus.COMPLETED) {
+            throw new BadRequestException("Non puoi modificare una prenotazione già " + found.getBookingStatus());
+        }
+
+        boolean hasCatalog = dto.serviceIds() != null && !dto.serviceIds().isEmpty();
+        boolean hasCustom  = Boolean.TRUE.equals(dto.hasCustomService());
+
+        if (hasCustom) {
+            if (dto.customServiceName() == null || dto.customServiceName().isBlank()) {
+                throw new BadRequestException("Nome servizio personalizzato obbligatorio.");
+            }
+            if (dto.customServiceDurationMinutes() == null || dto.customServiceDurationMinutes() < 1) {
+                throw new BadRequestException("Durata servizio personalizzato obbligatoria.");
+            }
+        }
+
+        List<ServiceItem> catalogServices = hasCatalog
+                ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
+                : List.of();
+
+        // Total duration: explicit override → computed from services → keep existing
+        int totalDuration;
+        if (dto.customTotalDurationMin() != null && dto.customTotalDurationMin() > 0) {
+            totalDuration = dto.customTotalDurationMin();
+        } else if (hasCatalog || hasCustom) {
+            totalDuration = catalogServices.stream().mapToInt(ServiceItem::getDurationMin).sum();
+            if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
+        } else {
+            // Package-only or no services in payload — keep the booking's existing duration
+            totalDuration = found.getDurationMinutes() != null
+                    ? found.getDurationMinutes()
+                    : (int) java.time.Duration.between(found.getStartTime(), found.getEndTime()).toMinutes();
+        }
+        totalDuration = Math.max(totalDuration, 5);
+
+        LocalDateTime start = dto.date().atTime(dto.startTime()).truncatedTo(ChronoUnit.MINUTES);
+        LocalDateTime end   = start.plusMinutes(totalDuration);
+
+        if (hasOverlapIncludingPaddingExcluding(found.getBookingId(), start, end)) {
+            throw new BadRequestException("Lo slot selezionato non è disponibile.");
+        }
+
+        found.setStartTime(start);
+        found.setEndTime(end);
+        found.setDurationMinutes(totalDuration);
+
+        // Update catalog services (only if provided in payload)
+        if (hasCatalog) {
+            found.setServices(new ArrayList<>(catalogServices));
+            ServiceItem primary = catalogServices.get(0);
+            found.setService(primary);
+            ServiceOption option = dto.serviceOptionId() != null
+                    ? resolveAndValidateOption(dto.serviceOptionId(), primary)
+                    : null;
+            found.setServiceOption(option);
+        }
+
+        // Update custom service fields
+        found.setCustomService(hasCustom);
+        if (hasCustom) {
+            found.setCustomServiceName(dto.customServiceName().trim());
+            found.setCustomServicePrice(dto.customServicePrice());
+        } else if (hasCatalog) {
+            // Switching from custom to catalog — clear stale custom fields
+            found.setCustomServiceName(null);
+            found.setCustomServicePrice(null);
+        }
+
+        found.setNotes(dto.notes());
+        found.setCustomerName(safeTrim(dto.customerName(), "Nome cliente obbligatorio"));
+        if (dto.customerEmail() != null && !dto.customerEmail().isBlank()) {
+            found.setCustomerEmail(dto.customerEmail().trim().toLowerCase());
+        }
+        if (dto.customerPhone() != null && !dto.customerPhone().isBlank()) {
+            found.setCustomerPhone(dto.customerPhone().trim());
+        }
+        if (dto.paddingMinutes() != null) {
+            found.setPaddingMinutes(dto.paddingMinutes() > 0 ? dto.paddingMinutes() : null);
+        }
+        if (dto.paidInStore() != null) {
+            found.setPaidInStore(dto.paidInStore());
+        }
+        if (dto.currentSession() != null) found.setCurrentSession(dto.currentSession());
+        if (dto.totalSessions() != null) found.setTotalSessions(dto.totalSessions());
+
+        Booking updated = bookingRepository.save(found);
+        maybeRecalculatePackage(bookingId);
+        emailOutboxService.enqueueBookingConfirmed(updated);
+        log.info("Multi-service booking updated: id={} start={} duration={}min custom={}",
+                updated.getBookingId(), start, totalDuration, hasCustom);
         return convertToDTO(updated);
     }
 
@@ -1013,16 +1279,9 @@ public class BookingService {
         if (!wasCompleted && willBeCompleted)  packageCreditService.consumeSessionForBooking(found);
         else if (wasCompleted && !willBeCompleted) packageCreditService.restoreSessionForBooking(found);
 
-        if (!wasCompleted && willBeCompleted) {
-            try {
-                clientPackageService.decrementSessionOnCompletion(found);
-            } catch (Exception e) {
-                log.warn("Package session decrement failed for booking {}: {}", bookingId, e.getMessage());
-            }
-        }
-
         found.setBookingStatus(newStatus);
         Booking updated = bookingRepository.save(found);
+        maybeRecalculatePackage(bookingId);
 
         log.info("Booking status updated: id={} {} -> {} packageCredit={}",
                 updated.getBookingId(), old, newStatus,
@@ -1071,6 +1330,7 @@ public class BookingService {
         found.setExpiresAt(null);
 
         bookingRepository.save(found);
+        maybeRecalculatePackage(bookingId);
         log.info("Booking cancelled: id={} reason={}", bookingId, found.getCancelReason());
 
         if (!admin) {
@@ -1182,23 +1442,48 @@ public class BookingService {
         boolean consentRequired = (b.getService() != null && b.getService().isConsentRequired())
                 || services.stream().anyMatch(s -> false); // service-level consent flag not on summary
 
+        // Load the package link once; use it for both the linkedPkg summary AND the live
+        // session number (booking.currentSession may be null for CASE C bookings where the
+        // frontend sends null, and stale for bookings created before this fix was deployed).
+        Integer linkSessionNumber   = null;
+        Integer linkTotalSessions   = null;
         PackageSummaryDTO linkedPkg = null;
         try {
-            linkedPkg = bookingPackageLinkRepository
-                    .findByBookingBookingIdWithAssignment(b.getBookingId())
-                    .map(link -> {
-                        ClientPackageAssignment a = link.getAssignment();
-                        String pkgName = a.getCustomPackageName() != null
-                                ? a.getCustomPackageName()
-                                : (a.getServiceOption() != null
-                                        ? a.getServiceOption().getName()
-                                        : "Pacchetto");
-                        return new PackageSummaryDTO(pkgName, a.getSessionsRemaining());
-                    })
-                    .orElse(null);
+            var linkOpt = bookingPackageLinkRepository
+                    .findByBookingBookingIdWithAssignment(b.getBookingId());
+            if (linkOpt.isPresent()) {
+                BookingPackageLink link = linkOpt.get();
+                ClientPackageAssignment a = link.getAssignment();
+                if (link.getSessionNumber() > 0) linkSessionNumber = link.getSessionNumber();
+                linkTotalSessions = a.getTotalSessions();
+                String pkgName = a.getCustomPackageName() != null
+                        ? a.getCustomPackageName()
+                        : (a.getServiceOption() != null
+                                ? (a.getServiceOption().getService() != null
+                                        ? a.getServiceOption().getService().getTitle()
+                                        : a.getServiceOption().getName())
+                                : "Trattamento");
+                linkedPkg = new PackageSummaryDTO(pkgName, a.getSessionsRemaining());
+            }
         } catch (Exception e) {
             log.warn("Could not resolve linkedPackage for booking {}: {}", b.getBookingId(), e.getMessage());
         }
+
+        // Custom service duration: compute as total duration minus catalog services' sum.
+        // This is exact for custom-only bookings and a best-effort approximation for mixed ones.
+        Integer customServiceDurationMinutes = null;
+        if (b.isCustomService()) {
+            int catalogTotal = b.getServices().stream().mapToInt(ServiceItem::getDurationMin).sum();
+            int raw = (b.getDurationMinutes() != null ? b.getDurationMinutes() : 0) - catalogTotal;
+            customServiceDurationMinutes = raw > 0 ? raw : (b.getDurationMinutes() != null ? b.getDurationMinutes() : 60);
+        }
+
+        boolean paidOnline = b.getStripeSessionId() != null && !b.isPaidInStore();
+        boolean refundable = paidOnline
+                && b.getBookingStatus() != BookingStatus.CANCELLED
+                && b.getBookingStatus() != BookingStatus.REFUNDED
+                && (b.getPaidAt() == null
+                        || b.getPaidAt().isAfter(LocalDateTime.now().minusDays(60)));
 
         return new AdminBookingCardDTO(
                 b.getBookingId(),
@@ -1225,12 +1510,17 @@ public class BookingService {
                 services,
                 b.isCustomService(),
                 b.getCustomServiceName(),
-                b.getCurrentSession(),
-                b.getTotalSessions(),
+                customServiceDurationMinutes,
+                b.getCustomServicePrice(),
+                linkSessionNumber != null ? linkSessionNumber : b.getCurrentSession(),
+                linkTotalSessions != null ? linkTotalSessions : b.getTotalSessions(),
                 b.getLinkedUser() != null ? b.getLinkedUser().getUserId() : null,
                 b.getLinkingStatus() != null ? b.getLinkingStatus().name() : null,
                 linkedPkg,
-                b.isPaidInStore()
+                b.isPaidInStore(),
+                b.getPaidAt(),
+                paidOnline,
+                refundable
         );
     }
 
@@ -1287,6 +1577,19 @@ public class BookingService {
         return option;
     }
 
+    /**
+     * If the booking has a package link, triggers a full recalculation of that
+     * assignment's session counts. Best-effort — never propagates exceptions.
+     */
+    private void maybeRecalculatePackage(UUID bookingId) {
+        try {
+            bookingPackageLinkRepository.findByBookingBookingIdWithAssignment(bookingId)
+                    .ifPresent(link -> clientPackageService.recalculatePackageSessions(link.getAssignment().getId()));
+        } catch (Exception e) {
+            log.warn("maybeRecalculatePackage failed for bookingId={}: {}", bookingId, e.getMessage());
+        }
+    }
+
     private boolean isAdmin(User user) {
         return user != null && user.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
@@ -1318,8 +1621,10 @@ public class BookingService {
                         String pkgName = a.getCustomPackageName() != null
                                 ? a.getCustomPackageName()
                                 : (a.getServiceOption() != null
-                                        ? a.getServiceOption().getName()
-                                        : "Pacchetto");
+                                        ? (a.getServiceOption().getService() != null
+                                                ? a.getServiceOption().getService().getTitle()
+                                                : a.getServiceOption().getName())
+                                        : "Trattamento");
                         return new PackageSummaryDTO(pkgName, a.getSessionsRemaining());
                     })
                     .orElse(null);

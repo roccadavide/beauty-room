@@ -4,8 +4,10 @@ import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
+import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
 import daviderocca.beautyroom.exceptions.BadRequestException;
+import daviderocca.beautyroom.exceptions.DuplicateResourceException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.linking.LinkingOutcome;
 import daviderocca.beautyroom.linking.UserLookupService;
@@ -17,9 +19,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +40,19 @@ public class ClientPackageService {
 
     @Transactional
     public ClientPackageAssignmentDTO create(ClientPackageAssignmentRequestDTO req) {
+        // Guard: reject exact duplicates (same client name + same service option while ACTIVE)
+        if (req.serviceOptionId() != null) {
+            boolean alreadyActive = assignmentRepo.findByClientNameIgnoreCase(req.clientName().trim())
+                    .stream()
+                    .anyMatch(a -> a.getStatus() == ClientPackageStatus.ACTIVE
+                            && a.getServiceOption() != null
+                            && a.getServiceOption().getOptionId().equals(req.serviceOptionId()));
+            if (alreadyActive) {
+                throw new DuplicateResourceException(
+                        "Questa cliente ha già un pacchetto attivo per questo trattamento con questa opzione.");
+            }
+        }
+
         ClientPackageAssignment assignment = new ClientPackageAssignment();
         assignment.setClientName(req.clientName().trim());
         assignment.setTotalSessions(req.totalSessions());
@@ -108,11 +125,21 @@ public class ClientPackageService {
     @Transactional
     public ClientPackageAssignmentDTO update(UUID id, ClientPackageAssignmentRequestDTO req) {
         ClientPackageAssignment assignment = requireAssignment(id);
+        int completedSessions = assignment.getTotalSessions() - assignment.getSessionsRemaining();
+        if (req.totalSessions() < completedSessions) {
+            throw new BadRequestException(
+                    "Le sedute totali non possono essere inferiori alle sedute già effettuate (" + completedSessions + ").");
+        }
         assignment.setClientName(req.clientName().trim());
         assignment.setTotalSessions(req.totalSessions());
         assignment.setPricePaid(req.pricePaid());
         assignment.setNotes(req.notes() != null ? req.notes().trim() : null);
         assignment.setCustomPackageName(req.customPackageName() != null ? req.customPackageName().trim() : null);
+
+        if (req.sessionsRemaining() != null) {
+            int clamped = Math.max(0, Math.min(req.sessionsRemaining(), req.totalSessions()));
+            assignment.setSessionsRemaining(clamped);
+        }
 
         if (req.serviceOptionId() != null) {
             ServiceOption option = serviceOptionRepo.findById(req.serviceOptionId())
@@ -199,6 +226,78 @@ public class ClientPackageService {
         });
     }
 
+    // ── Recalculate from scratch ──────────────────────────────────────────────
+
+    /**
+     * Recomputes sessionsRemaining and sessionNumber for every link of an assignment
+     * from scratch, based on the actual booking statuses in the DB.
+     * CANCELLED and NO_SHOW bookings do not count as used sessions.
+     * Idempotent: calling it twice yields the same result.
+     */
+    @Transactional
+    public void recalculatePackageSessions(UUID packageAssignmentId) {
+        ClientPackageAssignment assignment = assignmentRepo.findById(packageAssignmentId).orElse(null);
+        if (assignment == null) {
+            log.warn("recalculate: assignment {} not found — skipping", packageAssignmentId);
+            return;
+        }
+        if (assignment.getStatus() == ClientPackageStatus.CANCELLED) {
+            log.info("recalculate: assignment {} is CANCELLED — skipping", packageAssignmentId);
+            return;
+        }
+
+        List<BookingPackageLink> allLinks = linkRepo.findByAssignmentIdWithBooking(packageAssignmentId);
+
+        List<BookingPackageLink> activeLinks = allLinks.stream()
+                .filter(l -> {
+                    BookingStatus s = l.getBooking().getBookingStatus();
+                    return s != BookingStatus.CANCELLED && s != BookingStatus.NO_SHOW;
+                })
+                .sorted(Comparator.comparing(l -> l.getBooking().getStartTime()))
+                .collect(Collectors.toList());
+
+        for (int i = 0; i < activeLinks.size(); i++) {
+            activeLinks.get(i).setSessionNumber(i + 1);
+            // Keep booking.currentSession/totalSessions in sync — CASE C bookings have
+            // these as null at creation because the frontend sends null when a package
+            // assignment is selected instead of a manual session number.
+            activeLinks.get(i).getBooking().setCurrentSession(i + 1);
+            activeLinks.get(i).getBooking().setTotalSessions(assignment.getTotalSessions());
+        }
+        if (!activeLinks.isEmpty()) {
+            linkRepo.saveAll(activeLinks);
+            bookingRepository.saveAll(
+                    activeLinks.stream().map(BookingPackageLink::getBooking).toList());
+        }
+
+        int sessionsUsed = activeLinks.size();
+        int sessionsRemaining = Math.max(assignment.getTotalSessions() - sessionsUsed, 0);
+        assignment.setSessionsRemaining(sessionsRemaining);
+        assignment.setStatus(sessionsRemaining <= 0 ? ClientPackageStatus.EXHAUSTED : ClientPackageStatus.ACTIVE);
+        assignmentRepo.save(assignment);
+
+        log.info("recalculate: assignmentId={} sessionsUsed={} sessionsRemaining={} status={}",
+                packageAssignmentId, sessionsUsed, sessionsRemaining, assignment.getStatus());
+    }
+
+    /**
+     * Recalculates all non-cancelled assignments. Safe to call multiple times.
+     * Used for the one-time data-fix admin endpoint.
+     */
+    @Transactional
+    public int recalculateAllPackageSessions() {
+        List<ClientPackageAssignment> all = assignmentRepo.findAll();
+        int count = 0;
+        for (ClientPackageAssignment a : all) {
+            if (a.getStatus() != ClientPackageStatus.CANCELLED) {
+                recalculatePackageSessions(a.getId());
+                count++;
+            }
+        }
+        log.info("recalculateAll: processed {} assignments", count);
+        return count;
+    }
+
     // ── Validation helper for booking creation ────────────────────────────────
 
     /**
@@ -226,7 +325,11 @@ public class ClientPackageService {
             ClientPackageAssignment a = link.getAssignment();
             String name = a.getCustomPackageName() != null
                     ? a.getCustomPackageName()
-                    : (a.getServiceOption() != null ? a.getServiceOption().getName() : a.getClientName());
+                    : (a.getServiceOption() != null
+                            ? (a.getServiceOption().getService() != null
+                                    ? a.getServiceOption().getService().getTitle()
+                                    : a.getServiceOption().getName())
+                            : a.getClientName());
             return new PackageSummaryDTO(name, a.getSessionsRemaining());
         });
     }
@@ -257,6 +360,18 @@ public class ClientPackageService {
                 .findFirst();
     }
 
+    /**
+     * Returns ALL ACTIVE ClientPackageAssignments for the given client name.
+     * Used in CASE B scoping: caller must filter by service to avoid picking the wrong package.
+     */
+    @Transactional(readOnly = true)
+    public List<ClientPackageAssignment> findActiveAssignmentsByClientName(String clientName) {
+        return assignmentRepo.findByClientNameIgnoreCase(clientName)
+                .stream()
+                .filter(a -> a.getStatus() == ClientPackageStatus.ACTIVE)
+                .toList();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private ClientPackageAssignment requireAssignment(UUID id) {
@@ -268,11 +383,19 @@ public class ClientPackageService {
         String displayName = (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank())
                 ? a.getCustomPackageName()
                 : (a.getServiceOption() != null ? a.getServiceOption().getName() : "Pacchetto senza nome");
+        String serviceTitle = (a.getServiceOption() != null && a.getServiceOption().getService() != null)
+                ? a.getServiceOption().getService().getTitle()
+                : null;
+        UUID serviceId = (a.getServiceOption() != null && a.getServiceOption().getService() != null)
+                ? a.getServiceOption().getService().getServiceId()
+                : null;
         return new ClientPackageAssignmentDTO(
                 a.getId(),
                 a.getClientName(),
                 a.getServiceOption() != null ? a.getServiceOption().getOptionId() : null,
                 a.getServiceOption() != null ? a.getServiceOption().getName() : null,
+                serviceTitle,
+                serviceId,
                 a.getCustomPackageName(),
                 displayName,
                 a.getTotalSessions(),

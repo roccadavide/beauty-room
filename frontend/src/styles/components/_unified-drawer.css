@@ -249,7 +249,7 @@
 .cd-root {
   position: fixed;
   inset: 0;
-  z-index: 1090;
+  z-index: var(--z-modal-backdrop);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s linear;

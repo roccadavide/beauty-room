@@ -16,10 +16,12 @@ import {
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
 import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
+import ConfirmDialog from "../common/ConfirmDialog";
 import WeeklyCalendar from "./WeeklyCalendar";
 import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
 import DateTimeField from "../common/DateTimeField";
+import TimePicker from "../common/TimePicker";
 import SEO from "../common/SEO";
 
 const pad2 = n => String(n).padStart(2, "0");
@@ -104,6 +106,11 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
 
   const toPct = useCallback(m => ((m - viewWindow.startMin) / (viewWindow.endMin - viewWindow.startMin)) * 100, [viewWindow.endMin, viewWindow.startMin]);
 
+  const timelineHeight = useMemo(() => {
+    const totalMin = viewWindow.endMin - viewWindow.startMin;
+    return Math.min(900, Math.max(400, Math.round(totalMin * 1.4)));
+  }, [viewWindow]);
+
   // Mappa "HH:mm" → booking per collegare i blocchi timeline alla lista
   const bookingMap = useMemo(() => {
     const m = new Map();
@@ -131,9 +138,22 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const bookingId = booking?.bookingId;
     const isSelected = bookingId != null && bookingId === selectedBookingId;
     const durationMin = end - start;
-    const isCompact = durationMin < 30;
+    const tier = durationMin < 20 ? "tiny" : durationMin < 40 ? "compact" : "full";
     const cat = booking?.categoryName ?? booking?.category ?? null;
     const color = categoryColor(cat);
+    const pkgName = booking?.linkedPackage
+      ? (booking.linkedPackage.serviceTitle || booking.linkedPackage.serviceName || booking.linkedPackage.packageName || "—")
+      : null;
+    const extraSvcs = Array.isArray(booking?.services) && booking.services.length > 0 ? booking.services : [];
+    const sessionNum = booking?.currentSession ?? booking?.linkedPackage?.sessionNumber;
+    const sessionBadge = sessionNum
+      ? ` S.${sessionNum}${booking?.totalSessions ? `/${booking.totalSessions}` : ""}`
+      : "";
+    const serviceName = pkgName
+      ? `${pkgName}${sessionBadge}${extraSvcs.length > 0 ? ` +${extraSvcs.length}` : ""}`
+      : extraSvcs.length > 1
+        ? `${extraSvcs[0].name || extraSvcs[0].title || "?"} +${extraSvcs.length - 1}`
+        : (extraSvcs[0]?.name || extraSvcs[0]?.title || booking?.serviceTitle || booking?.customServiceName || "—");
 
     return (
       <div
@@ -162,31 +182,27 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
             : undefined
         }
       >
-        {booking &&
-          (isCompact ? (
-            <div className="ag-tl-booking__label ag-tl-booking__label--compact">
-              <span className="ag-tl-booking__service">
-                {booking.linkedPackage?.packageName
-                  ? ` ${booking.linkedPackage.packageName}`
-                  : Array.isArray(booking.services) && booking.services.length > 0
-                    ? booking.services.map(s => s.name || s.title || "?").join(" + ")
-                    : booking.serviceTitle || booking.customServiceName || "—"}
-              </span>
-              <span className="ag-tl-booking__dot"> · </span>
-              <span className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</span>
+        {booking && tier === "tiny" && (
+          <div className="ag-tl-booking__label ag-tl-booking__label--tiny">
+            {slot.start}
+          </div>
+        )}
+        {booking && tier === "compact" && (
+          <div className="ag-tl-booking__label ag-tl-booking__label--compact">
+            <span className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</span>
+          </div>
+        )}
+        {booking && tier === "full" && (
+          <div className="ag-tl-booking__label">
+            <div className="ag-tl-booking__service">{serviceName}</div>
+            <div className="ag-tl-booking__customer">
+              {shortCustomerName(booking.customerName)}
+              {booking.sessionsRemaining === 1 && (
+                <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>⚠</span>
+              )}
             </div>
-          ) : (
-            <div className="ag-tl-booking__label">
-              <div className="ag-tl-booking__service">
-                {booking.linkedPackage?.packageName
-                  ? ` ${booking.linkedPackage.packageName}`
-                  : Array.isArray(booking.services) && booking.services.length > 0
-                    ? booking.services.map(s => s.name || s.title || "?").join(" + ")
-                    : booking.serviceTitle || booking.customServiceName || "—"}
-              </div>
-              <div className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</div>
-            </div>
-          ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -276,7 +292,7 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
           <div className="ag-title">Timeline</div>
           <div className="ag-subtitle">{dateISO}</div>
         </div>
-        <div ref={timelineRef} className="ag-timeline">
+        <div ref={timelineRef} className="ag-timeline" style={{ height: timelineHeight }}>
           <div className="ag-timeline__labels">
             {hourMarks.map(m => (
               <div key={m.h} className="ag-hour" style={{ top: `${m.pct}%` }}>
@@ -391,6 +407,8 @@ export default function AdminAgendaPage() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleteCountdown, setDeleteCountdown] = useState(5);
   const deleteIntervalRef = useRef(null);
+  const [refundConfirmBooking, setRefundConfirmBooking] = useState(null);
+  const [consentConfirmBooking, setConsentConfirmBooking] = useState(null);
 
   // ── Timeline ↔ Lista: highlight sincronizzato ────────────────────────────
   const [highlightedId, setHighlightedId] = useState(null);
@@ -672,31 +690,41 @@ export default function AdminAgendaPage() {
     setConfirmModal({ type: "cancel", bookingId: b.bookingId, customerName: b.customerName });
   };
 
-  const handleRefund = async booking => {
-    const confirmed = window.confirm("Sei sicura di voler rimborsare questo appuntamento?\nIl cliente riceverà il rimborso su Stripe e una email di conferma.");
-    if (!confirmed) return;
+  const handleRefund = booking => {
+    setRefundConfirmBooking(booking);
+  };
 
+  const executeRefund = async () => {
+    const booking = refundConfirmBooking;
+    setRefundConfirmBooking(null);
     setErr("");
     setErrDetails(null);
     setSuccessMsg("");
-
     try {
       await refundBooking(booking.bookingId);
       setSuccessMsg("Rimborso avviato con successo");
-      await refresh();
+      setBookings(prev =>
+        prev.map(bk =>
+          bk.bookingId === booking.bookingId
+            ? { ...bk, status: "REFUNDED", refundable: false }
+            : bk,
+        ),
+      );
       if (viewMode === "week") setWeekRefreshKey(k => k + 1);
     } catch (e) {
       setErr(e.message || "Errore durante il rimborso.");
     }
   };
 
-  const signConsent = async b => {
-    const confirmed = window.confirm(`Confermi che il consenso informato è stato firmato da ${b.customerName}?`);
-    if (!confirmed) return;
+  const signConsent = b => {
+    setConsentConfirmBooking(b);
+  };
 
+  const executeSignConsent = async () => {
+    const b = consentConfirmBooking;
+    setConsentConfirmBooking(null);
     try {
       const updated = await patchBookingConsent(b.bookingId);
-      // Aggiornamento locale ottimistico della card
       setBookings(prev =>
         prev.map(booking =>
           booking.bookingId === b.bookingId ? { ...booking, consentSigned: updated.consentSigned, consentSignedAt: updated.consentSignedAt } : booking,
@@ -1084,283 +1112,310 @@ export default function AdminAgendaPage() {
               ) : (
                 <>
                   <div className="ag-list">
-                    {filtered.map(b => (
-                      <div
-                        key={b.bookingId}
-                        className={`ag-item${highlightedId === b.bookingId ? " ag-item--highlighted" : ""}`}
-                        ref={el => {
-                          if (el) itemRefsMap.current.set(b.bookingId, el);
-                          else itemRefsMap.current.delete(b.bookingId);
-                        }}
-                      >
-                        <div className="ag-item__header">
-                          <div className="ag-item__time">
-                            <div className="ag-item__timeMain">
-                              {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
-                            </div>
-                            {/* FEATURE paddingMinutes: mostra il buffer nella card */}
-                            <div className="ag-item__timeSub">
-                              {Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
-                              {b.paddingMinutes > 0 &&
-                                (() => {
-                                  const realEnd = new Date(new Date(b.endTime).getTime() + b.paddingMinutes * 60000);
-                                  const hh = String(realEnd.getHours()).padStart(2, "0");
-                                  const mm = String(realEnd.getMinutes()).padStart(2, "0");
-                                  return (
-                                    <span style={{ marginLeft: 5, opacity: 0.7, fontSize: "0.72rem" }}>
-                                      → finisce alle {hh}:{mm} (+{b.paddingMinutes}′)
-                                    </span>
-                                  );
+                    {filtered.map(b => {
+                      const initials = (() => {
+                        if (!b.customerName) return "?";
+                        const parts = b.customerName.trim().split(/\s+/);
+                        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+                        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                      })();
+                      return (
+                        <div
+                          key={b.bookingId}
+                          className={`ag-item${highlightedId === b.bookingId ? " ag-item--highlighted" : ""}`}
+                          ref={el => {
+                            if (el) itemRefsMap.current.set(b.bookingId, el);
+                            else itemRefsMap.current.delete(b.bookingId);
+                          }}
+                        >
+                          <div className="ag-item__header">
+                            <div className="ag-item__avatar" aria-hidden="true">{initials}</div>
+
+                            <div className="ag-item__main">
+                              <div className="ag-item__name">{b.customerName}</div>
+                              <div className="ag-item__service">
+                                {(() => {
+                                  if (b.linkedPackage) {
+                                    const pkgLabel = b.linkedPackage.serviceTitle || b.linkedPackage.serviceName || b.linkedPackage.packageName || "—";
+                                    const extras = Array.isArray(b.services) && b.services.length > 0
+                                      ? b.services.map(s => s.name || s.title || s.serviceName || "?")
+                                      : [];
+                                    const sessionNum = b.currentSession ?? b.linkedPackage.sessionNumber;
+                                    const totalSess = b.totalSessions;
+                                    return (
+                                      <div className="ag-pkg-block">
+                                        <div className="ag-pkg-block__header">
+                                          <span className="ag-service">{pkgLabel}</span>
+                                          {sessionNum && totalSess && (
+                                            <span className="ag-pkg-session-badge">Seduta {sessionNum}/{totalSess}</span>
+                                          )}
+                                          {b.sessionsRemaining === 1 && (
+                                            <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>⚠ Ultima</span>
+                                          )}
+                                        </div>
+                                        {extras.length > 0 && (
+                                          <>
+                                            <div className="ag-pkg-block__divider" />
+                                            {extras.map((svc, i) => (
+                                              <div key={i} className="ag-pkg-block__extra">
+                                                <span className="ag-pkg-block__extra-plus">+</span>{svc}
+                                              </div>
+                                            ))}
+                                          </>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  if (Array.isArray(b.services) && b.services.length > 0) {
+                                    return (
+                                      <div className="ag-svc-list-block">
+                                        {b.services.map((s, i) => (
+                                          <div key={i} className="ag-svc-list-block__item">
+                                            {s.name || s.title || s.serviceName || "?"}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  }
+                                  if (b.serviceTitle) return <span className="ag-service">{b.serviceTitle}</span>;
+                                  if (b.isCustomService && b.customServiceName) return <span className="ag-service"><em>{b.customServiceName}</em></span>;
+                                  return <span className="ag-service">—</span>;
                                 })()}
+                                {!b.linkedPackage && !Array.isArray(b.services) && b.optionName && (
+                                  <span className="ag-option"> · {b.optionName}</span>
+                                )}
+                                {!b.linkedPackage && b.currentSession && b.totalSessions && (
+                                  <span className="ag-session-pill">
+                                    Seduta {b.currentSession}/{b.totalSessions}
+                                  </span>
+                                )}
+                                {!b.linkedPackage && b.sessionsRemaining === 1 && (
+                                  <span className="ag-session-pill ag-session-pill--last">⚠ Ultima seduta</span>
+                                )}
+                                {b.notes && <span className="ag-notes">{b.notes}</span>}
+                              </div>
+                              <div className="ag-item__contacts">
+                                <span className="ag-item__contact-item">
+                                  📱 {b.customerPhone}
+                                  {b.customerPhone && (
+                                    <button
+                                      className="ag-wa-btn"
+                                      type="button"
+                                      title="Apri WhatsApp"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        openWhatsApp(b.customerPhone);
+                                      }}
+                                    >
+                                      <span className="ag-wa-btn__icon">💬</span>
+                                      <span>WhatsApp</span>
+                                    </button>
+                                  )}
+                                </span>
+                                <span className="ag-item__contact-divider" aria-hidden="true" />
+                                <span className="ag-item__contact-item">✉ {b.customerEmail}</span>
+                              </div>
+                            </div>
+
+                            <div className="ag-item__timecol">
+                              <div className="ag-item__pills">
+                                <StatusPill status={b.status} />
+                                {b.paidInStore && (
+                                  <span className="ag-paid-badge">💵 Pagato</span>
+                                )}
+                                {b.paidOnline && b.status !== "REFUNDED" && (
+                                  <span className="ag-paid-badge ag-paid-badge--online">💳 Pagato online</span>
+                                )}
+                                {b.paidOnline && b.status === "REFUNDED" && (
+                                  <span className="ag-paid-badge ag-paid-badge--refunded">✓ Rimborsato</span>
+                                )}
+                              </div>
+                              <div className="ag-item__timeMain">
+                                {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
+                              </div>
+                              <div className="ag-item__timeSub">
+                                {Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
+                                {b.paddingMinutes > 0 && <span> · +{b.paddingMinutes}′</span>}
+                              </div>
                             </div>
                           </div>
-                          <StatusPill status={b.status} />
-                          {b.paidInStore && (
-                            <span className="ag-paid-badge">💵 Pagato</span>
-                          )}
-                        </div>
 
-                        <div className="ag-item__body">
-                          <div className="ag-item__name">{b.customerName}</div>
-                          <div className="ag-item__meta">
-                            <span className="ag-muted">{b.customerPhone}</span>
-                            {b.customerPhone && (
-                              <button
-                                className="ag-wa-btn"
-                                type="button"
-                                title="Apri WhatsApp"
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  openWhatsApp(b.customerPhone);
+                          {b.consentRequired && (
+                            <div className="ag-item__consent">
+                              {b.consentSigned ? (
+                                <span className="agenda-consent-badge agenda-consent-badge--signed">
+                                  ✅ Consenso firmato
+                                  {b.consentSignedAt && (
+                                    <span style={{ marginLeft: 4, fontWeight: 400, opacity: 0.8 }}>
+                                      il {new Date(b.consentSignedAt).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="agenda-consent-badge agenda-consent-badge--pending">✍️ Consenso da firmare</span>
+                                  {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
+                                    <button type="button" className="agenda-consent-btn" onClick={() => signConsent(b)}>
+                                      Segna consenso firmato
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="ag-item__actions">
+                            {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
+                              <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => openEdit(b)}>
+                                Modifica
+                              </Button>
+                            )}
+                            {b.status !== "CANCELLED" && (
+                              <Button
+                                className="ag-btn ag-btn--soft"
+                                size="sm"
+                                title="Crea un nuovo appuntamento con gli stessi dati"
+                                onClick={() => {
+                                  setEditingBooking({
+                                    _duplicate: true,
+                                    customerName: b.customerName,
+                                    customerEmail: b.customerEmail,
+                                    customerPhone: b.customerPhone,
+                                    customerId: b.customerId ?? null,
+                                    services: b.services ?? null,
+                                    serviceId: b.serviceId ?? null,
+                                    serviceOptionId: b.serviceOptionId ?? null,
+                                    notes: b.notes ?? "",
+                                    startTime: null,
+                                  });
+                                  setNewDrawerOpen(true);
                                 }}
                               >
-                                <span className="ag-wa-btn__icon">💬</span>
-                                <span>WhatsApp</span>
-                              </button>
+                                Ripeti
+                              </Button>
                             )}
-                            <span className="ag-dotsep">•</span>
-                            <span className="ag-muted">{b.customerEmail}</span>
-                          </div>
-                          <div className="ag-item__service">
-                            <span className="ag-service">
-                              {(() => {
-                                if (b.linkedPackage?.packageName) {
-                                  return (
-                                    <span>
-                                      {b.linkedPackage.packageName}
-                                      {b.linkedPackage.sessionsRemaining != null && (
-                                        <span className="ag-session-pill" style={{ marginLeft: 6 }}>
-                                          {b.linkedPackage.sessionsRemaining} sed. rimaste
-                                        </span>
-                                      )}
-                                    </span>
-                                  );
-                                }
-                                if (Array.isArray(b.services) && b.services.length > 0) {
-                                  return b.services.map(s => s.name || s.title || s.serviceName || "?").join(" + ");
-                                }
-                                if (b.serviceTitle) return b.serviceTitle;
-                                if (b.isCustomService && b.customServiceName) return <em>{b.customServiceName}</em>;
-                                return "—";
-                              })()}
-                            </span>
-                            {!Array.isArray(b.services) && b.optionName ? <span className="ag-option"> · {b.optionName}</span> : null}
-                            {b.currentSession && b.totalSessions ? (
-                              <span className="ag-session-pill">
-                                Seduta {b.currentSession}/{b.totalSessions}
-                              </span>
-                            ) : null}
-                            {b.notes ? <span className="ag-notes"> · {b.notes}</span> : null}
-                            {b.packageCreditId &&
-                              (() => {
-                                const remaining = Number.isFinite(b.sessionsRemaining) ? b.sessionsRemaining : null;
-                                const total = Number.isFinite(b.sessionsTotal) ? b.sessionsTotal : null;
-                                const status = b.packageStatus || "ACTIVE";
-                                let variant = status === "EXPIRED" ? "expired" : remaining === 0 ? "done" : remaining === 1 ? "last" : "active";
-                                return (
-                                  <span className={`ag-pkg-indicator ag-pkg-indicator--${variant}`} title={remaining === 1 ? "Ultima seduta!" : ""}>
-                                    📦 {remaining ?? "?"}/{total ?? "?"}
-                                  </span>
-                                );
-                              })()}
-                          </div>
-                        </div>
-
-                        {b.consentRequired && (
-                          <div className="ag-item__consent">
-                            {b.consentSigned ? (
-                              <span className="agenda-consent-badge agenda-consent-badge--signed">
-                                ✅ Consenso firmato
-                                {b.consentSignedAt && (
-                                  <span style={{ marginLeft: 4, fontWeight: 400, opacity: 0.8 }}>
-                                    il {new Date(b.consentSignedAt).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}
-                                  </span>
-                                )}
-                              </span>
-                            ) : (
+                            {(b.status === "PENDING" || b.status === "PENDING_PAYMENT") && (
+                              <Button className="ag-btn ag-btn--primary" size="sm" onClick={() => changeStatus(b.bookingId, "CONFIRMED")}>
+                                Conferma
+                              </Button>
+                            )}
+                            {b.status === "CONFIRMED" && (
                               <>
-                                <span className="agenda-consent-badge agenda-consent-badge--pending">✍️ Consenso da firmare</span>
-                                {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
-                                  <button type="button" className="agenda-consent-btn" onClick={() => signConsent(b)}>
-                                    Segna consenso firmato
-                                  </button>
-                                )}
+                                <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
+                                  Completa
+                                </Button>
+                                <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => changeStatus(b.bookingId, "NO_SHOW")}>
+                                  Non presentata
+                                </Button>
                               </>
                             )}
-                          </div>
-                        )}
-
-                        <div className="ag-item__actions">
-                          {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
-                            <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => openEdit(b)}>
-                              Modifica
+                            {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
+                              <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
+                                Annulla
+                              </Button>
+                            )}
+                            {b.refundable && (
+                              <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => handleRefund(b)}>
+                                {b.status === "PENDING_PAYMENT" ? "Annulla e rimborsa" : "Rimborsa"}
+                              </Button>
+                            )}
+                            <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
+                              Elimina
                             </Button>
-                          )}
-                          {b.status !== "CANCELLED" && (
                             <Button
                               className="ag-btn ag-btn--soft"
                               size="sm"
-                              title="Crea un nuovo appuntamento con gli stessi dati"
-                              onClick={() => {
-                                setEditingBooking({
-                                  _duplicate: true,
-                                  customerName: b.customerName,
-                                  customerEmail: b.customerEmail,
-                                  customerPhone: b.customerPhone,
-                                  customerId: b.customerId ?? null,
-                                  services: b.services ?? null,
-                                  serviceId: b.serviceId ?? null,
-                                  serviceOptionId: b.serviceOptionId ?? null,
-                                  notes: b.notes ?? "",
-                                  startTime: null,
-                                });
-                                setNewDrawerOpen(true);
-                              }}
+                              onClick={() => setOpenSalePanel(openSalePanel === b.bookingId ? null : b.bookingId)}
                             >
-                              Ripeti
+                              🛍️ Prodotto
                             </Button>
-                          )}
-                          {(b.status === "PENDING" || b.status === "PENDING_PAYMENT") && (
-                            <Button className="ag-btn ag-btn--primary" size="sm" onClick={() => changeStatus(b.bookingId, "CONFIRMED")}>
-                              Conferma
-                            </Button>
-                          )}
-                          {b.status === "CONFIRMED" && (
-                            <>
-                              <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
-                                Completa
-                              </Button>
-                              <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => changeStatus(b.bookingId, "NO_SHOW")}>
-                                Non presentata
-                              </Button>
-                            </>
-                          )}
-                          {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
-                            <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
-                              Annulla
-                            </Button>
-                          )}
-                          {b.stripeSessionId && (b.status === "CONFIRMED" || b.status === "CANCELLED") && (
-                            <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => handleRefund(b)}>
-                              Rimborsa
-                            </Button>
-                          )}
-                          <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
-                            Elimina
-                          </Button>
-                          <Button
-                            className="ag-btn ag-btn--soft"
-                            size="sm"
-                            onClick={() => setOpenSalePanel(openSalePanel === b.bookingId ? null : b.bookingId)}
-                          >
-                            🛍️ Prodotto
-                          </Button>
+                          </div>
+
+                          {b.status !== "CANCELLED" &&
+                            b.status !== "COMPLETED" &&
+                            (() => {
+                              const maxPad = paddingMaxMap.get(b.bookingId) ?? 120;
+                              const currentPad = b.paddingMinutes ?? 0;
+                              const isEditing = paddingEditing === b.bookingId;
+                              const isSaving = paddingSaving === b.bookingId;
+
+                              return (
+                                <div className="ag-padding-row">
+                                  {!isEditing ? (
+                                    <>
+                                      <span className="ag-padding-row__label">{currentPad > 0 ? `⏱ +${currentPad}′ buffer` : "⏱ Nessun buffer"}</span>
+                                      {maxPad > 0 ? (
+                                        <button
+                                          type="button"
+                                          className="ag-padding-row__btn"
+                                          onClick={() => {
+                                            setPaddingDraft(b.paddingMinutes ?? 0);
+                                            setPaddingEditing(b.bookingId);
+                                          }}
+                                        >
+                                          {currentPad > 0 ? "Modifica" : "+ Buffer"}
+                                        </button>
+                                      ) : (
+                                        <span className="ag-padding-row__blocked">Slot pieno — nessun buffer possibile</span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="ag-padding-row__label">Buffer (max {maxPad}′)</span>
+                                      <div className="ag-padding-row__controls">
+                                        {[0, 15, 30, 45]
+                                          .filter(p => p <= maxPad)
+                                          .map(p => (
+                                            <button
+                                              key={p}
+                                              type="button"
+                                              disabled={isSaving}
+                                              className={`ag-nextslot__chip ${paddingDraft === p ? "is-active" : ""}`}
+                                              onClick={() => setPaddingDraft(p)}
+                                            >
+                                              {p === 0 ? "Nessuno" : `+${p}′`}
+                                            </button>
+                                          ))}
+                                        <button
+                                          type="button"
+                                          className="ag-padding-row__step"
+                                          disabled={paddingDraft <= 0 || isSaving}
+                                          onClick={() => setPaddingDraft(v => Math.max(0, v - 5))}
+                                        >
+                                          −
+                                        </button>
+                                        <span className="ag-padding-row__val">{paddingDraft}′</span>
+                                        <button
+                                          type="button"
+                                          className="ag-padding-row__step"
+                                          disabled={paddingDraft >= maxPad || isSaving}
+                                          onClick={() => setPaddingDraft(v => Math.min(maxPad, v + 5))}
+                                        >
+                                          +
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="ag-padding-row__btn"
+                                          disabled={isSaving}
+                                          onClick={() => savePadding(b.bookingId, paddingDraft)}
+                                          style={{ marginLeft: 4 }}
+                                        >
+                                          {isSaving ? <Spinner size="sm" animation="border" /> : "Conferma"}
+                                        </button>
+                                        <button type="button" className="ag-padding-row__cancel" disabled={isSaving} onClick={() => setPaddingEditing(null)}>
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                          {openSalePanel === b.bookingId && <BookingSalePanel bookingId={b.bookingId} onClose={() => setOpenSalePanel(null)} />}
                         </div>
-
-                        {b.status !== "CANCELLED" &&
-                          b.status !== "COMPLETED" &&
-                          (() => {
-                            const maxPad = paddingMaxMap.get(b.bookingId) ?? 120;
-                            const currentPad = b.paddingMinutes ?? 0;
-                            const isEditing = paddingEditing === b.bookingId;
-                            const isSaving = paddingSaving === b.bookingId;
-
-                            return (
-                              <div className="ag-padding-row">
-                                {!isEditing ? (
-                                  <>
-                                    <span className="ag-padding-row__label">{currentPad > 0 ? `⏱ +${currentPad}′ buffer` : "⏱ Nessun buffer"}</span>
-                                    {maxPad > 0 ? (
-                                      <button
-                                        type="button"
-                                        className="ag-padding-row__btn"
-                                        onClick={() => {
-                                          setPaddingDraft(b.paddingMinutes ?? 0);
-                                          setPaddingEditing(b.bookingId);
-                                        }}
-                                      >
-                                        {currentPad > 0 ? "Modifica" : "+ Buffer"}
-                                      </button>
-                                    ) : (
-                                      <span className="ag-padding-row__blocked">Slot pieno — nessun buffer possibile</span>
-                                    )}
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="ag-padding-row__label">Buffer (max {maxPad}′)</span>
-                                    <div className="ag-padding-row__controls">
-                                      {[0, 15, 30, 45]
-                                        .filter(p => p <= maxPad)
-                                        .map(p => (
-                                          <button
-                                            key={p}
-                                            type="button"
-                                            disabled={isSaving}
-                                            className={`ag-nextslot__chip ${paddingDraft === p ? "is-active" : ""}`}
-                                            onClick={() => setPaddingDraft(p)}
-                                          >
-                                            {p === 0 ? "Nessuno" : `+${p}′`}
-                                          </button>
-                                        ))}
-                                      <button
-                                        type="button"
-                                        className="ag-padding-row__step"
-                                        disabled={paddingDraft <= 0 || isSaving}
-                                        onClick={() => setPaddingDraft(v => Math.max(0, v - 5))}
-                                      >
-                                        −
-                                      </button>
-                                      <span className="ag-padding-row__val">{paddingDraft}′</span>
-                                      <button
-                                        type="button"
-                                        className="ag-padding-row__step"
-                                        disabled={paddingDraft >= maxPad || isSaving}
-                                        onClick={() => setPaddingDraft(v => Math.min(maxPad, v + 5))}
-                                      >
-                                        +
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="ag-padding-row__btn"
-                                        disabled={isSaving}
-                                        onClick={() => savePadding(b.bookingId, paddingDraft)}
-                                        style={{ marginLeft: 4 }}
-                                      >
-                                        {isSaving ? <Spinner size="sm" animation="border" /> : "Conferma"}
-                                      </button>
-                                      <button type="button" className="ag-padding-row__cancel" disabled={isSaving} onClick={() => setPaddingEditing(null)}>
-                                        ✕
-                                      </button>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })()}
-
-                        {openSalePanel === b.bookingId && <BookingSalePanel bookingId={b.bookingId} onClose={() => setOpenSalePanel(null)} />}
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {!filtered.length && (
                       <div className="ag-empty">
@@ -1464,26 +1519,22 @@ export default function AdminAgendaPage() {
           <div className="ag-confirm-box" onClick={e => e.stopPropagation()}>
             <div className="ag-confirm-title">🔒 Blocca fascia oraria</div>
             <div className="d-flex flex-column gap-2 mt-2">
-              <input
-                type="date"
-                className="form-control form-control-sm"
+              <DateTimeField
+                mode="date"
                 value={blockForm.date}
-                onChange={e => setBlockForm(f => ({ ...f, date: e.target.value }))}
+                onChange={v => setBlockForm(f => ({ ...f, date: v }))}
+                placeholder="Seleziona data"
               />
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  type="time"
-                  className="form-control form-control-sm"
-                  placeholder="Dalle"
+              <div style={{ display: "flex", gap: 16, justifyContent: "center", margin: "12px 0" }}>
+                <TimePicker
+                  label="Dalle"
                   value={blockForm.startTime}
-                  onChange={e => setBlockForm(f => ({ ...f, startTime: e.target.value }))}
+                  onChange={v => setBlockForm(f => ({ ...f, startTime: v }))}
                 />
-                <input
-                  type="time"
-                  className="form-control form-control-sm"
-                  placeholder="Alle"
+                <TimePicker
+                  label="Alle"
                   value={blockForm.endTime}
-                  onChange={e => setBlockForm(f => ({ ...f, endTime: e.target.value }))}
+                  onChange={v => setBlockForm(f => ({ ...f, endTime: v }))}
                 />
               </div>
               <input
@@ -1568,6 +1619,30 @@ export default function AdminAgendaPage() {
           if (viewMode === "week") setWeekRefreshKey(k => k + 1);
           setSuccessMsg(msg || "Appuntamento creato");
         }}
+      />
+
+      <ConfirmDialog
+        show={!!refundConfirmBooking}
+        onHide={() => setRefundConfirmBooking(null)}
+        onConfirm={executeRefund}
+        title="Conferma rimborso"
+        message={
+          refundConfirmBooking
+            ? `Rimborsare ${refundConfirmBooking.customerName} per ${refundConfirmBooking.serviceTitle || "questo appuntamento"}? L'importo verrà accreditato su Stripe e il cliente riceverà una email di conferma.`
+            : ""
+        }
+        confirmLabel={refundConfirmBooking?.status === "PENDING_PAYMENT" ? "Annulla e rimborsa" : "Rimborsa"}
+        confirmVariant="danger"
+      />
+
+      <ConfirmDialog
+        show={!!consentConfirmBooking}
+        onHide={() => setConsentConfirmBooking(null)}
+        onConfirm={executeSignConsent}
+        title="Firma consenso informato"
+        message={consentConfirmBooking ? `Confermi che il consenso informato è stato firmato da ${consentConfirmBooking.customerName}?` : ""}
+        confirmLabel="Conferma"
+        confirmVariant="primary"
       />
     </Container>
   );

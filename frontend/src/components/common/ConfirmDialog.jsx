@@ -39,7 +39,7 @@ const ConfirmDialog = ({
 
   return createPortal(
     <div className={`cd-root${active ? " cd-root--active" : ""}`}>
-      <div className="cd-backdrop" onClick={onHide} />
+      <div className="cd-backdrop" onClick={e => { e.stopPropagation(); onHide(); }} />
       <div
         className={`cd-dialog${active ? " cd-dialog--active" : ""}`}
         role="alertdialog"

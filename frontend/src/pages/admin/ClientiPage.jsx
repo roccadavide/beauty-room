@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Container, Spinner } from "react-bootstrap";
 import CustomerAutocomplete from "../../components/admin/CustomerAutocomplete";
-import { getCustomerSummary, updateCustomerNotes } from "../../api/modules/customer.api";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
+import { getCustomerSummary, updateCustomerNotes, getActivePackages } from "../../api/modules/customer.api";
+import { cancelPackageAssignment, updatePackageAssignment } from "../../api/modules/adminAgenda.api";
 import { fetchActivePackages, fetchPackageKpis } from "../../api/modules/packages.api";
 import { fetchAllUsers, patchUserVerified } from "../../api/modules/users.api";
 import { markLatestNoShowForUser } from "../../api/modules/bookings.api";
@@ -61,6 +63,107 @@ function expiryTag(isoDate) {
   return           { label: `Scade in ${days}g`,        cls: "pkg-tag pkg-tag--ok"       };
 }
 
+function EditPackageModal({ pkg, onClose, onSave }) {
+  const [form, setForm] = useState({
+    totalSessions: pkg.totalSessions,
+    sessionsRemaining: pkg.sessionsRemaining,
+    pricePaid: pkg.pricePaid ?? "",
+    notes: pkg.notes ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
+  const [error, setError] = useState("");
+  const timerRef = useRef(null);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        clientName: pkg.clientName,
+        serviceOptionId: pkg.serviceOptionId ?? null,
+        customPackageName: pkg.customPackageName ?? null,
+        totalSessions: Number(form.totalSessions),
+        sessionsRemaining: Number(form.sessionsRemaining),
+        pricePaid: form.pricePaid !== "" ? form.pricePaid : null,
+        notes: form.notes || null,
+        linkedUserId: pkg.linkedUserId ?? null,
+      };
+      const updated = await updatePackageAssignment(pkg.id, payload);
+      setSavedOk(true);
+      timerRef.current = setTimeout(() => { setSavedOk(false); onSave(updated); }, 2000);
+    } catch (err) {
+      setError(err.message || "Errore durante il salvataggio.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="ep-backdrop" onClick={onClose}>
+      <div className="ep-modal" onClick={e => e.stopPropagation()}>
+        <div className="ep-header">
+          <div className="ep-title">Modifica pacchetto</div>
+          <button className="ep-close" onClick={onClose} type="button">✕</button>
+        </div>
+        <div className="ep-pkg-name">{pkg.displayName || pkg.serviceOptionName || "Pacchetto"}</div>
+        <form onSubmit={handleSubmit} className="ep-form">
+          <label className="ep-label">
+            Sedute totali
+            <input
+              className="ep-input"
+              type="number"
+              min={1}
+              value={form.totalSessions}
+              onChange={e => setForm(f => ({ ...f, totalSessions: e.target.value }))}
+              required
+            />
+          </label>
+          <label className="ep-label">
+            Sedute rimanenti
+            <input
+              className="ep-input"
+              type="number"
+              min={0}
+              value={form.sessionsRemaining}
+              onChange={e => setForm(f => ({ ...f, sessionsRemaining: e.target.value }))}
+              required
+            />
+          </label>
+          <label className="ep-label">
+            Prezzo pagato (€)
+            <input
+              className="ep-input"
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.pricePaid}
+              onChange={e => setForm(f => ({ ...f, pricePaid: e.target.value }))}
+            />
+          </label>
+          <label className="ep-label">
+            Note
+            <textarea
+              className="ep-textarea"
+              value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+            />
+          </label>
+          {error && <div className="ep-error">{error}</div>}
+          <div className="ep-actions">
+            <button type="button" className="ep-btn ep-btn--ghost" onClick={onClose}>Annulla</button>
+            <button type="submit" className="ep-btn" disabled={saving || savedOk}>
+              {savedOk ? "✓ Salvato" : saving ? "Salvataggio…" : "Salva"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ClientSummary({ customer, loading, error, onNotesChange }) {
   const [notes, setNotes] = useState(customer?.notes || "");
   const [originalNotes, setOriginalNotes] = useState(customer?.notes || "");
@@ -69,6 +172,12 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
   const [savedOk, setSavedOk] = useState(false);
   const saveTimerRef = useRef(null);
 
+  const [inStorePkgs, setInStorePkgs] = useState([]);
+  const [inStorePkgsLoading, setInStorePkgsLoading] = useState(false);
+  const [pkgError, setPkgError] = useState("");
+  const [editPkg, setEditPkg] = useState(null);
+  const [deletePkgId, setDeletePkgId] = useState(null);
+
   useEffect(() => {
     setNotes(customer?.notes || "");
     setOriginalNotes(customer?.notes || "");
@@ -76,7 +185,34 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
     setSavedOk(false);
   }, [customer]);
 
+  useEffect(() => {
+    if (!customer?.customerId) { setInStorePkgs([]); return; }
+    setInStorePkgsLoading(true);
+    setPkgError("");
+    getActivePackages(customer.customerId)
+      .then(data => setInStorePkgs(data))
+      .catch(e => setPkgError(e.message || "Errore caricamento pacchetti in sede."))
+      .finally(() => setInStorePkgsLoading(false));
+  }, [customer?.customerId]);
+
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+
+  const handleDeletePkg = useCallback(async () => {
+    if (!deletePkgId) return;
+    try {
+      await cancelPackageAssignment(deletePkgId);
+      setInStorePkgs(prev => prev.filter(p => p.id !== deletePkgId));
+    } catch (e) {
+      setPkgError(e.message || "Errore durante la cancellazione.");
+    } finally {
+      setDeletePkgId(null);
+    }
+  }, [deletePkgId]);
+
+  const handlePkgSaved = useCallback(updated => {
+    setInStorePkgs(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setEditPkg(null);
+  }, []);
 
   if (loading) {
     return (
@@ -166,7 +302,7 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
 
         {customer.packages?.length > 0 && (
           <div className="cli-packages-block">
-            <div className="cli-section-title">Pacchetti attivi</div>
+            <div className="cli-section-title">Pacchetti attivi (online)</div>
             <div className="cli-packages">
               {customer.packages.map(p => {
                 const total = p.sessionsTotal || 0;
@@ -197,6 +333,76 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
             </div>
           </div>
         )}
+
+        {pkgError && <div className="cli-error">{pkgError}</div>}
+
+        {(inStorePkgsLoading || inStorePkgs.length > 0) && (
+          <div className="cli-packages-block">
+            <div className="cli-section-title">Pacchetti in sede</div>
+            {inStorePkgsLoading ? (
+              <div className="cli-loading" style={{ padding: "8px 0" }}>
+                <Spinner animation="border" size="sm" />
+              </div>
+            ) : (
+              <div className="cli-packages">
+                {inStorePkgs.map(p => {
+                  const total = p.totalSessions || 0;
+                  const remaining = p.sessionsRemaining || 0;
+                  const ratio = total > 0 ? remaining / total : 0;
+                  const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+                  let barCls = "cli-pkg-bar-fill--good";
+                  if (remaining <= 1) barCls = "cli-pkg-bar-fill--critical";
+                  else if (pct <= 50) barCls = "cli-pkg-bar-fill--warn";
+                  return (
+                    <div key={p.id} className="cli-pkg-card cli-pkg-card--instore">
+                      <div className="cli-pkg-card-header">
+                        <div className="cli-pkg-name">{p.displayName || p.serviceOptionName || "Pacchetto"}</div>
+                        <div className="cli-pkg-actions">
+                          <button
+                            className="cli-icon-btn"
+                            title="Modifica"
+                            onClick={() => setEditPkg(p)}
+                            type="button"
+                          >
+                            ✏
+                          </button>
+                          <button
+                            className="cli-icon-btn cli-icon-btn--danger"
+                            title="Cancella pacchetto"
+                            onClick={() => setDeletePkgId(p.id)}
+                            type="button"
+                          >
+                            🗑
+                          </button>
+                        </div>
+                      </div>
+                      <div className="cli-pkg-bar">
+                        <div className={`cli-pkg-bar-fill ${barCls}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="cli-pkg-meta">
+                        <span>{remaining} / {total} sedute rimanenti</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {editPkg && (
+          <EditPackageModal pkg={editPkg} onClose={() => setEditPkg(null)} onSave={handlePkgSaved} />
+        )}
+
+        <ConfirmDialog
+          show={!!deletePkgId}
+          onHide={() => setDeletePkgId(null)}
+          onConfirm={handleDeletePkg}
+          title="Cancella pacchetto"
+          message="Sei sicura di voler cancellare questo pacchetto in sede? Le sedute già usate rimarranno nello storico prenotazioni."
+          confirmLabel="Cancella"
+          confirmVariant="danger"
+        />
       </div>
 
       {/* Note + storico */}

@@ -1,0 +1,247 @@
+/* ── TimePicker — collapsed trigger + drum scroll picker ──────────────────── */
+
+:root {
+  --tp-gold:   #b8976a;
+  --tp-text:   #231a14;
+  --tp-bg:     #ffffff;
+  --tp-radius: 16px;
+}
+
+/* ── Wrapper ────────────────────────────────────────────────────────────────── */
+
+.tp-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-family: "Montserrat", sans-serif;
+  width: 100%;
+}
+
+.tp-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tp-gold);
+  user-select: none;
+  margin-bottom: 6px;
+}
+
+/* ── Collapsed trigger ──────────────────────────────────────────────────────── */
+
+.tp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(184, 151, 106, .25);
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, box-shadow .15s;
+  min-height: 44px;
+}
+
+.tp-trigger:hover {
+  border-color: rgba(184, 151, 106, .5);
+}
+
+.tp-trigger.is-open {
+  border-color: #b8976a;
+  box-shadow: 0 0 0 3px rgba(184, 151, 106, .12);
+}
+
+.tp-trigger__icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.tp-trigger__value {
+  flex: 1;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #231a14;
+}
+
+.tp-trigger__placeholder {
+  flex: 1;
+  font-size: 1rem;
+  color: rgba(35, 26, 20, .35);
+}
+
+.tp-trigger__arrow {
+  font-size: .75rem;
+  color: rgba(35, 26, 20, .4);
+  transition: transform .2s;
+}
+
+.tp-trigger.is-open .tp-trigger__arrow {
+  transform: rotate(180deg);
+}
+
+/* ── Expanded panel ─────────────────────────────────────────────────────────── */
+
+.tp-panel {
+  margin-top: 4px;
+  border: 1px solid rgba(184, 151, 106, .2);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(35, 26, 20, .1);
+  overflow: hidden;
+  animation: tp-slide-in .18s ease;
+}
+
+@keyframes tp-slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Keyboard input ─────────────────────────────────────────────────────────── */
+
+.tp-keyboard-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid rgba(184, 151, 106, .12);
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: .1em;
+  outline: none;
+  color: #231a14;
+  box-sizing: border-box;
+}
+
+/* ── Drum container ─────────────────────────────────────────────────────────── */
+
+.tp-drum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: var(--tp-bg);
+  padding: 0 12px;
+  position: relative;
+}
+
+/* ── Column wrapper — holds ::before highlight + mask fade ──────────────────── */
+
+.tp-col-wrap {
+  position: relative;
+  width: 72px;
+  height: 220px; /* VISIBLE * ITEM_H = 5 * 44 */
+}
+
+/* Fixed center-selection highlight (always at 50%, CSS-only, real-time) */
+.tp-col-wrap::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  right: 4px;
+  height: 44px;
+  transform: translateY(-50%);
+  background: rgba(184, 151, 106, 0.15);
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Scrollable column ──────────────────────────────────────────────────────── */
+
+.tp-col {
+  width: 100%;
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+
+  /* Hide native scrollbar */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  /* Gradient fade at top/bottom edges */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 28%,
+    black 72%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 28%,
+    black 72%,
+    transparent 100%
+  );
+
+  position: relative;
+  z-index: 1;
+}
+
+.tp-col::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Spacer — allows first/last item to reach center ───────────────────────── */
+
+.tp-spacer {
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* ── Individual items ───────────────────────────────────────────────────────── */
+
+.tp-item {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: var(--tp-text);
+  opacity: 0.35;
+  scroll-snap-align: center;
+  user-select: none;
+  cursor: default;
+  transition: opacity 0.15s, font-weight 0.1s;
+}
+
+.tp-item--selected {
+  opacity: 1;
+  font-weight: 700;
+  color: var(--tp-text);
+}
+
+/* ── Colon separator ────────────────────────────────────────────────────────── */
+
+.tp-colon {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--tp-gold);
+  line-height: 1;
+  padding: 0 4px;
+  user-select: none;
+}
+
+/* ── Confirm button ─────────────────────────────────────────────────────────── */
+
+.tp-confirm-btn {
+  width: 100%;
+  padding: 12px;
+  background: rgba(184, 151, 106, .12);
+  border: none;
+  border-top: 1px solid rgba(184, 151, 106, .12);
+  font-size: .9rem;
+  font-weight: 700;
+  color: #8c6d3f;
+  cursor: pointer;
+  transition: background .15s;
+  font-family: "Montserrat", sans-serif;
+}
+
+.tp-confirm-btn:hover {
+  background: rgba(184, 151, 106, .22);
+}

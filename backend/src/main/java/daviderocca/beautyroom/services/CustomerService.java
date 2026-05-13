@@ -3,10 +3,15 @@ package daviderocca.beautyroom.services;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
+import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Customer;
+import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.ClientPackageStatus;
 import daviderocca.beautyroom.enums.PackageCreditStatus;
 import daviderocca.beautyroom.exceptions.BadRequestException;
+import daviderocca.beautyroom.exceptions.DuplicateResourceException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
+import daviderocca.beautyroom.packages.ClientPackageAssignmentRepository;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.CustomerRepository;
 import daviderocca.beautyroom.repositories.PackageCreditRepository;
@@ -29,9 +34,10 @@ public class CustomerService {
 
     private static final String WALKIN_MARKER = "@beautyroom.local";
 
-    private final CustomerRepository        customerRepository;
-    private final PackageCreditRepository   packageCreditRepository;
-    private final BookingRepository         bookingRepository;
+    private final CustomerRepository              customerRepository;
+    private final PackageCreditRepository         packageCreditRepository;
+    private final BookingRepository               bookingRepository;
+    private final ClientPackageAssignmentRepository assignmentRepository;
 
     // ══════════════════════════════════════════════════════════════════════
     // FIND OR CREATE
@@ -204,12 +210,48 @@ public class CustomerService {
                 .getFullName();
     }
 
+    @Transactional(readOnly = true)
+    public String getEmail(UUID customerId) {
+        return customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException(customerId))
+                .getEmail();
+    }
+
     @Transactional
     public void updateNotes(UUID customerId, String notes) {
         Customer c = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException(customerId));
         c.setNotes(notes != null ? notes.trim() : null);
         customerRepository.save(c);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // DELETE
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Transactional
+    public void deleteCustomer(UUID id) {
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(id));
+
+        boolean hasActiveBookings = customer.getBookings().stream()
+                .anyMatch(b -> b.getBookingStatus() == BookingStatus.CONFIRMED
+                        || b.getBookingStatus() == BookingStatus.PENDING_PAYMENT);
+        if (hasActiveBookings) {
+            throw new DuplicateResourceException(
+                    "Impossibile eliminare: questa cliente ha appuntamenti attivi. Cancella prima tutti gli appuntamenti futuri.");
+        }
+
+        boolean hasActivePkgs = assignmentRepository.findByClientNameIgnoreCase(customer.getFullName())
+                .stream()
+                .anyMatch(a -> a.getStatus() == ClientPackageStatus.ACTIVE);
+        if (hasActivePkgs) {
+            throw new DuplicateResourceException(
+                    "Impossibile eliminare: questa cliente ha pacchetti attivi. Cancella o esaurisci prima tutti i pacchetti.");
+        }
+
+        customerRepository.delete(customer);
+        log.info("Customer deleted: {} ({})", customer.getFullName(), customer.getCustomerId());
     }
 
     @Transactional

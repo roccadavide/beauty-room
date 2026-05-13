@@ -303,3 +303,13 @@ export const cancelPackageAssignment = async assignmentId => {
     throw new Error(message);
   }
 };
+
+export const updatePackageAssignment = async (assignmentId, payload) => {
+  try {
+    const { data } = await http.put(`/admin/package-assignments/${assignmentId}`, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'aggiornamento del pacchetto.";
+    throw new Error(message);
+  }
+};

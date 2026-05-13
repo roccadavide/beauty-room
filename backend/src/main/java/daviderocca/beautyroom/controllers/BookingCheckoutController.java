@@ -81,6 +81,7 @@ public class BookingCheckoutController {
                 payload.startTime(),
                 payload.notes(),
                 payload.serviceId(),
+                null,                   // serviceIds: checkout uses single serviceId
                 payload.serviceOptionId(),
                 null,                   // packageCreditId non applicabile nel flow Stripe
                 payload.consentLaser(), // consenso informato laser
@@ -88,7 +89,7 @@ public class BookingCheckoutController {
                 payload.promoPrice(),   // propaga prezzo promo
                 payload.promotionId(),  // propaga id promo
                 null,
-                false                   // paddingMinutes: non applicabile nel flow Stripe
+                false                   // paidInStore: non applicabile nel flow Stripe
         );
 
         return createStripeSessionForBooking(dto, currentUser);

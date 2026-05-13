@@ -21,4 +21,7 @@ public interface BookingPackageLinkRepository extends JpaRepository<BookingPacka
     Optional<BookingPackageLink> findByBookingBookingIdWithAssignment(@Param("bookingId") UUID bookingId);
 
     List<BookingPackageLink> findByAssignmentIdOrderByLinkedAtDesc(UUID assignmentId);
+
+    @Query("SELECT l FROM BookingPackageLink l JOIN FETCH l.booking WHERE l.assignment.id = :assignmentId")
+    List<BookingPackageLink> findByAssignmentIdWithBooking(@Param("assignmentId") UUID assignmentId);
 }

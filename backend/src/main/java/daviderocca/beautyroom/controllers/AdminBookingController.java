@@ -140,11 +140,11 @@ public class AdminBookingController {
     @PutMapping("/{id}")
     public ResponseEntity<BookingResponseDTO> updateBooking(
             @PathVariable UUID id,
-            @Valid @RequestBody NewBookingDTO payload,
+            @Valid @RequestBody AdminBookingCreateDTO payload,
             @AuthenticationPrincipal User currentUser
     ) {
         log.info("ADMIN | update bookingId={}", id);
-        return ResponseEntity.ok(bookingService.updateBooking(id, payload, currentUser));
+        return ResponseEntity.ok(bookingService.updateMultiServiceBooking(id, payload, currentUser));
     }
 
     @DeleteMapping("/{id}")

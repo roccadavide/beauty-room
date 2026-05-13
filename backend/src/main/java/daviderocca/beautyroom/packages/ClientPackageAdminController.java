@@ -80,4 +80,12 @@ public class ClientPackageAdminController {
         log.info("ADMIN | link bookingId={} to assignmentId={}", req.bookingId(), req.assignmentId());
         return ResponseEntity.ok(service.linkBooking(req));
     }
+
+    // POST /admin/package-assignments/recalculate-all — one-time data-fix endpoint
+    @PostMapping("/recalculate-all")
+    public ResponseEntity<String> recalculateAll() {
+        log.info("ADMIN | recalculate-all package sessions triggered");
+        int count = service.recalculateAllPackageSessions();
+        return ResponseEntity.ok("Recalculated " + count + " package assignments.");
+    }
 }

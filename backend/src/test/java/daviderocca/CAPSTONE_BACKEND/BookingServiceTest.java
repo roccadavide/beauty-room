@@ -103,21 +103,22 @@ class BookingServiceTest {
         LocalDateTime start = LocalDateTime.now().plusHours(2).withSecond(0).withNano(0);
 
         NewBookingDTO payload = new NewBookingDTO(
-        "Mario Rossi",
-        "mario.rossi@test.it",
-        "+391234567890",
-        start,
-        "Note test",
-        serviceId,
-        optionId,
-        null,
-        false,
-        false,
-        null,
-        null,
-        null,
-        false 
-);
+                "Mario Rossi",
+                "mario.rossi@test.it",
+                "+391234567890",
+                start,
+                "Note test",
+                serviceId,
+                null,    // serviceIds
+                optionId,
+                null,    // packageCreditId
+                false,
+                false,
+                null,
+                null,
+                null,
+                false
+        );
 
         when(serviceItemService.findServiceItemById(serviceId)).thenReturn(svc);
         when(serviceOptionRepository.findById(optionId)).thenReturn(Optional.of(opt));
