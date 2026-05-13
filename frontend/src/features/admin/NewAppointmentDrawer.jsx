@@ -554,7 +554,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           optionId: optId,
           title: optName ? `${baseTitle} · ${optName}` : baseTitle,
           defaultDurationMin: optId
-            ? (editBooking.optionDuration ?? s.durationMinutes ?? s.durationMin ?? s.duration ?? 30)
+            ? (s.durationMinutes ?? s.durationMin ?? s.duration ?? editBooking.optionDuration ?? 30)
             : (s.durationMinutes ?? s.durationMin ?? s.duration ?? 30),
           overrideDurationMin: s.overrideDurationMin ?? null,
         };

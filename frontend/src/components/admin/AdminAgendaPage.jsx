@@ -1197,8 +1197,8 @@ export default function AdminAgendaPage() {
                                       <div className="ag-svc-list-block">
                                         {b.services.map((s, i) => {
                                           const svcLabel = (s.name || s.title || s.serviceName || "?");
-                                          const label = b.optionName && String(s.id ?? s.serviceId) === String(b.serviceId)
-                                            ? `${svcLabel} · ${b.optionName}`
+                                          const label = s.optionName
+                                            ? `${svcLabel} · ${s.optionName}`
                                             : svcLabel;
                                           return (
                                             <Fragment key={i}>
@@ -1264,7 +1264,7 @@ export default function AdminAgendaPage() {
                                 {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
                               </div>
                               <div className="ag-item__timeSub">
-                                {b.optionDuration != null ? b.optionDuration : Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
+                                {Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
                                 {b.paddingMinutes > 0 && <span> · +{b.paddingMinutes}′</span>}
                               </div>
                             </div>
