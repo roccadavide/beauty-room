@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.DTO.bookingDTOs;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
@@ -8,4 +9,9 @@ import java.util.UUID;
  * Used in {@link AdminBookingCreateDTO#serviceEntries()} to replace the
  * flat {@code serviceIds} + single {@code serviceOptionId} pair.
  */
-public record ServiceEntryDTO(UUID serviceId, UUID optionId) {}
+public record ServiceEntryDTO(
+        UUID serviceId,
+        UUID optionId,
+        Integer overrideDurationMin,
+        BigDecimal prezzoOverride
+) {}

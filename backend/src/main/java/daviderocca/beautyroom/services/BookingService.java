@@ -468,15 +468,21 @@ public class BookingService {
             List<ServiceEntryDTO> entries = useEntries ? dto.serviceEntries() : List.of();
             for (int i = 0; i < catalogServices.size(); i++) {
                 ServiceItem svc = catalogServices.get(i);
-                UUID optId = (useEntries && i < entries.size()) ? entries.get(i).optionId() : null;
-                int dur = svc.getDurationMin();
-                if (optId != null) {
-                    ServiceOption opt = serviceOptionRepository.findById(optId).orElse(null);
-                    if (opt != null && opt.getDurationMin() != null && opt.getDurationMin() > 0) {
-                        dur = opt.getDurationMin();
+                ServiceEntryDTO entry = (useEntries && i < entries.size()) ? entries.get(i) : null;
+                Integer entryOverride = entry != null ? entry.overrideDurationMin() : null;
+                if (entryOverride != null && entryOverride > 0) {
+                    totalDuration += entryOverride;
+                } else {
+                    UUID optId = entry != null ? entry.optionId() : null;
+                    int dur = svc.getDurationMin();
+                    if (optId != null) {
+                        ServiceOption opt = serviceOptionRepository.findById(optId).orElse(null);
+                        if (opt != null && opt.getDurationMin() != null && opt.getDurationMin() > 0) {
+                            dur = opt.getDurationMin();
+                        }
                     }
+                    totalDuration += dur;
                 }
-                totalDuration += dur;
             }
             if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
             if (hasPkg && assignment != null && assignment.getServiceOption() != null) {
@@ -583,13 +589,15 @@ public class BookingService {
             for (int i = 0; i < entries.size(); i++) {
                 ServiceEntryDTO e = entries.get(i);
                 entityManager.createNativeQuery("""
-                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order)
-                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder)
+                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order, override_duration_min, price_override)
+                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder, :overrideDurationMin, :priceOverride)
                         """)
                         .setParameter("bookingId", saved.getBookingId())
                         .setParameter("serviceId", e.serviceId())
                         .setParameter("optionId", e.optionId())
                         .setParameter("sortOrder", i + 1)
+                        .setParameter("overrideDurationMin", e.overrideDurationMin())
+                        .setParameter("priceOverride", e.prezzoOverride())
                         .executeUpdate();
             }
         }
@@ -1231,15 +1239,21 @@ public class BookingService {
             List<ServiceEntryDTO> updEntries = useEntries ? dto.serviceEntries() : List.of();
             for (int i = 0; i < catalogServices.size(); i++) {
                 ServiceItem svc = catalogServices.get(i);
-                UUID optId = (useEntries && i < updEntries.size()) ? updEntries.get(i).optionId() : null;
-                int dur = svc.getDurationMin();
-                if (optId != null) {
-                    ServiceOption opt = serviceOptionRepository.findById(optId).orElse(null);
-                    if (opt != null && opt.getDurationMin() != null && opt.getDurationMin() > 0) {
-                        dur = opt.getDurationMin();
+                ServiceEntryDTO updEntry = (useEntries && i < updEntries.size()) ? updEntries.get(i) : null;
+                Integer entryOverride = updEntry != null ? updEntry.overrideDurationMin() : null;
+                if (entryOverride != null && entryOverride > 0) {
+                    totalDuration += entryOverride;
+                } else {
+                    UUID optId = updEntry != null ? updEntry.optionId() : null;
+                    int dur = svc.getDurationMin();
+                    if (optId != null) {
+                        ServiceOption opt = serviceOptionRepository.findById(optId).orElse(null);
+                        if (opt != null && opt.getDurationMin() != null && opt.getDurationMin() > 0) {
+                            dur = opt.getDurationMin();
+                        }
                     }
+                    totalDuration += dur;
                 }
-                totalDuration += dur;
             }
             if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
         } else {
@@ -1314,13 +1328,15 @@ public class BookingService {
             for (int i = 0; i < entries.size(); i++) {
                 ServiceEntryDTO e = entries.get(i);
                 entityManager.createNativeQuery("""
-                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order)
-                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder)
+                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order, override_duration_min, price_override)
+                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder, :overrideDurationMin, :priceOverride)
                         """)
                         .setParameter("bookingId", updated.getBookingId())
                         .setParameter("serviceId", e.serviceId())
                         .setParameter("optionId", e.optionId())
                         .setParameter("sortOrder", i + 1)
+                        .setParameter("overrideDurationMin", e.overrideDurationMin())
+                        .setParameter("priceOverride", e.prezzoOverride())
                         .executeUpdate();
             }
         }
@@ -1537,9 +1553,10 @@ public class BookingService {
         @SuppressWarnings("unchecked")
         List<Object[]> svcRows = entityManager.createNativeQuery("""
                 SELECT bs.service_id, s.title,
-                       COALESCE(so.duration_min, s.duration_min) AS duration_min,
-                       COALESCE(so.price, s.price) AS price,
-                       bs.option_id, so.name AS option_name
+                       COALESCE(bs.override_duration_min, so.duration_min, s.duration_min) AS duration_min,
+                       COALESCE(bs.price_override, so.price, s.price) AS price,
+                       bs.option_id, so.name AS option_name,
+                       bs.override_duration_min, bs.price_override
                 FROM booking_services bs
                 JOIN services s ON s.service_id = bs.service_id
                 LEFT JOIN service_options so ON so.option_id = bs.option_id
@@ -1552,13 +1569,17 @@ public class BookingService {
                 .map(r -> {
                     UUID sId = r[0] instanceof UUID u ? u : UUID.fromString(r[0].toString());
                     UUID oId = r[4] == null ? null : (r[4] instanceof UUID u ? u : UUID.fromString(r[4].toString()));
+                    Integer overrideDur = r[6] != null ? ((Number) r[6]).intValue() : null;
+                    BigDecimal priceOvr = r[7] instanceof BigDecimal bd ? bd : (r[7] != null ? new BigDecimal(r[7].toString()) : null);
                     return new ServiceSummaryDTO(
                             sId,
                             (String) r[1],
                             r[2] != null ? ((Number) r[2]).intValue() : 0,
                             r[3] instanceof BigDecimal bd ? bd : (r[3] != null ? new BigDecimal(r[3].toString()) : null),
                             oId,
-                            (String) r[5]
+                            (String) r[5],
+                            overrideDur,
+                            priceOvr
                     );
                 })
                 .toList();
@@ -1730,7 +1751,7 @@ public class BookingService {
 
     private BookingResponseDTO convertToDTO(Booking booking) {
         List<ServiceSummaryDTO> services = booking.getServices().stream()
-                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice(), null, null))
+                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice(), null, null, null, null))
                 .toList();
 
         // Fallback service title for backward compat

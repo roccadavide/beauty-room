@@ -9,5 +9,7 @@ public record ServiceSummaryDTO(
         int durationMinutes,
         BigDecimal price,
         UUID optionId,
-        String optionName
+        String optionName,
+        Integer overrideDurationMin,
+        BigDecimal priceOverride
 ) {}

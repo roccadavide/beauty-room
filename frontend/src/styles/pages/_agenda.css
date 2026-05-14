@@ -3139,3 +3139,150 @@ hr.ag-svc-list-block__divider {
     gap: 0.35rem;
   }
 }
+
+/* ── EditServizioModal ──────────────────────────────────────────────────────── */
+.ag-edit-svc-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1070;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.ag-edit-svc-modal {
+  background: #fffdf8;
+  border-radius: 20px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22);
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ag-edit-svc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.25rem 0.75rem;
+  border-bottom: 1px solid #ede8df;
+}
+
+.ag-edit-svc-title {
+  font-family: 'Petrona', serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #3a2e22;
+}
+
+.ag-edit-svc-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: #888;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.ag-edit-svc-close:hover { background: #f0ebe3; color: #2c2c2c; }
+
+.ag-edit-svc-service-name {
+  padding: 0.6rem 1.25rem 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #8c6d3f;
+}
+
+.ag-edit-svc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem 1rem;
+}
+
+.ag-edit-svc-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9a7a50;
+}
+
+.ag-edit-svc-input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(111, 74, 47, 0.2);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  color: #3a2e22;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ag-edit-svc-input:focus {
+  border-color: rgba(139, 94, 60, 0.45);
+  box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.1);
+}
+
+.ag-edit-svc-orig {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #b0967a;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ag-edit-svc-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.75rem 1.25rem 1rem;
+  border-top: 1px solid #ede8df;
+}
+
+.ag-edit-svc-btn {
+  padding: 0.5rem 1.1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, filter 0.15s;
+}
+.ag-edit-svc-btn--ghost {
+  background: transparent;
+  border-color: rgba(111, 74, 47, 0.18);
+  color: #6b5040;
+}
+.ag-edit-svc-btn--ghost:hover { background: rgba(231, 214, 195, 0.45); }
+.ag-edit-svc-btn--save {
+  background: linear-gradient(180deg, rgba(139, 94, 60, 0.95), rgba(111, 74, 47, 0.95));
+  color: #fff;
+  border-color: rgba(111, 74, 47, 0.4);
+}
+.ag-edit-svc-btn--save:hover { filter: brightness(1.06); }
+
+/* Price override badge in selected service row */
+.ag-selected-service-row__price-override {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #8c6d3f;
+  white-space: nowrap;
+}
+.ag-selected-service-row__price-tag {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #b8976a;
+  background: rgba(184, 151, 106, 0.15);
+  padding: 1px 5px;
+  border-radius: 6px;
+  margin-left: 2px;
+}
