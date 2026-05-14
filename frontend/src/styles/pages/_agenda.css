@@ -2983,3 +2983,159 @@ hr.ag-svc-list-block__divider {
   color: #9a7a50;
   margin-bottom: 10px;
 }
+
+/* ── EstimatoModal ───────────────────────────────────────────── */
+.ag-estimato-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.ag-estimato-modal {
+  background: #fffdf8;
+  border-radius: 20px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
+  width: 100%;
+  max-width: 680px;
+  max-height: 85dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ag-estimato-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid #ede8df;
+}
+
+.ag-estimato-close {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: #888;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.ag-estimato-close:hover { background: #f0ebe3; color: #2c2c2c; }
+
+.ag-estimato-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0.5rem 0;
+}
+
+.ag-estimato-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.ag-estimato-table thead th {
+  padding: 0.5rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8c6d3f;
+  border-bottom: 1px solid #ede8df;
+  white-space: nowrap;
+}
+
+.ag-estimato-table tbody tr {
+  border-bottom: 1px solid #f5f0e8;
+  transition: background 0.12s;
+}
+.ag-estimato-table tbody tr:hover { background: #fef7ef; }
+
+.ag-estimato-table tbody td {
+  padding: 0.65rem 1rem;
+  color: #3a3228;
+  vertical-align: middle;
+}
+
+.ag-estimato-table td.ag-estimato-price {
+  font-weight: 600;
+  color: #2c2c2c;
+  white-space: nowrap;
+}
+
+.ag-estimato-table td.ag-estimato-price--null {
+  color: #bbb;
+}
+
+.ag-pay-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.2rem 0.55rem;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.ag-pay--online  { background: #e8f5e9; color: #2e7d32; }
+.ag-pay--instore { background: #fff8e1; color: #f57f17; }
+.ag-pay--pending { background: #f5f5f5; color: #757575; }
+
+.ag-estimato-footer {
+  border-top: 1px solid #ede8df;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ag-estimato-subtotals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  font-size: 0.85rem;
+  color: #5a5047;
+}
+
+.ag-estimato-total {
+  font-family: 'Petrona', serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #8c6d3f;
+  text-align: right;
+}
+
+@media (max-width: 575px) {
+  .ag-estimato-modal {
+    border-radius: 16px;
+    max-height: 90dvh;
+  }
+  .ag-estimato-table thead { display: none; }
+  .ag-estimato-table tbody tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+  .ag-estimato-table tbody td {
+    padding: 0;
+    font-size: 0.83rem;
+  }
+  .ag-estimato-table td:first-child {
+    font-weight: 600;
+    color: #b8976a;
+    grid-row: 1;
+  }
+  .ag-estimato-subtotals {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+}

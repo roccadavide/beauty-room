@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReactDOM from "react-dom";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
 import {
   getTimelineDay,
@@ -85,6 +86,150 @@ function shortCustomerName(name) {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0];
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+// ── EstimatoModal helpers ────────────────────────────────────────────────────
+
+function getBookingPrice(booking, priceMap) {
+  if (Array.isArray(booking.services) && booking.services.length > 0) {
+    const sum = booking.services.reduce((acc, s, i) => {
+      const unitPrice =
+        i === 0 && booking.optionPrice != null && !s.optionId
+          ? Number(booking.optionPrice)
+          : s.optionId && s.price != null
+            ? Number(s.price)
+            : s.price != null
+              ? Number(s.price)
+              : (priceMap.get(String(s.id ?? s.serviceId)) ?? 0);
+      return acc + unitPrice;
+    }, 0);
+    return sum + (booking.customServicePrice != null ? Number(booking.customServicePrice) : 0);
+  }
+  if (booking.optionPrice != null) return Number(booking.optionPrice);
+  if (booking.customServicePrice != null) return Number(booking.customServicePrice);
+  const p = priceMap.get(String(booking.serviceId));
+  return p != null ? p : null;
+}
+
+function getPaymentLabel(booking) {
+  if (booking.paidOnline)  return { icon: "💳", text: "Online",     css: "ag-pay--online"  };
+  if (booking.paidInStore) return { icon: "💵", text: "In negozio", css: "ag-pay--instore" };
+  return                          { icon: "⏳", text: "Da pagare",  css: "ag-pay--pending" };
+}
+
+function getBookingServiceLabel(booking) {
+  if (booking.linkedPackage) {
+    const name = booking.linkedPackage.serviceTitle || booking.linkedPackage.serviceName || booking.linkedPackage.packageName || "Pacchetto";
+    return name;
+  }
+  if (Array.isArray(booking.services) && booking.services.length > 0) {
+    const first = booking.services[0];
+    const name = first.name || first.title || first.serviceName || "?";
+    const label = first.optionName ? `${name} · ${first.optionName}` : name;
+    return booking.services.length > 1 ? `${label} +${booking.services.length - 1}` : label;
+  }
+  if (booking.serviceTitle) return booking.serviceTitle + (booking.optionName ? ` · ${booking.optionName}` : "");
+  if (booking.customServiceName) return booking.customServiceName;
+  return "—";
+}
+
+function EstimatoModal({ bookings, services, onClose }) {
+  const priceMap = useMemo(
+    () => new Map((services || []).map(s => [String(s.serviceId), Number(s.price)])),
+    [services],
+  );
+
+  const active = useMemo(
+    () => (bookings || []).filter(b => b.status !== "CANCELLED"),
+    [bookings],
+  );
+
+  const rows = useMemo(
+    () =>
+      active.map(b => {
+        const price = getBookingPrice(b, priceMap);
+        const pay = getPaymentLabel(b);
+        const isPackage = !!b.linkedPackage;
+        return { booking: b, price, pay, isPackage };
+      }),
+    [active, priceMap],
+  );
+
+  const totals = useMemo(() => {
+    let online = 0, inStore = 0, pending = 0;
+    rows.forEach(({ booking, price }) => {
+      const p = Number.isFinite(price) ? price : 0;
+      if (booking.paidOnline)       online  += p;
+      else if (booking.paidInStore) inStore += p;
+      else                          pending += p;
+    });
+    return { online, inStore, pending, total: online + inStore + pending };
+  }, [rows]);
+
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return ReactDOM.createPortal(
+    <div className="ag-estimato-backdrop" onClick={onClose}>
+      <div className="ag-estimato-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Dettaglio Incasso">
+        <div className="ag-estimato-header">
+          <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>Dettaglio Incasso</h3>
+          <button className="ag-estimato-close" onClick={onClose} aria-label="Chiudi">✕</button>
+        </div>
+
+        <div className="ag-estimato-body">
+          <table className="ag-estimato-table">
+            <thead>
+              <tr>
+                <th>Ora</th>
+                <th>Cliente</th>
+                <th>Servizio</th>
+                <th>Prezzo</th>
+                <th>Stato pag.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ booking: b, price, pay, isPackage }) => (
+                <tr key={b.bookingId}>
+                  <td>{fmtTime(b.startTime)}</td>
+                  <td>{b.customerName || "—"}</td>
+                  <td>{getBookingServiceLabel(b)}</td>
+                  <td className={`ag-estimato-price${price == null ? " ag-estimato-price--null" : ""}`}>
+                    {price == null
+                      ? "—"
+                      : `€${Number(price).toFixed(0)}${isPackage ? " (pacchetto)" : ""}`}
+                  </td>
+                  <td>
+                    <span className={`ag-pay-badge ${pay.css}`}>{pay.icon} {pay.text}</span>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", color: "#bbb", padding: "1.5rem" }}>
+                    Nessun appuntamento attivo
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="ag-estimato-footer">
+          <div className="ag-estimato-subtotals">
+            <span>💳 Online: €{totals.online.toFixed(0)}</span>
+            <span>💵 In negozio: €{totals.inStore.toFixed(0)}</span>
+            <span>⏳ Da pagare: €{totals.pending.toFixed(0)}</span>
+          </div>
+          <div className="ag-estimato-total">Totale stimato: €{totals.total.toFixed(0)}</div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 /** ---------- Timeline ---------- */
@@ -421,6 +566,7 @@ export default function AdminAgendaPage() {
   const deleteIntervalRef = useRef(null);
   const [refundConfirmBooking, setRefundConfirmBooking] = useState(null);
   const [consentConfirmBooking, setConsentConfirmBooking] = useState(null);
+  const [showEstimatoModal, setShowEstimatoModal] = useState(false);
 
   // ── Timeline ↔ Lista: highlight sincronizzato ────────────────────────────
   const [highlightedId, setHighlightedId] = useState(null);
@@ -1015,7 +1161,12 @@ export default function AdminAgendaPage() {
                   <div className="ag-kpi__label">Occupazione</div>
                   <div className="ag-kpi__value">{kpi.openMin ? `${kpi.occ}%` : "—"}</div>
                 </div>
-                <div className="ag-kpi__item">
+                <div
+                  className="ag-kpi__item"
+                  onClick={() => kpi.revenueKnown && setShowEstimatoModal(true)}
+                  style={{ cursor: kpi.revenueKnown ? "pointer" : "default" }}
+                  title={kpi.revenueKnown ? "Clicca per vedere il dettaglio" : undefined}
+                >
                   <div className="ag-kpi__label">Incasso stimato</div>
                   <div className="ag-kpi__value">{kpi.revenueKnown ? `€${kpi.onlineRevenue.toFixed(0)}` : "—"}</div>
                 </div>
@@ -1682,6 +1833,14 @@ export default function AdminAgendaPage() {
         confirmLabel="Conferma"
         confirmVariant="primary"
       />
+
+      {showEstimatoModal && (
+        <EstimatoModal
+          bookings={bookings}
+          services={services}
+          onClose={() => setShowEstimatoModal(false)}
+        />
+      )}
     </Container>
   );
 }
