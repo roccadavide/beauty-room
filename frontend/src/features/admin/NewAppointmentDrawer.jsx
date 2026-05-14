@@ -544,6 +544,24 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     // Fall back to booking-level optionName for legacy single-service bookings (pre-V54).
     if (Array.isArray(editBooking.services) && editBooking.services.length > 0) {
       const isSingle = editBooking.services.length === 1;
+      const resolveDuration = (s, optId) => {
+        const fromDto = s.durationMinutes ?? s.durationMin ?? s.duration ?? null;
+        if (fromDto != null) return fromDto;
+        const catalogSvc = services.find(
+          svc => String(svc.serviceId) === String(s.serviceId ?? s.id)
+        );
+        if (optId && catalogSvc) {
+          const allOpts = catalogSvc.options
+            || catalogSvc.serviceOptionList
+            || catalogSvc.serviceOptions
+            || [];
+          const catalogOpt = allOpts.find(
+            o => String(o.optionId ?? o.id) === String(optId)
+          );
+          if (catalogOpt?.durationMin != null) return catalogOpt.durationMin;
+        }
+        return catalogSvc?.durationMin ?? 30;
+      };
       return editBooking.services.map(s => {
         const baseTitle = s.title ?? s.name ?? s.serviceName ?? "";
         const optId   = s.optionId   ?? (isSingle ? (editBooking.optionId   ?? null) : null);
@@ -553,9 +571,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           serviceId: s.serviceId ?? s.id,
           optionId: optId,
           title: optName ? `${baseTitle} · ${optName}` : baseTitle,
-          defaultDurationMin: optId
-            ? (s.durationMinutes ?? s.durationMin ?? s.duration ?? editBooking.optionDuration ?? 30)
-            : (s.durationMinutes ?? s.durationMin ?? s.duration ?? 30),
+          defaultDurationMin: resolveDuration(s, optId),
           overrideDurationMin: s.overrideDurationMin ?? null,
         };
       });

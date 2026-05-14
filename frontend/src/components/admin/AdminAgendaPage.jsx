@@ -137,8 +137,12 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const booking = bookingMap.get(slot.start);
     const bookingId = booking?.bookingId;
     const isSelected = bookingId != null && bookingId === selectedBookingId;
-    // Fix B: usa optionDuration se disponibile (corregge endTime errati per prenotazioni con opzione)
-    const effectiveEnd = (booking?.optionDuration != null) ? (start + booking.optionDuration) : end;
+    // Fix B: usa optionDuration solo per prenotazioni con un singolo servizio
+    const hasMultipleServices =
+      Array.isArray(booking?.services) && booking.services.length > 1;
+    const effectiveEnd = (!hasMultipleServices && booking?.optionDuration != null)
+      ? (start + booking.optionDuration)
+      : end;
     const bookingHeight = toPct(Math.min(effectiveEnd, viewWindow.endMin)) - top;
     const durationMin = effectiveEnd - start;
     const tier = durationMin < 20 ? "tiny" : durationMin < 40 ? "compact" : "full";
@@ -1195,6 +1199,10 @@ export default function AdminAgendaPage() {
                                   if (Array.isArray(b.services) && b.services.length > 0) {
                                     return (
                                       <div className="ag-svc-list-block">
+                                        {Array.isArray(b.services) && b.services.length > 0 && (() => {
+                                          console.log(`[AGENDA-LIST] booking ${b.bookingId} services:`, JSON.stringify(b.services));
+                                          return null;
+                                        })()}
                                         {b.services.map((s, i) => {
                                           const svcLabel = (s.name || s.title || s.serviceName || "?");
                                           const label = s.optionName

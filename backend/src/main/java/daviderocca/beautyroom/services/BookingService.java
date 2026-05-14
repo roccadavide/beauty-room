@@ -464,7 +464,20 @@ public class BookingService {
             // Admin explicitly overrode total (e.g. parallel services)
             totalDuration = dto.customTotalDurationMin();
         } else {
-            totalDuration = catalogServices.stream().mapToInt(ServiceItem::getDurationMin).sum();
+            totalDuration = 0;
+            List<ServiceEntryDTO> entries = useEntries ? dto.serviceEntries() : List.of();
+            for (int i = 0; i < catalogServices.size(); i++) {
+                ServiceItem svc = catalogServices.get(i);
+                UUID optId = (useEntries && i < entries.size()) ? entries.get(i).optionId() : null;
+                int dur = svc.getDurationMin();
+                if (optId != null) {
+                    ServiceOption opt = serviceOptionRepository.findById(optId).orElse(null);
+                    if (opt != null && opt.getDurationMin() != null && opt.getDurationMin() > 0) {
+                        dur = opt.getDurationMin();
+                    }
+                }
+                totalDuration += dur;
+            }
             if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
             if (hasPkg && assignment != null && assignment.getServiceOption() != null) {
                 ServiceOption pkgOption = assignment.getServiceOption();
@@ -1214,7 +1227,20 @@ public class BookingService {
         if (dto.customTotalDurationMin() != null && dto.customTotalDurationMin() > 0) {
             totalDuration = dto.customTotalDurationMin();
         } else if (hasCatalog || hasCustom) {
-            totalDuration = catalogServices.stream().mapToInt(ServiceItem::getDurationMin).sum();
+            totalDuration = 0;
+            List<ServiceEntryDTO> updEntries = useEntries ? dto.serviceEntries() : List.of();
+            for (int i = 0; i < catalogServices.size(); i++) {
+                ServiceItem svc = catalogServices.get(i);
+                UUID optId = (useEntries && i < updEntries.size()) ? updEntries.get(i).optionId() : null;
+                int dur = svc.getDurationMin();
+                if (optId != null) {
+                    ServiceOption opt = serviceOptionRepository.findById(optId).orElse(null);
+                    if (opt != null && opt.getDurationMin() != null && opt.getDurationMin() > 0) {
+                        dur = opt.getDurationMin();
+                    }
+                }
+                totalDuration += dur;
+            }
             if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
         } else {
             // Package-only or no services in payload — keep the booking's existing duration
@@ -1510,7 +1536,9 @@ public class BookingService {
         // Fetch services with per-entry option_id from booking_services join table
         @SuppressWarnings("unchecked")
         List<Object[]> svcRows = entityManager.createNativeQuery("""
-                SELECT bs.service_id, s.title, s.duration_min, s.price,
+                SELECT bs.service_id, s.title,
+                       COALESCE(so.duration_min, s.duration_min) AS duration_min,
+                       COALESCE(so.price, s.price) AS price,
                        bs.option_id, so.name AS option_name
                 FROM booking_services bs
                 JOIN services s ON s.service_id = bs.service_id
