@@ -1355,9 +1355,23 @@ hr.ag-svc-list-block__divider {
   background: rgba(0, 0, 0, 0.02);
 }
 
-.ag-service-item.is-selected {
+.ag-service-item.is-selected,
+.ag-service-item--selected {
   background: rgba(184, 151, 106, 0.12);
   border-left: 2px solid rgba(184, 151, 106, 0.7);
+}
+
+.ag-service-item--selected:hover {
+  background: rgba(184, 151, 106, 0.18);
+}
+
+.ag-service-option-item--selected {
+  background: rgba(184, 151, 106, 0.1);
+  border-left: 2px solid rgba(184, 151, 106, 0.6);
+}
+
+.ag-service-option-item--selected:hover {
+  background: rgba(184, 151, 106, 0.16);
 }
 
 .ag-service-item__title {
@@ -3027,7 +3041,10 @@ hr.ag-svc-list-block__divider {
   border-radius: 8px;
   transition: background 0.15s;
 }
-.ag-estimato-close:hover { background: #f0ebe3; color: #2c2c2c; }
+.ag-estimato-close:hover {
+  background: #f0ebe3;
+  color: #2c2c2c;
+}
 
 .ag-estimato-body {
   overflow-y: auto;
@@ -3057,7 +3074,9 @@ hr.ag-svc-list-block__divider {
   border-bottom: 1px solid #f5f0e8;
   transition: background 0.12s;
 }
-.ag-estimato-table tbody tr:hover { background: #fef7ef; }
+.ag-estimato-table tbody tr:hover {
+  background: #fef7ef;
+}
 
 .ag-estimato-table tbody td {
   padding: 0.65rem 1rem;
@@ -3085,9 +3104,18 @@ hr.ag-svc-list-block__divider {
   border-radius: 99px;
   white-space: nowrap;
 }
-.ag-pay--online  { background: #e8f5e9; color: #2e7d32; }
-.ag-pay--instore { background: #fff8e1; color: #f57f17; }
-.ag-pay--pending { background: #f5f5f5; color: #757575; }
+.ag-pay--online {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.ag-pay--instore {
+  background: #fff8e1;
+  color: #f57f17;
+}
+.ag-pay--pending {
+  background: #f5f5f5;
+  color: #757575;
+}
 
 .ag-estimato-footer {
   border-top: 1px solid #ede8df;
@@ -3106,7 +3134,7 @@ hr.ag-svc-list-block__divider {
 }
 
 .ag-estimato-total {
-  font-family: 'Petrona', serif;
+  font-family: "Petrona", serif;
   font-size: 1.05rem;
   font-weight: 600;
   color: #8c6d3f;
@@ -3118,7 +3146,9 @@ hr.ag-svc-list-block__divider {
     border-radius: 16px;
     max-height: 90dvh;
   }
-  .ag-estimato-table thead { display: none; }
+  .ag-estimato-table thead {
+    display: none;
+  }
   .ag-estimato-table tbody tr {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -3172,7 +3202,7 @@ hr.ag-svc-list-block__divider {
 }
 
 .ag-edit-svc-title {
-  font-family: 'Petrona', serif;
+  font-family: "Petrona", serif;
   font-weight: 700;
   font-size: 1rem;
   color: #3a2e22;
@@ -3189,7 +3219,10 @@ hr.ag-svc-list-block__divider {
   border-radius: 8px;
   transition: background 0.15s;
 }
-.ag-edit-svc-close:hover { background: #f0ebe3; color: #2c2c2c; }
+.ag-edit-svc-close:hover {
+  background: #f0ebe3;
+  color: #2c2c2c;
+}
 
 .ag-edit-svc-service-name {
   padding: 0.6rem 1.25rem 0;
@@ -3225,7 +3258,9 @@ hr.ag-svc-list-block__divider {
   color: #3a2e22;
   background: #fff;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 .ag-edit-svc-input:focus {
   border-color: rgba(139, 94, 60, 0.45);
@@ -3255,20 +3290,26 @@ hr.ag-svc-list-block__divider {
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background 0.15s, filter 0.15s;
+  transition:
+    background 0.15s,
+    filter 0.15s;
 }
 .ag-edit-svc-btn--ghost {
   background: transparent;
   border-color: rgba(111, 74, 47, 0.18);
   color: #6b5040;
 }
-.ag-edit-svc-btn--ghost:hover { background: rgba(231, 214, 195, 0.45); }
+.ag-edit-svc-btn--ghost:hover {
+  background: rgba(231, 214, 195, 0.45);
+}
 .ag-edit-svc-btn--save {
   background: linear-gradient(180deg, rgba(139, 94, 60, 0.95), rgba(111, 74, 47, 0.95));
   color: #fff;
   border-color: rgba(111, 74, 47, 0.4);
 }
-.ag-edit-svc-btn--save:hover { filter: brightness(1.06); }
+.ag-edit-svc-btn--save:hover {
+  filter: brightness(1.06);
+}
 
 /* Price override badge in selected service row */
 .ag-selected-service-row__price-override {
@@ -3285,4 +3326,14 @@ hr.ag-svc-list-block__divider {
   padding: 1px 5px;
   border-radius: 6px;
   margin-left: 2px;
+}
+
+/* ── Undo completamento ─────────────────────────────────────────────────────── */
+.ag-btn-undo {
+  background: rgba(236, 200, 19, 0.12) !important;
+  border-color: rgba(210, 70, 70, 0.22) !important;
+  color: var(--ag-text) !important;
+}
+.ag-btn-undo:hover {
+  background: #f5ede0;
 }

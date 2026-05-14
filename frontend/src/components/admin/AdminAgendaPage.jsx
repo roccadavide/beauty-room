@@ -44,13 +44,13 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmtTime = dt => new Date(dt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 const CATEGORY_PALETTE = [
-  { bg: "rgba(139,94,60,.24)",  border: "#b8976a", text: "#6b4226" },
-  { bg: "rgba(99,102,241,.2)",  border: "#818cf8", text: "#4338ca" },
-  { bg: "rgba(34,197,94,.18)",  border: "#4ade80", text: "#166534" },
-  { bg: "rgba(251,191,36,.2)",  border: "#fbbf24", text: "#92400e" },
-  { bg: "rgba(236,72,153,.2)",  border: "#f472b6", text: "#9d174d" },
-  { bg: "rgba(20,184,166,.2)",  border: "#2dd4bf", text: "#134e4a" },
-  { bg: "rgba(249,115,22,.2)",  border: "#fb923c", text: "#7c2d12" },
+  { bg: "rgba(139,94,60,.24)", border: "#b8976a", text: "#6b4226" },
+  { bg: "rgba(99,102,241,.2)", border: "#818cf8", text: "#4338ca" },
+  { bg: "rgba(34,197,94,.18)", border: "#4ade80", text: "#166534" },
+  { bg: "rgba(251,191,36,.2)", border: "#fbbf24", text: "#92400e" },
+  { bg: "rgba(236,72,153,.2)", border: "#f472b6", text: "#9d174d" },
+  { bg: "rgba(20,184,166,.2)", border: "#2dd4bf", text: "#134e4a" },
+  { bg: "rgba(249,115,22,.2)", border: "#fb923c", text: "#7c2d12" },
 ];
 const categoryColor = cat => {
   if (!cat) return CATEGORY_PALETTE[0];
@@ -112,9 +112,9 @@ function getBookingPrice(booking, priceMap) {
 }
 
 function getPaymentLabel(booking) {
-  if (booking.paidOnline)  return { icon: "💳", text: "Online",     css: "ag-pay--online"  };
+  if (booking.paidOnline) return { icon: "💳", text: "Online", css: "ag-pay--online" };
   if (booking.paidInStore) return { icon: "💵", text: "In negozio", css: "ag-pay--instore" };
-  return                          { icon: "⏳", text: "Da pagare",  css: "ag-pay--pending" };
+  return { icon: "⏳", text: "Da pagare", css: "ag-pay--pending" };
 }
 
 function getBookingServiceLabel(booking) {
@@ -134,15 +134,9 @@ function getBookingServiceLabel(booking) {
 }
 
 function EstimatoModal({ bookings, services, onClose }) {
-  const priceMap = useMemo(
-    () => new Map((services || []).map(s => [String(s.serviceId), Number(s.price)])),
-    [services],
-  );
+  const priceMap = useMemo(() => new Map((services || []).map(s => [String(s.serviceId), Number(s.price)])), [services]);
 
-  const active = useMemo(
-    () => (bookings || []).filter(b => b.status !== "CANCELLED"),
-    [bookings],
-  );
+  const active = useMemo(() => (bookings || []).filter(b => b.status !== "CANCELLED"), [bookings]);
 
   const rows = useMemo(
     () =>
@@ -156,18 +150,22 @@ function EstimatoModal({ bookings, services, onClose }) {
   );
 
   const totals = useMemo(() => {
-    let online = 0, inStore = 0, pending = 0;
+    let online = 0,
+      inStore = 0,
+      pending = 0;
     rows.forEach(({ booking, price }) => {
       const p = Number.isFinite(price) ? price : 0;
-      if (booking.paidOnline)       online  += p;
+      if (booking.paidOnline) online += p;
       else if (booking.paidInStore) inStore += p;
-      else                          pending += p;
+      else pending += p;
     });
     return { online, inStore, pending, total: online + inStore + pending };
   }, [rows]);
 
   useEffect(() => {
-    const onKey = e => { if (e.key === "Escape") onClose(); };
+    const onKey = e => {
+      if (e.key === "Escape") onClose();
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -177,7 +175,9 @@ function EstimatoModal({ bookings, services, onClose }) {
       <div className="ag-estimato-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Dettaglio Incasso">
         <div className="ag-estimato-header">
           <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>Dettaglio Incasso</h3>
-          <button className="ag-estimato-close" onClick={onClose} aria-label="Chiudi">✕</button>
+          <button className="ag-estimato-close" onClick={onClose} aria-label="Chiudi">
+            ✕
+          </button>
         </div>
 
         <div className="ag-estimato-body">
@@ -198,12 +198,12 @@ function EstimatoModal({ bookings, services, onClose }) {
                   <td>{b.customerName || "—"}</td>
                   <td>{getBookingServiceLabel(b)}</td>
                   <td className={`ag-estimato-price${price == null ? " ag-estimato-price--null" : ""}`}>
-                    {price == null
-                      ? "—"
-                      : `€${Number(price).toFixed(0)}${isPackage ? " (pacchetto)" : ""}`}
+                    {price == null ? "—" : `€${Number(price).toFixed(0)}${isPackage ? " (pacchetto)" : ""}`}
                   </td>
                   <td>
-                    <span className={`ag-pay-badge ${pay.css}`}>{pay.icon} {pay.text}</span>
+                    <span className={`ag-pay-badge ${pay.css}`}>
+                      {pay.icon} {pay.text}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -283,39 +283,38 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const bookingId = booking?.bookingId;
     const isSelected = bookingId != null && bookingId === selectedBookingId;
     // Fix B: usa optionDuration solo per prenotazioni con un singolo servizio
-    const hasMultipleServices =
-      Array.isArray(booking?.services) && booking.services.length > 1;
-    const effectiveEnd = (!hasMultipleServices && booking?.optionDuration != null)
-      ? (start + booking.optionDuration)
-      : end;
+    const hasMultipleServices = Array.isArray(booking?.services) && booking.services.length > 1;
+    const effectiveEnd = !hasMultipleServices && booking?.optionDuration != null ? start + booking.optionDuration : end;
     const bookingHeight = toPct(Math.min(effectiveEnd, viewWindow.endMin)) - top;
     const durationMin = effectiveEnd - start;
     const tier = durationMin < 20 ? "tiny" : durationMin < 40 ? "compact" : "full";
     const cat = booking?.categoryName ?? booking?.category ?? null;
     const color = categoryColor(cat);
     const pkgName = booking?.linkedPackage
-      ? (booking.linkedPackage.serviceTitle || booking.linkedPackage.serviceName || booking.linkedPackage.packageName || "—")
+      ? booking.linkedPackage.serviceTitle || booking.linkedPackage.serviceName || booking.linkedPackage.packageName || "—"
       : null;
     const extraSvcs = Array.isArray(booking?.services) && booking.services.length > 0 ? booking.services : [];
     const sessionNum = booking?.currentSession ?? booking?.linkedPackage?.sessionNumber;
-    const sessionBadge = sessionNum
-      ? ` S.${sessionNum}${booking?.totalSessions ? `/${booking.totalSessions}` : ""}`
-      : "";
+    const sessionBadge = sessionNum ? ` S.${sessionNum}${booking?.totalSessions ? `/${booking.totalSessions}` : ""}` : "";
     const baseServiceName = pkgName
       ? `${pkgName}${sessionBadge}${extraSvcs.length > 0 ? ` +${extraSvcs.length}` : ""}`
       : extraSvcs.length > 1
         ? `${extraSvcs[0].name || extraSvcs[0].title || "?"} +${extraSvcs.length - 1}`
-        : (extraSvcs[0]?.name || extraSvcs[0]?.title || booking?.serviceTitle || booking?.customServiceName || "—");
+        : extraSvcs[0]?.name || extraSvcs[0]?.title || booking?.serviceTitle || booking?.customServiceName || "—";
     // Fix C: aggiungi optionName al label (solo se non è già un pacchetto o multi-servizio)
-    const serviceName = (!pkgName && extraSvcs.length <= 1 && booking?.optionName)
-      ? `${baseServiceName} · ${booking.optionName}`
-      : baseServiceName;
+    const serviceName = !pkgName && extraSvcs.length <= 1 && booking?.optionName ? `${baseServiceName} · ${booking.optionName}` : baseServiceName;
 
     return (
       <div
         key={`${kind}-${idx}`}
         className={`ag-tl-block ag-tl-booking${booking ? " ag-tl-booking--clickable" : ""}${isSelected ? " ag-tl-booking--selected" : ""}`}
-        style={{ top: `${top}%`, height: `${Math.max(bookingHeight, 0)}%`, background: color.bg, borderColor: color.border, borderLeft: `3px solid ${color.border}` }}
+        style={{
+          top: `${top}%`,
+          height: `${Math.max(bookingHeight, 0)}%`,
+          background: color.bg,
+          borderColor: color.border,
+          borderLeft: `3px solid ${color.border}`,
+        }}
         role={booking ? "button" : undefined}
         tabIndex={booking ? 0 : undefined}
         title={booking ? `${booking.serviceTitle || ""} — ${booking.customerName || ""}` : undefined}
@@ -338,11 +337,7 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
             : undefined
         }
       >
-        {booking && tier === "tiny" && (
-          <div className="ag-tl-booking__label ag-tl-booking__label--tiny">
-            {slot.start}
-          </div>
-        )}
+        {booking && tier === "tiny" && <div className="ag-tl-booking__label ag-tl-booking__label--tiny">{slot.start}</div>}
         {booking && tier === "compact" && (
           <div className="ag-tl-booking__label">
             <div className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</div>
@@ -355,7 +350,9 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
             <div className="ag-tl-booking__customer">
               {shortCustomerName(booking.customerName)}
               {booking.sessionsRemaining === 1 && (
-                <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>⚠</span>
+                <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
+                  ⚠
+                </span>
               )}
             </div>
           </div>
@@ -551,6 +548,7 @@ export default function AdminAgendaPage() {
   const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [completedUndo, setCompletedUndo] = useState({});
   const [blockSlotOpen, setBlockSlotOpen] = useState(false);
   const [blockForm, setBlockForm] = useState({ date: "", startTime: "", endTime: "", reason: "" });
   const [blockSaving, setBlockSaving] = useState(false);
@@ -722,11 +720,14 @@ export default function AdminAgendaPage() {
     const effectivePrice = b => {
       if (Array.isArray(b.services) && b.services.length > 0) {
         const sum = b.services.reduce((acc, s, i) => {
-          const unitPrice = (i === 0 && b.optionPrice != null && !s.optionId)
-            ? Number(b.optionPrice)  // legacy: booking-level option on first service
-            : (s.optionId && s.price != null
-                ? Number(s.price)   // future: per-entry price (catalog price of optioned service)
-                : (s.price != null ? Number(s.price) : (priceMap.get(String(s.id ?? s.serviceId)) ?? 0)));
+          const unitPrice =
+            i === 0 && b.optionPrice != null && !s.optionId
+              ? Number(b.optionPrice) // legacy: booking-level option on first service
+              : s.optionId && s.price != null
+                ? Number(s.price) // future: per-entry price (catalog price of optioned service)
+                : s.price != null
+                  ? Number(s.price)
+                  : (priceMap.get(String(s.id ?? s.serviceId)) ?? 0);
           return acc + unitPrice;
         }, 0);
         return sum + (b.customServicePrice != null ? Number(b.customServicePrice) : 0);
@@ -736,10 +737,11 @@ export default function AdminAgendaPage() {
       return priceMap.get(String(b.serviceId));
     };
     const revenueKnown = active.some(b => Number.isFinite(effectivePrice(b)));
-    const calcRevenue = list => list.reduce((sum, b) => {
-      const p = effectivePrice(b);
-      return sum + (Number.isFinite(p) ? p : 0);
-    }, 0);
+    const calcRevenue = list =>
+      list.reduce((sum, b) => {
+        const p = effectivePrice(b);
+        return sum + (Number.isFinite(p) ? p : 0);
+      }, 0);
     const onlineRevenue = calcRevenue(active.filter(b => !b.paidInStore));
     const inStoreRevenue = calcRevenue(active.filter(b => b.paidInStore));
     return { count, bookedMin, openMin, occ, onlineRevenue, inStoreRevenue, revenueKnown };
@@ -879,13 +881,7 @@ export default function AdminAgendaPage() {
     try {
       await refundBooking(booking.bookingId);
       setSuccessMsg("Rimborso avviato con successo");
-      setBookings(prev =>
-        prev.map(bk =>
-          bk.bookingId === booking.bookingId
-            ? { ...bk, status: "REFUNDED", refundable: false }
-            : bk,
-        ),
-      );
+      setBookings(prev => prev.map(bk => (bk.bookingId === booking.bookingId ? { ...bk, status: "REFUNDED", refundable: false } : bk)));
       if (viewMode === "week") setWeekRefreshKey(k => k + 1);
     } catch (e) {
       setErr(e.message || "Errore durante il rimborso.");
@@ -1014,7 +1010,10 @@ export default function AdminAgendaPage() {
                 <div className="d-flex gap-2">
                   <Button
                     className="ag-btn ag-btn--ghost"
-                    onClick={() => { setBlockForm({ date: dateISO, startTime: "", endTime: "", reason: "" }); setBlockSlotOpen(true); }}
+                    onClick={() => {
+                      setBlockForm({ date: dateISO, startTime: "", endTime: "", reason: "" });
+                      setBlockSlotOpen(true);
+                    }}
                   >
                     🔒 Blocca
                   </Button>
@@ -1310,7 +1309,9 @@ export default function AdminAgendaPage() {
                           }}
                         >
                           <div className="ag-item__header">
-                            <div className="ag-item__avatar" aria-hidden="true">{initials}</div>
+                            <div className="ag-item__avatar" aria-hidden="true">
+                              {initials}
+                            </div>
 
                             <div className="ag-item__main">
                               <div className="ag-item__name">{b.customerName}</div>
@@ -1318,9 +1319,8 @@ export default function AdminAgendaPage() {
                                 {(() => {
                                   if (b.linkedPackage) {
                                     const pkgLabel = b.linkedPackage.serviceTitle || b.linkedPackage.serviceName || b.linkedPackage.packageName || "—";
-                                    const extras = Array.isArray(b.services) && b.services.length > 0
-                                      ? b.services.map(s => s.name || s.title || s.serviceName || "?")
-                                      : [];
+                                    const extras =
+                                      Array.isArray(b.services) && b.services.length > 0 ? b.services.map(s => s.name || s.title || s.serviceName || "?") : [];
                                     const sessionNum = b.currentSession ?? b.linkedPackage.sessionNumber;
                                     const totalSess = b.totalSessions;
                                     return (
@@ -1328,10 +1328,14 @@ export default function AdminAgendaPage() {
                                         <div className="ag-pkg-block__header">
                                           <span className="ag-service">{pkgLabel}</span>
                                           {sessionNum && totalSess && (
-                                            <span className="ag-pkg-session-badge">Seduta {sessionNum}/{totalSess}</span>
+                                            <span className="ag-pkg-session-badge">
+                                              Seduta {sessionNum}/{totalSess}
+                                            </span>
                                           )}
                                           {b.sessionsRemaining === 1 && (
-                                            <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>⚠ Ultima</span>
+                                            <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
+                                              ⚠ Ultima
+                                            </span>
                                           )}
                                         </div>
                                         {extras.length > 0 && (
@@ -1339,7 +1343,8 @@ export default function AdminAgendaPage() {
                                             <div className="ag-pkg-block__divider" />
                                             {extras.map((svc, i) => (
                                               <div key={i} className="ag-pkg-block__extra">
-                                                <span className="ag-pkg-block__extra-plus">+</span>{svc}
+                                                <span className="ag-pkg-block__extra-plus">+</span>
+                                                {svc}
                                               </div>
                                             ))}
                                           </>
@@ -1350,15 +1355,15 @@ export default function AdminAgendaPage() {
                                   if (Array.isArray(b.services) && b.services.length > 0) {
                                     return (
                                       <div className="ag-svc-list-block">
-                                        {Array.isArray(b.services) && b.services.length > 0 && (() => {
-                                          console.log(`[AGENDA-LIST] booking ${b.bookingId} services:`, JSON.stringify(b.services));
-                                          return null;
-                                        })()}
+                                        {Array.isArray(b.services) &&
+                                          b.services.length > 0 &&
+                                          (() => {
+                                            console.log(`[AGENDA-LIST] booking ${b.bookingId} services:`, JSON.stringify(b.services));
+                                            return null;
+                                          })()}
                                         {b.services.map((s, i) => {
-                                          const svcLabel = (s.name || s.title || s.serviceName || "?");
-                                          const label = s.optionName
-                                            ? `${svcLabel} · ${s.optionName}`
-                                            : svcLabel;
+                                          const svcLabel = s.name || s.title || s.serviceName || "?";
+                                          const label = s.optionName ? `${svcLabel} · ${s.optionName}` : svcLabel;
                                           return (
                                             <Fragment key={i}>
                                               {i > 0 && <hr className="ag-svc-list-block__divider" />}
@@ -1369,8 +1374,19 @@ export default function AdminAgendaPage() {
                                       </div>
                                     );
                                   }
-                                  if (b.serviceTitle) return <span className="ag-service">{b.serviceTitle}{b.optionName ? ` · ${b.optionName}` : ""}</span>;
-                                  if (b.isCustomService && b.customServiceName) return <span className="ag-service"><em>{b.customServiceName}</em></span>;
+                                  if (b.serviceTitle)
+                                    return (
+                                      <span className="ag-service">
+                                        {b.serviceTitle}
+                                        {b.optionName ? ` · ${b.optionName}` : ""}
+                                      </span>
+                                    );
+                                  if (b.isCustomService && b.customServiceName)
+                                    return (
+                                      <span className="ag-service">
+                                        <em>{b.customServiceName}</em>
+                                      </span>
+                                    );
                                   return <span className="ag-service">—</span>;
                                 })()}
                                 {!b.linkedPackage && b.currentSession && b.totalSessions && (
@@ -1409,15 +1425,9 @@ export default function AdminAgendaPage() {
                             <div className="ag-item__timecol">
                               <div className="ag-item__pills">
                                 <StatusPill status={b.status} />
-                                {b.paidInStore && (
-                                  <span className="ag-paid-badge">💵 Pagato</span>
-                                )}
-                                {b.paidOnline && b.status !== "REFUNDED" && (
-                                  <span className="ag-paid-badge ag-paid-badge--online">💳 Pagato online</span>
-                                )}
-                                {b.paidOnline && b.status === "REFUNDED" && (
-                                  <span className="ag-paid-badge ag-paid-badge--refunded">✓ Rimborsato</span>
-                                )}
+                                {b.paidInStore && <span className="ag-paid-badge">💵 Pagato</span>}
+                                {b.paidOnline && b.status !== "REFUNDED" && <span className="ag-paid-badge ag-paid-badge--online">💳 Pagato online</span>}
+                                {b.paidOnline && b.status === "REFUNDED" && <span className="ag-paid-badge ag-paid-badge--refunded">✓ Rimborsato</span>}
                               </div>
                               <div className="ag-item__timeMain">
                                 {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
@@ -1490,13 +1500,41 @@ export default function AdminAgendaPage() {
                             )}
                             {b.status === "CONFIRMED" && (
                               <>
-                                <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => changeStatus(b.bookingId, "COMPLETED")}>
+                                <Button
+                                  className="ag-btn ag-btn--ok"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const prev = b.status;
+                                    await changeStatus(b.bookingId, "COMPLETED");
+                                    setCompletedUndo(u => ({ ...u, [b.bookingId]: prev }));
+                                  }}
+                                >
                                   Completa
                                 </Button>
-                                <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => changeStatus(b.bookingId, "NO_SHOW")}>
+                                <Button
+                                  className="ag-btn ag-btn--ghost"
+                                  size="sm"
+                                  onClick={() => setConfirmModal({ type: "noshow", bookingId: b.bookingId, customerName: b.customerName })}
+                                >
                                   Non presentata
                                 </Button>
                               </>
+                            )}
+                            {b.status === "COMPLETED" && completedUndo[b.bookingId] && (
+                              <Button
+                                className="ag-btn ag-btn-undo"
+                                onClick={async () => {
+                                  const prev = completedUndo[b.bookingId];
+                                  await changeStatus(b.bookingId, prev);
+                                  setCompletedUndo(u => {
+                                    const n = { ...u };
+                                    delete n[b.bookingId];
+                                    return n;
+                                  });
+                                }}
+                              >
+                                ↩ Annulla completamento
+                              </Button>
                             )}
                             {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") && (
                               <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => askCancel(b)}>
@@ -1663,12 +1701,18 @@ export default function AdminAgendaPage() {
       {confirmModal && (
         <div className="ag-confirm-overlay" onClick={() => setConfirmModal(null)}>
           <div className="ag-confirm-box" onClick={e => e.stopPropagation()}>
-            <div className="ag-confirm-icon">{confirmModal.type === "delete" ? "🗑️" : "✕"}</div>
-            <div className="ag-confirm-title">{confirmModal.type === "delete" ? "Elimina prenotazione" : "Annulla prenotazione"}</div>
+            <div className="ag-confirm-icon">{confirmModal.type === "delete" ? "🗑️" : confirmModal.type === "noshow" ? "⚠️" : "✕"}</div>
+            <div className="ag-confirm-title">
+              {confirmModal.type === "delete" ? "Elimina prenotazione" : confirmModal.type === "noshow" ? "Cliente non presentata?" : "Annulla prenotazione"}
+            </div>
             <div className="ag-confirm-body">
               {confirmModal.type === "delete" ? (
                 <>
                   Vuoi eliminare definitivamente l&apos;appuntamento di <b>{confirmModal.customerName}</b>? Questa azione è irreversibile.
+                </>
+              ) : confirmModal.type === "noshow" ? (
+                <>
+                  Questa azione segnerà l&apos;appuntamento di <b>{confirmModal.customerName}</b> come non presentato.
                 </>
               ) : (
                 <>
@@ -1689,14 +1733,15 @@ export default function AdminAgendaPage() {
                 Indietro
               </button>
               <button
-                className={`ag-btn ${confirmModal.type === "delete" ? "ag-btn--danger" : "ag-btn--ghost"}`}
+                className={`ag-btn ${confirmModal.type === "delete" ? "ag-btn--danger" : confirmModal.type === "noshow" ? "ag-btn--danger" : "ag-btn--ghost"}`}
                 onClick={() => {
                   if (confirmModal.type === "delete") removeBooking(confirmModal.booking);
+                  else if (confirmModal.type === "noshow") changeStatus(confirmModal.bookingId, "NO_SHOW");
                   else changeStatus(confirmModal.bookingId, "CANCELLED");
                   setConfirmModal(null);
                 }}
               >
-                {confirmModal.type === "delete" ? "Elimina" : "Annulla appuntamento"}
+                {confirmModal.type === "delete" ? "Elimina" : confirmModal.type === "noshow" ? "Conferma" : "Annulla appuntamento"}
               </button>
             </div>
           </div>
@@ -1708,23 +1753,10 @@ export default function AdminAgendaPage() {
           <div className="ag-confirm-box" onClick={e => e.stopPropagation()}>
             <div className="ag-confirm-title">🔒 Blocca fascia oraria</div>
             <div className="d-flex flex-column gap-2 mt-2">
-              <DateTimeField
-                mode="date"
-                value={blockForm.date}
-                onChange={v => setBlockForm(f => ({ ...f, date: v }))}
-                placeholder="Seleziona data"
-              />
+              <DateTimeField mode="date" value={blockForm.date} onChange={v => setBlockForm(f => ({ ...f, date: v }))} placeholder="Seleziona data" />
               <div style={{ display: "flex", gap: 16, justifyContent: "center", margin: "12px 0" }}>
-                <TimePicker
-                  label="Dalle"
-                  value={blockForm.startTime}
-                  onChange={v => setBlockForm(f => ({ ...f, startTime: v }))}
-                />
-                <TimePicker
-                  label="Alle"
-                  value={blockForm.endTime}
-                  onChange={v => setBlockForm(f => ({ ...f, endTime: v }))}
-                />
+                <TimePicker label="Dalle" value={blockForm.startTime} onChange={v => setBlockForm(f => ({ ...f, startTime: v }))} />
+                <TimePicker label="Alle" value={blockForm.endTime} onChange={v => setBlockForm(f => ({ ...f, endTime: v }))} />
               </div>
               <input
                 type="text"
@@ -1735,7 +1767,9 @@ export default function AdminAgendaPage() {
               />
             </div>
             <div className="ag-confirm-actions">
-              <button className="ag-btn ag-btn--ghost" onClick={() => setBlockSlotOpen(false)}>Annulla</button>
+              <button className="ag-btn ag-btn--ghost" onClick={() => setBlockSlotOpen(false)}>
+                Annulla
+              </button>
               <button
                 className="ag-btn ag-btn--primary"
                 disabled={blockSaving || !blockForm.date || !blockForm.startTime || !blockForm.endTime}
@@ -1744,7 +1778,7 @@ export default function AdminAgendaPage() {
                   try {
                     const [sh, sm] = blockForm.startTime.split(":").map(Number);
                     const [eh, em] = blockForm.endTime.split(":").map(Number);
-                    const durationMin = (eh * 60 + em) - (sh * 60 + sm);
+                    const durationMin = eh * 60 + em - (sh * 60 + sm);
                     await createPersonalAppointment({
                       appointmentDate: blockForm.date,
                       startTime: blockForm.startTime,
@@ -1754,8 +1788,11 @@ export default function AdminAgendaPage() {
                     setBlockSlotOpen(false);
                     setBlockForm({ date: "", startTime: "", endTime: "", reason: "" });
                     await refresh();
-                  } catch (e) { setErr(e.message); }
-                  finally { setBlockSaving(false); }
+                  } catch (e) {
+                    setErr(e.message);
+                  } finally {
+                    setBlockSaving(false);
+                  }
                 }}
               >
                 {blockSaving ? "…" : "🔒 Blocca"}
@@ -1834,13 +1871,7 @@ export default function AdminAgendaPage() {
         confirmVariant="primary"
       />
 
-      {showEstimatoModal && (
-        <EstimatoModal
-          bookings={bookings}
-          services={services}
-          onClose={() => setShowEstimatoModal(false)}
-        />
-      )}
+      {showEstimatoModal && <EstimatoModal bookings={bookings} services={services} onClose={() => setShowEstimatoModal(false)} />}
     </Container>
   );
 }

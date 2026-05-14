@@ -812,20 +812,24 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   }, [catalogSearch, filteredCatalogServices]);
 
   // Add a catalog service that has a specific option selected.
-  // Accordion stays open so the user can pick additional options.
+  // Toggle: if this option is already selected, remove it; otherwise add it.
   const addServiceWithOption = useCallback((service, option) => {
-    setSelectedServices(prev => [
-      ...prev,
-      {
-        uid: crypto.randomUUID(),
-        serviceId: service.serviceId,
-        optionId: option.optionId ?? option.id,
-        title: `${service.title} · ${option.name}`,
-        defaultDurationMin: option.durationMin ?? service.durationMin ?? 30,
-        overrideDurationMin: null,
-      },
-    ]);
-    // Do NOT collapse accordion — user may want to add another option.
+    const optId = option.optionId ?? option.id;
+    setSelectedServices(prev => {
+      const alreadyIn = prev.some(ss => ss.serviceId === service.serviceId && ss.optionId === optId);
+      if (alreadyIn) return prev.filter(ss => !(ss.serviceId === service.serviceId && ss.optionId === optId));
+      return [
+        ...prev,
+        {
+          uid: crypto.randomUUID(),
+          serviceId: service.serviceId,
+          optionId: optId,
+          title: `${service.title} · ${option.name}`,
+          defaultDurationMin: option.durationMin ?? service.durationMin ?? 30,
+          overrideDurationMin: null,
+        },
+      ];
+    });
   }, []);
 
   // Total duration: catalog sum (with per-item or total override) + custom/package items
@@ -1592,7 +1596,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       {opts.map(opt => {
                         const optCount = selectedServices.filter(ss => ss.serviceId === s.serviceId && ss.optionId === (opt.optionId ?? opt.id)).length;
                         return (
-                          <button key={opt.optionId ?? opt.id} type="button" className="ag-service-option-item" onClick={() => addServiceWithOption(s, opt)}>
+                          <button key={opt.optionId ?? opt.id} type="button" className={`ag-service-option-item${optCount > 0 ? " ag-service-option-item--selected" : ""}`} onClick={() => addServiceWithOption(s, opt)}>
                             <span className="ag-service-option-item__name">{opt.name}</span>
                             <span className="ag-service-item__meta">
                               {opt.durationMin ? `${opt.durationMin} min` : s.durationMin ? `${s.durationMin} min` : ""}
@@ -1612,18 +1616,22 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               <button
                 key={s.serviceId}
                 type="button"
-                className="ag-service-item"
+                className={`ag-service-item${countInSelected > 0 ? " ag-service-item--selected" : ""}`}
                 onClick={() => {
-                  setSelectedServices(prev => [
-                    ...prev,
-                    {
-                      uid: crypto.randomUUID(),
-                      serviceId: s.serviceId,
-                      title: s.title,
-                      defaultDurationMin: s.durationMin ?? 30,
-                      overrideDurationMin: null,
-                    },
-                  ]);
+                  if (countInSelected > 0) {
+                    setSelectedServices(prev => prev.filter(ss => ss.serviceId !== s.serviceId));
+                  } else {
+                    setSelectedServices(prev => [
+                      ...prev,
+                      {
+                        uid: crypto.randomUUID(),
+                        serviceId: s.serviceId,
+                        title: s.title,
+                        defaultDurationMin: s.durationMin ?? 30,
+                        overrideDurationMin: null,
+                      },
+                    ]);
+                  }
                 }}
               >
                 <span className="ag-service-item__title">{s.title}</span>
@@ -1631,7 +1639,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                   {s.durationMin ? `${s.durationMin} min` : ""}
                   {s.price != null ? ` · €${Number(s.price).toFixed(0)}` : ""}
                 </span>
-                {countInSelected > 0 && <span className="ag-service-item__selected-count">×{countInSelected}</span>}
+                {countInSelected > 0 && <span className="ag-service-item__selected-count">✓</span>}
               </button>
             );
           })}
