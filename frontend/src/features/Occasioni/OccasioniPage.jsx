@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Col, Container, Row } from "react-bootstrap";
 import OccasioniPageSkeleton from "./OccasioniPageSkeleton";
 import { useSelector } from "react-redux";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { EditButton } from "../../components/common/AdminActionButtons";
 import AdminAddButton from "../../components/common/AdminAddButton";
 import AdminToggle from "../../components/common/AdminToggle";
@@ -38,7 +38,6 @@ const getTotalOriginalPrice = (promotion, products, services) => {
 // ═════════════════════════════════════════════════════════════════════════════
 
 function OccasioniPage() {
-  const navigate = useNavigate();
   const { user, accessToken } = useSelector(state => state.auth);
   const [activeTab, setActiveTab] = useState("promozioni");
 
@@ -75,6 +74,8 @@ function OccasioniPage() {
   const [openPkg, setOpenPkg] = useState(false);
   const [editingPkg, setEditingPkg] = useState(null);
   const [allServices, setAllServices] = useState([]);
+  const [groupGenders, setGroupGenders] = useState({});
+  const [groupFilters, setGroupFilters] = useState({});
 
   // IntersectionObserver per promo cards
   const cardsRef = useRef([]);
@@ -282,85 +283,149 @@ function OccasioniPage() {
             />
           )}
 
-          {Object.entries(grouped).map(([serviceName, group]) => (
-            <div key={serviceName} className="of-service-group">
-              <div className="of-service-group-anchor">
-                <span className="of-service-group-anchor__diamond">✦</span>
-                <h2 className="of-service-group-anchor__title">{serviceName}</h2>
-                <div className="of-service-group-anchor__rule" />
-              </div>
-              <div className="of-pkg-grid">
-                {group.items.map(pkg => {
-                  const foundService = allServices.find(s => s.serviceId === pkg.serviceId);
-                  const handleBooking = () => {
-                    const option = {
-                      optionId: pkg.optionId,
-                      name: pkg.optionName,
-                      price: pkg.price,
-                      sessions: pkg.sessions,
-                      durationMin: pkg.durationMin,
-                      gender: pkg.gender,
-                      optionGroup: pkg.optionGroup,
-                    };
-                    setBookingService(foundService ?? null);
-                    setBookingInitialOption(option);
-                    setBookingPromoPrice(null);
-                    setBookingPromoId(null);
-                    setBookingPromoProducts([]);
-                    setOpenBooking(true);
-                  };
-                  return (
-                    <div
-                      key={pkg.optionId}
-                      className={`of-pkg-card${user?.role === "ADMIN" && !(pkg.active ?? true) ? " admin-entity--inactive" : ""}`}
-                      style={{ position: "relative" }}
-                    >
-                      <BadgeFlags badges={pkg?.badges ?? []} />
-                      <div className="of-pkg-sessions-badge">{pkg.sessions} sedute</div>
-                      <div className="of-pkg-body">
-                        <div className="of-pkg-accent" />
-                        <p className="of-pkg-group">
-                          {pkg.gender ? `${pkg.gender} · ` : ""}
-                          {pkg.optionGroup || ""}
-                        </p>
-                        <h3 className="of-pkg-name">{pkg.optionName}</h3>
-                        <div className="of-pkg-price">
-                          <span className="of-pkg-price-value">{Number(pkg.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                          <span className="of-pkg-price-note">/ pacchetto</span>
-                        </div>
-                        <div className="of-pkg-cta-row">
-                          <button className="of-pkg-book-btn" onClick={handleBooking}>
-                            Prenota ora
+          {Object.entries(grouped).map(([serviceName, group]) => {
+            const groupGender = groupGenders[serviceName] ?? null;
+            const groupFilter = groupFilters[serviceName] ?? null;
+            const hasFemale = group.items.some(p => p.gender === "FEMALE");
+            const hasMale = group.items.some(p => p.gender === "MALE");
+            const showGenderToggle = hasFemale && hasMale;
+            const effectiveGender = showGenderToggle ? (groupGender ?? "FEMALE") : null;
+            const allOptionGroups = [...new Set(group.items.map(p => p.optionGroup).filter(Boolean))];
+            const visibleOptionGroups = allOptionGroups.filter(og =>
+              group.items.some(p => p.optionGroup === og && (!effectiveGender || !p.gender || p.gender === effectiveGender))
+            );
+            const hasGroupFilter = visibleOptionGroups.length > 1;
+            const filteredItems = group.items.filter(p => {
+              if (effectiveGender && p.gender && p.gender !== effectiveGender) return false;
+              if (groupFilter && p.optionGroup !== groupFilter) return false;
+              return true;
+            });
+            return (
+              <div key={serviceName} className="of-service-group">
+                <div className="of-service-group-anchor">
+                  <span className="of-service-group-anchor__diamond">✦</span>
+                  <h2 className="of-service-group-anchor__title">{serviceName}</h2>
+                  <div className="of-service-group-anchor__rule" />
+                </div>
+
+                {(showGenderToggle || hasGroupFilter) && (
+                  <div className="of-pkg-filters">
+                    {showGenderToggle && (
+                      <div className="of-tab-bar-services">
+                        <button
+                          className={`of-tab${(groupGender ?? "FEMALE") === "FEMALE" ? " of-tab--active" : ""}`}
+                          onClick={() => {
+                            setGroupGenders(prev => ({ ...prev, [serviceName]: "FEMALE" }));
+                            setGroupFilters(prev => ({ ...prev, [serviceName]: null }));
+                          }}
+                        >
+                          Donna
+                        </button>
+                        <button
+                          className={`of-tab${(groupGender ?? "FEMALE") === "MALE" ? " of-tab--active" : ""}`}
+                          onClick={() => {
+                            setGroupGenders(prev => ({ ...prev, [serviceName]: "MALE" }));
+                            setGroupFilters(prev => ({ ...prev, [serviceName]: null }));
+                          }}
+                        >
+                          Uomo
+                        </button>
+                      </div>
+                    )}
+                    {hasGroupFilter && (
+                      <div className="so-pkg-filter-chips">
+                        <button
+                          className={`so-pkg-chip${!groupFilter ? " so-pkg-chip--active" : ""}`}
+                          onClick={() => setGroupFilters(prev => ({ ...prev, [serviceName]: null }))}
+                        >
+                          Tutti
+                        </button>
+                        {visibleOptionGroups.map(og => (
+                          <button
+                            key={og}
+                            className={`so-pkg-chip${groupFilter === og ? " so-pkg-chip--active" : ""}`}
+                            onClick={() => setGroupFilters(prev => ({ ...prev, [serviceName]: og }))}
+                          >
+                            {og}
                           </button>
-                          <Link to={`/trattamenti/${pkg.serviceId}`} className="of-pkg-link">
-                            Scopri →
-                          </Link>
-                        </div>
-                        {user?.role === "ADMIN" && (
-                          <div className="of-pkg-admin-actions">
-                            <div onClick={e => e.stopPropagation()}>
-                              <AdminToggle
-                                entityId={pkg.optionId}
-                                isActive={pkg.active ?? true}
-                                endpoint="/service-items/options"
-                                onToggleSuccess={newVal => setPackages(prev => prev.map(p => (p.optionId === pkg.optionId ? { ...p, active: newVal } : p)))}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="of-pkg-grid">
+                  {filteredItems.map(pkg => {
+                    const foundService = allServices.find(s => s.serviceId === pkg.serviceId);
+                    const handleBooking = () => {
+                      const option = {
+                        optionId: pkg.optionId,
+                        name: pkg.optionName,
+                        price: pkg.price,
+                        sessions: pkg.sessions,
+                        durationMin: pkg.durationMin,
+                        gender: pkg.gender,
+                        optionGroup: pkg.optionGroup,
+                      };
+                      setBookingService(foundService ?? null);
+                      setBookingInitialOption(option);
+                      setBookingPromoPrice(null);
+                      setBookingPromoId(null);
+                      setBookingPromoProducts([]);
+                      setOpenBooking(true);
+                    };
+                    return (
+                      <div
+                        key={pkg.optionId}
+                        className={`of-pkg-card${user?.role === "ADMIN" && !(pkg.active ?? true) ? " admin-entity--inactive" : ""}`}
+                        style={{ position: "relative" }}
+                      >
+                        <BadgeFlags badges={pkg?.badges ?? []} />
+                        <div className="of-pkg-sessions-badge">{pkg.sessions} sedute</div>
+                        <div className="of-pkg-body">
+                          <div className="of-pkg-accent" />
+                          <p className="of-pkg-group">
+                            {pkg.optionGroup || ""}
+                          </p>
+                          <h3 className="of-pkg-name">{pkg.optionName}</h3>
+                          <div className="of-pkg-price">
+                            <span className="of-pkg-price-value">{Number(pkg.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                            <span className="of-pkg-price-note">/ pacchetto</span>
+                          </div>
+                          <div className="of-pkg-cta-row">
+                            <button className="of-pkg-book-btn" onClick={handleBooking}>
+                              Prenota ora
+                            </button>
+                            <Link to={`/trattamenti/${pkg.serviceId}`} className="of-pkg-link">
+                              Scopri →
+                            </Link>
+                          </div>
+                          {user?.role === "ADMIN" && (
+                            <div className="of-pkg-admin-actions">
+                              <div onClick={e => e.stopPropagation()}>
+                                <AdminToggle
+                                  entityId={pkg.optionId}
+                                  isActive={pkg.active ?? true}
+                                  endpoint="/service-items/options"
+                                  onToggleSuccess={newVal => setPackages(prev => prev.map(p => (p.optionId === pkg.optionId ? { ...p, active: newVal } : p)))}
+                                />
+                              </div>
+                              <EditButton
+                                onClick={() => {
+                                  setEditingPkg(pkg);
+                                  setOpenPkg(true);
+                                }}
                               />
                             </div>
-                            <EditButton
-                              onClick={() => {
-                                setEditingPkg(pkg);
-                                setOpenPkg(true);
-                              }}
-                            />
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </Container>
       )}
 

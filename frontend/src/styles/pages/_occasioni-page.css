@@ -278,6 +278,14 @@
   }
 }
 
+/* ── PER-GROUP PACKAGE FILTERS ── */
+.of-pkg-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
 /* ── ADMIN ACTIONS ── */
 .of-pkg-admin-actions {
   display: flex;

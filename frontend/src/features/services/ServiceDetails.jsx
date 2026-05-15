@@ -22,11 +22,7 @@ function ServiceLikesRow({ serviceId, initialCount }) {
     <div className="sd-likes-row">
       <LikeBurst active={burst} />
       <LikePill count={count} liked={liked} onClick={triggerLike} />
-      {count > 0 && (
-        <span className="sd-likes-label">
-          {count === 1 ? "persona ama questo trattamento" : "persone amano questo trattamento"}
-        </span>
-      )}
+      {count > 0 && <span className="sd-likes-label">{count === 1 ? "persona ama questo trattamento" : "persone amano questo trattamento"}</span>}
     </div>
   );
 }
@@ -59,6 +55,9 @@ const ServiceDetail = () => {
   const [selectedGender, setSelectedGender] = useState("FEMALE");
   const [activeGroup, setActiveGroup] = useState(null);
   const [cartFeedback, setCartFeedback] = useState(false);
+  const [pkgExpanded, setPkgExpanded] = useState(false);
+  const [pkgGender, setPkgGender] = useState(null);
+  const [pkgGroup, setPkgGroup] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const wasCancelled = searchParams.get("cancel") === "1";
   const navigate = useNavigate();
@@ -130,6 +129,28 @@ const ServiceDetail = () => {
   const genderFilteredZoneOptions = hasGenderOptions ? zoneOptions.filter(o => !o.gender || o.gender === selectedGender) : zoneOptions;
   const hasPackages = packageOptions.length > 0;
 
+  const pkgHasFemale = packageOptions.some(o => o.gender === "FEMALE");
+  const pkgHasMale = packageOptions.some(o => o.gender === "MALE");
+  const showPkgGenderToggle = pkgHasFemale && pkgHasMale;
+  const effectivePkgGender = showPkgGenderToggle ? (pkgGender ?? "FEMALE") : null;
+  const pkgGroups = [
+    ...new Set(
+      packageOptions
+        .filter(o => !effectivePkgGender || !o.gender || o.gender === effectivePkgGender)
+        .map(o => o.optionGroup)
+        .filter(Boolean),
+    ),
+  ];
+  const hasPkgGroups = pkgGroups.length > 0;
+  const effectivePkgGroup = pkgGroups.includes(pkgGroup) ? pkgGroup : null;
+  const filteredPackages = packageOptions.filter(o => {
+    if (effectivePkgGender && o.gender && o.gender !== effectivePkgGender) return false;
+    if (effectivePkgGroup && o.optionGroup !== effectivePkgGroup) return false;
+    return true;
+  });
+  const PKG_TEASER = 3;
+  const hasMorePackages = filteredPackages.length > PKG_TEASER;
+
   const visibleZoneOptions =
     hasZoneGroups && activeGroup ? genderFilteredZoneOptions.filter(o => o.optionGroup === activeGroup) : hasZoneGroups ? [] : genderFilteredZoneOptions;
 
@@ -158,19 +179,26 @@ const ServiceDetail = () => {
       alert("Non puoi aggiungere trattamenti insieme a una promozione. Rimuovi la promozione dal carrello prima.");
       return;
     }
-    dispatch(addToCart({
-      id: `service-${service.serviceId}`,
-      type: "service",
-      name: service.title,
-      price: displayPrice ?? 0,
-      durationMinutes: displayDuration ?? service.durationMin ?? 0,
-      serviceId: service.serviceId,
-      image: service.images?.[0] ?? null,
-      quantity: 1,
-    }));
+    dispatch(
+      addToCart({
+        id: `service-${service.serviceId}`,
+        type: "service",
+        name: service.title,
+        price: displayPrice ?? 0,
+        durationMinutes: displayDuration ?? service.durationMin ?? 0,
+        serviceId: service.serviceId,
+        image: service.images?.[0] ?? null,
+        quantity: 1,
+      }),
+    );
     setCartFeedback(true);
     setTimeout(() => setCartFeedback(false), 2500);
   };
+
+  // collapse package list when filters change
+  useEffect(() => {
+    setPkgExpanded(false);
+  }, [pkgGender, pkgGroup]);
 
   const calcSavings = opt => {
     if (!opt?.sessions || opt.sessions < 2 || !service?.price) return null;
@@ -298,10 +326,12 @@ const ServiceDetail = () => {
                           type="button"
                           className={`so-group-pill${activeGroup === g ? " so-group-pill--active" : ""}`}
                           onClick={() => {
-                            setActiveGroup(g);
+                            const closing = activeGroup === g;
+                            setActiveGroup(closing ? null : g);
                             setSelectedOption(null);
                           }}
                         >
+                          <span className="so-group-pill__chevron me-1">{activeGroup === g ? "↑" : "↓"}</span>
                           {g}
                         </button>
                       ))}
@@ -337,34 +367,72 @@ const ServiceDetail = () => {
                   <span className="so-pkg-eyebrow">Pacchetti multi-seduta</span>
                   <span className="so-pkg-subtitle">Prenota più sedute e risparmia rispetto al prezzo singolo</span>
                 </div>
-                <div className="so-pkg-list">
-                  {packageOptions.map(opt => {
-                    const savings = calcSavings(opt);
-                    const isSelected = selectedOption?.optionId === opt.optionId;
-                    return (
-                      <button
-                        key={opt.optionId}
-                        type="button"
-                        className={`so-pkg-card${isSelected ? " so-pkg-card--selected" : ""}`}
-                        onClick={() => setSelectedOption(prev => (prev?.optionId === opt.optionId ? null : opt))}
-                      >
-                        <span className="so-pkg-sessions-badge">{opt.sessions} sedute</span>
-                        <span className="so-pkg-name">{opt.name}</span>
-                        <div className="so-pkg-price-block">
-                          {savings && (
-                            <span className="so-pkg-price-full">{savings.fullPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                          )}
-                          <span className="so-pkg-price-actual">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                        </div>
-                        {savings && (
-                          <span className="so-pkg-savings">Risparmi {savings.saved.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                        )}
-                        {opt.gender && <span className="so-pkg-gender">{opt.gender}</span>}
-                        {isSelected && <span className="so-pkg-check">✓</span>}
+
+                {showPkgGenderToggle && (
+                  <div className="of-tab-bar-services so-pkg-gender-tabs">
+                    <button className={`of-tab${(pkgGender ?? "FEMALE") === "FEMALE" ? " of-tab--active" : ""}`} onClick={() => setPkgGender("FEMALE")}>
+                      Donna
+                    </button>
+                    <button className={`of-tab${(pkgGender ?? "FEMALE") === "MALE" ? " of-tab--active" : ""}`} onClick={() => setPkgGender("MALE")}>
+                      Uomo
+                    </button>
+                  </div>
+                )}
+
+                {hasPkgGroups && (
+                  <div className="so-pkg-filter-chips">
+                    <button className={`so-pkg-chip${effectivePkgGroup === null ? " so-pkg-chip--active" : ""}`} onClick={() => setPkgGroup(null)}>
+                      Tutti
+                    </button>
+                    {pkgGroups.map(g => (
+                      <button key={g} className={`so-pkg-chip${effectivePkgGroup === g ? " so-pkg-chip--active" : ""}`} onClick={() => setPkgGroup(g)}>
+                        {g}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                )}
+
+                <div
+                  className={["so-pkg-list-wrap", hasMorePackages && "so-pkg-list-wrap--has-more", pkgExpanded && "so-pkg-list-wrap--expanded"]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <div className="so-pkg-list">
+                    {filteredPackages.map(opt => {
+                      const savings = calcSavings(opt);
+                      const isSelected = selectedOption?.optionId === opt.optionId;
+                      return (
+                        <button
+                          key={opt.optionId}
+                          type="button"
+                          className={`so-pkg-card${isSelected ? " so-pkg-card--selected" : ""}`}
+                          onClick={() => setSelectedOption(prev => (prev?.optionId === opt.optionId ? null : opt))}
+                        >
+                          <span className="so-pkg-sessions-badge">{opt.sessions} sedute</span>
+                          <span className="so-pkg-name">{opt.name}</span>
+                          <div className="so-pkg-price-block">
+                            {savings && (
+                              <span className="so-pkg-price-full">{savings.fullPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                            )}
+                            <span className="so-pkg-price-actual">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                          </div>
+                          {savings && (
+                            <span className="so-pkg-savings">Risparmi {savings.saved.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                          )}
+                          {opt.gender && <span className="so-pkg-gender">{opt.gender}</span>}
+                          {isSelected && <span className="so-pkg-check">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+
+                {hasMorePackages && (
+                  <button className="so-pkg-expand-btn" onClick={() => setPkgExpanded(prev => !prev)}>
+                    {pkgExpanded ? "Mostra meno ↑" : `Mostra tutti i pacchetti (${filteredPackages.length}) ↓`}
+                  </button>
+                )}
+
                 {selectedOption?.sessions > 1 && <p className="so-pkg-note">Paghi ora la prima seduta · Le successive le fissi con me</p>}
               </div>
             )}
@@ -407,6 +475,10 @@ const ServiceDetail = () => {
 
             <div className="detail-divider" />
 
+            <div className="detail-desc-label">
+              <span className="detail-desc-label__line" />
+              <span className="detail-desc-label__text">Descrizione</span>
+            </div>
             <div className={`detail-description ${showFullDesc ? "expanded" : ""}`}>
               <p>{service.description}</p>
             </div>

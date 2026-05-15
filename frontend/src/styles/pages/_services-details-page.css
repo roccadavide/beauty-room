@@ -338,6 +338,100 @@
   border-top: 1px dashed rgba(184, 151, 106, 0.25);
 }
 
+/* ── PACKAGE BROWSER: gender tabs spacing ── */
+.so-pkg-gender-tabs {
+  margin-bottom: 0.5rem;
+}
+
+/* ── PACKAGE BROWSER: group filter chips ── */
+.so-pkg-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.so-pkg-chip {
+  padding: 0.28rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 151, 106, 0.28);
+  background: transparent;
+  color: #7a6156;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.so-pkg-chip:hover {
+  border-color: #b8976a;
+  color: #2e2118;
+}
+
+.so-pkg-chip--active {
+  background: #b8976a;
+  border-color: #b8976a;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── PACKAGE BROWSER: collapsible wrapper ── */
+.so-pkg-list-wrap {
+  overflow: hidden;
+  position: relative;
+}
+
+.so-pkg-list-wrap--has-more {
+  max-height: 3200px;
+  transition: max-height 0.48s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.so-pkg-list-wrap--has-more:not(.so-pkg-list-wrap--expanded) {
+  max-height: 280px;
+}
+
+.so-pkg-list-wrap--has-more:not(.so-pkg-list-wrap--expanded)::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(to top, #fffdf8 15%, rgba(255, 253, 248, 0) 100%);
+  pointer-events: none;
+}
+
+/* ── PACKAGE BROWSER: expand / collapse control ── */
+.so-pkg-expand-btn {
+  width: 100%;
+  padding: 0.62rem 1rem;
+  border: 1px solid rgba(184, 151, 106, 0.3);
+  border-radius: 12px;
+  background: rgba(184, 151, 106, 0.05);
+  color: #8c6d3f;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 2px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.so-pkg-expand-btn:hover {
+  background: rgba(184, 151, 106, 0.11);
+  border-color: #b8976a;
+}
+
 /* ── CTA stack: wishlist + prenota impilati full-width ── */
 .sd-cta-stack {
   display: flex;
@@ -382,9 +476,28 @@
     color 0.15s;
 }
 
-.detail-cart-btn:hover:not(:disabled) {
-  background: rgba(184, 151, 106, 0.1);
+.detail-cart-btn:hover:not(:disabled):not(.detail-cart-btn--added):not(.detail-cart-btn--feedback) {
+  background: #b8976a;
+  color: #fff;
   border-color: #b8976a;
+}
+
+.detail-cart-btn:active:not(:disabled):not(.detail-cart-btn--added):not(.detail-cart-btn--feedback) {
+  background: #8c6d3f;
+  border-color: #8c6d3f;
+  transform: scale(0.97);
+}
+
+/* ── Zone group pill open/close chevron ── */
+.so-group-pill__chevron {
+  font-size: 0.72em;
+  opacity: 0.55;
+  margin-left: 2px;
+  display: inline-block;
+}
+
+.so-group-pill--active .so-group-pill__chevron {
+  opacity: 0.85;
 }
 
 .detail-cart-btn--added {
