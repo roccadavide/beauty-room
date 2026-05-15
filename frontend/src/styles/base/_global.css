@@ -31,10 +31,10 @@ body {
 
   /* ── Z-index scale ── */
   --z-drawer-backdrop: 1040;
-  --z-drawer-panel:    1050;
-  --z-modal-backdrop:  1060;
-  --z-modal-panel:     1070;
-  --z-toast:           1080;
+  --z-drawer-panel: 1050;
+  --z-modal-backdrop: 1060;
+  --z-modal-panel: 1070;
+  --z-toast: 1080;
 }
 
 body.nav-scrolled {
@@ -123,6 +123,6 @@ a:hover {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   line-height: 1.4;
-  font-family: 'Montserrat', sans-serif;
+  font-family: "Montserrat", sans-serif;
   white-space: nowrap;
 }
