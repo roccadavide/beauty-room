@@ -831,7 +831,7 @@ hr.ag-svc-list-block__divider {
   font-weight: 800;
   color: var(--ag-mocha);
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  line-height: 1.5;
   white-space: nowrap;
 }
 

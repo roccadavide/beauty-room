@@ -23,12 +23,9 @@ import SEO from "../../components/common/SEO";
 
 const getDiscountedPrice = (original, discountType, discountValue) => {
   if (!original || !discountType || !discountValue) return original;
-  if (discountType === "PERCENTAGE")
-    return original - (original * discountValue) / 100;
-  if (discountType === "FIXED")
-    return Math.max(0, original - discountValue);
-  if (discountType === "PRICE_OVERRIDE")
-    return Number(discountValue);
+  if (discountType === "PERCENTAGE") return original - (original * discountValue) / 100;
+  if (discountType === "FIXED") return Math.max(0, original - discountValue);
+  if (discountType === "PRICE_OVERRIDE") return Number(discountValue);
   return original;
 };
 
@@ -63,11 +60,12 @@ function OccasioniPage() {
   const [deleteModal, setDeleteModal] = useState(false);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [drawerPromo, setDrawerPromo] = useState(null);
-  const [bookingService,       setBookingService]       = useState(null);
-  const [bookingPromoPrice,    setBookingPromoPrice]    = useState(null);
-  const [bookingPromoId,       setBookingPromoId]       = useState(null);
+  const [bookingService, setBookingService] = useState(null);
+  const [bookingPromoPrice, setBookingPromoPrice] = useState(null);
+  const [bookingPromoId, setBookingPromoId] = useState(null);
   const [bookingPromoProducts, setBookingPromoProducts] = useState([]);
-  const [openBooking,          setOpenBooking]          = useState(false);
+  const [openBooking, setOpenBooking] = useState(false);
+  const [bookingInitialOption, setBookingInitialOption] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const wasCancelled = searchParams.get("cancel") === "1";
   const cancelPromoId = searchParams.get("promo");
@@ -103,11 +101,7 @@ function OccasioniPage() {
     const isAdmin = user?.role === "ADMIN";
     const load = async () => {
       try {
-        const [promos, prods, servs] = await Promise.all([
-          fetchPromotions(0, 40, "priority", isAdmin),
-          fetchProducts(),
-          fetchServices(),
-        ]);
+        const [promos, prods, servs] = await Promise.all([fetchPromotions(0, 40, "priority", isAdmin), fetchProducts(), fetchServices()]);
         setAllPromos(Array.isArray(promos) ? promos : (promos.content ?? []));
         setProducts(Array.isArray(prods) ? prods : (prods.content ?? []));
         setServices(Array.isArray(servs) ? servs : (servs.content ?? []));
@@ -236,10 +230,7 @@ function OccasioniPage() {
 
   return (
     <Container fluid className="py-4 px-3 px-md-4" style={{ background: "#fffdf8", minHeight: "80vh" }}>
-      <SEO
-        title="Occasioni"
-        description="Promozioni e offerte speciali su trattamenti laser ed estetica avanzata a Calusco d'Adda."
-      />
+      <SEO title="Occasioni" description="Promozioni e offerte speciali su trattamenti laser ed estetica avanzata a Calusco d'Adda." />
       {/* HEAD */}
       <div className="text-center mb-4">
         <span className="section-eyebrow">Convenienza</span>
@@ -292,45 +283,81 @@ function OccasioniPage() {
           )}
 
           {Object.entries(grouped).map(([serviceName, group]) => (
-            <div key={serviceName} className="mb-5">
-              <h2 className="of-service-group-title">{serviceName}</h2>
+            <div key={serviceName} className="of-service-group">
+              <div className="of-service-group-anchor">
+                <span className="of-service-group-anchor__diamond">✦</span>
+                <h2 className="of-service-group-anchor__title">{serviceName}</h2>
+                <div className="of-service-group-anchor__rule" />
+              </div>
               <div className="of-pkg-grid">
-                {group.items.map(pkg => (
-                  <div key={pkg.optionId} className={`of-pkg-card${user?.role === "ADMIN" && !(pkg.active ?? true) ? " admin-entity--inactive" : ""}`} style={{ position: "relative" }}>
-                    <BadgeFlags badges={pkg?.badges ?? []} />
-                    <div className="of-pkg-sessions-badge">{pkg.sessions} sedute</div>
-                    <div className="of-pkg-body">
-                      <div className="of-pkg-accent" />
-                      <p className="of-pkg-group">
-                        {pkg.optionGroup || ""}
-                        {pkg.gender ? ` · ${pkg.gender}` : ""}
-                      </p>
-                      <h3 className="of-pkg-name">{pkg.optionName}</h3>
-                      <div className="of-pkg-price">
-                        <span className="of-pkg-price-value">{Number(pkg.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                        <span className="of-pkg-price-note">/ pacchetto</span>
-                      </div>
-                      <Link to={`/trattamenti/${pkg.serviceId}`} className="of-pkg-link">
-                        Scopri il trattamento →
-                      </Link>
-                      {user?.role === "ADMIN" && (
-                        <div className="of-pkg-admin-actions">
-                          <div onClick={e => e.stopPropagation()}>
-                            <AdminToggle
-                              entityId={pkg.optionId}
-                              isActive={pkg.active ?? true}
-                              endpoint="/service-items/options"
-                              onToggleSuccess={newVal =>
-                                setPackages(prev => prev.map(p => p.optionId === pkg.optionId ? { ...p, active: newVal } : p))
-                              }
+                {group.items.map(pkg => {
+                  const foundService = allServices.find(s => s.serviceId === pkg.serviceId);
+                  const handleBooking = () => {
+                    const option = {
+                      optionId: pkg.optionId,
+                      name: pkg.optionName,
+                      price: pkg.price,
+                      sessions: pkg.sessions,
+                      durationMin: pkg.durationMin,
+                      gender: pkg.gender,
+                      optionGroup: pkg.optionGroup,
+                    };
+                    setBookingService(foundService ?? null);
+                    setBookingInitialOption(option);
+                    setBookingPromoPrice(null);
+                    setBookingPromoId(null);
+                    setBookingPromoProducts([]);
+                    setOpenBooking(true);
+                  };
+                  return (
+                    <div
+                      key={pkg.optionId}
+                      className={`of-pkg-card${user?.role === "ADMIN" && !(pkg.active ?? true) ? " admin-entity--inactive" : ""}`}
+                      style={{ position: "relative" }}
+                    >
+                      <BadgeFlags badges={pkg?.badges ?? []} />
+                      <div className="of-pkg-sessions-badge">{pkg.sessions} sedute</div>
+                      <div className="of-pkg-body">
+                        <div className="of-pkg-accent" />
+                        <p className="of-pkg-group">
+                          {pkg.gender ? `${pkg.gender} · ` : ""}
+                          {pkg.optionGroup || ""}
+                        </p>
+                        <h3 className="of-pkg-name">{pkg.optionName}</h3>
+                        <div className="of-pkg-price">
+                          <span className="of-pkg-price-value">{Number(pkg.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                          <span className="of-pkg-price-note">/ pacchetto</span>
+                        </div>
+                        <div className="of-pkg-cta-row">
+                          <button className="of-pkg-book-btn" onClick={handleBooking}>
+                            Prenota ora
+                          </button>
+                          <Link to={`/trattamenti/${pkg.serviceId}`} className="of-pkg-link">
+                            Scopri →
+                          </Link>
+                        </div>
+                        {user?.role === "ADMIN" && (
+                          <div className="of-pkg-admin-actions">
+                            <div onClick={e => e.stopPropagation()}>
+                              <AdminToggle
+                                entityId={pkg.optionId}
+                                isActive={pkg.active ?? true}
+                                endpoint="/service-items/options"
+                                onToggleSuccess={newVal => setPackages(prev => prev.map(p => (p.optionId === pkg.optionId ? { ...p, active: newVal } : p)))}
+                              />
+                            </div>
+                            <EditButton
+                              onClick={() => {
+                                setEditingPkg(pkg);
+                                setOpenPkg(true);
+                              }}
                             />
                           </div>
-                          <EditButton onClick={() => { setEditingPkg(pkg); setOpenPkg(true); }} />
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -381,9 +408,7 @@ function OccasioniPage() {
                       setDeleteModal(true);
                     }}
                     onClick={promo => setDrawerPromo(promo)}
-                    onToggle={(id, newVal) =>
-                      setAllPromos(prev => prev.map(pr => pr.promotionId === id ? { ...pr, active: newVal } : pr))
-                    }
+                    onToggle={(id, newVal) => setAllPromos(prev => prev.map(pr => (pr.promotionId === id ? { ...pr, active: newVal } : pr)))}
                   />
                 </div>
               );
@@ -434,11 +459,14 @@ function OccasioniPage() {
           setBookingPromoPrice(null);
           setBookingPromoId(null);
           setBookingPromoProducts([]);
+          setBookingInitialOption(null);
         }}
         service={bookingService}
         promoPrice={bookingPromoPrice}
         promotionId={bookingPromoId}
         promoProducts={bookingPromoProducts}
+        initialOption={bookingInitialOption}
+        initialOptionId={bookingInitialOption?.optionId ?? null}
       />
     </Container>
   );

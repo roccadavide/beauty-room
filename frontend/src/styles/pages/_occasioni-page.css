@@ -107,7 +107,7 @@
 
 .of-pkg-name {
   font-family: "Petrona", serif;
-  font-size: 1rem;
+  font-size: 1.3rem;
   font-weight: 700;
   color: #2e2118;
   margin: 0;
@@ -135,29 +135,116 @@
 .of-pkg-link {
   display: inline-flex;
   align-items: center;
-  font-size: 0.82rem;
-  color: #b8976a;
-  font-weight: 600;
+  font-size: 0.75rem;
+  color: #9c8880;
+  font-weight: 500;
   text-decoration: none;
-  margin-top: 0.5rem;
+  border: 1px solid rgba(156, 136, 128, 0.3);
+  border-radius: 999px;
+  padding: 0.38rem 0.85rem;
+  white-space: nowrap;
   transition:
-    gap 0.2s ease,
-    color 0.2s ease;
-  gap: 4px;
+    color 0.2s ease,
+    background 0.2s ease;
+  gap: 3px;
 }
 
 .of-pkg-link:hover {
-  color: #8c6d3f;
-  gap: 8px;
+  color: #7a6156;
+  background: rgba(156, 136, 128, 0.07);
 }
 
-.of-service-group-title {
-  font-family: "Petrona", serif;
-  font-size: 1.3rem;
+/* ── SERVICE GROUP WRAPPER ── */
+.of-service-group {
+  margin-bottom: 4.5rem;
+}
+
+.of-service-group + .of-service-group {
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(184, 151, 106, 0.14);
+}
+
+/* ── SERVICE GROUP EDITORIAL ANCHOR ── */
+.of-service-group-anchor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  margin-bottom: 2rem;
+}
+
+.of-service-group-anchor__diamond {
+  font-size: 0.78rem;
+  color: #b8976a;
+  letter-spacing: 0.25em;
+  line-height: 1;
+}
+
+.of-service-group-anchor__title {
+  font-family: "SaolDisplay-Light", serif;
+  font-size: clamp(1.65rem, 4vw, 2.25rem);
   color: #2e2118;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(180, 148, 106, 0.2);
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+
+.of-service-group-anchor__rule {
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, #b8976a 0%, rgba(184, 151, 106, 0.12) 100%);
+  border-radius: 2px;
+  margin-top: 0.25rem;
+}
+
+/* ── PER-CARD SERVICE CHIP ── */
+.of-pkg-service-chip {
+  display: inline-block;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-weight: 700;
+  color: #8c6d3f;
+  background: rgba(184, 151, 106, 0.1);
+  border: 1px solid rgba(184, 151, 106, 0.28);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  margin-bottom: 0.2rem;
+  width: fit-content;
+}
+
+/* ── BOOKING CTA ROW ── */
+.of-pkg-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.of-pkg-book-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.52rem 1.2rem;
+  background: #b8976a;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.15s ease;
+  white-space: nowrap;
+  flex: 1;
+  justify-content: center;
+}
+
+.of-pkg-book-btn:hover {
+  background: #8c6d3f;
+  transform: translateY(-1px);
 }
 
 /* ── MISC ── */
