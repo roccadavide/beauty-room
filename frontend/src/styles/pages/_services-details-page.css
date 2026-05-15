@@ -461,19 +461,22 @@
 
 /* ── Add to cart button ── */
 .detail-cart-btn {
-  padding: 0.6rem 1.5rem;
-  border: 1.5px solid rgba(184, 151, 106, 0.45);
-  border-radius: 12px;
+  padding: 1rem 1.75rem;
+  border: 1.5px solid #b8976a;
+  border-radius: 10px;
   background: transparent;
-  color: #b8976a;
-  font-size: 0.88rem;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+  color: #8c6d3f;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s,
+    transform 0.15s;
 }
 
 .detail-cart-btn:hover:not(:disabled):not(.detail-cart-btn--added):not(.detail-cart-btn--feedback) {

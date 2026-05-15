@@ -25,11 +25,7 @@ function ProductLikesRow({ productId, initialCount }) {
     <div className="sd-likes-row">
       <LikeBurst active={burst} />
       <LikePill count={count} liked={liked} onClick={triggerLike} />
-      {count > 0 && (
-        <span className="sd-likes-label">
-          {count === 1 ? "persona ama questo prodotto" : "persone amano questo prodotto"}
-        </span>
-      )}
+      {count > 0 && <span className="sd-likes-label">{count === 1 ? "persona ama questo prodotto" : "persone amano questo prodotto"}</span>}
     </div>
   );
 }
@@ -114,10 +110,7 @@ const ProductDetail = () => {
 
   const [relatedRef, relatedVisible] = useInView();
 
-  const activeOptions = useMemo(
-    () => (product?.options ?? []).filter(o => o.active),
-    [product]
-  );
+  const activeOptions = useMemo(() => (product?.options ?? []).filter(o => o.active), [product]);
   const hasOptions = activeOptions.length > 0;
   const [selectedOption, setSelectedOption] = useState(null);
 
@@ -131,13 +124,9 @@ const ProductDetail = () => {
     return [selectedOption.imageUrl, ...rest].filter(Boolean);
   }, [product, selectedOption, hasOptions]);
 
-  const effectiveStock = hasOptions
-    ? (selectedOption?.stock ?? 0)
-    : (product?.stock ?? 0);
+  const effectiveStock = hasOptions ? (selectedOption?.stock ?? 0) : (product?.stock ?? 0);
 
-  const effectivePrice = hasOptions && selectedOption?.price != null
-    ? selectedOption.price
-    : product?.price;
+  const effectivePrice = hasOptions && selectedOption?.price != null ? selectedOption.price : product?.price;
 
   const handleAddToCart = () => {
     dispatch(
@@ -263,28 +252,22 @@ const ProductDetail = () => {
               <span className="detail-trust-pill">✓ Ritiro in negozio</span>
               <span className="detail-trust-pill">✓ Pagamenti sicuri</span>
               <span className="detail-trust-pill">✓ Nessun costo al ritiro</span>
-              <span className="detail-trust-pill">✦ Spostamento facile — Scrivici su WhatsApp</span>
             </div>
 
             {hasOptions && (
               <div className="detail-options">
-                <span className="detail-options__label">
-                  {activeOptions[0]?.optionGroup || "Variante"}
-                </span>
+                <span className="detail-options__label">{activeOptions[0]?.optionGroup || "Variante"}</span>
                 <div className="detail-options__pills">
                   {activeOptions.map(opt => (
                     <button
                       key={opt.productOptionId}
                       className={`detail-option-pill${selectedOption?.productOptionId === opt.productOptionId ? " detail-option-pill--active" : ""}`}
-                      onClick={() => { setSelectedOption(opt); setQty(1); }}
+                      onClick={() => {
+                        setSelectedOption(opt);
+                        setQty(1);
+                      }}
                     >
-                      {opt.imageUrl && (
-                        <img
-                          src={opt.imageUrl}
-                          alt={opt.name}
-                          className="detail-option-pill__thumb"
-                        />
-                      )}
+                      {opt.imageUrl && <img src={opt.imageUrl} alt={opt.name} className="detail-option-pill__thumb" />}
                       <span>{opt.name}</span>
                       {opt.stock === 0 && <span className="detail-option-pill__esaurito">esaurito</span>}
                     </button>
@@ -363,6 +346,10 @@ const ProductDetail = () => {
 
             <div className="detail-divider" />
 
+            <div className="detail-desc-label">
+              <span className="detail-desc-label__line" />
+              <span className="detail-desc-label__text">Descrizione</span>
+            </div>
             <div className={`detail-description ${showFullDesc ? "expanded" : ""}`}>
               <p>{product.description}</p>
             </div>

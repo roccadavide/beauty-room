@@ -58,9 +58,9 @@
     width: 100%;
     flex: none;
     min-width: 0;
-    font-size: 0.84rem;
-    letter-spacing: 0.04em;
-    padding: 0.9rem 1.2rem;
+    font-size: 0.83rem;
+    letter-spacing: 0.07em;
+    padding: 0.95rem 1.25rem;
   }
 }
 
@@ -167,10 +167,10 @@
 }
 
 .detail-desc-label__line {
-  width: 22px;
-  height: 2px;
-  background: linear-gradient(90deg, #b8976a 0%, rgba(184, 151, 106, 0.15) 100%);
-  border-radius: 2px;
+  width: 18px;
+  height: 1.5px;
+  background: #b8976a;
+  border-radius: 1px;
   flex-shrink: 0;
 }
 
