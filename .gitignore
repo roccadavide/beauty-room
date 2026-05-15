@@ -3,6 +3,9 @@ CLAUDE.local.md
 .claude/worktrees/
 .claude/memory/
 .claude/settings.local.json
+.claude/skills/
+.agents/
+skills-lock.json
 
 # Environment
 .env
