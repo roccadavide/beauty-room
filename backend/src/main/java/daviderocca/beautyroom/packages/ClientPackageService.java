@@ -256,46 +256,44 @@ public class ClientPackageService {
                 .sorted(Comparator.comparing(l -> l.getBooking().getStartTime()))
                 .collect(Collectors.toList());
 
-        // Renumber ONLY links not explicitly tracked at creation.
-        // Links with sessionTrackedAtCreation=true keep their explicit sessionNumber.
-        // Auto-numbered links skip any number already claimed by an explicit link.
-        int autoCursor = 0;
-        for (BookingPackageLink link : activeLinks) {
-            Booking bk = link.getBooking();
-            if (!link.isSessionTrackedAtCreation()) {
-                autoCursor++;
-                while (isSessionNumberTaken(activeLinks, link, autoCursor)) autoCursor++;
-                link.setSessionNumber(autoCursor);
-                bk.setCurrentSession(autoCursor);
-            }
-            bk.setTotalSessions(assignment.getTotalSessions());
-        }
-        if (!activeLinks.isEmpty()) {
-            linkRepo.saveAll(activeLinks);
-            bookingRepository.saveAll(
-                    activeLinks.stream().map(BookingPackageLink::getBooking).toList());
+        if (activeLinks.isEmpty()) {
+            // No active sessions — release the full package
+            assignment.setSessionsRemaining(assignment.getTotalSessions());
+            assignment.setStatus(ClientPackageStatus.ACTIVE);
+            assignmentRepo.save(assignment);
+            log.info("recalculate: assignmentId={} no active links — remaining={}",
+                    packageAssignmentId, assignment.getTotalSessions());
+            return;
         }
 
-        // sessionsRemaining based on MAX sessionNumber, not link count.
-        // So "session 3 of 10" with a single physical link → remaining = 10 − 3 = 7.
-        int maxSessionUsed = activeLinks.stream()
-                .mapToInt(BookingPackageLink::getSessionNumber)
-                .max()
-                .orElse(0);
+        // Anchor-based renumbering:
+        //   The first chronological link "anchors" its sessionNumber.
+        //   All subsequent links follow as anchor+1, anchor+2, ...
+        // This preserves an explicitly-set initial number (e.g. "seduta 3 di 10")
+        // while still auto-scaling the rest when a session in the middle is cancelled.
+        int anchor = activeLinks.get(0).getSessionNumber();
+        if (anchor < 1) anchor = 1;  // safety fallback if the anchor was never set
+
+        for (int i = 0; i < activeLinks.size(); i++) {
+            BookingPackageLink link = activeLinks.get(i);
+            Booking bk = link.getBooking();
+            int newSessionNum = anchor + i;
+            link.setSessionNumber(newSessionNum);
+            bk.setCurrentSession(newSessionNum);
+            bk.setTotalSessions(assignment.getTotalSessions());
+        }
+        linkRepo.saveAll(activeLinks);
+        bookingRepository.saveAll(
+                activeLinks.stream().map(BookingPackageLink::getBooking).toList());
+
+        int maxSessionUsed = anchor + activeLinks.size() - 1;
         int sessionsRemaining = Math.max(assignment.getTotalSessions() - maxSessionUsed, 0);
         assignment.setSessionsRemaining(sessionsRemaining);
         assignment.setStatus(sessionsRemaining <= 0 ? ClientPackageStatus.EXHAUSTED : ClientPackageStatus.ACTIVE);
         assignmentRepo.save(assignment);
 
-        log.info("recalculate: assignmentId={} maxSession={} sessionsRemaining={} status={}",
-                packageAssignmentId, maxSessionUsed, sessionsRemaining, assignment.getStatus());
-    }
-
-    private boolean isSessionNumberTaken(List<BookingPackageLink> links, BookingPackageLink current, int n) {
-        return links.stream()
-                .anyMatch(l -> l != current
-                        && l.isSessionTrackedAtCreation()
-                        && l.getSessionNumber() == n);
+        log.info("recalculate: assignmentId={} anchor={} count={} maxSession={} sessionsRemaining={}",
+                packageAssignmentId, anchor, activeLinks.size(), maxSessionUsed, sessionsRemaining);
     }
 
     /**

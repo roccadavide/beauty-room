@@ -691,8 +691,22 @@ public class BookingService {
                 } else if (saved.isCustomService() && saved.getCustomServiceName() != null) {
                     pkg.setCustomPackageName(saved.getCustomServiceName().trim());
                 }
-                log.info("CASE A: creating implicit assignment for client '{}'", saved.getCustomerName());
+                // Store the primary option so future CASE C bookings on this package can
+                // resolve the correct duration via pkg.getServiceOption(). Without this
+                // the frontend falls back to a hardcoded 60-minute default.
+                if (primaryOption != null) {
+                    pkg.setServiceOption(primaryOption);
+                }
+                log.info("CASE A: creating implicit assignment for client '{}' (option={})",
+                        saved.getCustomerName(),
+                        primaryOption != null ? primaryOption.getOptionId() : "none");
             } else {
+                // Backfill serviceOption on legacy packages that were created without it.
+                // Future CASE C bookings on this package will then resolve duration correctly.
+                if (pkg.getServiceOption() == null && primaryOption != null) {
+                    pkg.setServiceOption(primaryOption);
+                    log.info("CASE B: backfilling serviceOption for assignmentId={}", pkg.getId());
+                }
                 log.info("CASE B: reusing assignmentId={} for client '{}'",
                         pkg.getId(), saved.getCustomerName());
             }
