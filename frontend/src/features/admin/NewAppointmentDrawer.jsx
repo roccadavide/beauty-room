@@ -652,6 +652,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         };
       });
     }
+    // Package-linked bookings with no booking_services extras: do NOT pre-fill
+    // selectedServices with the booking's primary service. That service is the
+    // package's underlying service, and the package itself (via selectedPackageId)
+    // already accounts for its duration. Pre-filling here would double-count.
+    if (editBooking.linkedPackage?.packageAssignmentId) {
+      return [];
+    }
     // Case 2: legacy single serviceId — look up from services catalog for accurate data
     if (editBooking.serviceId) {
       const match = services.find(s => String(s.serviceId) === String(editBooking.serviceId));
@@ -865,20 +872,33 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       }
       return sum;
     }, 0);
-    // When only a top-level package is selected (no services added), derive duration
-    // from the package's linked service so slots can be fetched.
     let base = catalogDur + itemsDur;
+
+    // Always include the duration of the currently-selected active package,
+    // on top of any extras. Prefer option duration > service duration > 60min fallback.
     const activePkgId = selectedPackageId || selectedPackageCreditId;
-    if (base === 0 && activePkgId) {
+    if (activePkgId) {
       const pkg = activePackages.find(p => p.id === activePkgId);
+      let pkgDuration = null;
       if (pkg?.serviceOptionId) {
+        // Find the service that contains this option, then prefer the option's own duration
         const svc = services.find(s =>
-          (s.options || s.serviceOptionList || s.serviceOptions || []).some(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId)),
+          (s.options || s.serviceOptionList || s.serviceOptions || []).some(
+            o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId),
+          ),
         );
-        base = svc?.durationMin ?? 60;
-      } else {
-        base = 60;
+        if (svc) {
+          const opts = svc.options || svc.serviceOptionList || svc.serviceOptions || [];
+          const opt = opts.find(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId));
+          pkgDuration = opt?.durationMin ?? svc.durationMin;
+        }
+      } else if (pkg?.serviceTitle) {
+        // Option-less package: match the catalog service by title
+        const name = pkg.serviceTitle.trim().toLowerCase();
+        const svc = services.find(s => s.title?.trim().toLowerCase() === name);
+        pkgDuration = svc?.durationMin;
       }
+      base += pkgDuration ?? 60;
     }
     return totalDurationOverride ?? base;
   }, [selectedServices, totalDurationOverride, serviceItems, services, clientPackages, selectedPackageId, selectedPackageCreditId, activePackages]);
@@ -1279,8 +1299,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         paddingMinutes: paddingMinutes > 0 ? paddingMinutes : null,
         currentSession: currentSession ? parseInt(currentSession, 10) : null,
         totalSessions: totalSessions ? parseInt(totalSessions, 10) : null,
-        serviceIds: (selectedPackageId || selectedPackageCreditId || pkgItem) ? [] : catalogIds,
-        serviceEntries: (selectedPackageId || selectedPackageCreditId || pkgItem) ? [] : selectedServices.map(ss => ({
+        serviceIds: catalogIds,
+        serviceEntries: selectedServices.map(ss => ({
           serviceId: ss.serviceId,
           optionId: ss.optionId ?? null,
           overrideDurationMin: ss.overrideDurationMin ?? null,
