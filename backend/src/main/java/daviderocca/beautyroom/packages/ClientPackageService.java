@@ -2,6 +2,7 @@ package daviderocca.beautyroom.packages;
 
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
+import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
@@ -66,6 +67,10 @@ public class ClientPackageService {
             ServiceOption option = serviceOptionRepo.findById(req.serviceOptionId())
                     .orElseThrow(() -> new ResourceNotFoundException("ServiceOption not found: " + req.serviceOptionId()));
             assignment.setServiceOption(option);
+            // Derive direct service FK from the option so option-less code paths still work
+            if (option.getService() != null) {
+                assignment.setService(option.getService());
+            }
         }
 
         // Explicit linked user override (admin can pre-link)
@@ -145,8 +150,13 @@ public class ClientPackageService {
             ServiceOption option = serviceOptionRepo.findById(req.serviceOptionId())
                     .orElseThrow(() -> new ResourceNotFoundException("ServiceOption not found: " + req.serviceOptionId()));
             assignment.setServiceOption(option);
+            if (option.getService() != null) {
+                assignment.setService(option.getService());
+            }
         } else {
             assignment.setServiceOption(null);
+            // Note: we do NOT clear assignment.service here. The admin may want the
+            // package to stay tied to the underlying service even when the option is cleared.
         }
 
         if (req.linkedUserId() != null) {
@@ -339,13 +349,21 @@ public class ClientPackageService {
     public Optional<PackageSummaryDTO> getPackageSummaryForBooking(UUID bookingId) {
         return linkRepo.findByBookingBookingId(bookingId).map(link -> {
             ClientPackageAssignment a = link.getAssignment();
-            String name = a.getCustomPackageName() != null
-                    ? a.getCustomPackageName()
-                    : (a.getServiceOption() != null
-                            ? (a.getServiceOption().getService() != null
-                                    ? a.getServiceOption().getService().getTitle()
-                                    : a.getServiceOption().getName())
-                            : a.getClientName());
+            String name;
+            ServiceItem svc = a.getService() != null
+                    ? a.getService()
+                    : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
+            if (a.getServiceOption() != null && svc != null) {
+                name = svc.getTitle() + " · " + a.getServiceOption().getName();
+            } else if (a.getServiceOption() != null) {
+                name = a.getServiceOption().getName();
+            } else if (svc != null) {
+                name = svc.getTitle();
+            } else if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+                name = a.getCustomPackageName();
+            } else {
+                name = a.getClientName();
+            }
             return new PackageSummaryDTO(a.getId(), name, a.getSessionsRemaining());
         });
     }
@@ -396,15 +414,34 @@ public class ClientPackageService {
     }
 
     ClientPackageAssignmentDTO toDTO(ClientPackageAssignment a) {
-        String displayName = (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank())
-                ? a.getCustomPackageName()
-                : (a.getServiceOption() != null ? a.getServiceOption().getName() : "Pacchetto senza nome");
-        String serviceTitle = (a.getServiceOption() != null && a.getServiceOption().getService() != null)
-                ? a.getServiceOption().getService().getTitle()
-                : null;
-        UUID serviceId = (a.getServiceOption() != null && a.getServiceOption().getService() != null)
-                ? a.getServiceOption().getService().getServiceId()
-                : null;
+        // Service title: prefer direct service FK, fall back to serviceOption.service (legacy)
+        String serviceTitle = a.getService() != null
+                ? a.getService().getTitle()
+                : (a.getServiceOption() != null && a.getServiceOption().getService() != null
+                        ? a.getServiceOption().getService().getTitle()
+                        : null);
+        UUID serviceId = a.getService() != null
+                ? a.getService().getServiceId()
+                : (a.getServiceOption() != null && a.getServiceOption().getService() != null
+                        ? a.getServiceOption().getService().getServiceId()
+                        : null);
+        // Display name preference order:
+        //   1. service title · option name  (catalog with option)
+        //   2. service title                (catalog without option)
+        //   3. customPackageName            (truly custom free-form package)
+        //   4. fallback
+        String displayName;
+        if (a.getServiceOption() != null && serviceTitle != null) {
+            displayName = serviceTitle + " · " + a.getServiceOption().getName();
+        } else if (a.getServiceOption() != null) {
+            displayName = a.getServiceOption().getName();
+        } else if (serviceTitle != null) {
+            displayName = serviceTitle;
+        } else if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+            displayName = a.getCustomPackageName();
+        } else {
+            displayName = "Pacchetto senza nome";
+        }
         return new ClientPackageAssignmentDTO(
                 a.getId(),
                 a.getClientName(),

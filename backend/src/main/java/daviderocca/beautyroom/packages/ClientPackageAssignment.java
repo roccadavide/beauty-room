@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.packages;
 
+import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
@@ -30,6 +31,14 @@ public class ClientPackageAssignment {
 
     @Column(name = "client_name", nullable = false, length = 255)
     private String clientName;
+
+    /**
+     * Direct reference to the catalog service. Independent of serviceOption,
+     * so option-less services (e.g. Laminazione ciglia) can be associated with a package.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id")
+    private ServiceItem service;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_option_id")

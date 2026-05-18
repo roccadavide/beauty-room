@@ -618,8 +618,9 @@ public class BookingService {
 
         if (hasPkg) {
             // CASE C — packageAssignmentId provided. Direct-compute session number (mirror CASE A/B);
-            // no recalculate. After the previous fix, recalculate respects sessionTrackedAtCreation
-            // and would skip this link forever if we set the old placeholder=0.
+            // no recalculate. Also inherit service+serviceOption from the package onto the booking
+            // when the booking has no catalog services of its own, so the agenda shows the correct
+            // title/option/price and the linked package is discoverable in edit mode.
             if (assignment.getSessionsRemaining() <= 0) {
                 throw new BadRequestException("Il pacchetto non ha sessioni rimanenti.");
             }
@@ -628,8 +629,23 @@ public class BookingService {
             int newSessionNumber = (dto.currentSession() != null && dto.currentSession() > 0)
                     ? dto.currentSession()
                     : sessionsUsedBefore + 1;
-            // sessionsRemaining = totalSessions − highest session number used (consistent with CASE A/B)
             int newRemaining = Math.max(0, assignment.getTotalSessions() - newSessionNumber);
+
+            // Inherit service/option from the package when the booking has none.
+            // This is what makes the agenda show "Epilazione laser · Inguine" instead of empty,
+            // and what makes the price/duration derivable in the UI.
+            if (saved.getService() == null) {
+                ServiceItem pkgService = assignment.getService();
+                if (pkgService == null && assignment.getServiceOption() != null) {
+                    pkgService = assignment.getServiceOption().getService();
+                }
+                if (pkgService != null) {
+                    saved.setService(pkgService);
+                }
+            }
+            if (saved.getServiceOption() == null && assignment.getServiceOption() != null) {
+                saved.setServiceOption(assignment.getServiceOption());
+            }
 
             BookingPackageLink pkgLink = new BookingPackageLink();
             pkgLink.setBooking(saved);
@@ -648,9 +664,11 @@ public class BookingService {
             saved.setTotalSessions(assignment.getTotalSessions());
             bookingRepository.save(saved);
 
-            log.info("CASE C: bookingId={} linked to assignmentId={} session {}/{} (remaining={})",
+            log.info("CASE C: bookingId={} linked to assignmentId={} session {}/{} (remaining={}, inheritedService={}, inheritedOption={})",
                     saved.getBookingId(), assignment.getId(),
-                    newSessionNumber, assignment.getTotalSessions(), newRemaining);
+                    newSessionNumber, assignment.getTotalSessions(), newRemaining,
+                    saved.getService() != null ? saved.getService().getServiceId() : "none",
+                    saved.getServiceOption() != null ? saved.getServiceOption().getOptionId() : "none");
         } else if (hasPkgCredit) {
             // CASE D — packageCreditId provided: PackageCredit FK already set before save.
             // Session will be decremented by packageCreditService.consumeSessionForBooking()
@@ -671,12 +689,19 @@ public class BookingService {
                     .findActiveAssignmentsByClientName(saved.getCustomerName())
                     .stream()
                     .filter(a -> {
-                        if (primaryServiceId != null
-                                && a.getServiceOption() != null
-                                && a.getServiceOption().getService() != null
-                                && a.getServiceOption().getService().getServiceId().equals(primaryServiceId)) {
-                            return true;
+                        if (primaryServiceId != null) {
+                            // Match by direct service FK (new)
+                            if (a.getService() != null && a.getService().getServiceId().equals(primaryServiceId)) {
+                                return true;
+                            }
+                            // Or via serviceOption.service.id (legacy packages with serviceOption but no service FK)
+                            if (a.getServiceOption() != null
+                                    && a.getServiceOption().getService() != null
+                                    && a.getServiceOption().getService().getServiceId().equals(primaryServiceId)) {
+                                return true;
+                            }
                         }
+                        // Last resort: match by customPackageName (truly custom packages or pre-migration legacy)
                         return primaryTitle != null
                                 && primaryTitle.equalsIgnoreCase(a.getCustomPackageName());
                     })
@@ -686,26 +711,38 @@ public class BookingService {
             if (pkg == null) {
                 pkg = new ClientPackageAssignment();
                 pkg.setClientName(saved.getCustomerName());
-                if (primaryTitle != null) {
-                    pkg.setCustomPackageName(primaryTitle);
+                if (primaryService != null) {
+                    // Catalog service — store both service and (optional) option directly.
+                    // Display name is derived from these in toDTO/toAdminCard, so we do NOT
+                    // set customPackageName here.
+                    pkg.setService(primaryService);
+                    if (primaryOption != null) {
+                        pkg.setServiceOption(primaryOption);
+                    }
                 } else if (saved.isCustomService() && saved.getCustomServiceName() != null) {
+                    // Truly custom (free-form) name — no catalog reference
                     pkg.setCustomPackageName(saved.getCustomServiceName().trim());
                 }
-                // Store the primary option so future CASE C bookings on this package can
-                // resolve the correct duration via pkg.getServiceOption(). Without this
-                // the frontend falls back to a hardcoded 60-minute default.
-                if (primaryOption != null) {
-                    pkg.setServiceOption(primaryOption);
-                }
-                log.info("CASE A: creating implicit assignment for client '{}' (option={})",
+                log.info("CASE A: creating implicit assignment for client '{}' (service={}, option={})",
                         saved.getCustomerName(),
+                        primaryService != null ? primaryService.getServiceId() : "none",
                         primaryOption != null ? primaryOption.getOptionId() : "none");
             } else {
-                // Backfill serviceOption on legacy packages that were created without it.
-                // Future CASE C bookings on this package will then resolve duration correctly.
+                // Backfill service and serviceOption on legacy packages that were created without them
+                boolean changed = false;
+                if (pkg.getService() == null && primaryService != null) {
+                    pkg.setService(primaryService);
+                    changed = true;
+                }
                 if (pkg.getServiceOption() == null && primaryOption != null) {
                     pkg.setServiceOption(primaryOption);
-                    log.info("CASE B: backfilling serviceOption for assignmentId={}", pkg.getId());
+                    changed = true;
+                }
+                if (changed) {
+                    log.info("CASE B: backfilling service/option for assignmentId={} (service={}, option={})",
+                            pkg.getId(),
+                            primaryService != null ? primaryService.getServiceId() : "unchanged",
+                            primaryOption != null ? primaryOption.getOptionId() : "unchanged");
                 }
                 log.info("CASE B: reusing assignmentId={} for client '{}'",
                         pkg.getId(), saved.getCustomerName());
@@ -1671,13 +1708,21 @@ public class BookingService {
                 ClientPackageAssignment a = link.getAssignment();
                 if (link.getSessionNumber() > 0) linkSessionNumber = link.getSessionNumber();
                 linkTotalSessions = a.getTotalSessions();
-                String pkgName = a.getCustomPackageName() != null
-                        ? a.getCustomPackageName()
-                        : (a.getServiceOption() != null
-                                ? (a.getServiceOption().getService() != null
-                                        ? a.getServiceOption().getService().getTitle()
-                                        : a.getServiceOption().getName())
-                                : "Trattamento");
+                String pkgName;
+                ServiceItem pkgSvc = a.getService() != null
+                        ? a.getService()
+                        : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
+                if (a.getServiceOption() != null && pkgSvc != null) {
+                    pkgName = pkgSvc.getTitle() + " · " + a.getServiceOption().getName();
+                } else if (a.getServiceOption() != null) {
+                    pkgName = a.getServiceOption().getName();
+                } else if (pkgSvc != null) {
+                    pkgName = pkgSvc.getTitle();
+                } else if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+                    pkgName = a.getCustomPackageName();
+                } else {
+                    pkgName = "Trattamento";
+                }
                 linkedPkg = new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining());
             }
         } catch (Exception e) {
@@ -1835,13 +1880,21 @@ public class BookingService {
                     .findByBookingBookingIdWithAssignment(booking.getBookingId())
                     .map(link -> {
                         ClientPackageAssignment a = link.getAssignment();
-                        String pkgName = a.getCustomPackageName() != null
-                                ? a.getCustomPackageName()
-                                : (a.getServiceOption() != null
-                                        ? (a.getServiceOption().getService() != null
-                                                ? a.getServiceOption().getService().getTitle()
-                                                : a.getServiceOption().getName())
-                                        : "Trattamento");
+                        String pkgName;
+                        ServiceItem pkgSvc = a.getService() != null
+                                ? a.getService()
+                                : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
+                        if (a.getServiceOption() != null && pkgSvc != null) {
+                            pkgName = pkgSvc.getTitle() + " · " + a.getServiceOption().getName();
+                        } else if (a.getServiceOption() != null) {
+                            pkgName = a.getServiceOption().getName();
+                        } else if (pkgSvc != null) {
+                            pkgName = pkgSvc.getTitle();
+                        } else if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+                            pkgName = a.getCustomPackageName();
+                        } else {
+                            pkgName = "Trattamento";
+                        }
                         return new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining());
                     })
                     .orElse(null);
