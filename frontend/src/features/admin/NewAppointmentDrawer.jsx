@@ -1277,17 +1277,17 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         startTime: effectiveTime,
         notes: notes.trim() || null,
         paddingMinutes: paddingMinutes > 0 ? paddingMinutes : null,
-        currentSession: selectedPackageId || selectedPackageCreditId ? null : currentSession ? parseInt(currentSession, 10) : null,
-        totalSessions: selectedPackageId || selectedPackageCreditId ? null : totalSessions ? parseInt(totalSessions, 10) : null,
-        serviceIds: catalogIds,
-        serviceEntries: selectedServices.map(ss => ({
+        currentSession: currentSession ? parseInt(currentSession, 10) : null,
+        totalSessions: totalSessions ? parseInt(totalSessions, 10) : null,
+        serviceIds: (selectedPackageId || selectedPackageCreditId || pkgItem) ? [] : catalogIds,
+        serviceEntries: (selectedPackageId || selectedPackageCreditId || pkgItem) ? [] : selectedServices.map(ss => ({
           serviceId: ss.serviceId,
           optionId: ss.optionId ?? null,
           overrideDurationMin: ss.overrideDurationMin ?? null,
           prezzoOverride: ss.prezzoOverride ?? null,
         })),
         customTotalDurationMin: totalDurationOverride ?? (
-          (selectedPackageId != null || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null))
+          (selectedPackageId != null || selectedPackageCreditId != null || pkgItem != null || selectedServices.some(ss => ss.overrideDurationMin != null))
             ? totalDuration
             : null
         ),
@@ -1301,6 +1301,23 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         paidInStore,
       };
 
+      // TEMP DEBUG — remove after investigation
+      console.log('[NAD] PAYLOAD DEBUG', JSON.stringify({
+        currentSession: payload.currentSession,
+        totalSessions: payload.totalSessions,
+        packageAssignmentId: payload.packageAssignmentId,
+        packageCreditId: payload.packageCreditId,
+        serviceIds: payload.serviceIds,
+        serviceEntries: payload.serviceEntries,
+        customTotalDurationMin: payload.customTotalDurationMin,
+        selectedPackageId_state: selectedPackageId,
+        selectedPackageCreditId_state: selectedPackageCreditId,
+        pkgItem_type: pkgItem?.type,
+        pkgItem_packageAssignmentId: pkgItem?.packageAssignmentId,
+        resolvedPackageAssignmentId,
+        currentSession_state: currentSession,
+        totalSessions_state: totalSessions,
+      }, null, 2));
       if (isEditMode) {
         await updateBooking(editBooking.bookingId, payload);
         onSuccess("Appuntamento aggiornato");
@@ -1480,6 +1497,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       setSelectedPackageId(isSelected ? null : pkg.id);
                       setSelectedPackageCreditId(null);
                     }
+                    setSelectedServices([]);
                   };
                   return (
                     <div

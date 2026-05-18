@@ -411,6 +411,15 @@ public class BookingService {
      */
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO createMultiServiceBooking(AdminBookingCreateDTO dto, User currentUser) {
+        // TEMP DEBUG — remove after investigation
+        System.out.println("[BookingService] createMultiServiceBooking RECEIVED:" +
+                " currentSession=" + dto.currentSession() +
+                " totalSessions=" + dto.totalSessions() +
+                " packageAssignmentId=" + dto.packageAssignmentId() +
+                " packageCreditId=" + dto.packageCreditId() +
+                " serviceIds=" + dto.serviceIds() +
+                " serviceEntries=" + (dto.serviceEntries() != null ? dto.serviceEntries().size() + " entries" : "null") +
+                " customTotalDurationMin=" + dto.customTotalDurationMin());
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni.");
 
         // ── Step 1: validate at least one service source ──────────────────────
@@ -621,6 +630,17 @@ public class BookingService {
             bookingPackageLinkRepository.save(pkgLink);
 
             clientPackageService.recalculatePackageSessions(assignment.getId());
+            // If the admin explicitly provided a session number, restore it after recalculate
+            // (recalculate assigns chronological i+1 which may not match the explicit value).
+            if (dto.currentSession() != null) {
+                saved.setCurrentSession(dto.currentSession());
+                bookingRepository.save(saved);
+                bookingPackageLinkRepository.findByBookingBookingIdWithAssignment(saved.getBookingId())
+                        .ifPresent(lnk -> {
+                            lnk.setSessionNumber(dto.currentSession());
+                            bookingPackageLinkRepository.save(lnk);
+                        });
+            }
             log.info("CASE C: linked bookingId={} to assignmentId={} → recalculated",
                     saved.getBookingId(), assignment.getId());
 
@@ -632,54 +652,73 @@ public class BookingService {
                     saved.getBookingId(), packageCredit.getPackageCreditId());
 
         } else if (hasSessionNumbers) {
-            // CASE A / CASE B — admin filled in totalSessions; link and recalculate.
-            // CASE B only reuses an existing package when it is for the same catalog service
-            // (matched by serviceOption.service.serviceId). A custom-service booking or a booking
-            // whose primary service does not match any active package always takes CASE A.
+            // CASE A / CASE B — explicit session numbers provided without a preselected package.
+            // Creates (or reuses) an implicit package and links the booking directly with the
+            // explicit sessionNumber — no recalculate, no post-hoc override.
             final UUID primaryServiceId = (primaryService != null) ? primaryService.getServiceId() : null;
+            final String primaryTitle = (primaryService != null) ? primaryService.getTitle() : null;
+
+            // Extended match: serviceOption.service.id (legacy) OR customPackageName == primary service title.
+            // This lets us reuse implicit packages created in previous runs.
             ClientPackageAssignment pkg = clientPackageService
                     .findActiveAssignmentsByClientName(saved.getCustomerName())
                     .stream()
-                    .filter(a -> primaryServiceId != null
-                            && a.getServiceOption() != null
-                            && a.getServiceOption().getService() != null
-                            && a.getServiceOption().getService().getServiceId().equals(primaryServiceId))
+                    .filter(a -> {
+                        if (primaryServiceId != null
+                                && a.getServiceOption() != null
+                                && a.getServiceOption().getService() != null
+                                && a.getServiceOption().getService().getServiceId().equals(primaryServiceId)) {
+                            return true;
+                        }
+                        return primaryTitle != null
+                                && primaryTitle.equalsIgnoreCase(a.getCustomPackageName());
+                    })
                     .findFirst()
                     .orElse(null);
 
             if (pkg == null) {
-                // CASE A: no matching active package found — create one
                 pkg = new ClientPackageAssignment();
                 pkg.setClientName(saved.getCustomerName());
-                pkg.setTotalSessions(dto.totalSessions());
-                pkg.setSessionsRemaining(dto.totalSessions()); // recalculate will override
-                pkg.setStatus(ClientPackageStatus.ACTIVE);
-                // Derive a display name from the booking's primary service so the
-                // package card shows a meaningful title instead of nothing.
-                if (!catalogServices.isEmpty()) {
-                    pkg.setCustomPackageName(catalogServices.get(0).getTitle());
+                if (primaryTitle != null) {
+                    pkg.setCustomPackageName(primaryTitle);
                 } else if (saved.isCustomService() && saved.getCustomServiceName() != null) {
                     pkg.setCustomPackageName(saved.getCustomServiceName().trim());
                 }
-                log.info("CASE A: creating new assignment for client '{}'", saved.getCustomerName());
+                log.info("CASE A: creating implicit assignment for client '{}'", saved.getCustomerName());
             } else {
-                // CASE B: update total sessions; recalculate will set remaining
-                pkg.setTotalSessions(dto.totalSessions());
-                log.info("CASE B: updating existing assignmentId={} for client '{}'",
+                log.info("CASE B: reusing assignmentId={} for client '{}'",
                         pkg.getId(), saved.getCustomerName());
             }
+
+            pkg.setTotalSessions(dto.totalSessions());
+            // sessionsRemaining = totalSessions − currentSession (sessions left AFTER this one)
+            int remaining = Math.max(0, dto.totalSessions() - dto.currentSession());
+            pkg.setSessionsRemaining(remaining);
+            pkg.setStatus(remaining == 0 ? ClientPackageStatus.EXHAUSTED : ClientPackageStatus.ACTIVE);
             pkg = clientPackageService.saveAssignment(pkg);
 
+            // Direct link with explicit sessionNumber — no recalculate, no subsequent override.
             BookingPackageLink pkgLink = new BookingPackageLink();
             pkgLink.setBooking(saved);
             pkgLink.setAssignment(pkg);
-            pkgLink.setSessionNumber(0); // placeholder; set correctly by recalculate below
+            pkgLink.setSessionNumber(dto.currentSession());
             pkgLink.setSessionTrackedAtCreation(true);
             bookingPackageLinkRepository.save(pkgLink);
 
-            clientPackageService.recalculatePackageSessions(pkg.getId());
-            log.info("CASE A/B: linked bookingId={} to assignmentId={} totalSessions={} → recalculated",
-                    saved.getBookingId(), pkg.getId(), dto.totalSessions());
+            saved.setCurrentSession(dto.currentSession());
+            saved.setTotalSessions(dto.totalSessions());
+
+            // Clear booking_services to avoid duplication "package label + standalone service" in agenda.
+            entityManager.createNativeQuery(
+                            "DELETE FROM booking_services WHERE booking_id = :bookingId")
+                    .setParameter("bookingId", saved.getBookingId())
+                    .executeUpdate();
+            saved.setServices(new ArrayList<>());
+            bookingRepository.save(saved);
+
+            log.info("CASE A/B done: bookingId={} pkg={} session {}/{} remaining={}",
+                    saved.getBookingId(), pkg.getId(),
+                    dto.currentSession(), dto.totalSessions(), remaining);
         }
 
         // ── Step 7: auto account-linking ──────────────────────────────────────
@@ -1342,6 +1381,16 @@ public class BookingService {
         }
 
         maybeRecalculatePackage(bookingId);
+        // If the admin explicitly provided a session number, restore it after recalculate.
+        if (dto.currentSession() != null) {
+            found.setCurrentSession(dto.currentSession());
+            bookingRepository.save(found);
+            bookingPackageLinkRepository.findByBookingBookingIdWithAssignment(bookingId)
+                    .ifPresent(lnk -> {
+                        lnk.setSessionNumber(dto.currentSession());
+                        bookingPackageLinkRepository.save(lnk);
+                    });
+        }
         emailOutboxService.enqueueBookingConfirmed(updated);
         log.info("Multi-service booking updated: id={} start={} duration={}min custom={}",
                 updated.getBookingId(), start, totalDuration, hasCustom);

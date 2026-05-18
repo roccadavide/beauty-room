@@ -256,13 +256,19 @@ public class ClientPackageService {
                 .sorted(Comparator.comparing(l -> l.getBooking().getStartTime()))
                 .collect(Collectors.toList());
 
-        for (int i = 0; i < activeLinks.size(); i++) {
-            activeLinks.get(i).setSessionNumber(i + 1);
-            // Keep booking.currentSession/totalSessions in sync — CASE C bookings have
-            // these as null at creation because the frontend sends null when a package
-            // assignment is selected instead of a manual session number.
-            activeLinks.get(i).getBooking().setCurrentSession(i + 1);
-            activeLinks.get(i).getBooking().setTotalSessions(assignment.getTotalSessions());
+        // Renumber ONLY links not explicitly tracked at creation.
+        // Links with sessionTrackedAtCreation=true keep their explicit sessionNumber.
+        // Auto-numbered links skip any number already claimed by an explicit link.
+        int autoCursor = 0;
+        for (BookingPackageLink link : activeLinks) {
+            Booking bk = link.getBooking();
+            if (!link.isSessionTrackedAtCreation()) {
+                autoCursor++;
+                while (isSessionNumberTaken(activeLinks, link, autoCursor)) autoCursor++;
+                link.setSessionNumber(autoCursor);
+                bk.setCurrentSession(autoCursor);
+            }
+            bk.setTotalSessions(assignment.getTotalSessions());
         }
         if (!activeLinks.isEmpty()) {
             linkRepo.saveAll(activeLinks);
@@ -270,14 +276,26 @@ public class ClientPackageService {
                     activeLinks.stream().map(BookingPackageLink::getBooking).toList());
         }
 
-        int sessionsUsed = activeLinks.size();
-        int sessionsRemaining = Math.max(assignment.getTotalSessions() - sessionsUsed, 0);
+        // sessionsRemaining based on MAX sessionNumber, not link count.
+        // So "session 3 of 10" with a single physical link → remaining = 10 − 3 = 7.
+        int maxSessionUsed = activeLinks.stream()
+                .mapToInt(BookingPackageLink::getSessionNumber)
+                .max()
+                .orElse(0);
+        int sessionsRemaining = Math.max(assignment.getTotalSessions() - maxSessionUsed, 0);
         assignment.setSessionsRemaining(sessionsRemaining);
         assignment.setStatus(sessionsRemaining <= 0 ? ClientPackageStatus.EXHAUSTED : ClientPackageStatus.ACTIVE);
         assignmentRepo.save(assignment);
 
-        log.info("recalculate: assignmentId={} sessionsUsed={} sessionsRemaining={} status={}",
-                packageAssignmentId, sessionsUsed, sessionsRemaining, assignment.getStatus());
+        log.info("recalculate: assignmentId={} maxSession={} sessionsRemaining={} status={}",
+                packageAssignmentId, maxSessionUsed, sessionsRemaining, assignment.getStatus());
+    }
+
+    private boolean isSessionNumberTaken(List<BookingPackageLink> links, BookingPackageLink current, int n) {
+        return links.stream()
+                .anyMatch(l -> l != current
+                        && l.isSessionTrackedAtCreation()
+                        && l.getSessionNumber() == n);
     }
 
     /**

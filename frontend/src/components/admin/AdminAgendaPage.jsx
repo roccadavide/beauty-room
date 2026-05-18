@@ -1319,8 +1319,11 @@ export default function AdminAgendaPage() {
                                 {(() => {
                                   if (b.linkedPackage) {
                                     const pkgLabel = b.linkedPackage.serviceTitle || b.linkedPackage.serviceName || b.linkedPackage.packageName || "—";
+                                    const pkgLabelNorm = pkgLabel?.trim().toLowerCase() ?? "";
                                     const extras =
-                                      Array.isArray(b.services) && b.services.length > 0 ? b.services.map(s => s.name || s.title || s.serviceName || "?") : [];
+                                      Array.isArray(b.services) && b.services.length > 0
+                                        ? b.services.map(s => s.name || s.title || s.serviceName || "?").filter(name => name?.trim().toLowerCase() !== pkgLabelNorm)
+                                        : [];
                                     const sessionNum = b.currentSession ?? b.linkedPackage.sessionNumber;
                                     const totalSess = b.totalSessions;
                                     return (

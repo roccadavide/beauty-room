@@ -292,7 +292,7 @@ function OccasioniPage() {
             const effectiveGender = showGenderToggle ? (groupGender ?? "FEMALE") : null;
             const allOptionGroups = [...new Set(group.items.map(p => p.optionGroup).filter(Boolean))];
             const visibleOptionGroups = allOptionGroups.filter(og =>
-              group.items.some(p => p.optionGroup === og && (!effectiveGender || !p.gender || p.gender === effectiveGender))
+              group.items.some(p => p.optionGroup === og && (!effectiveGender || !p.gender || p.gender === effectiveGender)),
             );
             const hasGroupFilter = visibleOptionGroups.length > 1;
             const filteredItems = group.items.filter(p => {
@@ -332,25 +332,6 @@ function OccasioniPage() {
                         </button>
                       </div>
                     )}
-                    {hasGroupFilter && (
-                      <div className="so-pkg-filter-chips">
-                        <button
-                          className={`so-pkg-chip${!groupFilter ? " so-pkg-chip--active" : ""}`}
-                          onClick={() => setGroupFilters(prev => ({ ...prev, [serviceName]: null }))}
-                        >
-                          Tutti
-                        </button>
-                        {visibleOptionGroups.map(og => (
-                          <button
-                            key={og}
-                            className={`so-pkg-chip${groupFilter === og ? " so-pkg-chip--active" : ""}`}
-                            onClick={() => setGroupFilters(prev => ({ ...prev, [serviceName]: og }))}
-                          >
-                            {og}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -384,9 +365,7 @@ function OccasioniPage() {
                         <div className="of-pkg-sessions-badge">{pkg.sessions} sedute</div>
                         <div className="of-pkg-body">
                           <div className="of-pkg-accent" />
-                          <p className="of-pkg-group">
-                            {pkg.optionGroup || ""}
-                          </p>
+                          <p className="of-pkg-group">{pkg.optionGroup || ""}</p>
                           <h3 className="of-pkg-name">{pkg.optionName}</h3>
                           <div className="of-pkg-price">
                             <span className="of-pkg-price-value">{Number(pkg.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
