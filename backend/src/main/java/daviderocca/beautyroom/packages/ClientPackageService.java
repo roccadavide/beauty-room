@@ -348,7 +348,7 @@ public class ClientPackageService {
                                     ? a.getServiceOption().getService().getTitle()
                                     : a.getServiceOption().getName())
                             : a.getClientName());
-            return new PackageSummaryDTO(name, a.getSessionsRemaining());
+            return new PackageSummaryDTO(a.getId(), name, a.getSessionsRemaining());
         });
     }
 

@@ -617,33 +617,40 @@ public class BookingService {
         boolean hasSessionNumbers = dto.currentSession() != null && dto.totalSessions() != null;
 
         if (hasPkg) {
-            // CASE C — packageAssignmentId provided: link the booking and recalculate from scratch.
+            // CASE C — packageAssignmentId provided. Direct-compute session number (mirror CASE A/B);
+            // no recalculate. After the previous fix, recalculate respects sessionTrackedAtCreation
+            // and would skip this link forever if we set the old placeholder=0.
             if (assignment.getSessionsRemaining() <= 0) {
                 throw new BadRequestException("Il pacchetto non ha sessioni rimanenti.");
             }
 
+            int sessionsUsedBefore = assignment.getTotalSessions() - assignment.getSessionsRemaining();
+            int newSessionNumber = (dto.currentSession() != null && dto.currentSession() > 0)
+                    ? dto.currentSession()
+                    : sessionsUsedBefore + 1;
+            // sessionsRemaining = totalSessions − highest session number used (consistent with CASE A/B)
+            int newRemaining = Math.max(0, assignment.getTotalSessions() - newSessionNumber);
+
             BookingPackageLink pkgLink = new BookingPackageLink();
             pkgLink.setBooking(saved);
             pkgLink.setAssignment(assignment);
-            pkgLink.setSessionNumber(0); // placeholder; set correctly by recalculate below
+            pkgLink.setSessionNumber(newSessionNumber);
             pkgLink.setSessionTrackedAtCreation(true);
             bookingPackageLinkRepository.save(pkgLink);
 
-            clientPackageService.recalculatePackageSessions(assignment.getId());
-            // If the admin explicitly provided a session number, restore it after recalculate
-            // (recalculate assigns chronological i+1 which may not match the explicit value).
-            if (dto.currentSession() != null) {
-                saved.setCurrentSession(dto.currentSession());
-                bookingRepository.save(saved);
-                bookingPackageLinkRepository.findByBookingBookingIdWithAssignment(saved.getBookingId())
-                        .ifPresent(lnk -> {
-                            lnk.setSessionNumber(dto.currentSession());
-                            bookingPackageLinkRepository.save(lnk);
-                        });
+            assignment.setSessionsRemaining(newRemaining);
+            if (newRemaining == 0) {
+                assignment.setStatus(ClientPackageStatus.EXHAUSTED);
             }
-            log.info("CASE C: linked bookingId={} to assignmentId={} → recalculated",
-                    saved.getBookingId(), assignment.getId());
+            clientPackageService.saveAssignment(assignment);
 
+            saved.setCurrentSession(newSessionNumber);
+            saved.setTotalSessions(assignment.getTotalSessions());
+            bookingRepository.save(saved);
+
+            log.info("CASE C: bookingId={} linked to assignmentId={} session {}/{} (remaining={})",
+                    saved.getBookingId(), assignment.getId(),
+                    newSessionNumber, assignment.getTotalSessions(), newRemaining);
         } else if (hasPkgCredit) {
             // CASE D — packageCreditId provided: PackageCredit FK already set before save.
             // Session will be decremented by packageCreditService.consumeSessionForBooking()
@@ -1657,7 +1664,7 @@ public class BookingService {
                                         ? a.getServiceOption().getService().getTitle()
                                         : a.getServiceOption().getName())
                                 : "Trattamento");
-                linkedPkg = new PackageSummaryDTO(pkgName, a.getSessionsRemaining());
+                linkedPkg = new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining());
             }
         } catch (Exception e) {
             log.warn("Could not resolve linkedPackage for booking {}: {}", b.getBookingId(), e.getMessage());
@@ -1821,7 +1828,7 @@ public class BookingService {
                                                 ? a.getServiceOption().getService().getTitle()
                                                 : a.getServiceOption().getName())
                                         : "Trattamento");
-                        return new PackageSummaryDTO(pkgName, a.getSessionsRemaining());
+                        return new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining());
                     })
                     .orElse(null);
         } catch (Exception e) {
