@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import ReactDOM from "react-dom";
+import { useState } from "react";
 import { updatePackageAssignment } from "../../api/modules/adminAgenda.api";
 
 /**
@@ -7,28 +8,54 @@ import { updatePackageAssignment } from "../../api/modules/adminAgenda.api";
  *
  * Props:
  *   pkg      — ClientPackageAssignmentDTO object
+ *   services — catalog services array for price pre-fill (optional)
  *   onClose  — called to dismiss without saving
  *   onSave   — called with the updated DTO after successful save
  */
-export default function EditPackageModal({ pkg, onClose, onSave }) {
+export default function EditPackageModal({ pkg, services = [], onClose, onSave }) {
   const completedSessions = pkg.totalSessions - pkg.sessionsRemaining;
+
+  // Compute the catalog default for pricePaid — runs only at mount.
+  const defaultPricePaid = (() => {
+    if (pkg.pricePaid != null && Number(pkg.pricePaid) > 0) return pkg.pricePaid;
+    let unitPrice = null;
+    if (pkg.serviceOptionId) {
+      for (const svc of services) {
+        const opts = svc.options || svc.serviceOptionList || svc.serviceOptions || [];
+        const opt = opts.find(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId));
+        if (opt?.price != null) {
+          unitPrice = Number(opt.price);
+          break;
+        }
+      }
+    }
+    if (unitPrice == null && pkg.serviceId) {
+      const svc = services.find(s => String(s.serviceId) === String(pkg.serviceId));
+      if (svc?.price != null) unitPrice = Number(svc.price);
+    }
+    if (unitPrice == null || !pkg.totalSessions) return "";
+    return (unitPrice * pkg.totalSessions).toFixed(2);
+  })();
 
   const [form, setForm] = useState({
     totalSessions: pkg.totalSessions,
     sessionsRemaining: pkg.sessionsRemaining,
-    pricePaid: pkg.pricePaid ?? "",
+    pricePaid: pkg.pricePaid != null && Number(pkg.pricePaid) > 0 ? pkg.pricePaid : defaultPricePaid,
     notes: pkg.notes ?? "",
   });
   const [saving, setSaving] = useState(false);
-  const [savedOk, setSavedOk] = useState(false);
   const [error, setError] = useState("");
-  const timerRef = useRef(null);
-  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   const handleSubmit = async e => {
     e.preventDefault();
-    if (Number(form.totalSessions) < completedSessions) {
+    const total = Number(form.totalSessions);
+    const remaining = Number(form.sessionsRemaining);
+    if (total < completedSessions) {
       setError(`Le sedute totali non possono essere inferiori alle ${completedSessions} sedute già effettuate.`);
+      return;
+    }
+    if (remaining < 0 || remaining > total) {
+      setError(`Le sedute rimanenti devono essere tra 0 e ${total}.`);
       return;
     }
     setSaving(true);
@@ -38,15 +65,14 @@ export default function EditPackageModal({ pkg, onClose, onSave }) {
         clientName: pkg.clientName,
         serviceOptionId: pkg.serviceOptionId ?? null,
         customPackageName: pkg.customPackageName ?? null,
-        totalSessions: Number(form.totalSessions),
-        sessionsRemaining: Number(form.sessionsRemaining),
+        totalSessions: total,
+        sessionsRemaining: remaining,
         pricePaid: form.pricePaid !== "" ? form.pricePaid : null,
         notes: form.notes || null,
         linkedUserId: pkg.linkedUserId ?? null,
       };
       const updated = await updatePackageAssignment(pkg.id, payload);
-      setSavedOk(true);
-      timerRef.current = setTimeout(() => { setSavedOk(false); onSave(updated); }, 2000);
+      onSave(updated);
     } catch (err) {
       setError(err.message || "Errore durante il salvataggio.");
     } finally {
@@ -54,7 +80,7 @@ export default function EditPackageModal({ pkg, onClose, onSave }) {
     }
   };
 
-  return (
+  return ReactDOM.createPortal(
     <div className="ep-backdrop" onClick={onClose}>
       <div className="ep-modal" onClick={e => e.stopPropagation()}>
         <div className="ep-header">
@@ -118,12 +144,13 @@ export default function EditPackageModal({ pkg, onClose, onSave }) {
           {error && <div className="ep-error">{error}</div>}
           <div className="ep-actions">
             <button type="button" className="ep-btn ep-btn--ghost" onClick={onClose}>Annulla</button>
-            <button type="submit" className="ep-btn" disabled={saving || savedOk}>
-              {savedOk ? "✓ Salvato" : saving ? "Salvataggio…" : "Salva"}
+            <button type="submit" className="ep-btn" disabled={saving}>
+              {saving ? "Salvataggio…" : "Salva"}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

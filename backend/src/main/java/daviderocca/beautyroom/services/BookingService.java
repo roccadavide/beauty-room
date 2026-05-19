@@ -1758,12 +1758,7 @@ public class BookingService {
                 } else {
                     pkgName = "Trattamento";
                 }
-                BigDecimal sessionPrice = null;
-                if (a.getServiceOption() != null && a.getServiceOption().getPrice() != null) {
-                    sessionPrice = a.getServiceOption().getPrice();
-                } else if (pkgSvc != null && pkgSvc.getPrice() != null) {
-                    sessionPrice = pkgSvc.getPrice();
-                }
+                BigDecimal sessionPrice = clientPackageService.computeSessionPrice(a);
                 linkedPkg = new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining(), sessionPrice);
             }
         } catch (Exception e) {
@@ -1936,12 +1931,7 @@ public class BookingService {
                         } else {
                             pkgName = "Trattamento";
                         }
-                        BigDecimal sessionPrice = null;
-                        if (a.getServiceOption() != null && a.getServiceOption().getPrice() != null) {
-                            sessionPrice = a.getServiceOption().getPrice();
-                        } else if (pkgSvc != null && pkgSvc.getPrice() != null) {
-                            sessionPrice = pkgSvc.getPrice();
-                        }
+                        BigDecimal sessionPrice = clientPackageService.computeSessionPrice(a);
                         return new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining(), sessionPrice);
                     })
                     .orElse(null);

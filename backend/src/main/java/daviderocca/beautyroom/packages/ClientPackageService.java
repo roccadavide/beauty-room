@@ -5,6 +5,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
@@ -165,7 +166,18 @@ public class ClientPackageService {
             assignment.setLinkedUser(user);
         }
 
-        return toDTO(assignmentRepo.save(assignment));
+        ClientPackageAssignment saved = assignmentRepo.save(assignment);
+
+        // If the caller did not specify sessionsRemaining explicitly, realign it with
+        // the actual booking links. This keeps the package consistent when only
+        // totalSessions or pricePaid changes — without it, sessionsRemaining stays
+        // stale relative to the new totalSessions.
+        if (req.sessionsRemaining() == null) {
+            recalculatePackageSessions(saved.getId());
+            saved = requireAssignment(saved.getId());
+        }
+
+        return toDTO(saved);
     }
 
     @Transactional
@@ -344,6 +356,34 @@ public class ClientPackageService {
     }
 
     /**
+     * Returns the per-session price for a package assignment.
+     * Priority:
+     *   1. pricePaid / totalSessions  (the actual price Michela charged)
+     *   2. serviceOption.price        (catalog option price, if any)
+     *   3. service.price              (catalog service price)
+     *   4. null                       (truly custom package, no catalog reference)
+     */
+    public BigDecimal computeSessionPrice(ClientPackageAssignment a) {
+        if (a == null) return null;
+        if (a.getPricePaid() != null
+                && a.getPricePaid().compareTo(BigDecimal.ZERO) > 0
+                && a.getTotalSessions() > 0) {
+            return a.getPricePaid()
+                    .divide(BigDecimal.valueOf(a.getTotalSessions()), 2, RoundingMode.HALF_UP);
+        }
+        if (a.getServiceOption() != null && a.getServiceOption().getPrice() != null) {
+            return a.getServiceOption().getPrice();
+        }
+        ServiceItem svc = a.getService() != null
+                ? a.getService()
+                : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
+        if (svc != null && svc.getPrice() != null) {
+            return svc.getPrice();
+        }
+        return null;
+    }
+
+    /**
      * Returns a summary of the package linked to a booking, if any.
      */
     @Transactional(readOnly = true)
@@ -365,12 +405,7 @@ public class ClientPackageService {
             } else {
                 name = a.getClientName();
             }
-            BigDecimal sessionPrice = null;
-            if (a.getServiceOption() != null && a.getServiceOption().getPrice() != null) {
-                sessionPrice = a.getServiceOption().getPrice();
-            } else if (svc != null && svc.getPrice() != null) {
-                sessionPrice = svc.getPrice();
-            }
+            BigDecimal sessionPrice = computeSessionPrice(a);
             return new PackageSummaryDTO(a.getId(), name, a.getSessionsRemaining(), sessionPrice);
         });
     }

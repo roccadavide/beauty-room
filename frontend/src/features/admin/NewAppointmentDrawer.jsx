@@ -2166,7 +2166,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         confirmVariant="danger"
       />
 
-      {editingActivePkg && <EditPackageModal pkg={editingActivePkg} onClose={() => setEditingActivePkg(null)} onSave={handleActivePkgSaved} />}
+      {editingActivePkg && <EditPackageModal pkg={editingActivePkg} services={services} onClose={() => setEditingActivePkg(null)} onSave={handleActivePkgSaved} />}
 
       {editingServizio && (
         <EditServizioModal
