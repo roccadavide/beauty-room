@@ -21,7 +21,7 @@ cd frontend && npm run build        # build produzione
 cd frontend && npm test             # test
 
 # Backend
-cd backend && ./mvnw spring-boot:run   # avvia Spring Boot
+cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev,local   # avvia Spring Boot (local = DevTools trigger-file)
 cd backend && ./mvnw test              # test
 cd backend && ./mvnw package           # build JAR
 ```

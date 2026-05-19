@@ -161,6 +161,14 @@
 	</dependencies>
 
 	<build>
+	<resources>
+    <resource>
+        <directory>src/main/resources</directory>
+        <excludes>
+            <exclude>.devtools-trigger</exclude>
+        </excludes>
+    </resource>
+</resources>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -181,6 +189,7 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
+					<excludeDevtools>true</excludeDevtools>
 					<excludes>
 						<exclude>
 							<groupId>org.projectlombok</groupId>
