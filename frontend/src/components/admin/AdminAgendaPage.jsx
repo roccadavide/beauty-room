@@ -564,6 +564,20 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
 /** ---------- Pagina ---------- */
 export default function AdminAgendaPage() {
   const [date, setDate] = useState(() => new Date());
+
+  // ── Compact layout (≤1279px): single-column tablet/laptop mode ───────────
+  const [isCompact, setIsCompact] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 1279.98px)").matches);
+  const [compactTab, setCompactTab] = useState("appointments"); // 'appointments' | 'timeline' | 'week'
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 1279.98px)");
+    const sync = () => setIsCompact(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   const dateISO = useMemo(() => toISODate(date), [date]);
 
   const [timeline, setTimeline] = useState(null);
@@ -620,6 +634,19 @@ export default function AdminAgendaPage() {
     const el = itemRefsMap.current.get(bookingId);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, []);
+
+  // In compact mode the appointments list lives in another tab,
+  // so a timeline-block click opens the booking's edit drawer instead.
+  const handleCompactTimelineBookingClick = useCallback(
+    bookingId => {
+      const booking = bookings.find(b => b.bookingId === bookingId);
+      if (booking) {
+        setEditingBooking(booking);
+        setNewDrawerOpen(true);
+      }
+    },
+    [bookings],
+  );
 
   // Azzera highlight al click fuori da blocchi timeline e lista
   useEffect(() => {
@@ -1057,8 +1084,121 @@ export default function AdminAgendaPage() {
   }, [pendingDelete]);
 
   return (
-    <Container fluid className="ag-page py-3">
+    <Container fluid className={`ag-page py-3${isCompact ? " ag-page--has-compact" : ""}`}>
       <SEO title="Agenda" noindex={true} />
+
+      {/* ── Compact sticky header (≤1279px only — hidden on desktop by CSS) ── */}
+      {isCompact && (
+        <div className="ag-compact-header">
+          <div className="ag-compact-header__row ag-compact-header__row--days">
+            <div className="ag-strip">
+              <button className="ag-iconbtn" onClick={() => setDate(d => addDays(d, -7))} title="Settimana precedente" type="button">
+                ‹
+              </button>
+              <div className="ag-strip__days">
+                {dayStrip.map(d => {
+                  const iso = toISODate(d);
+                  const isActive = iso === dateISO;
+                  const dow = d.toLocaleDateString("it-IT", { weekday: "short" });
+                  return (
+                    <button key={iso} className={`ag-daychip ${isActive ? "is-active" : ""}`} onClick={() => setDate(d)} type="button">
+                      <span className="ag-daychip__dow">{dow}</span>
+                      <span className="ag-daychip__dd">{d.getDate()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button className="ag-iconbtn" onClick={() => setDate(d => addDays(d, 7))} title="Settimana successiva" type="button">
+                ›
+              </button>
+            </div>
+            <div className="ag-compact-header__quickactions">
+              <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => setDate(new Date())}>
+                Oggi
+              </Button>
+              <DateTimeField
+                mode="date"
+                value={dateISO}
+                onChange={iso => setDate(fromISODateLocal(iso))}
+                busyDates={agendaBusyDates}
+                placeholder="📅"
+                className="ag-date-dtf"
+              />
+            </div>
+          </div>
+
+          <div className="ag-compact-kpi">
+            <span className="ag-compact-kpi__item">
+              <span className="ag-compact-kpi__value">{kpi.count}</span>
+              <span className="ag-compact-kpi__label">app</span>
+            </span>
+            <span className="ag-compact-kpi__divider">·</span>
+            <span className="ag-compact-kpi__item">
+              <span className="ag-compact-kpi__value">{kpi.bookedMin}′</span>
+              <span className="ag-compact-kpi__label">prenotati</span>
+            </span>
+            <span className="ag-compact-kpi__divider">·</span>
+            <span className="ag-compact-kpi__item">
+              <span className="ag-compact-kpi__value">{kpi.openMin ? `${kpi.occ}%` : "—"}</span>
+              <span className="ag-compact-kpi__label">occ.</span>
+            </span>
+            <span className="ag-compact-kpi__divider">·</span>
+            <span
+              className={`ag-compact-kpi__item${kpi.revenueKnown ? " ag-compact-kpi__item--clickable" : ""}`}
+              onClick={() => kpi.revenueKnown && setShowEstimatoModal(true)}
+              title={kpi.revenueKnown ? "Dettaglio incasso" : undefined}
+            >
+              <span className="ag-compact-kpi__value">{kpi.revenueKnown ? `€${kpi.onlineRevenue.toFixed(0)}` : "—"}</span>
+              <span className="ag-compact-kpi__label">incasso</span>
+            </span>
+            {kpi.openMin > 0 && (
+              <>
+                <span className="ag-compact-kpi__divider">·</span>
+                <span className="ag-compact-kpi__item">
+                  {kpi.occ >= 85 ? (
+                    <span className="ag-day-full">🔴 Piena</span>
+                  ) : kpi.occ >= 60 ? (
+                    <span className="ag-day-busy">🟡 Intensa</span>
+                  ) : (
+                    <span className="ag-day-free">🟢 Libera</span>
+                  )}
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="ag-compact-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={compactTab === "appointments"}
+              className={`ag-compact-tab${compactTab === "appointments" ? " is-active" : ""}`}
+              onClick={() => setCompactTab("appointments")}
+            >
+              Appuntamenti
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={compactTab === "timeline"}
+              className={`ag-compact-tab${compactTab === "timeline" ? " is-active" : ""}`}
+              onClick={() => setCompactTab("timeline")}
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={compactTab === "week"}
+              className={`ag-compact-tab${compactTab === "week" ? " is-active" : ""}`}
+              onClick={() => setCompactTab("week")}
+            >
+              Settimana
+            </button>
+          </div>
+        </div>
+      )}
+
       <Row className="g-3 align-items-stretch">
         {/* LEFT */}
         <Col lg={4}>
@@ -1125,14 +1265,8 @@ export default function AdminAgendaPage() {
 
               <div className="ag-toolbar-nav mt-3">
                 <div className="ag-toolbar-nav__btns">
-                  <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => setDate(d => addDays(d, -1))}>
-                    ← Giorno prima
-                  </Button>
                   <Button className="ag-btn ag-btn--ghost" size="sm" onClick={() => setDate(new Date())}>
                     Oggi
-                  </Button>
-                  <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => setDate(d => addDays(d, 1))}>
-                    Giorno dopo →
                   </Button>
                 </div>
                 <div className="ag-date-wrap">
@@ -1310,23 +1444,24 @@ export default function AdminAgendaPage() {
                 <div>
                   <div className="ag-title">Appuntamenti</div>
                   <div className="ag-subtitle">
-                    {viewMode === "day" ? `${dateISO} · ${filtered.length}${hasStatusFilter ? ` di ${bookings.length}` : ""} risultati` : "Vista settimana"}
+                    {(viewMode === "week" && !isCompact) || (isCompact && compactTab === "week")
+                      ? "Vista settimana"
+                      : isCompact && compactTab === "timeline"
+                        ? `Timeline · ${dateISO}`
+                        : `${dateISO} · ${filtered.length}${hasStatusFilter ? ` di ${bookings.length}` : ""} risultati`}
                   </div>
                 </div>
-                {viewMode === "day" && (
+                {((viewMode === "day" && !isCompact) || (isCompact && compactTab === "appointments")) && (
                   <div className="d-flex gap-2 align-items-center">
                     <Form.Control className="ag-search" placeholder="Cerca cliente, telefono, servizio…" value={q} onChange={e => setQ(e.target.value)} />
                     <Button className="ag-btn ag-btn--ghost" onClick={refresh} disabled={loading}>
                       {loading ? <Spinner size="sm" /> : "Aggiorna"}
                     </Button>
-                    <Button className="ag-btn ag-btn--primary ag-new-btn-tablet" onClick={openCreate}>
-                      + Nuovo
-                    </Button>
                   </div>
                 )}
               </div>
 
-              {viewMode === "day" && (
+              {((viewMode === "day" && !isCompact) || (isCompact && compactTab === "appointments")) && (
                 <div className="ag-filters">
                   <button type="button" className={`ag-filter-pill pill--all ${!hasStatusFilter ? "is-active" : ""}`} onClick={clearStatusFilters}>
                     <span>Tutti</span>
@@ -1351,7 +1486,7 @@ export default function AdminAgendaPage() {
                 </div>
               )}
 
-              {viewMode === "week" ? (
+              {(viewMode === "week" && !isCompact) || (isCompact && compactTab === "week") ? (
                 <WeeklyCalendar
                   anchorDate={date}
                   onDayClick={handleWeekDayClick}
@@ -1360,6 +1495,19 @@ export default function AdminAgendaPage() {
                   onPrevWeek={() => setDate(d => addDays(d, -7))}
                   onNextWeek={() => setDate(d => addDays(d, 7))}
                   refreshKey={weekRefreshKey}
+                />
+              ) : isCompact && compactTab === "timeline" ? (
+                <TimelineDay
+                  dateISO={dateISO}
+                  data={timeline}
+                  bookings={bookings}
+                  personalAppts={personalAppts}
+                  selectedBookingId={highlightedId}
+                  onBookingClick={handleCompactTimelineBookingClick}
+                  onPersonalApptClick={pa => {
+                    setEditingPersonal(pa);
+                    setNewDrawerOpen(true);
+                  }}
                 />
               ) : (
                 <>
@@ -1947,6 +2095,27 @@ export default function AdminAgendaPage() {
       />
 
       {showEstimatoModal && <EstimatoModal bookings={bookings} services={services} onClose={() => setShowEstimatoModal(false)} />}
+
+      {/* ── Floating action buttons (compact only — hidden on desktop by CSS) ── */}
+      {isCompact && (
+        <div className="ag-fab-container" aria-label="Azioni rapide">
+          <button
+            type="button"
+            className="ag-fab ag-fab--secondary"
+            title="Blocca fascia oraria"
+            aria-label="Blocca fascia oraria"
+            onClick={() => {
+              setBlockForm({ date: dateISO, startTime: "", endTime: "", reason: "" });
+              setBlockSlotOpen(true);
+            }}
+          >
+            🔒
+          </button>
+          <button type="button" className="ag-fab ag-fab--primary" title="Nuovo appuntamento" aria-label="Nuovo appuntamento" onClick={openCreate}>
+            +
+          </button>
+        </div>
+      )}
     </Container>
   );
 }

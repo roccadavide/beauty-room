@@ -3337,3 +3337,290 @@ hr.ag-svc-list-block__divider {
 .ag-btn-undo:hover {
   background: #f5ede0;
 }
+
+/* ============================================================
+   COMPACT LAYOUT — Tablet/laptop ≤1279px
+   These rules activate when JSX adds `.ag-page--has-compact`
+   to the root .ag-page element (done in Step 2).
+   Without that class, all rules below are inert.
+   ============================================================ */
+
+/* ── Sticky header (shown only on compact) ─────────────────── */
+
+.ag-compact-header {
+  display: none;
+}
+
+.ag-page--has-compact .ag-compact-header {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: rgba(251, 248, 243, 0.96);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--ag-border);
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(35, 26, 20, 0.04);
+}
+
+.ag-compact-header__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ag-compact-header__row--days {
+  margin-bottom: 8px;
+}
+
+.ag-compact-header__row--days .ag-strip {
+  flex: 1;
+  min-width: 0;
+}
+
+.ag-compact-header__quickactions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.ag-compact-header__quickactions .ag-btn {
+  padding: 6px 12px !important;
+  font-size: 0.8rem !important;
+}
+
+.ag-compact-header .ag-date-dtf .dtf-trigger {
+  min-height: 2.1rem;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+.ag-compact-header .ag-date-dtf .dtf-trigger-mid > span:first-of-type {
+  display: none;
+}
+
+.ag-compact-header .ag-date-dtf .dtf-dropdown {
+  right: 0;
+  left: auto;
+  min-width: 300px;
+}
+
+.ag-compact-header .ag-daychip {
+  width: 46px;
+  padding: 5px 0;
+}
+
+.ag-compact-header .ag-daychip__dow {
+  font-size: 0.68rem;
+}
+
+.ag-compact-header .ag-daychip__dd {
+  font-size: 0.95rem;
+}
+
+/* ── Compact KPI row (single line) ─────────────────────────── */
+
+.ag-compact-kpi {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 4px;
+  margin: 0 0 10px;
+  border-top: 1px dashed rgba(111, 74, 47, 0.18);
+  border-bottom: 1px dashed rgba(111, 74, 47, 0.18);
+  font-size: 0.78rem;
+}
+
+.ag-compact-kpi__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.ag-compact-kpi__item--clickable {
+  cursor: pointer;
+}
+
+.ag-compact-kpi__item--clickable:hover .ag-compact-kpi__value {
+  color: var(--ag-mocha);
+}
+
+.ag-compact-kpi__value {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--ag-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-compact-kpi__label {
+  color: var(--ag-muted);
+  font-size: 0.72rem;
+}
+
+.ag-compact-kpi__divider {
+  color: rgba(111, 74, 47, 0.28);
+}
+
+/* ── Compact tab switcher ──────────────────────────────────── */
+
+.ag-compact-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 3px;
+  border-radius: 11px;
+}
+
+.ag-compact-tab {
+  flex: 1;
+  padding: 8px 6px;
+  border: none;
+  background: transparent;
+  color: var(--ag-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ag-compact-tab:hover:not(.is-active) {
+  color: var(--ag-text);
+}
+
+.ag-compact-tab.is-active {
+  background: #fff;
+  color: var(--ag-text);
+  box-shadow:
+    0 1px 3px rgba(35, 26, 20, 0.08),
+    0 0 0 0.5px rgba(111, 74, 47, 0.12);
+}
+
+/* ── FAB (floating action button) ──────────────────────────── */
+
+.ag-fab-container {
+  display: none;
+}
+
+.ag-page--has-compact .ag-fab-container {
+  display: flex;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 100;
+  flex-direction: column-reverse;
+  gap: 10px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.ag-page--has-compact .ag-fab-container > * {
+  pointer-events: auto;
+}
+
+.ag-fab {
+  border-radius: 50%;
+  border: 1px solid rgba(111, 74, 47, 0.3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 6px 18px rgba(35, 26, 20, 0.22),
+    0 2px 4px rgba(35, 26, 20, 0.1);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+.ag-fab:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.04);
+  box-shadow:
+    0 10px 24px rgba(35, 26, 20, 0.26),
+    0 3px 6px rgba(35, 26, 20, 0.12);
+}
+
+.ag-fab:active {
+  transform: translateY(0);
+}
+
+.ag-fab--primary {
+  width: 58px;
+  height: 58px;
+  background: linear-gradient(180deg, rgba(139, 94, 60, 0.98), rgba(111, 74, 47, 0.98));
+  color: #fff;
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.ag-fab--secondary {
+  width: 44px;
+  height: 44px;
+  background: #fffdf8;
+  color: var(--ag-mocha);
+  font-size: 1.05rem;
+  border-color: rgba(111, 74, 47, 0.2);
+}
+
+/* Lift FAB above the undo-delete snackbar when it appears */
+.ag-page--has-compact:has(.ag-snackbar) .ag-fab-container {
+  bottom: 78px;
+}
+
+/* ── Width-scoped overrides ────────────────────────────────── */
+
+@media (max-width: 1279.98px) {
+  /* Hide the left Bootstrap column entirely */
+  .ag-page--has-compact > .row > [class*="col-lg-4"] {
+    display: none !important;
+  }
+
+  /* Right column expands to full width */
+  .ag-page--has-compact > .row > [class*="col-lg-8"],
+  .ag-page--has-compact > .row > [class*="col-lg-12"] {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  /* Suppress the duplicate "+ Nuovo" in the right-col header */
+  .ag-page--has-compact .ag-new-btn-tablet {
+    display: none !important;
+  }
+
+  /* Tighter card padding on compact */
+  .ag-page--has-compact .ag-card__body {
+    padding: 12px;
+  }
+
+  /* Bottom padding so last card isn't covered by FAB */
+  .ag-page--has-compact .ag-list,
+  .ag-page--has-compact .ag-personal-section {
+    padding-bottom: 90px;
+  }
+
+  /* Tighter KPI gap on narrow tablet/landscape */
+  .ag-compact-kpi {
+    gap: 8px 12px;
+  }
+}
+
+/* Defensive: on desktop, hide the compact-only nodes even if rendered */
+@media (min-width: 1280px) {
+  .ag-compact-header,
+  .ag-fab-container {
+    display: none !important;
+  }
+}
