@@ -24,6 +24,7 @@ import { fetchServices } from "../../api/modules/services.api";
 import DateTimeField from "../common/DateTimeField";
 import TimePicker from "../common/TimePicker";
 import SEO from "../common/SEO";
+import formatDuration from "../../utils/formatDuration";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -1133,7 +1134,7 @@ export default function AdminAgendaPage() {
               <span className="ag-compact-kpi__label">{kpi.count === 1 ? "appuntamento" : "appuntamenti"}</span>
             </span>
             <span className="ag-compact-kpi__item">
-              <span className="ag-compact-kpi__value">{kpi.bookedMin}′</span>
+              <span className="ag-compact-kpi__value">{formatDuration(kpi.bookedMin)}</span>
               <span className="ag-compact-kpi__label">prenotati</span>
             </span>
             <span className="ag-compact-kpi__item">
@@ -1355,8 +1356,8 @@ export default function AdminAgendaPage() {
                   <div className="ag-kpi__value">{kpi.count}</div>
                 </div>
                 <div className="ag-kpi__item">
-                  <div className="ag-kpi__label">Minuti prenotati</div>
-                  <div className="ag-kpi__value">{kpi.bookedMin}</div>
+                  <div className="ag-kpi__label">Tempo prenotato</div>
+                  <div className="ag-kpi__value">{formatDuration(kpi.bookedMin)}</div>
                 </div>
                 <div className="ag-kpi__item">
                   <div className="ag-kpi__label">Occupazione</div>
@@ -1652,7 +1653,7 @@ export default function AdminAgendaPage() {
                                 {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
                               </div>
                               <div className="ag-item__timeSub">
-                                {Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000))} min
+                                {formatDuration(Math.max(0, Math.round((new Date(b.endTime) - new Date(b.startTime)) / 60000)))}
                                 {b.paddingMinutes > 0 && <span> · +{b.paddingMinutes}′</span>}
                               </div>
                             </div>

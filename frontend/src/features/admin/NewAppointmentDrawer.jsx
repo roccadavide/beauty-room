@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import CustomerAutocomplete from "../../components/admin/CustomerAutocomplete";
 import DateTimeField from "../../components/common/DateTimeField";
 import TimePicker from "../../components/common/TimePicker";
+import formatDuration from "../../utils/formatDuration";
 import {
   cancelPackageAssignment,
   createMultiServiceBooking,
@@ -49,15 +50,6 @@ const formatItalianSlot = (dateStr, timeStr) => {
 // Helper: format a price number as Italian decimal string (e.g. 18.5 → "18,50")
 const fmtEur = n => Number(n).toFixed(2).replace(".", ",");
 
-// Helper: format total minutes into readable string
-const formatDuration = mins => {
-  if (!mins) return "0 min";
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h === 0) return `${m} min`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}min`;
-};
 
 // Factory for a blank service item
 const newServiceItem = () => ({
@@ -215,18 +207,18 @@ function ServiceItemCard({ item, index, services, serviceCategories, clientPacka
 
   const durationLabel = useMemo(() => {
     if (item.type === "catalog" && selectedService?.durationMin) {
-      return `${selectedService.durationMin} min`;
+      return formatDuration(selectedService.durationMin);
     }
     if (item.type === "custom") {
       const d = parseInt(item.customDuration, 10);
-      return d > 0 ? `${d} min` : null;
+      return d > 0 ? formatDuration(d) : null;
     }
     if (item.type === "package") {
       if (item.packageAssignmentId) {
         const pkg = clientPackages.find(p => String(p.id) === String(item.packageAssignmentId));
         if (pkg?.serviceOptionId) {
           const svc = services.find(s => s.options?.some(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId)));
-          if (svc?.durationMin) return `${svc.durationMin} min`;
+          if (svc?.durationMin) return formatDuration(svc.durationMin);
         }
       }
       return null;
@@ -1701,7 +1693,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                           >
                             <span className="ag-service-option-item__name">{opt.name}</span>
                             <span className="ag-service-item__meta">
-                              {opt.durationMin ? `${opt.durationMin} min` : s.durationMin ? `${s.durationMin} min` : ""}
+                              {opt.durationMin ? formatDuration(opt.durationMin) : s.durationMin ? formatDuration(s.durationMin) : ""}
                               {opt.price != null ? ` · €${Number(opt.price).toFixed(0)}` : ""}
                               {optCount > 0 && <span className="ag-option-check"> ×{optCount}</span>}
                             </span>
@@ -1738,7 +1730,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               >
                 <span className="ag-service-item__title">{s.title}</span>
                 <span className="ag-service-item__meta">
-                  {s.durationMin ? `${s.durationMin} min` : ""}
+                  {s.durationMin ? formatDuration(s.durationMin) : ""}
                   {s.price != null ? ` · €${Number(s.price).toFixed(0)}` : ""}
                 </span>
                 {countInSelected > 0 && <span className="ag-service-item__selected-count">✓</span>}
@@ -1807,9 +1799,9 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       />
                     ) : (
                       <span className="ag-selected-service-row__dur">
-                        {displayDur} min
+                        {formatDuration(displayDur)}
                         {packageDurationOverride != null && packageDurationOverride !== defaultDur && (
-                          <span className="ag-selected-service-row__orig"> (era {defaultDur})</span>
+                          <span className="ag-selected-service-row__orig"> (era {formatDuration(defaultDur)})</span>
                         )}
                       </span>
                     )}
@@ -1842,9 +1834,9 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               <div key={ss.uid} className="ag-selected-service-row">
                 <span className="ag-selected-service-row__name">{ss.title}</span>
                 <span className="ag-selected-service-row__dur">
-                  {ss.overrideDurationMin ?? ss.defaultDurationMin} min
+                  {formatDuration(ss.overrideDurationMin ?? ss.defaultDurationMin)}
                   {ss.overrideDurationMin !== null && ss.overrideDurationMin !== ss.defaultDurationMin && (
-                    <span className="ag-selected-service-row__orig"> (era {ss.defaultDurationMin})</span>
+                    <span className="ag-selected-service-row__orig"> (era {formatDuration(ss.defaultDurationMin)})</span>
                   )}
                 </span>
                 {ss.prezzoOverride != null && (
@@ -1875,7 +1867,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               return (
                 <div className="ag-selected-services__total">
                   <span>
-                    Durata totale: <b>{displayTotal} min</b>
+                    Durata totale: <b>{formatDuration(displayTotal)}</b>
                   </span>
                   {totalDurationOverride !== null && <span className="ag-selected-services__manual-note"> · modificata manualmente</span>}
                   {!editingTotalDuration ? (
