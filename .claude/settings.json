@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~/)",
+      "Bash(DROP TABLE*)",
+      "Bash(DROP DATABASE*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | sh*)"
+    ]
+  },
+  "model": "claude-sonnet-4-6",
+  "cleanupPeriodDays": 7
+}

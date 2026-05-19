@@ -1386,6 +1386,41 @@ public class BookingService {
             // For the entries path, clear the JPA-managed collection so JPA deletes
             // old booking_services rows; native INSERT will add them back with option_id.
             found.setServices(useEntries ? new ArrayList<>() : new ArrayList<>(catalogServices));
+        } else if (dto.serviceIds() != null || dto.serviceEntries() != null) {
+            // Catalog fields were explicitly provided but empty — admin removed all
+            // extras from a package+extras booking. Without this branch the old
+            // booking_services rows would survive untouched in the DB.
+            //
+            // Native DELETE (same pattern as create CASE A/B) plus JPA collection
+            // clear, then re-derive service/serviceOption from the linked package so
+            // the booking falls back to a clean "package-only" display in the agenda.
+            entityManager.createNativeQuery(
+                            "DELETE FROM booking_services WHERE booking_id = :bookingId")
+                    .setParameter("bookingId", bookingId)
+                    .executeUpdate();
+            found.setServices(new ArrayList<>());
+
+            BookingPackageLink existingLink = bookingPackageLinkRepository
+                    .findByBookingBookingIdWithAssignment(bookingId)
+                    .orElse(null);
+            if (existingLink != null) {
+                ClientPackageAssignment pkg = existingLink.getAssignment();
+                ServiceItem pkgService = pkg.getService();
+                if (pkgService == null && pkg.getServiceOption() != null) {
+                    pkgService = pkg.getServiceOption().getService();
+                }
+                if (pkgService != null) {
+                    found.setService(pkgService);
+                }
+                found.setServiceOption(pkg.getServiceOption());
+                log.info("updateMultiServiceBooking: cleared booking_services for bookingId={}, re-derived service={} option={} from pkg={}",
+                        bookingId,
+                        pkgService != null ? pkgService.getServiceId() : "none",
+                        pkg.getServiceOption() != null ? pkg.getServiceOption().getOptionId() : "none",
+                        pkg.getId());
+            } else {
+                log.info("updateMultiServiceBooking: cleared booking_services for bookingId={} (no linked package)", bookingId);
+            }
         }
 
         // Update custom service fields
