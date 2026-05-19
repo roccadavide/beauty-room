@@ -39,7 +39,6 @@ export default function EditPackageModal({ pkg, services = [], onClose, onSave }
 
   const [form, setForm] = useState({
     totalSessions: pkg.totalSessions,
-    sessionsRemaining: pkg.sessionsRemaining,
     pricePaid: pkg.pricePaid != null && Number(pkg.pricePaid) > 0 ? pkg.pricePaid : defaultPricePaid,
     notes: pkg.notes ?? "",
   });
@@ -49,13 +48,8 @@ export default function EditPackageModal({ pkg, services = [], onClose, onSave }
   const handleSubmit = async e => {
     e.preventDefault();
     const total = Number(form.totalSessions);
-    const remaining = Number(form.sessionsRemaining);
     if (total < completedSessions) {
       setError(`Le sedute totali non possono essere inferiori alle ${completedSessions} sedute già effettuate.`);
-      return;
-    }
-    if (remaining < 0 || remaining > total) {
-      setError(`Le sedute rimanenti devono essere tra 0 e ${total}.`);
       return;
     }
     setSaving(true);
@@ -66,7 +60,7 @@ export default function EditPackageModal({ pkg, services = [], onClose, onSave }
         serviceOptionId: pkg.serviceOptionId ?? null,
         customPackageName: pkg.customPackageName ?? null,
         totalSessions: total,
-        sessionsRemaining: remaining,
+        sessionsRemaining: null,
         pricePaid: form.pricePaid !== "" ? form.pricePaid : null,
         notes: form.notes || null,
         linkedUserId: pkg.linkedUserId ?? null,
@@ -105,17 +99,24 @@ export default function EditPackageModal({ pkg, services = [], onClose, onSave }
               {completedSessions} {completedSessions === 1 ? "seduta già effettuata" : "sedute già effettuate"} — minimo {completedSessions}
             </div>
           )}
-          <label className="ep-label">
-            Sedute rimanenti
-            <input
-              className="ep-input"
-              type="number"
-              min={0}
-              value={form.sessionsRemaining}
-              onChange={e => setForm(f => ({ ...f, sessionsRemaining: e.target.value }))}
-              required
-            />
-          </label>
+          <div style={{
+            padding: "8px 12px",
+            background: "rgba(184, 151, 106, 0.08)",
+            borderLeft: "3px solid #b8976a",
+            borderRadius: "0 6px 6px 0",
+            fontSize: "0.88rem",
+            marginBottom: "10px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "2px",
+          }}>
+            <span>Sedute rimanenti: <strong>{pkg.sessionsRemaining} / {pkg.totalSessions}</strong></span>
+            {completedSessions > 0 && (
+              <span style={{ fontSize: "0.78rem", color: "#888" }}>
+                {completedSessions} {completedSessions === 1 ? "effettuata" : "effettuate"} · aggiornato automaticamente
+              </span>
+            )}
+          </div>
           <label className="ep-label">
             Prezzo pagato (€)
             <input
