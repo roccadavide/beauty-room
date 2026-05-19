@@ -1130,19 +1130,16 @@ export default function AdminAgendaPage() {
           <div className="ag-compact-kpi">
             <span className="ag-compact-kpi__item">
               <span className="ag-compact-kpi__value">{kpi.count}</span>
-              <span className="ag-compact-kpi__label">app</span>
+              <span className="ag-compact-kpi__label">{kpi.count === 1 ? "appuntamento" : "appuntamenti"}</span>
             </span>
-            <span className="ag-compact-kpi__divider">·</span>
             <span className="ag-compact-kpi__item">
               <span className="ag-compact-kpi__value">{kpi.bookedMin}′</span>
               <span className="ag-compact-kpi__label">prenotati</span>
             </span>
-            <span className="ag-compact-kpi__divider">·</span>
             <span className="ag-compact-kpi__item">
               <span className="ag-compact-kpi__value">{kpi.openMin ? `${kpi.occ}%` : "—"}</span>
-              <span className="ag-compact-kpi__label">occ.</span>
+              <span className="ag-compact-kpi__label">occupazione</span>
             </span>
-            <span className="ag-compact-kpi__divider">·</span>
             <span
               className={`ag-compact-kpi__item${kpi.revenueKnown ? " ag-compact-kpi__item--clickable" : ""}`}
               onClick={() => kpi.revenueKnown && setShowEstimatoModal(true)}
@@ -1153,7 +1150,6 @@ export default function AdminAgendaPage() {
             </span>
             {kpi.openMin > 0 && (
               <>
-                <span className="ag-compact-kpi__divider">·</span>
                 <span className="ag-compact-kpi__item">
                   {kpi.occ >= 85 ? (
                     <span className="ag-day-full">🔴 Piena</span>
@@ -2099,6 +2095,9 @@ export default function AdminAgendaPage() {
       {/* ── Floating action buttons (compact only — hidden on desktop by CSS) ── */}
       {isCompact && (
         <div className="ag-fab-container" aria-label="Azioni rapide">
+          <button type="button" className="ag-fab ag-fab--primary" title="Nuovo appuntamento" aria-label="Nuovo appuntamento" onClick={openCreate}>
+            +
+          </button>
           <button
             type="button"
             className="ag-fab ag-fab--secondary"
@@ -2110,9 +2109,6 @@ export default function AdminAgendaPage() {
             }}
           >
             🔒
-          </button>
-          <button type="button" className="ag-fab ag-fab--primary" title="Nuovo appuntamento" aria-label="Nuovo appuntamento" onClick={openCreate}>
-            +
           </button>
         </div>
       )}

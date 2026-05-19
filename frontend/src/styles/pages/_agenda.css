@@ -3624,3 +3624,132 @@ hr.ag-svc-list-block__divider {
     display: none !important;
   }
 }
+
+/* ============================================================
+   COMPACT LAYOUT — Step 3 polish
+   ============================================================ */
+
+/* Day chips: distribute across the available width inside the strip,
+   keeping arrows tight on either side */
+.ag-compact-header .ag-strip__days {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.ag-compact-header .ag-daychip {
+  width: 52px;
+  flex-shrink: 0;
+}
+
+/* Date picker: icon-only on small phones, full date label on ≥768px */
+.ag-compact-header .ag-date-dtf .dtf-trigger-mid > span:first-of-type {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .ag-compact-header .ag-date-dtf .dtf-trigger-mid > span:first-of-type {
+    display: inline;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-transform: capitalize;
+  }
+  .ag-compact-header .ag-date-dtf .dtf-trigger {
+    padding: 4px 14px;
+  }
+}
+
+/* FAB stack: center both buttons on the same vertical axis
+   (different widths would otherwise misalign their centers) */
+.ag-page--has-compact .ag-fab-container {
+  align-items: center;
+}
+
+/* KPI: distribute evenly across the row, slightly larger text */
+.ag-compact-kpi {
+  justify-content: space-around;
+  gap: 8px 18px;
+  font-size: 0.84rem;
+}
+
+.ag-compact-kpi__value {
+  font-size: 1rem;
+}
+
+.ag-compact-kpi__label {
+  font-size: 0.78rem;
+}
+
+/* Narrow viewports: fall back to centered alignment when items wrap */
+@media (max-width: 600px) {
+  .ag-compact-kpi {
+    justify-content: center;
+    gap: 6px 14px;
+  }
+}
+
+/* ============================================================
+   COMPACT LAYOUT — Step 5: tighten day strip
+   Chips packed together with a uniform gap, right arrow stays
+   close to the last chip, and the Oggi+date block anchors to
+   the right edge of the row with the leftover space in between.
+   ============================================================ */
+
+/* Chips container: take natural width (override desktop's flex:1 1 0
+   and Step 3's space-between) so chips don't spread apart */
+.ag-compact-header .ag-strip__days {
+  justify-content: flex-start;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Strip wrapper itself takes natural width within the row */
+.ag-compact-header .ag-strip {
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 8px; /* arrow ↔ chips ↔ arrow — tighter than desktop's 10px */
+}
+
+/* Push the Oggi + date picker to the right edge, leftover space
+   accumulates between the right arrow and the Oggi button */
+.ag-compact-header .ag-compact-header__quickactions {
+  margin-left: auto;
+}
+
+/* Slightly larger chips for easier tapping */
+.ag-compact-header .ag-daychip {
+  width: 56px;
+  padding: 6px 0;
+}
+
+.ag-compact-header .ag-daychip__dow {
+  font-size: 0.72rem;
+}
+
+.ag-compact-header .ag-daychip__dd {
+  font-size: 1.02rem;
+}
+
+/* Slightly more comfortable arrow buttons (still smaller than chips) */
+.ag-compact-header .ag-iconbtn {
+  width: 38px;
+  height: 38px;
+}
+
+/* Very narrow viewports (phones): if everything doesn't fit, allow the
+   chips container to shrink and scroll horizontally — desktop already
+   has overflow:auto on .ag-strip__days, this just makes the intent
+   explicit and adds smooth touch scrolling. */
+@media (max-width: 600px) {
+  .ag-compact-header .ag-strip__days {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .ag-compact-header .ag-daychip {
+    scroll-snap-align: start;
+  }
+}
