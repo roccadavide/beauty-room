@@ -1021,15 +1021,34 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         .catch(() => setActivePackages([]));
     } else {
       setActivePackages([]);
-      setSelectedPackageId(null);
-      setSelectedPackageCreditId(null);
+      // Don't reset selectedPackageId/CreditId here. In edit mode customerId is null
+      // at mount, and resetting would wipe the value initialized from editBooking.linkedPackage.
+      // Those two states are reset explicitly by:
+      //   - handleCustomerNameChange (admin types a different name)
+      //   - handleCustomerSelect      (admin picks a different customer from autocomplete)
     }
   }, [customerId]);
 
-  // Pre-fetch client packages in edit mode or duplicate mode
+  // Pre-fetch client packages in edit mode or duplicate mode.
+  // In edit mode there's no customerId resolved (the customer comes from the
+  // booking, not the autocomplete), so the [customerId] effect won't populate
+  // activePackages. Do it here directly — without it, the package row in
+  // "Servizi selezionati" can't find its data and silently doesn't render.
   useEffect(() => {
     if ((isEditMode || isDuplicate) && editBooking.customerName) {
-      fetchClientPackages(editBooking.customerName);
+      (async () => {
+        try {
+          const pkgs = await getClientPackageAssignmentsByName(editBooking.customerName);
+          const active = (pkgs || []).filter(p => p.status === "ACTIVE" && p.sessionsRemaining > 0);
+          setClientPackages(active);
+          // Shape-compatible with UnifiedActivePackageDTO consumed by the package row.
+          // The two DTOs share the relevant fields (id, displayName, serviceTitle,
+          // serviceOptionId, totalSessions, sessionsRemaining); we only need to tag the source.
+          setActivePackages(active.map(p => ({ ...p, source: "ADMIN" })));
+        } catch (err) {
+          console.error("Edit-mode package pre-fetch failed (non-blocking):", err);
+        }
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1108,6 +1127,14 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
   const handleCustomerSelect = useCallback(
     c => {
+      // Different customer (or even same one re-clicked): clear any previously-selected
+      // package — it belonged to the prior client. handleCustomerNameChange covers the
+      // keystroke-typing path; this handler covers the autocomplete-click path.
+      setSelectedPackageId(null);
+      setSelectedPackageCreditId(null);
+      setPackageDurationOverride(null);
+      setEditingPackageDuration(false);
+
       setCustomerId(c.customerId ?? null);
       setCustomerName(c.fullName);
       setCustomerPhone(prev => c.phone ?? prev);
