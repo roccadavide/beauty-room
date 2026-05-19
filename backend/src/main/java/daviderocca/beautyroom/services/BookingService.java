@@ -1758,7 +1758,13 @@ public class BookingService {
                 } else {
                     pkgName = "Trattamento";
                 }
-                linkedPkg = new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining());
+                BigDecimal sessionPrice = null;
+                if (a.getServiceOption() != null && a.getServiceOption().getPrice() != null) {
+                    sessionPrice = a.getServiceOption().getPrice();
+                } else if (pkgSvc != null && pkgSvc.getPrice() != null) {
+                    sessionPrice = pkgSvc.getPrice();
+                }
+                linkedPkg = new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining(), sessionPrice);
             }
         } catch (Exception e) {
             log.warn("Could not resolve linkedPackage for booking {}: {}", b.getBookingId(), e.getMessage());
@@ -1930,7 +1936,13 @@ public class BookingService {
                         } else {
                             pkgName = "Trattamento";
                         }
-                        return new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining());
+                        BigDecimal sessionPrice = null;
+                        if (a.getServiceOption() != null && a.getServiceOption().getPrice() != null) {
+                            sessionPrice = a.getServiceOption().getPrice();
+                        } else if (pkgSvc != null && pkgSvc.getPrice() != null) {
+                            sessionPrice = pkgSvc.getPrice();
+                        }
+                        return new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining(), sessionPrice);
                     })
                     .orElse(null);
         } catch (Exception e) {

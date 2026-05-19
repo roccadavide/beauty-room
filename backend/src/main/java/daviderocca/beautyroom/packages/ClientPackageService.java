@@ -4,6 +4,7 @@ import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
+import java.math.BigDecimal;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
@@ -364,7 +365,13 @@ public class ClientPackageService {
             } else {
                 name = a.getClientName();
             }
-            return new PackageSummaryDTO(a.getId(), name, a.getSessionsRemaining());
+            BigDecimal sessionPrice = null;
+            if (a.getServiceOption() != null && a.getServiceOption().getPrice() != null) {
+                sessionPrice = a.getServiceOption().getPrice();
+            } else if (svc != null && svc.getPrice() != null) {
+                sessionPrice = svc.getPrice();
+            }
+            return new PackageSummaryDTO(a.getId(), name, a.getSessionsRemaining(), sessionPrice);
         });
     }
 

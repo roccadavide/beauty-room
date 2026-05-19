@@ -718,23 +718,50 @@ export default function AdminAgendaPage() {
     // Priorità per servizio: optionPrice (se option su quell'entry) → price catalog
     // Per multi-servizio: somma tutte le entry; per singolo: fallback a optionPrice booking-level
     const effectivePrice = b => {
+      // 1) Package contribution: backend-provided sessionPrice has priority.
+      //    Fall back to booking-level optionPrice (legacy bookings) or to the catalog
+      //    service price keyed by b.serviceId (option-less packages without sessionPrice).
+      let pkgPrice = 0;
+      if (b.linkedPackage) {
+        if (b.linkedPackage.sessionPrice != null) {
+          pkgPrice = Number(b.linkedPackage.sessionPrice);
+        } else if (b.optionPrice != null) {
+          pkgPrice = Number(b.optionPrice);
+        } else if (b.serviceId) {
+          pkgPrice = priceMap.get(String(b.serviceId)) ?? 0;
+        }
+      }
+
+      // 2) Catalog extras. When a package is linked, b.services contains ONLY extras —
+      //    so we must NOT use the legacy "first service gets b.optionPrice" shortcut
+      //    (that would re-apply the package's option price to the first extra row).
+      let extrasSum = 0;
       if (Array.isArray(b.services) && b.services.length > 0) {
-        const sum = b.services.reduce((acc, s, i) => {
+        extrasSum = b.services.reduce((acc, s, i) => {
           const unitPrice =
-            i === 0 && b.optionPrice != null && !s.optionId
-              ? Number(b.optionPrice) // legacy: booking-level option on first service
+            !b.linkedPackage && i === 0 && b.optionPrice != null && !s.optionId
+              ? Number(b.optionPrice) // legacy: booking-level option on first service (non-package only)
               : s.optionId && s.price != null
-                ? Number(s.price) // future: per-entry price (catalog price of optioned service)
+                ? Number(s.price)
                 : s.price != null
                   ? Number(s.price)
                   : (priceMap.get(String(s.id ?? s.serviceId)) ?? 0);
           return acc + unitPrice;
         }, 0);
-        return sum + (b.customServicePrice != null ? Number(b.customServicePrice) : 0);
       }
+
+      // 3) Custom (free-form) service contribution
+      const customPrice = b.customServicePrice != null ? Number(b.customServicePrice) : 0;
+
+      // 4) If any explicit contribution is present, sum them; otherwise fall back to
+      //    the legacy single-service path.
+      if (b.linkedPackage || (Array.isArray(b.services) && b.services.length > 0) || b.customServicePrice != null) {
+        return pkgPrice + extrasSum + customPrice;
+      }
+
+      // 5) Legacy fallback: no package, no extras, no custom — single-service booking
       if (b.optionPrice != null) return Number(b.optionPrice);
-      if (b.customServicePrice != null) return Number(b.customServicePrice);
-      return priceMap.get(String(b.serviceId));
+      return priceMap.get(String(b.serviceId)) ?? 0;
     };
     const revenueKnown = active.some(b => Number.isFinite(effectivePrice(b)));
     const calcRevenue = list =>
