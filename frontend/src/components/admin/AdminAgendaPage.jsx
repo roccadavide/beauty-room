@@ -90,25 +90,64 @@ function shortCustomerName(name) {
 
 // ── EstimatoModal helpers ────────────────────────────────────────────────────
 
-function getBookingPrice(booking, priceMap) {
-  if (Array.isArray(booking.services) && booking.services.length > 0) {
-    const sum = booking.services.reduce((acc, s, i) => {
-      const unitPrice =
-        i === 0 && booking.optionPrice != null && !s.optionId
-          ? Number(booking.optionPrice)
-          : s.optionId && s.price != null
-            ? Number(s.price)
-            : s.price != null
-              ? Number(s.price)
-              : (priceMap.get(String(s.id ?? s.serviceId)) ?? 0);
-      return acc + unitPrice;
-    }, 0);
-    return sum + (booking.customServicePrice != null ? Number(booking.customServicePrice) : 0);
+function buildBreakdownItems(booking, priceMap) {
+  const items = [];
+
+  // a. Package contribution
+  if (booking.linkedPackage) {
+    const pkg = booking.linkedPackage;
+    const name = pkg.serviceTitle || pkg.serviceName || pkg.packageName || "Pacchetto";
+    const sessionNum = booking.currentSession ?? pkg.sessionNumber;
+    const totalSess = booking.totalSessions;
+    const suffix = sessionNum && totalSess ? ` · Seduta ${sessionNum}/${totalSess}` : "";
+    const label = `📦 ${name}${suffix}`;
+    let price = null;
+    if (pkg.sessionPrice != null) price = Number(pkg.sessionPrice);
+    else if (booking.optionPrice != null) price = Number(booking.optionPrice);
+    else {
+      const p = priceMap.get(String(booking.serviceId));
+      if (p != null) price = p;
+    }
+    items.push({ label, price, kind: "package" });
   }
-  if (booking.optionPrice != null) return Number(booking.optionPrice);
-  if (booking.customServicePrice != null) return Number(booking.customServicePrice);
-  const p = priceMap.get(String(booking.serviceId));
-  return p != null ? p : null;
+
+  // b. Extras from booking.services
+  if (Array.isArray(booking.services) && booking.services.length > 0) {
+    booking.services.forEach((s, i) => {
+      const name = s.name || s.title || s.serviceName || "?";
+      const label = s.optionName ? `${name} · ${s.optionName}` : name;
+      let price;
+      if (!booking.linkedPackage && i === 0 && booking.optionPrice != null && !s.optionId) {
+        price = Number(booking.optionPrice);
+      } else if (s.price != null) {
+        price = Number(s.price);
+      } else {
+        const p = priceMap.get(String(s.id ?? s.serviceId));
+        price = p != null ? p : null;
+      }
+      items.push({ label, price, kind: "extra" });
+    });
+  }
+
+  // c. Custom service
+  if (booking.customServicePrice != null || (booking.customServiceName && booking.customServiceName.trim() !== "")) {
+    items.push({
+      label: booking.customServiceName || "Servizio personalizzato",
+      price: booking.customServicePrice != null ? Number(booking.customServicePrice) : null,
+      kind: "custom",
+    });
+  }
+
+  // d. Legacy fallback
+  if (items.length === 0) {
+    items.push({
+      label: (booking.serviceTitle ?? "—") + (booking.optionName ? ` · ${booking.optionName}` : ""),
+      price: booking.optionPrice != null ? booking.optionPrice : (priceMap.get(String(booking.serviceId)) ?? null),
+      kind: "legacy",
+    });
+  }
+
+  return items;
 }
 
 function getPaymentLabel(booking) {
@@ -117,21 +156,6 @@ function getPaymentLabel(booking) {
   return { icon: "⏳", text: "Da pagare", css: "ag-pay--pending" };
 }
 
-function getBookingServiceLabel(booking) {
-  if (booking.linkedPackage) {
-    const name = booking.linkedPackage.serviceTitle || booking.linkedPackage.serviceName || booking.linkedPackage.packageName || "Pacchetto";
-    return name;
-  }
-  if (Array.isArray(booking.services) && booking.services.length > 0) {
-    const first = booking.services[0];
-    const name = first.name || first.title || first.serviceName || "?";
-    const label = first.optionName ? `${name} · ${first.optionName}` : name;
-    return booking.services.length > 1 ? `${label} +${booking.services.length - 1}` : label;
-  }
-  if (booking.serviceTitle) return booking.serviceTitle + (booking.optionName ? ` · ${booking.optionName}` : "");
-  if (booking.customServiceName) return booking.customServiceName;
-  return "—";
-}
 
 function EstimatoModal({ bookings, services, onClose }) {
   const priceMap = useMemo(() => new Map((services || []).map(s => [String(s.serviceId), Number(s.price)])), [services]);
@@ -141,10 +165,9 @@ function EstimatoModal({ bookings, services, onClose }) {
   const rows = useMemo(
     () =>
       active.map(b => {
-        const price = getBookingPrice(b, priceMap);
-        const pay = getPaymentLabel(b);
-        const isPackage = !!b.linkedPackage;
-        return { booking: b, price, pay, isPackage };
+        const items = buildBreakdownItems(b, priceMap);
+        const total = items.reduce((acc, it) => acc + (Number.isFinite(it.price) ? it.price : 0), 0);
+        return { booking: b, pay: getPaymentLabel(b), items, total };
       }),
     [active, priceMap],
   );
@@ -153,8 +176,8 @@ function EstimatoModal({ bookings, services, onClose }) {
     let online = 0,
       inStore = 0,
       pending = 0;
-    rows.forEach(({ booking, price }) => {
-      const p = Number.isFinite(price) ? price : 0;
+    rows.forEach(({ booking, total }) => {
+      const p = Number.isFinite(total) ? total : 0;
       if (booking.paidOnline) online += p;
       else if (booking.paidInStore) inStore += p;
       else pending += p;
@@ -192,21 +215,43 @@ function EstimatoModal({ bookings, services, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ booking: b, price, pay, isPackage }) => (
-                <tr key={b.bookingId}>
-                  <td>{fmtTime(b.startTime)}</td>
-                  <td>{b.customerName || "—"}</td>
-                  <td>{getBookingServiceLabel(b)}</td>
-                  <td className={`ag-estimato-price${price == null ? " ag-estimato-price--null" : ""}`}>
-                    {price == null ? "—" : `€${Number(price).toFixed(0)}${isPackage ? " (pacchetto)" : ""}`}
-                  </td>
-                  <td>
-                    <span className={`ag-pay-badge ${pay.css}`}>
-                      {pay.icon} {pay.text}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {rows.flatMap(({ booking: b, pay, items, total }) =>
+                items
+                  .map((it, idx) => (
+                    <tr key={`${b.bookingId}-${idx}`} className={idx > 0 ? "ag-estimato-row--sub" : ""}>
+                      <td>{idx === 0 ? fmtTime(b.startTime) : ""}</td>
+                      <td>{idx === 0 ? b.customerName || "—" : ""}</td>
+                      <td>{it.label}</td>
+                      <td className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}>
+                        {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
+                      </td>
+                      <td>
+                        {idx === 0 ? (
+                          <span className={`ag-pay-badge ${pay.css}`}>
+                            {pay.icon} {pay.text}
+                          </span>
+                        ) : (
+                          ""
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                  .concat(
+                    items.length > 1
+                      ? [
+                          <tr key={`${b.bookingId}-total`} className="ag-estimato-row--total">
+                            <td></td>
+                            <td></td>
+                            <td style={{ fontWeight: 500, fontStyle: "italic", color: "#888" }}>Totale</td>
+                            <td className="ag-estimato-price" style={{ fontWeight: 600, borderTop: "1px solid #ddd" }}>
+                              €{total.toFixed(0)}
+                            </td>
+                            <td></td>
+                          </tr>,
+                        ]
+                      : [],
+                  ),
+              )}
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ textAlign: "center", color: "#bbb", padding: "1.5rem" }}>
