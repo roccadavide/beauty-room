@@ -9,11 +9,13 @@ import {
   updateBooking,
   getNextAvailableSlot,
   patchBookingPadding,
+  patchBookingReminder,
   refundBooking,
   patchBookingConsent,
   getPersonalAppointmentsDay,
   createPersonalAppointment,
 } from "../../api/modules/adminAgenda.api";
+import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../utils/reminders";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
 import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
@@ -626,6 +628,12 @@ export default function AdminAgendaPage() {
   const [consentConfirmBooking, setConsentConfirmBooking] = useState(null);
   const [showEstimatoModal, setShowEstimatoModal] = useState(false);
 
+  // ── WhatsApp reminders ───────────────────────────────────────────────
+  // Stato "inviato" = booking.reminderSentAt dal backend.
+  // reminderPending = solo client: cliccato ma non ancora confermato.
+  const [reminderPending, setReminderPending] = useState(() => new Set());
+  const [reminderBusy, setReminderBusy] = useState(() => new Set());
+
   // ── Timeline ↔ Lista: highlight sincronizzato ────────────────────────────
   const [highlightedId, setHighlightedId] = useState(null);
   const itemRefsMap = useRef(new Map());
@@ -1007,6 +1015,50 @@ export default function AdminAgendaPage() {
       setErr(e.message || "Errore durante la firma del consenso.");
     }
   };
+
+  const openReminderWhatsApp = b => {
+    window.open(buildWhatsAppUrl(b.customerPhone, buildReminderMessage(b)), "_blank", "noopener,noreferrer");
+  };
+
+  const handleSendReminder = b => {
+    openReminderWhatsApp(b);
+    setReminderPending(prev => new Set(prev).add(b.bookingId));
+  };
+
+  const dismissReminderPending = bookingId => {
+    setReminderPending(prev => {
+      const next = new Set(prev);
+      next.delete(bookingId);
+      return next;
+    });
+  };
+
+  const setReminderState = async (b, sent) => {
+    setReminderBusy(prev => new Set(prev).add(b.bookingId));
+    setErr("");
+    try {
+      const res = await patchBookingReminder(b.bookingId, sent);
+      setBookings(prev =>
+        prev.map(bk => (bk.bookingId === b.bookingId ? { ...bk, reminderSentAt: res.reminderSentAt } : bk)),
+      );
+      setReminderPending(prev => {
+        const next = new Set(prev);
+        next.delete(b.bookingId);
+        return next;
+      });
+    } catch (e) {
+      setErr(e.message || "Errore durante l'aggiornamento del promemoria.");
+    } finally {
+      setReminderBusy(prev => {
+        const next = new Set(prev);
+        next.delete(b.bookingId);
+        return next;
+      });
+    }
+  };
+
+  const confirmReminderSent = b => setReminderState(b, true);
+  const undoReminderSent = b => setReminderState(b, false);
 
   const submitModal = async payload => {
     setErr("");
@@ -1682,6 +1734,102 @@ export default function AdminAgendaPage() {
                               )}
                             </div>
                           )}
+
+                          {(b.status === "PENDING" || b.status === "PENDING_PAYMENT" || b.status === "CONFIRMED") &&
+                            b.customerPhone &&
+                            (() => {
+                              const sentAt = b.reminderSentAt;
+                              const isPending = reminderPending.has(b.bookingId);
+                              const isBusy = reminderBusy.has(b.bookingId);
+                              const laser = isLaserBooking(b);
+
+                              if (sentAt) {
+                                return (
+                                  <div className="ag-reminder-row ag-reminder-row--sent">
+                                    <span className="ag-reminder-badge">
+                                      {"✓ Promemoria inviato"}
+                                      <span className="ag-reminder-badge__time">
+                                        {" · "}
+                                        {new Date(sentAt).toLocaleString("it-IT", {
+                                          day: "2-digit",
+                                          month: "2-digit",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </span>
+                                    </span>
+                                    <div className="ag-reminder-row__links">
+                                      <button type="button" className="ag-reminder-link" onClick={() => openReminderWhatsApp(b)}>
+                                        Invia di nuovo
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ag-reminder-link ag-reminder-link--muted"
+                                        disabled={isBusy}
+                                        onClick={() => undoReminderSent(b)}
+                                      >
+                                        {isBusy ? "…" : "Annulla"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              if (isPending) {
+                                return (
+                                  <div className="ag-reminder-row ag-reminder-row--pending">
+                                    <span className="ag-reminder-pending-text">
+                                      Promemoria aperto in WhatsApp {"—"} l{"’"}hai inviato?
+                                    </span>
+                                    <div className="ag-reminder-row__actions">
+                                      <button
+                                        type="button"
+                                        className="ag-reminder-btn ag-reminder-btn--confirm"
+                                        disabled={isBusy}
+                                        onClick={() => confirmReminderSent(b)}
+                                      >
+                                        {isBusy ? "…" : "✓ Sì, inviato"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ag-reminder-btn ag-reminder-btn--ghost"
+                                        disabled={isBusy}
+                                        onClick={() => dismissReminderPending(b.bookingId)}
+                                      >
+                                        Non inviato
+                                      </button>
+                                      <button type="button" className="ag-reminder-link" onClick={() => openReminderWhatsApp(b)}>
+                                        Riapri
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="ag-reminder-row">
+                                  <button
+                                    type="button"
+                                    className="ag-reminder-btn ag-reminder-btn--send"
+                                    title={buildReminderMessage(b)}
+                                    onClick={() => handleSendReminder(b)}
+                                  >
+                                    <span className="ag-reminder-btn__icon" aria-hidden="true">
+                                      {"💬"}
+                                    </span>
+                                    Invia promemoria
+                                  </button>
+                                  {laser && (
+                                    <span
+                                      className="ag-reminder-tag"
+                                      title="Verrà usato il messaggio con le istruzioni per il laser"
+                                    >
+                                      {"✨ versione laser"}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
 
                           <div className="ag-item__actions">
                             {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (

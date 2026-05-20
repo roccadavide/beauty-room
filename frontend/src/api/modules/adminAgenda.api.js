@@ -64,6 +64,17 @@ export const patchBookingPadding = async (id, minutes) => {
   }
 };
 
+// PATCH reminder — segna/annulla l'invio del promemoria WhatsApp
+export const patchBookingReminder = async (id, sent) => {
+  try {
+    const { data } = await http.patch(`/admin/bookings/${id}/reminder`, { sent });
+    return data; // { bookingId, reminderSentAt }
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore aggiornamento promemoria.";
+    throw new Error(message);
+  }
+};
+
 export const deleteBooking = async id => {
   try {
     await http.delete(AGENDA_ENDPOINTS.BOOKING_BY_ID(id));
