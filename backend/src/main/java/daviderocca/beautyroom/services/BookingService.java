@@ -1640,6 +1640,17 @@ public class BookingService {
         return toAdminCard(saved);
     }
 
+    // ============================ REMINDER WHATSAPP ============================
+
+    @Transactional
+    public LocalDateTime updateReminderSent(UUID bookingId, boolean sent) {
+        Booking b = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(bookingId));
+        b.setReminderSentAt(sent ? LocalDateTime.now() : null);
+        bookingRepository.save(b);
+        return b.getReminderSentAt();
+    }
+
     /**
      * Ritorna tutte le prenotazioni future con consentRequired=true e consentSigned=false.
      * Usato dal pannello notifiche e dal badge nell'agenda.
@@ -1821,7 +1832,8 @@ public class BookingService {
                 b.isPaidInStore(),
                 b.getPaidAt(),
                 paidOnline,
-                refundable
+                refundable,
+                b.getReminderSentAt()
         );
     }
 

@@ -50,5 +50,6 @@ public record AdminBookingCardDTO(
         // Payment / refund
         LocalDateTime paidAt,
         boolean paidOnline,
-        boolean refundable
+        boolean refundable,
+        LocalDateTime reminderSentAt
 ) {}

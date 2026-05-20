@@ -6,6 +6,8 @@ import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NextAvailableSlotDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.ReminderStatusDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.ReminderUpdateDTO;
 import daviderocca.beautyroom.services.AvailabilityService;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.User;
@@ -134,6 +136,15 @@ public class AdminBookingController {
         booking.setPaddingMinutes(minutes != null && minutes > 0 ? minutes : null);
         bookingService.save(booking);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/reminder")
+    public ResponseEntity<ReminderStatusDTO> updateReminder(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReminderUpdateDTO body) {
+        LocalDateTime sentAt =
+                bookingService.updateReminderSent(id, Boolean.TRUE.equals(body.sent()));
+        return ResponseEntity.ok(new ReminderStatusDTO(id, sentAt));
     }
 
     // UPDATE BOOKING (sposta orario / cambia servizio / note)

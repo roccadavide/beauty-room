@@ -88,6 +88,9 @@ public class Booking {
     @Column(name="review_request_sent_at")
     private LocalDateTime reviewRequestSentAt;
 
+    @Column(name = "reminder_sent_at")
+    private LocalDateTime reminderSentAt;
+
     @Column(name = "padding_minutes")
     private Integer paddingMinutes; 
 
