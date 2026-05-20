@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createMultiServiceBookingCheckout, fetchAvailableSlots } from "../../api/modules/stripe.api";
-import { BRAND_WHATSAPP } from "../../utils/constants";
+import { BOOKING_MAX_ADVANCE_DAYS, BRAND_WHATSAPP } from "../../utils/constants";
 import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
 import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
@@ -73,10 +73,16 @@ const MultiServiceBookingModal = ({ show, onHide, services, products = [] }) => 
     useNextSlot(primaryServiceId);
   const pendingSlotStartRef = useRef(null);
 
+  const maxBookingDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + BOOKING_MAX_ADVANCE_DAYS);
+    return d;
+  }, []);
+
   const disabledDates = useMemo(() => {
     const dates = [];
     const today = new Date();
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i <= BOOKING_MAX_ADVANCE_DAYS; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const iso = toISODateLocal(d);
@@ -277,6 +283,7 @@ const MultiServiceBookingModal = ({ show, onHide, services, products = [] }) => 
               if (!Number.isNaN(d.getTime())) { setDate(d); setSlot(null); }
             }}
             minDate={new Date()}
+            maxDate={maxBookingDate}
             disabledDates={disabledDates}
             placeholder="Scegli un giorno"
           />

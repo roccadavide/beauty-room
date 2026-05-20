@@ -3,3 +3,7 @@ export const BRAND_WHATSAPP = "393780921723"; // E.164 senza +, per wa.me/
 export const BRAND_PHONE_LABEL = "+39 378 092 1723";
 export const BRAND_EMAIL = "rossimichela.pmu@gmail.com";
 export const BRAND_NAME = "Beauty Room";
+
+// Must match app.booking.max-advance-days in the backend (150).
+// No public config endpoint exists — keep in sync manually.
+export const BOOKING_MAX_ADVANCE_DAYS = 150;

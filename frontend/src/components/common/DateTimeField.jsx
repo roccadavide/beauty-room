@@ -46,6 +46,13 @@ function makeMinDateStr(minDate) {
   return null;
 }
 
+function makeMaxDateStr(maxDate) {
+  if (maxDate == null) return null;
+  if (maxDate instanceof Date) return toISODateLocal(maxDate);
+  if (typeof maxDate === "string") return maxDate.slice(0, 10);
+  return null;
+}
+
 function generateHalfHourSlots() {
   const out = [];
   let t = 8 * 60;
@@ -81,6 +88,7 @@ export default function DateTimeField({
   onChange,
   mode = "datetime",
   minDate,
+  maxDate = null,
   disabledDates = [],
   busyDates = [],
   placeholder = "Seleziona data…",
@@ -99,6 +107,7 @@ export default function DateTimeField({
 
   const parsed = useMemo(() => parseIncoming(value, mode), [value, mode]);
   const minDateStr = useMemo(() => makeMinDateStr(minDate), [minDate]);
+  const maxDateStr = useMemo(() => makeMaxDateStr(maxDate), [maxDate]);
   const disabledSet = useMemo(() => new Set((disabledDates || []).map(d => String(d).slice(0, 10))), [disabledDates]);
   const busyMap = useMemo(() => {
     const m = new Map();
@@ -212,6 +221,11 @@ export default function DateTimeField({
     return parsed.timeStr;
   }, [mode, parsed.timeStr]);
 
+  const nextMonthYear = viewMonth === 11 ? viewYear + 1 : viewYear;
+  const nextMonthIdx  = viewMonth === 11 ? 0 : viewMonth + 1;
+  const nextMonthBlocked = maxDateStr != null
+    && new Date(nextMonthYear, nextMonthIdx, 1) > new Date(maxDateStr + "T00:00:00");
+
   const prevMonth = () => {
     if (mode === "time") return;
     if (viewMonth === 0) {
@@ -224,6 +238,7 @@ export default function DateTimeField({
 
   const nextMonth = () => {
     if (mode === "time") return;
+    if (nextMonthBlocked) return;
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear(y => y + 1);
@@ -258,6 +273,16 @@ export default function DateTimeField({
     [minDateStr, viewMonth, viewYear],
   );
 
+  const isAfterMax = useCallback(
+    day => {
+      if (!maxDateStr) return false;
+      const dt = new Date(viewYear, viewMonth, day);
+      dt.setHours(0, 0, 0, 0);
+      return dt > new Date(maxDateStr + "T00:00:00");
+    },
+    [maxDateStr, viewMonth, viewYear],
+  );
+
   const isDisabledDay = useCallback(
     day => {
       const iso = toISODateLocal(new Date(viewYear, viewMonth, day));
@@ -290,7 +315,7 @@ export default function DateTimeField({
   );
 
   const handleDayClick = day => {
-    if (!day || isPast(day) || isDisabledDay(day)) return;
+    if (!day || isPast(day) || isDisabledDay(day) || isAfterMax(day)) return;
     const iso = toISODateLocal(new Date(viewYear, viewMonth, day));
     applyDate(iso);
   };
@@ -352,7 +377,7 @@ export default function DateTimeField({
               ‹
             </button>
             <span className="dtf-month-label">{monthName}</span>
-            <button type="button" className="dtf-nav-btn" onClick={nextMonth} aria-label="Mese successivo">
+            <button type="button" className="dtf-nav-btn" onClick={nextMonth} disabled={nextMonthBlocked} aria-label="Mese successivo">
               ›
             </button>
           </div>
@@ -368,6 +393,7 @@ export default function DateTimeField({
               if (d && isSelectedDay(d)) classes.push("dtf-day--selected");
               if (d && isToday(d)) classes.push("dtf-day--today");
               if (d && isPast(d)) classes.push("dtf-day--past");
+              if (d && isAfterMax(d)) classes.push("dtf-day--past");
               if (d && isDisabledDay(d)) classes.push("dtf-day--blocked");
               const iso = d ? toISODateLocal(new Date(viewYear, viewMonth, d)) : null;
               const busy = iso ? busyMap.get(iso) : null;
@@ -376,7 +402,7 @@ export default function DateTimeField({
                   key={i}
                   className={classes.join(" ")}
                   role={d ? "button" : undefined}
-                  tabIndex={d && !isPast(d) && !isDisabledDay(d) ? 0 : undefined}
+                  tabIndex={d && !isPast(d) && !isDisabledDay(d) && !isAfterMax(d) ? 0 : undefined}
                   title={d && isDisabledDay(d) ? "Chiuso" : undefined}
                   onClick={() => handleDayClick(d)}
                   onKeyDown={e => {

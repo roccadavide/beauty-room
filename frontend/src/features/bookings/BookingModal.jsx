@@ -4,7 +4,7 @@ import { useSelector } from "react-redux";
 import { fetchAvailabilities } from "../../api/modules/availabilities.api";
 import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest, createBookingPayInStore } from "../../api/modules/stripe.api";
 import { fetchCancellationPolicy } from "../../api/modules/users.api";
-import { BRAND_WHATSAPP } from "../../utils/constants";
+import { BOOKING_MAX_ADVANCE_DAYS, BRAND_WHATSAPP } from "../../utils/constants";
 import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
 import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
@@ -36,10 +36,16 @@ const BookingModal = ({
 
   const { closedDates, closedWeekdays, isClosed } = useClosedDays();
   const [emptySlotDates, setEmptySlotDates] = useState([]);
+  const maxBookingDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + BOOKING_MAX_ADVANCE_DAYS);
+    return d;
+  }, []);
+
   const disabledDates = useMemo(() => {
     const dates = [];
     const today = new Date();
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i <= BOOKING_MAX_ADVANCE_DAYS; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const iso = toISODateLocal(d);
@@ -339,6 +345,7 @@ const BookingModal = ({
                 }
               }}
               minDate={new Date()}
+              maxDate={maxBookingDate}
               disabledDates={disabledDates}
               placeholder="Scegli un giorno"
             />
