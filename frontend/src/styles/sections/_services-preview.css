@@ -60,21 +60,66 @@
   margin-bottom: 0.6rem;
 }
 
-/* FIX-20: .sp-title e .sp-subtitle rimossi — identici a .section-title/.section-subtitle */
-
+/* ===== CAROUSEL ADATTIVO =====
+   Il track centra le card quando ci stanno, scorre quando non ci stanno.
+   `safe center` evita il taglio della prima card in overflow. */
 .sp-track-wrapper {
   position: relative;
+}
+
+/* Sfumature laterali — compaiono solo a carosello attivo e non al bordo */
+.sp-track-wrapper::before,
+.sp-track-wrapper::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 64px;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sp-track-wrapper::before {
+  left: 0;
+  background: linear-gradient(to right, #fffdf8 12%, rgba(255, 253, 248, 0));
+}
+
+.sp-track-wrapper::after {
+  right: 0;
+  background: linear-gradient(to left, #fffdf8 12%, rgba(255, 253, 248, 0));
+}
+
+.sp-track-wrapper--scrollable:not(.is-at-start)::before {
+  opacity: 1;
+}
+.sp-track-wrapper--scrollable:not(.is-at-end)::after {
+  opacity: 1;
 }
 
 .sp-track {
   display: flex;
   gap: 1.5rem;
-  justify-content: center;
+  justify-content: safe center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* spazio verticale per lift + ombra hover delle card */
+  padding: 24px 8px 60px;
+}
+
+.sp-track::-webkit-scrollbar {
+  display: none;
 }
 
 .sp-slide {
   flex: 0 0 auto;
-  width: 320px;
+  width: 300px;
+  scroll-snap-align: start;
 }
 
 .sp-card {
@@ -123,13 +168,7 @@
 .sp-card__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(20, 12, 6, 0.88) 0%,
-    rgba(20, 12, 6, 0.45) 45%,
-    rgba(20, 12, 6, 0.05) 75%,
-    transparent 100%
-  );
+  background: linear-gradient(to top, rgba(20, 12, 6, 0.88) 0%, rgba(20, 12, 6, 0.45) 45%, rgba(20, 12, 6, 0.05) 75%, transparent 100%);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -209,36 +248,51 @@
   box-shadow: 0 2px 8px rgba(255, 80, 60, 0.2);
 }
 
+/* ---- Frecce carosello ---- */
 .sp-arrow {
-  display: none;
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255, 253, 248, 0.9);
-  border: 1px solid rgba(184, 151, 106, 0.3);
+  top: 24px;
+  bottom: 60px;
+  margin-block: auto; /* centra verticalmente sull'area card, indipendente dall'altezza */
+  height: 46px;
+  width: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 253, 248, 0.92);
+  border: 1px solid rgba(184, 151, 106, 0.35);
   border-radius: 999px;
-  width: 42px;
-  height: 42px;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   line-height: 1;
-  cursor: pointer;
   color: #2e2118;
+  cursor: pointer;
   backdrop-filter: blur(6px);
-  z-index: 5;
-  transition: background 0.2s ease;
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px rgba(46, 33, 24, 0.14);
+  z-index: 6;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.25s ease,
+    transform 0.15s ease;
 }
 
-.sp-arrow:hover {
+.sp-arrow:hover:not(:disabled) {
   background: #fff;
-  border-color: rgba(184, 151, 106, 0.6);
+  border-color: rgba(184, 151, 106, 0.7);
+  transform: scale(1.07);
+}
+
+.sp-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .sp-arrow--prev {
-  left: -16px;
+  left: 6px;
 }
-
 .sp-arrow--next {
-  right: -16px;
+  right: 6px;
 }
 
 .sp-footer {
@@ -247,7 +301,7 @@
   justify-content: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 2.5rem;
+  margin-top: 2rem;
 }
 
 .sp-cta-btn {
@@ -280,43 +334,36 @@
 
 @media (max-width: 991px) {
   .sp-track {
-    justify-content: flex-start;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 0.5rem 0.25rem 1rem;
     gap: 1rem;
   }
 
-  .sp-track::-webkit-scrollbar {
-    display: none;
-  }
-
   .sp-slide {
-    scroll-snap-align: center;
-    width: 80vw;
+    width: 78vw;
     max-width: 300px;
   }
 
   .sp-card {
     height: 380px;
   }
-
-  .sp-arrow {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
 }
 
 @media (max-width: 575px) {
   .sp-slide {
-    width: 85vw;
+    width: 84vw;
   }
 
   .sp-card {
     height: 340px;
+  }
+
+  /* su telefono: navigazione a swipe + sfumature, niente frecce */
+  .sp-arrow {
+    display: none;
+  }
+
+  .sp-track-wrapper::before,
+  .sp-track-wrapper::after {
+    width: 40px;
   }
 }
 
@@ -364,7 +411,9 @@
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 2px 12px rgba(46, 33, 24, 0.12);
-  transition: background 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .rc-arrow:hover {
@@ -379,4 +428,3 @@
 .rc-arrow--right {
   right: -6px;
 }
-

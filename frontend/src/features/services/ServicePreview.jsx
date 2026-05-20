@@ -18,7 +18,7 @@ const MAX_FEATURED = 5;
 function PreviewCard({ s, onNavigate, isAdmin, onEdit, onDelete }) {
   const { count, liked, burst, triggerLike, showHint } = useLike("SERVICE", s.serviceId, s.likesCount ?? 0);
 
-  const lastTapRef  = useRef(0);
+  const lastTapRef = useRef(0);
   const navTimerRef = useRef(null);
 
   const handleCardClick = useCallback(() => {
@@ -37,13 +37,7 @@ function PreviewCard({ s, onNavigate, isAdmin, onEdit, onDelete }) {
   }, [triggerLike, onNavigate]);
 
   return (
-    <div
-      className="sp-card"
-      onClick={handleCardClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={e => e.key === "Enter" && onNavigate()}
-    >
+    <div className="sp-card" onClick={handleCardClick} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && onNavigate()}>
       <div className="sp-card__img-wrap">
         {s.images?.[0] ? <img src={s.images[0]} alt={s.title} /> : <div className="sp-card__img-placeholder" />}
         <div className="sp-card__overlay">
@@ -85,6 +79,30 @@ const ServicesPreview = () => {
   const { user, accessToken } = useSelector(state => state.auth);
   const navigate = useNavigate();
 
+  // ---------- CAROUSEL ADATTIVO ----------
+  // Le card si centrano quando ci stanno; il carosello (frecce + sfumature)
+  // si attiva SOLO quando il track va realmente in overflow.
+  const trackRef = useRef(null);
+  const [carousel, setCarousel] = useState({ scrollable: false, atStart: true, atEnd: true });
+
+  const updateCarousel = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const scrollable = el.scrollWidth - el.clientWidth > 2;
+    const atStart = el.scrollLeft <= 2;
+    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+    setCarousel({ scrollable, atStart, atEnd });
+  }, []);
+
+  const scrollByCard = useCallback(direction => {
+    const el = trackRef.current;
+    if (!el) return;
+    const firstSlide = el.querySelector(".sp-slide");
+    const gap = parseFloat(getComputedStyle(el).columnGap) || 24;
+    const step = firstSlide ? firstSlide.getBoundingClientRect().width + gap : 320;
+    el.scrollBy({ left: direction * step, behavior: "smooth" });
+  }, []);
+
   // ---------- FETCH ----------
   useEffect(() => {
     const loadData = async () => {
@@ -111,6 +129,22 @@ const ServicesPreview = () => {
   }, [categories]);
 
   const services = useMemo(() => allServices.filter(s => s.featured), [allServices]);
+
+  // Ricalcola lo stato del carosello quando cambia il numero di card in evidenza
+  // o quando il track viene montato (fine loading) o la viewport cambia.
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(updateCarousel);
+    el.addEventListener("scroll", updateCarousel, { passive: true });
+    const ro = new ResizeObserver(updateCarousel);
+    ro.observe(el);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("scroll", updateCarousel);
+      ro.disconnect();
+    };
+  }, [updateCarousel, services.length, loading]);
 
   const searchableServices = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -199,7 +233,6 @@ const ServicesPreview = () => {
         {/* Header centrato */}
         <div className="sp-head">
           <span className="sp-eyebrow">I miei trattamenti</span>
-          {/* FIX-20: sp-title/sp-subtitle → section-title/section-subtitle (identici, unificati) */}
           <h2 className="section-title">Scelti per te da Michela</h2>
           <p className="section-subtitle">Una selezione dei trattamenti più amati, per un look curato e risultati visibili fin dalla prima seduta.</p>
           {user?.role === "ADMIN" && (
@@ -244,9 +277,16 @@ const ServicesPreview = () => {
           </div>
         )}
 
-        {/* Carousel wrapper */}
-        <div className="sp-track-wrapper">
-          <div className="sp-track" id="spTrack">
+        {/* Carousel wrapper — frecce + sfumature solo se realmente scrollabile */}
+        <div
+          className={
+            "sp-track-wrapper" +
+            (carousel.scrollable ? " sp-track-wrapper--scrollable" : "") +
+            (carousel.atStart ? " is-at-start" : "") +
+            (carousel.atEnd ? " is-at-end" : "")
+          }
+        >
+          <div className="sp-track" ref={trackRef}>
             {services.map(s => (
               <div key={s.serviceId} className="sp-slide">
                 <PreviewCard
@@ -254,30 +294,25 @@ const ServicesPreview = () => {
                   onNavigate={() => navigate(`/trattamenti/${s.serviceId}`)}
                   isAdmin={user?.role === "ADMIN"}
                   onEdit={() => handleEdit(s)}
-                  onDelete={() => { setSelectedService(s); setDeleteModal(true); }}
+                  onDelete={() => {
+                    setSelectedService(s);
+                    setDeleteModal(true);
+                  }}
                 />
               </div>
             ))}
           </div>
 
-          <button
-            className="sp-arrow sp-arrow--prev"
-            aria-label="Precedente"
-            onClick={() => {
-              document.getElementById("spTrack")?.scrollBy({ left: -320, behavior: "smooth" });
-            }}
-          >
-            ‹
-          </button>
-          <button
-            className="sp-arrow sp-arrow--next"
-            aria-label="Successivo"
-            onClick={() => {
-              document.getElementById("spTrack")?.scrollBy({ left: 320, behavior: "smooth" });
-            }}
-          >
-            ›
-          </button>
+          {carousel.scrollable && (
+            <>
+              <button className="sp-arrow sp-arrow--prev" aria-label="Trattamenti precedenti" onClick={() => scrollByCard(-1)} disabled={carousel.atStart}>
+                ‹
+              </button>
+              <button className="sp-arrow sp-arrow--next" aria-label="Trattamenti successivi" onClick={() => scrollByCard(1)} disabled={carousel.atEnd}>
+                ›
+              </button>
+            </>
+          )}
         </div>
 
         <div className="sp-footer">
