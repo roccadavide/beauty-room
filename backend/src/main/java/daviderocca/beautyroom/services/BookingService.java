@@ -91,6 +91,9 @@ public class BookingService {
     @Value("${booking.hold.expire-minutes:12}")
     private int holdExpireMinutes;
 
+    @Value("${app.booking.max-advance-days:150}")
+    private int maxAdvanceDays;
+
     private static final List<BookingStatus> BLOCKING = List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
 
     /**
@@ -991,7 +994,7 @@ public class BookingService {
         LocalDate startDate = after.toLocalDate();
         LocalTime afterTime = after.toLocalTime();
 
-        for (int i = 0; i < 90; i++) {
+        for (int i = 0; i < maxAdvanceDays; i++) {
             LocalDate day = startDate.plusDays(i);
             DayOfWeek dow = day.getDayOfWeek();
 
@@ -1861,6 +1864,8 @@ public class BookingService {
                 .truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES);
         if (start.isBefore(now)) throw new BadRequestException("L'orario di inizio non può essere nel passato.");
+        if (start.toLocalDate().isAfter(LocalDate.now(AvailabilityService.BUSINESS_ZONE).plusDays(maxAdvanceDays)))
+            throw new BadRequestException("Non è possibile prenotare con più di " + maxAdvanceDays + " giorni di anticipo.");
         return start;
     }
 

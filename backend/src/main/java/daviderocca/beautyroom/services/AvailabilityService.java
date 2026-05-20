@@ -16,6 +16,7 @@ import daviderocca.beautyroom.repositories.ClosureRepository;
 import daviderocca.beautyroom.repositories.WorkingHoursRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +36,12 @@ public class AvailabilityService {
     private final ServiceItemService serviceItemService;
     private final PersonalAppointmentRepository personalAppointmentRepository;
 
+    public static final ZoneId BUSINESS_ZONE = ZoneId.of("Europe/Rome");
+
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
+
+    @Value("${app.booking.max-advance-days:150}")
+    private int maxAdvanceDays;
 
     /**
      * Statuses that physically occupy a slot and prevent new bookings.
@@ -95,7 +101,7 @@ public class AvailabilityService {
         List<TimeRange> blockedIntervals = toEffectiveBlockedIntervals(blockingBookings, date);
 
         // Generate all slots and mark each available/unavailable
-        List<AvailabilitySlotDTO> slots = generateAllSlots(openRanges, durationMin, blockedIntervals);
+        List<AvailabilitySlotDTO> slots = generateAllSlots(openRanges, durationMin, blockedIntervals, date);
 
         return new AvailabilityResponseDTO(serviceId, date, durationMin, slots);
     }
@@ -116,9 +122,9 @@ public class AvailabilityService {
      */
     @Transactional(readOnly = true)
     public Optional<PublicNextSlotDTO> findNextAvailableSlotForService(UUID serviceId, LocalDate fromDate, String fromTime) {
-        LocalDate start = (fromDate != null && !fromDate.isBefore(LocalDate.now()))
+        LocalDate start = (fromDate != null && !fromDate.isBefore(LocalDate.now(BUSINESS_ZONE)))
                 ? fromDate
-                : LocalDate.now();
+                : LocalDate.now(BUSINESS_ZONE);
 
         // Parsing fromTime — null se assente o malformato
         LocalTime afterTime = null;
@@ -127,7 +133,7 @@ public class AvailabilityService {
         }
         final LocalTime afterTimeFinal = afterTime;
 
-        for (int i = 0; i < 60; i++) {
+        for (int i = 0; i < maxAdvanceDays; i++) {
             LocalDate day = start.plusDays(i);
             // Il filtro orario si applica solo al primo giorno
             final boolean applyTimeFilter = (i == 0 && afterTimeFinal != null);
@@ -236,11 +242,21 @@ public class AvailabilityService {
         int stepMinutes = 30;
         List<String> available = new ArrayList<>();
 
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        LocalTime earliestStart = date.equals(today)
+                ? LocalTime.now(BUSINESS_ZONE).plusMinutes(30)
+                : LocalTime.MIN;
+
         for (TimeRange window : openRanges) {
             LocalTime cursor = window.start();
             while (true) {
                 LocalTime slotEnd = cursor.plusMinutes(durationMinutes);
                 if (slotEnd.isAfter(window.end())) break;
+
+                if (cursor.isBefore(earliestStart)) {
+                    cursor = cursor.plusMinutes(stepMinutes);
+                    continue;
+                }
 
                 TimeRange slot = new TimeRange(cursor, slotEnd);
                 boolean free = blocked.stream().noneMatch(b -> b.overlaps(slot));
@@ -269,7 +285,13 @@ public class AvailabilityService {
     private List<AvailabilitySlotDTO> generateAllSlots(
             List<TimeRange> openRanges,
             int durationMin,
-            List<TimeRange> blockedIntervals) {
+            List<TimeRange> blockedIntervals,
+            LocalDate requestedDate) {
+
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        LocalTime earliestStart = requestedDate.equals(today)
+                ? LocalTime.now(BUSINESS_ZONE).plusMinutes(30)
+                : LocalTime.MIN;
 
         List<AvailabilitySlotDTO> result = new ArrayList<>();
 
@@ -278,6 +300,11 @@ public class AvailabilityService {
             while (true) {
                 LocalTime slotEnd = cursor.plusMinutes(durationMin);
                 if (slotEnd.isAfter(window.end())) break;
+
+                if (cursor.isBefore(earliestStart)) {
+                    cursor = cursor.plusMinutes(durationMin);
+                    continue;
+                }
 
                 TimeRange slot = new TimeRange(cursor, slotEnd);
                 boolean occupied = blockedIntervals.stream().anyMatch(b -> b.overlaps(slot));
@@ -452,7 +479,7 @@ public class AvailabilityService {
     private void validateInputs(UUID serviceId, LocalDate date) {
         if (serviceId == null) throw new BadRequestException("serviceId obbligatorio.");
         if (date == null)      throw new BadRequestException("date obbligatoria.");
-        if (date.isBefore(LocalDate.now()))
+        if (date.isBefore(LocalDate.now(BUSINESS_ZONE)))
             throw new BadRequestException("Non è possibile richiedere disponibilità per date passate.");
     }
 
