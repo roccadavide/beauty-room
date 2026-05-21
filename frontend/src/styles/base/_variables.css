@@ -8,6 +8,8 @@
   --color-dark: #181818;
   --color-light: #f8f8f8;
 
+  --warm-cream: var(--color-bg);
+
   /* Tipografia */
   --font-base: "Inter", "Arimo", sans-serif;
   --font-display: "Saol Display Light", "Playfair Display", serif;
