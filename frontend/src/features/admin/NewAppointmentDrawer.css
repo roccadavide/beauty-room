@@ -73,6 +73,20 @@
   .nad-drawer.is-open {
     transform: translateY(0);
   }
+
+  /* 3 tabs must never overflow a 360px viewport — scroll the tab row instead */
+  .nad-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nad-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .nad-tab {
+    padding: 13px 12px 11px;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
 }
 
 /* ── Header: tabs row + close button ─────────────────────────────────────── */
@@ -577,25 +591,6 @@
   color: #7a6855;
 }
 
-/* ── Sessions row ────────────────────────────────────────────────────────── */
-.nad-sessions-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.nad-sessions-label {
-  font-size: 0.86rem;
-  color: #5a4030;
-}
-
-.nad-sessions-input {
-  width: 68px !important;
-  text-align: center;
-  padding: 7px 6px !important;
-}
-
 /* ── Available slots ─────────────────────────────────────────────────────── */
 .nad-slots-header {
   display: flex;
@@ -754,6 +749,8 @@
   flex-shrink: 0;
   opacity: 0.6;
   transition: opacity 0.13s ease;
+  /* Keep the remove ✕ right-aligned now that the .nad-svc-card__pills row (flex:1) is gone. */
+  margin-left: auto;
 }
 
 .nad-svc-card__remove:hover {
@@ -1010,17 +1007,6 @@
   text-transform: uppercase;
   color: #b8a896;
   padding: 2px 0;
-}
-
-/* ── Autofill note for sedute section ────────────────────────────────────── */
-.nad-sessions-autofilled-note {
-  color: #9a7a50;
-  background: #fdf8f0;
-  border: 1px solid #e8d5b0;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-style: normal;
-  font-size: 0.78rem;
 }
 
 /* ── "Prossimo disponibile" button (B1) ─────────────────────────────────── */

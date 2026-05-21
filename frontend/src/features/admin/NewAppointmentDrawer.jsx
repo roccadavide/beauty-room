@@ -7,10 +7,8 @@ import formatDuration from "../../utils/formatDuration";
 import {
   cancelPackageAssignment,
   createMultiServiceBooking,
-  createPackageAssignment,
   createPersonalAppointment,
   deletePersonalAppointment,
-  fetchCatalogPackages,
   getAdminAvailableSlots,
   getClientPackageAssignmentsByName,
   getNextAvailableSlot,
@@ -26,6 +24,18 @@ import "./NewAppointmentDrawer.css";
 const pad2 = n => String(n).padStart(2, "0");
 const WALKIN_MARKER = "@beautyroom.local";
 const isWalkInEmail = e => !e || e.includes(WALKIN_MARKER);
+
+const deriveCustomer = b => {
+  const has = b != null;
+  return {
+    customerId: null,
+    fullName: has ? b.customerName || "" : "",
+    phone: has ? b.customerPhone || "" : "",
+    email: has && b.customerEmail && !isWalkInEmail(b.customerEmail) ? b.customerEmail : "",
+    walkIn: has ? isWalkInEmail(b.customerEmail) : true,
+  };
+};
+
 const PADDING_PRESETS = [0, 15, 20, 30, 45];
 const PERSONAL_DURATION_PRESETS = [
   { value: 30, label: "30′" },
@@ -34,9 +44,6 @@ const PERSONAL_DURATION_PRESETS = [
   { value: 90, label: "1h30′" },
   { value: 120, label: "2h" },
 ];
-
-// Helper: resolve display name for a package assignment DTO
-const pkgDisplayName = pkg => pkg.serviceTitle || pkg.customPackageName || pkg.serviceOptionName || "—";
 
 // Helper: format a next-available slot as Italian locale string
 const _WEEKDAYS_IT = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
@@ -47,31 +54,13 @@ const formatItalianSlot = (dateStr, timeStr) => {
   return `${_WEEKDAYS_IT[dt.getDay()]} ${d} ${_MONTHS_IT[dt.getMonth()]} · ${timeStr}`;
 };
 
-// Helper: format a price number as Italian decimal string (e.g. 18.5 → "18,50")
-const fmtEur = n => Number(n).toFixed(2).replace(".", ",");
-
-
 // Factory for a blank service item
 const newServiceItem = () => ({
   id: crypto.randomUUID(),
-  type: "custom", // "custom" | "package"
-  // catalog fields
-  serviceId: "",
-  serviceOptionId: null,
-  serviceSearch: "",
-  serviceCatFilter: "all",
-  // custom fields
+  type: "custom",
   customName: "",
   customDuration: "60",
   customPrice: "",
-  // package fields (existing assignment)
-  packageAssignmentId: null,
-  // new package from catalogue
-  newPackageCatalogOption: null, // { optionId, name }
-  newPkgSessions: "1",
-  newPkgPrice: "",
-  newPkgMode: "catalog", // "catalog" | "custom"
-  newPkgCustomName: "",
 });
 
 // ── EditServizioModal ─────────────────────────────────────────────────────────
@@ -160,132 +149,18 @@ function EditServizioModal({ servizio, catalogServices, onSave, onClose }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ServiceItemCard — one service in the multi-service builder
+// ServiceItemCard — one custom service in the multi-service builder
 // ══════════════════════════════════════════════════════════════════════════════
-function ServiceItemCard({ item, index, services, serviceCategories, clientPackages, catalogPackages, onUpdate, onDeletePackage, onRemove, canRemove, error }) {
-  const filteredServices = useMemo(() => {
-    let list = services || [];
-    if (item.serviceCatFilter !== "all") {
-      list = list.filter(s => (s.category ?? s.categoryName ?? s.categoryLabel) === item.serviceCatFilter);
-    }
-    const needle = item.serviceSearch.trim().toLowerCase();
-    if (needle) {
-      list = list.filter(
-        s =>
-          s.title?.toLowerCase().includes(needle) ||
-          s.durationMin?.toString().includes(needle) ||
-          (s.options || s.serviceOptionList || s.serviceOptions || []).some(o => o.name?.toLowerCase().includes(needle)),
-      );
-    }
-    return list;
-  }, [services, item.serviceCatFilter, item.serviceSearch]);
-
-  const selectedService = useMemo(() => services.find(s => String(s.serviceId) === String(item.serviceId)), [services, item.serviceId]);
-
-  // Options for the selected catalog service — package options (sessions > 1) are excluded
-  const serviceOpts = useMemo(() => {
-    if (!item.serviceId || !selectedService) return [];
-    const allOpts = selectedService.options || selectedService.serviceOptionList || selectedService.serviceOptions || [];
-    return allOpts.filter(o => o.active !== false && !(o.sessions != null && o.sessions > 1));
-  }, [item.serviceId, selectedService]);
-
-  const serviceOptsGrouped = useMemo(() => {
-    if (serviceOpts.length === 0) return { entries: [], ungrouped: [] };
-    const groups = {};
-    const ungrouped = [];
-    serviceOpts.forEach(o => {
-      const cat = o.optionGroup ?? o.category ?? o.categoryName ?? null;
-      if (cat) {
-        if (!groups[cat]) groups[cat] = [];
-        groups[cat].push(o);
-      } else {
-        ungrouped.push(o);
-      }
-    });
-    return { entries: Object.entries(groups), ungrouped };
-  }, [serviceOpts]);
-
+function ServiceItemCard({ item, index, onUpdate, onRemove, canRemove, error }) {
   const durationLabel = useMemo(() => {
-    if (item.type === "catalog" && selectedService?.durationMin) {
-      return formatDuration(selectedService.durationMin);
-    }
-    if (item.type === "custom") {
-      const d = parseInt(item.customDuration, 10);
-      return d > 0 ? formatDuration(d) : null;
-    }
-    if (item.type === "package") {
-      if (item.packageAssignmentId) {
-        const pkg = clientPackages.find(p => String(p.id) === String(item.packageAssignmentId));
-        if (pkg?.serviceOptionId) {
-          const svc = services.find(s => s.options?.some(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId)));
-          if (svc?.durationMin) return formatDuration(svc.durationMin);
-        }
-      }
-      return null;
-    }
-    return null;
-  }, [item, selectedService, clientPackages, services]);
-
-  const [pkgSearch, setPkgSearch] = useState("");
-  const filteredCatalogPackages = catalogPackages.filter(opt => (opt.optionName || opt.name || "").toLowerCase().includes(pkgSearch.toLowerCase()));
-
-  const [activePkgSearch, setActivePkgSearch] = useState("");
-  const filteredClientPackages = clientPackages.filter(pkg => pkgDisplayName(pkg).toLowerCase().includes(activePkgSearch.toLowerCase()));
-
-  // ── H1: Price calculator ───────────────────────────────────────────────────
-  const selectedCatalogOpt = useMemo(
-    () => (item.newPackageCatalogOption ? catalogPackages.find(opt => (opt.optionId ?? opt.id) === item.newPackageCatalogOption.optionId) : null),
-    [item.newPackageCatalogOption, catalogPackages],
-  );
-
-  const pkgPriceCalc = useMemo(() => {
-    const sessions = parseInt(item.newPkgSessions, 10);
-    const paid = parseFloat(item.newPkgPrice);
-    if (!sessions || sessions < 1 || isNaN(paid) || paid <= 0) return null;
-    const pricePerSession = paid / sessions;
-    const basePrice = selectedCatalogOpt?.price ?? null;
-    const baseSessions = selectedCatalogOpt?.sessions ?? sessions;
-    const basePPS = basePrice > 0 && baseSessions > 0 ? basePrice / baseSessions : null;
-    const savings = basePrice != null && basePrice > paid ? basePrice - paid : null;
-    const discountPct = savings != null && basePrice > 0 ? (savings / basePrice) * 100 : null;
-    return { pricePerSession, basePPS, savings, discountPct };
-  }, [item.newPkgSessions, item.newPkgPrice, selectedCatalogOpt]);
-
-  const switchType = type => {
-    onUpdate({
-      type,
-      serviceId: "",
-      serviceSearch: "",
-      serviceCatFilter: "all",
-      serviceOptionId: null,
-      customName: "",
-      customDuration: "60",
-      customPrice: "",
-      packageAssignmentId: null,
-      newPackageCatalogOption: null,
-      newPkgSessions: "1",
-      newPkgPrice: "",
-      newPkgMode: "catalog",
-      newPkgCustomName: "",
-    });
-  };
-
-  const selectPackageAssignment = packageAssignmentId => {
-    onUpdate({ packageAssignmentId, newPackageCatalogOption: null });
-  };
+    const d = parseInt(item.customDuration, 10);
+    return d > 0 ? formatDuration(d) : null;
+  }, [item.customDuration]);
 
   return (
     <div className={`nad-svc-card${error ? " has-error" : ""}`}>
       <div className="nad-svc-card__header">
         <span className="nad-svc-card__index">Servizio {index + 1}</span>
-        <div className="nad-svc-card__pills">
-          <button type="button" className={`nad-svc-pill${item.type === "custom" ? " is-active" : ""}`} onClick={() => switchType("custom")}>
-            Personalizzato
-          </button>
-          <button type="button" className={`nad-svc-pill${item.type === "package" ? " is-active" : ""}`} onClick={() => switchType("package")}>
-            Pacchetto
-          </button>
-        </div>
         {canRemove && (
           <button type="button" className="nad-svc-card__remove" onClick={onRemove} aria-label="Rimuovi servizio">
             ✕
@@ -294,290 +169,44 @@ function ServiceItemCard({ item, index, services, serviceCategories, clientPacka
       </div>
 
       <div className="nad-svc-card__body">
-        {/* ── Custom ──────────────────────────────────────────────── */}
-        {item.type === "custom" && (
-          <>
-            <div className="nad-form__row">
-              <label className="nad-form__label">Nome trattamento *</label>
-              <input
-                type="text"
-                className="nad-form__input"
-                value={item.customName}
-                onChange={e => onUpdate({ customName: e.target.value })}
-                placeholder="Es. Ceretta sopracciglia"
-                maxLength={255}
-              />
-            </div>
-            <div className="nad-form__row nad-form__row--2col">
-              <div>
-                <label className="nad-form__label">Durata (min) *</label>
-                <input
-                  type="number"
-                  className="nad-form__input"
-                  value={item.customDuration}
-                  onChange={e => onUpdate({ customDuration: e.target.value })}
-                  min={5}
-                  max={480}
-                  step={5}
-                  placeholder="60"
-                />
-              </div>
-              <div>
-                <label className="nad-form__label">Prezzo (€)</label>
-                <input
-                  type="number"
-                  className="nad-form__input"
-                  value={item.customPrice}
-                  onChange={e => onUpdate({ customPrice: e.target.value })}
-                  min={0}
-                  step={0.5}
-                  placeholder="Opzionale"
-                />
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ── Package ─────────────────────────────────────────────── */}
-        {item.type === "package" && (
-          <div className="nad-pkg-sections">
-            {/* Sub-section A: Active client packages */}
-            <div>
-              <div className="nad-pkg-section-label">Pacchetti attivi del cliente</div>
-              {clientPackages.length > 0 ? (
-                <div className="nad-pkg-list">
-                  {clientPackages.length > 3 && (
-                    <input
-                      type="text"
-                      className="nad-form__input"
-                      placeholder="Cerca pacchetto…"
-                      value={activePkgSearch}
-                      onChange={e => setActivePkgSearch(e.target.value)}
-                      style={{ marginBottom: 6 }}
-                    />
-                  )}
-                  {filteredClientPackages.map(pkg => (
-                    <div
-                      key={pkg.id}
-                      className={`nad-pkg-item${String(item.packageAssignmentId) === String(pkg.id) ? " is-selected" : ""}`}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => selectPackageAssignment(pkg.id)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          selectPackageAssignment(pkg.id);
-                        }
-                      }}
-                    >
-                      <div className="nad-pkg-item__main">
-                        <span className="nad-pkg-item__name">{pkgDisplayName(pkg)}</span>
-                        <span className="nad-pkg-item__sessions">— {pkg.sessionsRemaining} sed. rimanenti</span>
-                      </div>
-                      <div className="nad-pkg-item__actions">
-                        <button
-                          type="button"
-                          className="nad-pkg-action-btn nad-pkg-edit-btn"
-                          aria-label="Modifica pacchetto"
-                          onClick={e => {
-                            e.stopPropagation();
-                            // TODO: open edit modal for package assignment
-                            selectPackageAssignment(pkg.id);
-                          }}
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          type="button"
-                          className="nad-pkg-action-btn nad-pkg-delete-btn"
-                          aria-label="Elimina pacchetto"
-                          onClick={e => {
-                            e.stopPropagation();
-                            onDeletePackage?.(pkg.id);
-                          }}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="nad-help">Nessun pacchetto attivo per questa cliente.</div>
-              )}
-            </div>
-
-            <div className="nad-pkg-separator" />
-
-            {/* Sub-section B: Create new package */}
-            <div>
-              <div className="nad-pkg-section-label">Crea nuovo pacchetto</div>
-
-              {/* Mode toggle pills — only when catalog packages exist */}
-              {catalogPackages.length > 0 && (
-                <div className="nad-pkg-mode-toggle">
-                  <button
-                    type="button"
-                    className={`nad-pkg-mode-pill${item.newPkgMode === "catalog" ? " is-active" : ""}`}
-                    onClick={() => onUpdate({ newPkgMode: "catalog", newPkgCustomName: "", packageAssignmentId: null })}
-                  >
-                    Da catalogo
-                  </button>
-                  <button
-                    type="button"
-                    className={`nad-pkg-mode-pill${item.newPkgMode === "custom" ? " is-active" : ""}`}
-                    onClick={() => onUpdate({ newPkgMode: "custom", newPackageCatalogOption: null, packageAssignmentId: null })}
-                  >
-                    Personalizzato
-                  </button>
-                </div>
-              )}
-
-              {/* Da catalogo */}
-              {catalogPackages.length > 0 && item.newPkgMode === "catalog" && (
-                <div style={{ marginTop: 8 }}>
-                  <input
-                    type="text"
-                    className="nad-form__input"
-                    placeholder="Cerca pacchetto…"
-                    value={pkgSearch}
-                    onChange={e => setPkgSearch(e.target.value)}
-                    style={{ marginBottom: 6 }}
-                  />
-                  <div className="nad-pkg-list">
-                    {(() => {
-                      // Group by serviceName, sort groups A→Z, sort within by sessions asc
-                      const groups = {};
-                      filteredCatalogPackages.forEach(opt => {
-                        const key = opt.serviceName || "Altro";
-                        if (!groups[key]) groups[key] = [];
-                        groups[key].push(opt);
-                      });
-                      return Object.entries(groups)
-                        .sort(([a], [b]) => a.localeCompare(b, "it"))
-                        .map(([groupName, opts]) => (
-                          <div key={groupName} className="nad-pkg-group">
-                            <div className="nad-pkg-group-header">{groupName}</div>
-                            {[...opts]
-                              .sort((a, b) => (a.sessions ?? 0) - (b.sessions ?? 0))
-                              .map(opt => (
-                                <button
-                                  key={opt.optionId ?? opt.id}
-                                  type="button"
-                                  className={`nad-pkg-item${item.newPackageCatalogOption?.optionId === (opt.optionId ?? opt.id) ? " is-selected" : ""}`}
-                                  onClick={() =>
-                                    onUpdate({
-                                      newPackageCatalogOption: { optionId: opt.optionId ?? opt.id, name: opt.optionName },
-                                      packageAssignmentId: null,
-                                      newPkgSessions: opt.sessions != null ? String(opt.sessions) : "1",
-                                      newPkgPrice: opt.price != null ? String(opt.price) : "",
-                                    })
-                                  }
-                                >
-                                  <span className="nad-pkg-item__name">{opt.optionName}</span>
-                                  {opt.sessions != null && <span className="nad-pkg-item__sessions">{opt.sessions} sed.</span>}
-                                </button>
-                              ))}
-                          </div>
-                        ));
-                    })()}
-                  </div>
-                  {item.newPackageCatalogOption && (
-                    <div className="nad-form__row nad-form__row--2col" style={{ marginTop: 8 }}>
-                      <div>
-                        <label className="nad-form__label">
-                          Sedute totali * <span className="nad-help-inline">(dal pacchetto, modificabile)</span>
-                        </label>
-                        <input
-                          type="number"
-                          className="nad-form__input"
-                          value={item.newPkgSessions}
-                          onChange={e => onUpdate({ newPkgSessions: e.target.value })}
-                          min={1}
-                          max={100}
-                          placeholder="es. 10"
-                        />
-                      </div>
-                      <div>
-                        <label className="nad-form__label">
-                          Prezzo pagato (€) <span className="nad-help-inline">(dal pacchetto, modificabile)</span>
-                        </label>
-                        <input
-                          type="number"
-                          className="nad-form__input"
-                          value={item.newPkgPrice}
-                          onChange={e => onUpdate({ newPkgPrice: e.target.value })}
-                          min={0}
-                          step={0.5}
-                          placeholder="Opzionale"
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {item.newPackageCatalogOption && pkgPriceCalc && (
-                    <div className="nad-price-calc">
-                      {pkgPriceCalc.basePPS != null && <span className="nad-price-calc__ref">Prezzo normale: €{fmtEur(pkgPriceCalc.basePPS)} / sed.</span>}
-                      <span className="nad-price-calc__pps">€{fmtEur(pkgPriceCalc.pricePerSession)} / seduta</span>
-                      {pkgPriceCalc.savings != null && pkgPriceCalc.savings > 0 && (
-                        <span className="nad-price-calc__savings">
-                          Risparmio: €{fmtEur(pkgPriceCalc.savings)} · Sconto {pkgPriceCalc.discountPct.toFixed(1)}% ✦
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Personalizzato (shown when mode is "custom" OR no catalog packages exist) */}
-              {(item.newPkgMode === "custom" || catalogPackages.length === 0) && (
-                <div style={{ marginTop: 8 }}>
-                  <div className="nad-form__row" style={{ marginBottom: 8 }}>
-                    <label className="nad-form__label">Nome pacchetto *</label>
-                    <input
-                      type="text"
-                      className="nad-form__input"
-                      value={item.newPkgCustomName}
-                      onChange={e => onUpdate({ newPkgCustomName: e.target.value })}
-                      placeholder="Es. Corso laser gambe"
-                      maxLength={255}
-                    />
-                  </div>
-                  <div className="nad-form__row nad-form__row--2col">
-                    <div>
-                      <label className="nad-form__label">Sedute totali *</label>
-                      <input
-                        type="number"
-                        className="nad-form__input"
-                        value={item.newPkgSessions}
-                        onChange={e => onUpdate({ newPkgSessions: e.target.value })}
-                        min={1}
-                        max={100}
-                        placeholder="es. 10"
-                      />
-                    </div>
-                    <div>
-                      <label className="nad-form__label">Prezzo pagato (€)</label>
-                      <input
-                        type="number"
-                        className="nad-form__input"
-                        value={item.newPkgPrice}
-                        onChange={e => onUpdate({ newPkgPrice: e.target.value })}
-                        min={0}
-                        step={0.5}
-                        placeholder="Opzionale"
-                      />
-                    </div>
-                  </div>
-                  {pkgPriceCalc && (
-                    <div className="nad-price-calc">
-                      <span className="nad-price-calc__pps">€{fmtEur(pkgPriceCalc.pricePerSession)} / seduta</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+        <div className="nad-form__row">
+          <label className="nad-form__label">Nome trattamento *</label>
+          <input
+            type="text"
+            className="nad-form__input"
+            value={item.customName}
+            onChange={e => onUpdate({ customName: e.target.value })}
+            placeholder="Es. Ceretta sopracciglia"
+            maxLength={255}
+          />
+        </div>
+        <div className="nad-form__row nad-form__row--2col">
+          <div>
+            <label className="nad-form__label">Durata (min) *</label>
+            <input
+              type="number"
+              className="nad-form__input"
+              value={item.customDuration}
+              onChange={e => onUpdate({ customDuration: e.target.value })}
+              min={5}
+              max={480}
+              step={5}
+              placeholder="60"
+            />
           </div>
-        )}
+          <div>
+            <label className="nad-form__label">Prezzo (€)</label>
+            <input
+              type="number"
+              className="nad-form__input"
+              value={item.customPrice}
+              onChange={e => onUpdate({ customPrice: e.target.value })}
+              min={0}
+              step={0.5}
+              placeholder="Opzionale"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="nad-svc-card__footer">
@@ -592,24 +221,14 @@ function ServiceItemCard({ item, index, services, serviceCategories, clientPacka
 // AppointmentForm — rendered when activeTab === "appointment"
 // Unmounts on tab switch → always starts fresh.
 // ══════════════════════════════════════════════════════════════════════════════
-function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking = null }) {
+function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking = null, customer, onSelectCustomer, onPatchCustomer }) {
   const isDuplicate = editBooking?._duplicate === true;
   const isEditMode = editBooking != null && !isDuplicate;
   // true for both edit and duplicate — used to pre-fill customer/service data
   const hasBookingData = editBooking != null;
 
-  // ── Client ────────────────────────────────────────────────────────────────
-  const [customerName, setCustomerName] = useState(() => (hasBookingData ? editBooking.customerName || "" : ""));
-  const [customerPhone, setCustomerPhone] = useState(() => (hasBookingData ? editBooking.customerPhone || "" : ""));
-  const [customerEmail, setCustomerEmail] = useState(() =>
-    hasBookingData && editBooking.customerEmail && !isWalkInEmail(editBooking.customerEmail) ? editBooking.customerEmail : "",
-  );
-  const [walkIn, setWalkIn] = useState(() => (hasBookingData ? isWalkInEmail(editBooking.customerEmail) : true));
-
-  // ── Packages (fetched after client select, used by ServiceItemCard) ───────
-  const [clientPackages, setClientPackages] = useState([]);
-  const [packagesLoading, setPackagesLoading] = useState(false);
-  const [catalogPackages, setCatalogPackages] = useState([]);
+  // ── Client (lifted to NewAppointmentDrawer — destructure-with-alias keeps reads stable) ──
+  const { customerId, fullName: customerName, phone: customerPhone, email: customerEmail, walkIn } = customer;
 
   // ── Catalog multi-select ──────────────────────────────────────────────────
   const [selectedServices, setSelectedServices] = useState(() => {
@@ -678,7 +297,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [catalogCatFilter, setCatalogCatFilter] = useState("all");
   const [expandedServiceId, setExpandedServiceId] = useState(null);
 
-  // ── Custom & package service items ────────────────────────────────────────
+  // ── Custom service items ──────────────────────────────────────────────────
   const [serviceItems, setServiceItems] = useState(() => {
     if (!hasBookingData) return [];
     if (editBooking.isCustomService && editBooking.customServiceName) {
@@ -688,32 +307,15 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       return [
         {
           ...newServiceItem(),
-          type: "custom",
           customName: editBooking.customServiceName || "",
           customDuration: String(dur),
           customPrice: editBooking.customServicePrice != null ? String(editBooking.customServicePrice) : "",
         },
       ];
     }
-    if (editBooking.packageAssignmentId) {
-      return [
-        {
-          ...newServiceItem(),
-          type: "package",
-          packageAssignmentId: editBooking.packageAssignmentId,
-        },
-      ];
-    }
     return [];
   });
   const [itemErrors, setItemErrors] = useState({});
-
-  // ── Sessions (optional) ───────────────────────────────────────────────────
-  const [currentSession, setCurrentSession] = useState(() => (isEditMode && editBooking.currentSession ? String(editBooking.currentSession) : ""));
-  const [totalSessions, setTotalSessions] = useState(() => (isEditMode && editBooking.totalSessions ? String(editBooking.totalSessions) : ""));
-  const [sessionsAutoFilled, setSessionsAutoFilled] = useState(false);
-  const prevPkgAssignmentId = useRef(null);
-  const pkgAutoFilled = useRef(false);
 
   // ── Date / slots ──────────────────────────────────────────────────────────
   const [appointmentDate, setAppointmentDate] = useState(() => (isEditMode && editBooking.startTime ? editBooking.startTime.slice(0, 10) : selectedDate || ""));
@@ -738,7 +340,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [paidInStore, setPaidInStore] = useState(() => (isEditMode ? (editBooking.paidInStore ?? false) : false));
 
   // ── Customer inline edit ───────────────────────────────────────────────────
-  const [customerId, setCustomerId] = useState(null);
   const [activePackages, setActivePackages] = useState([]);
   // Read packageAssignmentId from linkedPackage where it actually lives in AdminBookingCardDTO.
   // The previous version read editBooking.packageAssignmentId (which doesn't exist on the DTO),
@@ -759,7 +360,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [customerEditMsg, setCustomerEditMsg] = useState("");
 
   // ── Confirmation dialogs ──────────────────────────────────────────────────
-  const [deletePkgConfirmId, setDeletePkgConfirmId] = useState(null);
   const [deleteCustomerConfirm, setDeleteCustomerConfirm] = useState(false);
   const [deleteCustomerLoading, setDeleteCustomerLoading] = useState(false);
   const [deleteCustomerError, setDeleteCustomerError] = useState("");
@@ -842,39 +442,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     });
   }, []);
 
-  // Total duration: catalog sum (with per-item or total override) + custom/package items
+  // Total duration: catalog sum (with per-item or total override) + custom items
   const totalDuration = useMemo(() => {
     const catalogDur = selectedServices.reduce((sum, ss) => sum + (ss.overrideDurationMin ?? ss.defaultDurationMin), 0);
-    const itemsDur = serviceItems.reduce((sum, item) => {
-      if (item.type === "custom") {
-        return sum + (parseInt(item.customDuration, 10) || 0);
-      }
-      if (item.type === "package") {
-        if (item.packageAssignmentId) {
-          const pkg = clientPackages.find(p => String(p.id) === String(item.packageAssignmentId));
-          if (pkg?.serviceOptionId) {
-            const svc = services.find(s => s.options?.some(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId)));
-            if (svc?.durationMin) return sum + svc.durationMin;
-          }
-          return sum + 60;
-        }
-        if (item.newPackageCatalogOption?.optionId) {
-          const optId = item.newPackageCatalogOption.optionId;
-          for (const svc of services) {
-            const opts = svc.options || svc.serviceOptionList || svc.serviceOptions || [];
-            if (opts.some(o => String(o.optionId ?? o.id) === String(optId))) {
-              return sum + (svc.durationMin || 60);
-            }
-          }
-          return sum + 60;
-        }
-        if (item.newPkgMode === "custom" && item.newPkgCustomName?.trim()) {
-          return sum + 60;
-        }
-        return sum;
-      }
-      return sum;
-    }, 0);
+    const itemsDur = serviceItems.reduce((sum, item) => sum + (parseInt(item.customDuration, 10) || 0), 0);
     let base = catalogDur + itemsDur;
 
     // Always include the duration of the currently-selected active package,
@@ -908,7 +479,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     totalDurationOverride,
     serviceItems,
     services,
-    clientPackages,
     selectedPackageId,
     selectedPackageCreditId,
     activePackages,
@@ -921,38 +491,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     return `walkin+${stamp}${WALKIN_MARKER}`;
   }, []);
 
-  // ── Package fetch (triggered on client select only) ───────────────────────
-  const fetchClientPackages = useCallback(async name => {
-    if (!name?.trim()) return;
-    setPackagesLoading(true);
-    try {
-      const pkgs = await getClientPackageAssignmentsByName(name.trim());
-      const active = (pkgs || []).filter(p => p.status === "ACTIVE" && p.sessionsRemaining > 0);
-      setClientPackages(active);
-    } catch (err) {
-      console.error("Package fetch failed (non-blocking):", err);
-      setClientPackages([]);
-    } finally {
-      setPackagesLoading(false);
-    }
-  }, []);
-
-  const handleDeletePackage = packageId => {
-    setDeletePkgConfirmId(packageId);
-  };
-
-  const executePkgDelete = async () => {
-    if (!deletePkgConfirmId) return;
-    try {
-      await cancelPackageAssignment(deletePkgConfirmId);
-      setClientPackages(prev => prev.filter(p => String(p.id) !== String(deletePkgConfirmId)));
-    } catch (err) {
-      setSubmitError("Errore durante la cancellazione: " + (err.message || "Errore sconosciuto"));
-    } finally {
-      setDeletePkgConfirmId(null);
-    }
-  };
-
   const handleDeleteCustomer = async () => {
     if (!customerId) return;
     setDeleteCustomerLoading(true);
@@ -960,11 +498,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     try {
       await deleteCustomer(customerId);
       setDeleteCustomerConfirm(false);
-      setCustomerName("");
-      setCustomerPhone("");
-      setCustomerEmail("");
-      setCustomerId(null);
-      setClientPackages([]);
+      onPatchCustomer({ customerId: null, fullName: "", phone: "", email: "", walkIn: true });
       setActivePackages([]);
     } catch (err) {
       const status = err?.response?.status ?? err?.status;
@@ -998,13 +532,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
   };
 
-  // Fetch catalogue packages on mount
-  useEffect(() => {
-    fetchCatalogPackages()
-      .then(opts => setCatalogPackages(opts || []))
-      .catch(() => setCatalogPackages([]));
-  }, []);
-
   // Load active package assignments when customer is identified
   useEffect(() => {
     if (customerId) {
@@ -1032,7 +559,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         try {
           const pkgs = await getClientPackageAssignmentsByName(editBooking.customerName);
           const active = (pkgs || []).filter(p => p.status === "ACTIVE" && p.sessionsRemaining > 0);
-          setClientPackages(active);
           // Shape-compatible with UnifiedActivePackageDTO consumed by the package row.
           // The two DTOs share the relevant fields (id, displayName, serviceTitle,
           // serviceOptionId, totalSessions, sessionsRemaining); we only need to tag the source.
@@ -1044,31 +570,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Auto-fill sedute fields when an active package assignment is selected
-  useEffect(() => {
-    const pkgItem = serviceItems.find(i => i.type === "package" && i.packageAssignmentId);
-    const pkgId = pkgItem?.packageAssignmentId ?? null;
-
-    const pkgIdChanged = pkgId !== prevPkgAssignmentId.current;
-    if (pkgIdChanged) {
-      prevPkgAssignmentId.current = pkgId;
-      pkgAutoFilled.current = false;
-    }
-
-    if (!pkgId || pkgAutoFilled.current) {
-      if (!pkgId) setSessionsAutoFilled(false);
-      return;
-    }
-
-    const pkg = clientPackages.find(p => String(p.id) === String(pkgId));
-    if (pkg) {
-      setCurrentSession(String((pkg.sessionsUsed ?? 0) + 1));
-      setTotalSessions(String(pkg.totalSessions ?? ""));
-      setSessionsAutoFilled(true);
-      pkgAutoFilled.current = true;
-    }
-  }, [serviceItems, clientPackages]);
 
   // ── Slot fetch ────────────────────────────────────────────────────────────
   const fetchSlots = useCallback(async (date, duration, excludeId = null) => {
@@ -1109,13 +610,15 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   }, [appointmentDate, totalDuration, fetchSlots, isEditMode, editBooking]);
 
   // ── Client handlers ───────────────────────────────────────────────────────
-  const handleCustomerNameChange = useCallback(text => {
-    setCustomerName(text);
-    setClientPackages([]);
-    setActivePackages([]);
-    setSelectedPackageId(null);
-    setSelectedPackageCreditId(null);
-  }, []);
+  const handleCustomerNameChange = useCallback(
+    text => {
+      onPatchCustomer({ fullName: text });
+      setActivePackages([]);
+      setSelectedPackageId(null);
+      setSelectedPackageCreditId(null);
+    },
+    [onPatchCustomer],
+  );
 
   const handleCustomerSelect = useCallback(
     c => {
@@ -1127,18 +630,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       setPackageDurationOverride(null);
       setEditingPackageDuration(false);
 
-      setCustomerId(c.customerId ?? null);
-      setCustomerName(c.fullName);
-      setCustomerPhone(prev => c.phone ?? prev);
-      if (c.email && !isWalkInEmail(c.email)) {
-        setCustomerEmail(c.email);
-        setWalkIn(false);
-      }
-      fetchClientPackages(c.fullName);
+      onSelectCustomer(c);
       setEditingCustomer(false);
       setCustomerEditMsg("");
     },
-    [fetchClientPackages],
+    [onSelectCustomer],
   );
 
   const handleCustomerEditSave = async () => {
@@ -1147,8 +643,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     setCustomerEditMsg("");
     try {
       const updated = await updateCustomer(customerId, customerEditForm);
-      setCustomerName(updated.fullName ?? customerEditForm.fullName);
-      if (updated.phone != null) setCustomerPhone(updated.phone);
+      onPatchCustomer({
+        fullName: updated.fullName ?? customerEditForm.fullName,
+        ...(updated.phone != null ? { phone: updated.phone } : {}),
+      });
       setEditingCustomer(false);
       setCustomerEditMsg("Salvato");
     } catch (err) {
@@ -1236,30 +734,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
 
     serviceItems.forEach(item => {
-      if (item.type === "custom") {
-        if (!item.customName.trim()) {
-          iErrs[item.id] = "Nome trattamento obbligatorio";
-        } else {
-          const dur = parseInt(item.customDuration, 10);
-          if (!dur || dur < 5) iErrs[item.id] = "Durata minima 5 minuti";
-        }
-      } else if (item.type === "package" && !item.packageAssignmentId) {
-        const effectiveMode = catalogPackages.length === 0 ? "custom" : item.newPkgMode;
-        if (effectiveMode === "catalog") {
-          if (!item.newPackageCatalogOption) {
-            iErrs[item.id] = "Seleziona un pacchetto dal catalogo";
-          } else {
-            const sessions = parseInt(item.newPkgSessions, 10);
-            if (!sessions || sessions < 1) iErrs[item.id] = "Inserisci il numero di sedute (min 1)";
-          }
-        } else {
-          if (!item.newPkgCustomName?.trim()) {
-            iErrs[item.id] = "Inserisci il nome del pacchetto personalizzato";
-          } else {
-            const sessions = parseInt(item.newPkgSessions, 10);
-            if (!sessions || sessions < 1) iErrs[item.id] = "Inserisci il numero di sedute (min 1)";
-          }
-        }
+      if (!item.customName.trim()) {
+        iErrs[item.id] = "Nome trattamento obbligatorio";
+      } else {
+        const dur = parseInt(item.customDuration, 10);
+        if (!dur || dur < 5) iErrs[item.id] = "Durata minima 5 minuti";
       }
     });
 
@@ -1280,10 +759,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     customerEmail,
     selectedServices,
     serviceItems,
+    selectedPackageId,
+    selectedPackageCreditId,
     appointmentDate,
     selectedSlot,
     customTime,
-    catalogPackages,
     isEditMode,
     editBooking,
   ]);
@@ -1295,35 +775,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     if (!validate()) return;
 
     const catalogIds = selectedServices.map(ss => ss.serviceId);
-    const customItems = serviceItems.filter(i => i.type === "custom");
-    const pkgItem = serviceItems.find(i => i.type === "package");
+    const customItems = serviceItems;
 
     setSubmitting(true);
     setSubmitError("");
     try {
-      // If a new package needs to be created, do it first
-      let resolvedPackageAssignmentId = pkgItem?.packageAssignmentId ?? null;
-      if (pkgItem && !pkgItem.packageAssignmentId) {
-        const effectiveMode = catalogPackages.length === 0 ? "custom" : pkgItem.newPkgMode;
-        if (effectiveMode === "catalog" && pkgItem.newPackageCatalogOption) {
-          const assignment = await createPackageAssignment({
-            clientName: customerName.trim(),
-            serviceOptionId: pkgItem.newPackageCatalogOption.optionId,
-            totalSessions: parseInt(pkgItem.newPkgSessions, 10),
-            pricePaid: pkgItem.newPkgPrice ? parseFloat(pkgItem.newPkgPrice) : null,
-          });
-          resolvedPackageAssignmentId = assignment.id;
-        } else if (effectiveMode === "custom" && pkgItem.newPkgCustomName?.trim()) {
-          const assignment = await createPackageAssignment({
-            clientName: customerName.trim(),
-            customPackageName: pkgItem.newPkgCustomName.trim(),
-            totalSessions: parseInt(pkgItem.newPkgSessions, 10),
-            pricePaid: pkgItem.newPkgPrice ? parseFloat(pkgItem.newPkgPrice) : null,
-          });
-          resolvedPackageAssignmentId = assignment.id;
-        }
-      }
-
       // Always resolve to "HH:mm" — the backend uses AdminBookingCreateDTO with
       // separate LocalDate date + LocalTime startTime, so we never need a full ISO string.
       const effectiveTime = customTime || selectedSlot || editBooking?.startTime?.slice(11, 16) || "";
@@ -1336,8 +792,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         startTime: effectiveTime,
         notes: notes.trim() || null,
         paddingMinutes: paddingMinutes > 0 ? paddingMinutes : null,
-        currentSession: currentSession ? parseInt(currentSession, 10) : null,
-        totalSessions: totalSessions ? parseInt(totalSessions, 10) : null,
+        currentSession: isEditMode ? (editBooking.currentSession ?? null) : null,
+        totalSessions: isEditMode ? (editBooking.totalSessions ?? null) : null,
         serviceIds: catalogIds,
         serviceEntries: selectedServices.map(ss => ({
           serviceId: ss.serviceId,
@@ -1347,43 +803,17 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         })),
         customTotalDurationMin:
           totalDurationOverride ??
-          (selectedPackageId != null || selectedPackageCreditId != null || pkgItem != null || selectedServices.some(ss => ss.overrideDurationMin != null)
-            ? totalDuration
-            : null),
+          (selectedPackageId != null || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null) ? totalDuration : null),
         hasCustomService: customItems.length > 0,
         customServiceName: customItems.length > 0 ? customItems.map(i => i.customName.trim()).join(", ") : null,
         customServiceDurationMinutes: customItems.length > 0 ? customItems.reduce((s, i) => s + (parseInt(i.customDuration, 10) || 0), 0) : null,
         customServicePrice: customItems.length > 0 && customItems[0].customPrice ? parseFloat(customItems[0].customPrice) : null,
-        packageAssignmentId: selectedPackageId ?? resolvedPackageAssignmentId,
+        packageAssignmentId: selectedPackageId ?? null,
         packageCreditId: selectedPackageCreditId ?? null,
         serviceOptionId: selectedServices[0]?.optionId ?? null, // backward compat; serviceEntries takes precedence
         paidInStore,
       };
 
-      // TEMP DEBUG — remove after investigation
-      console.log(
-        "[NAD] PAYLOAD DEBUG",
-        JSON.stringify(
-          {
-            currentSession: payload.currentSession,
-            totalSessions: payload.totalSessions,
-            packageAssignmentId: payload.packageAssignmentId,
-            packageCreditId: payload.packageCreditId,
-            serviceIds: payload.serviceIds,
-            serviceEntries: payload.serviceEntries,
-            customTotalDurationMin: payload.customTotalDurationMin,
-            selectedPackageId_state: selectedPackageId,
-            selectedPackageCreditId_state: selectedPackageCreditId,
-            pkgItem_type: pkgItem?.type,
-            pkgItem_packageAssignmentId: pkgItem?.packageAssignmentId,
-            resolvedPackageAssignmentId,
-            currentSession_state: currentSession,
-            totalSessions_state: totalSessions,
-          },
-          null,
-          2,
-        ),
-      );
       if (isEditMode) {
         await updateBooking(editBooking.bookingId, payload);
         onSuccess("Appuntamento aggiornato");
@@ -1431,7 +861,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               type="tel"
               className={`nad-form__input${submitted && errors.customerPhone ? " is-invalid" : ""}`}
               value={customerPhone}
-              onChange={e => setCustomerPhone(e.target.value)}
+              onChange={e => onPatchCustomer({ phone: e.target.value })}
               placeholder="Es. 333…"
             />
             {submitted && errors.customerPhone && <div className="nad-field-error">{errors.customerPhone}</div>}
@@ -1442,7 +872,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           <div className="nad-walkin-row">
             <label className="nad-form__label">Email {walkIn ? "" : "*"}</label>
             <label className="nad-switch-label">
-              <input type="checkbox" className="nad-switch" checked={walkIn} onChange={e => setWalkIn(e.target.checked)} />
+              <input type="checkbox" className="nad-switch" checked={walkIn} onChange={e => onPatchCustomer({ walkIn: e.target.checked })} />
               <span>Walk-in (senza email)</span>
             </label>
           </div>
@@ -1451,14 +881,12 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
             className="nad-form__input"
             disabled={walkIn}
             value={walkIn ? "" : customerEmail}
-            onChange={e => setCustomerEmail(e.target.value)}
+            onChange={e => onPatchCustomer({ email: e.target.value })}
             placeholder={walkIn ? "Generata automaticamente" : "cliente@email.com"}
           />
           {submitted && errors.customerEmail && <div className="nad-field-error">{errors.customerEmail}</div>}
           {walkIn && <div className="nad-help">Per i walk-in viene generata una email tecnica automaticamente.</div>}
         </div>
-
-        {packagesLoading && <div className="nad-help">Cerco pacchetti attivi…</div>}
 
         {customerId && !editingCustomer && (
           <div className="ag-customer-action-row">
@@ -1914,7 +1342,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
         {submitted && errors.services && <div className="nad-field-error">{errors.services}</div>}
 
-        {/* ── Custom & package items ────────────────────────────────────────── */}
+        {/* ── Custom items ──────────────────────────────────────────────────── */}
         {serviceItems.length > 0 && (
           <div className="nad-svc-list" style={{ marginTop: 12 }}>
             {serviceItems.map((item, idx) => (
@@ -1922,12 +1350,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 key={item.id}
                 item={item}
                 index={idx}
-                services={services}
-                serviceCategories={serviceCategories}
-                clientPackages={clientPackages}
-                catalogPackages={catalogPackages}
                 onUpdate={patch => updateServiceItem(item.id, patch)}
-                onDeletePackage={handleDeletePackage}
                 onRemove={() => removeServiceItem(item.id)}
                 canRemove={true}
                 error={submitted ? (itemErrors[item.id] ?? null) : null}
@@ -1937,7 +1360,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         )}
 
         <button type="button" className="nad-add-service" onClick={addServiceItem}>
-          + Servizio personalizzato / pacchetto
+          + Servizio personalizzato
         </button>
 
         {totalDuration > 0 && serviceItems.length > 0 && (
@@ -1946,46 +1369,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           </div>
         )}
 
-        {serviceItems.some(i => i.type === "custom") && <div className="nad-help">I servizi personalizzati non sono visibili ai clienti.</div>}
-      </div>
-
-      {/* ── Section 3: Sedute ──────────────────────────────────────────────── */}
-      <div className="nad-section">
-        <div className="nad-section__title">Numero seduta (opzionale)</div>
-
-        {/* Manual session fields — hidden when a package card is selected */}
-        {!selectedPackageId && !selectedPackageCreditId && (
-          <>
-            {sessionsAutoFilled && <div className="nad-help nad-sessions-autofilled-note">Compilato automaticamente dal pacchetto. Puoi modificarlo.</div>}
-            <div className="nad-sessions-row">
-              <span className="nad-sessions-label">Seduta n°</span>
-              <input
-                type="number"
-                className="nad-form__input nad-sessions-input"
-                value={currentSession}
-                onChange={e => {
-                  setCurrentSession(e.target.value);
-                  setSessionsAutoFilled(false);
-                }}
-                min={1}
-                placeholder="es. 3"
-              />
-              <span className="nad-sessions-label">di</span>
-              <input
-                type="number"
-                className="nad-form__input nad-sessions-input"
-                value={totalSessions}
-                onChange={e => {
-                  setTotalSessions(e.target.value);
-                  setSessionsAutoFilled(false);
-                }}
-                min={1}
-                placeholder="es. 10"
-              />
-            </div>
-            <div className="nad-help">Crea pacchetto con numero di sedute indicate, con scalo automatico sedute e gestione implemetatata nel drawer.</div>
-          </>
-        )}
+        {serviceItems.length > 0 && <div className="nad-help">I servizi personalizzati non sono visibili ai clienti.</div>}
       </div>
 
       {/* ── Section 4: Data e ora ──────────────────────────────────────────── */}
@@ -2134,16 +1518,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           {submitting ? "Salvataggio…" : isEditMode ? "Salva modifiche" : "Crea appuntamento"}
         </button>
       </div>
-
-      <ConfirmDialog
-        show={!!deletePkgConfirmId}
-        onHide={() => setDeletePkgConfirmId(null)}
-        onConfirm={executePkgDelete}
-        title="Elimina pacchetto"
-        message="Sei sicura di voler eliminare questo pacchetto? Questa azione non può essere annullata."
-        confirmLabel="Elimina"
-        confirmVariant="danger"
-      />
 
       <ConfirmDialog
         show={!!deleteActivePkgId}
@@ -2402,6 +1776,28 @@ function PersonalForm({ selectedDate, editingPersonal, onPersonalSaved, onClose 
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// PackagesTab — placeholder shell, real form lands in Phase 4
+// ══════════════════════════════════════════════════════════════════════════════
+function PackagesTab({ customer }) {
+  const hasCustomer = !!customer?.fullName?.trim();
+  return (
+    <div className="nad-placeholder">
+      <span className="nad-placeholder__icon">📦</span>
+      {hasCustomer ? (
+        <>
+          <p className="nad-placeholder__text">
+            Gestione pacchetti per <strong>{customer.fullName}</strong>
+          </p>
+          <p className="nad-placeholder__date">Sezione in arrivo — Fase 4</p>
+        </>
+      ) : (
+        <p className="nad-placeholder__text">Seleziona prima una cliente nella tab “Appuntamento”.</p>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // NewAppointmentDrawer — main shell
 // ══════════════════════════════════════════════════════════════════════════════
 /**
@@ -2425,6 +1821,25 @@ export default function NewAppointmentDrawer({
   onAppointmentSaved,
 }) {
   const [activeTab, setActiveTab] = useState("appointment");
+
+  // ── Customer identity (shared by Appuntamento + Pacchetti tabs) ──────────
+  const [customer, setCustomer] = useState(() => deriveCustomer(editBooking));
+  const patchCustomer = useCallback(partial => setCustomer(p => ({ ...p, ...partial })), []);
+  const handleSelectCustomer = useCallback(c => {
+    setCustomer(prev => {
+      const next = { ...prev, customerId: c.customerId ?? null, fullName: c.fullName, phone: c.phone ?? prev.phone };
+      if (c.email && !isWalkInEmail(c.email)) {
+        next.email = c.email;
+        next.walkIn = false;
+      }
+      return next;
+    });
+  }, []);
+
+  // Sync customer with editBooking on (re)open — separate from the activeTab effect on purpose
+  useEffect(() => {
+    if (isOpen) setCustomer(deriveCustomer(editBooking));
+  }, [isOpen, editBooking]);
 
   // Switch to the right tab when opening
   useEffect(() => {
@@ -2494,6 +1909,15 @@ export default function NewAppointmentDrawer({
             <button
               type="button"
               role="tab"
+              aria-selected={activeTab === "packages"}
+              className={`nad-tab${activeTab === "packages" ? " is-active" : ""}`}
+              onClick={() => setActiveTab("packages")}
+            >
+              Pacchetti
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={activeTab === "personal"}
               className={`nad-tab${activeTab === "personal" ? " is-active" : ""}`}
               onClick={() => setActiveTab("personal")}
@@ -2514,12 +1938,17 @@ export default function NewAppointmentDrawer({
               services={services}
               selectedDate={selectedDate}
               editBooking={editBooking}
+              customer={customer}
+              onSelectCustomer={handleSelectCustomer}
+              onPatchCustomer={patchCustomer}
               onSuccess={msg => {
                 onAppointmentSaved?.(msg);
                 onClose();
               }}
             />
           )}
+
+          {activeTab === "packages" && <PackagesTab customer={customer} />}
 
           {activeTab === "personal" && (
             <PersonalForm selectedDate={selectedDate} editingPersonal={editingPersonal} onPersonalSaved={onPersonalSaved} onClose={onClose} />
