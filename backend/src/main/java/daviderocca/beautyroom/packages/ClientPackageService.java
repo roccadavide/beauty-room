@@ -1,11 +1,10 @@
 package daviderocca.beautyroom.packages;
 
-import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.DTO.bookingDTOs.PackageItemSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
+import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
@@ -15,6 +14,7 @@ import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.linking.LinkingOutcome;
 import daviderocca.beautyroom.linking.UserLookupService;
 import daviderocca.beautyroom.repositories.BookingRepository;
+import daviderocca.beautyroom.repositories.ServiceItemRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +39,7 @@ public class ClientPackageService {
     private final ClientPackageAssignmentRepository assignmentRepo;
     private final BookingPackageLinkRepository linkRepo;
     private final ServiceOptionRepository serviceOptionRepo;
+    private final ServiceItemRepository serviceItemRepo;
     private final BookingRepository bookingRepository;
     private final UserLookupService userLookupService;
 
@@ -43,13 +47,29 @@ public class ClientPackageService {
 
     @Transactional
     public ClientPackageAssignmentDTO create(ClientPackageAssignmentRequestDTO req) {
-        // Guard: reject exact duplicates (same client name + same service option while ACTIVE)
-        if (req.serviceOptionId() != null) {
-            boolean alreadyActive = assignmentRepo.findByClientNameIgnoreCase(req.clientName().trim())
+        String clientName = req.clientName().trim();
+
+        // Resolve composition items. Invariant: every package has >= 1 item.
+        List<ClientPackageAssignmentItem> items = resolveItemsFromRequest(req);
+
+        // Parent service / serviceOption are derived from item position=0
+        // so legacy code paths (computeSessionPrice, recalculate, toDTO fallbacks)
+        // keep working without reading items[] directly.
+        ClientPackageAssignmentItem head = items.get(0);
+        ServiceOption headOption = head.getServiceOption();
+        ServiceItem headService = head.getService();
+        if (headService == null && headOption != null && headOption.getService() != null) {
+            headService = headOption.getService();
+        }
+
+        // Guard: reject exact duplicates (same client name + same effective service option while ACTIVE)
+        if (headOption != null) {
+            UUID headOptionId = headOption.getOptionId();
+            boolean alreadyActive = assignmentRepo.findByClientNameIgnoreCase(clientName)
                     .stream()
                     .anyMatch(a -> a.getStatus() == ClientPackageStatus.ACTIVE
                             && a.getServiceOption() != null
-                            && a.getServiceOption().getOptionId().equals(req.serviceOptionId()));
+                            && a.getServiceOption().getOptionId().equals(headOptionId));
             if (alreadyActive) {
                 throw new DuplicateResourceException(
                         "Questa cliente ha già un pacchetto attivo per questo trattamento con questa opzione.");
@@ -57,23 +77,18 @@ public class ClientPackageService {
         }
 
         ClientPackageAssignment assignment = new ClientPackageAssignment();
-        assignment.setClientName(req.clientName().trim());
+        assignment.setClientName(clientName);
+        assignment.setService(headService);
+        assignment.setServiceOption(headOption);
         assignment.setTotalSessions(req.totalSessions());
         assignment.setSessionsRemaining(req.totalSessions());
         assignment.setPricePaid(req.pricePaid());
         assignment.setNotes(req.notes() != null ? req.notes().trim() : null);
         assignment.setCustomPackageName(req.customPackageName() != null ? req.customPackageName().trim() : null);
         assignment.setStatus(ClientPackageStatus.ACTIVE);
-
-        if (req.serviceOptionId() != null) {
-            ServiceOption option = serviceOptionRepo.findById(req.serviceOptionId())
-                    .orElseThrow(() -> new ResourceNotFoundException("ServiceOption not found: " + req.serviceOptionId()));
-            assignment.setServiceOption(option);
-            // Derive direct service FK from the option so option-less code paths still work
-            if (option.getService() != null) {
-                assignment.setService(option.getService());
-            }
-        }
+        assignment.setSessionDurationMin(normalizePositive(req.sessionDurationMin()));
+        assignment.setPaidUpfront(Boolean.TRUE.equals(req.paidUpfront()));
+        assignment.setStartSession(req.startSession() != null && req.startSession() >= 1 ? req.startSession() : 1);
 
         // Explicit linked user override (admin can pre-link)
         if (req.linkedUserId() != null) {
@@ -82,13 +97,17 @@ public class ClientPackageService {
         } else {
             // Auto-link by name (best-effort)
             try {
-                LinkingOutcome outcome = userLookupService.tryLink(req.clientName());
+                LinkingOutcome outcome = userLookupService.tryLink(clientName);
                 if (outcome.user() != null) {
                     assignment.setLinkedUser(outcome.user());
                 }
             } catch (Exception e) {
-                log.warn("Auto-link failed for assignment clientName='{}': {}", req.clientName(), e.getMessage());
+                log.warn("Auto-link failed for assignment clientName='{}': {}", clientName, e.getMessage());
             }
+        }
+
+        for (ClientPackageAssignmentItem it : items) {
+            assignment.addItem(it);
         }
 
         return toDTO(assignmentRepo.save(assignment));
@@ -148,17 +167,54 @@ public class ClientPackageService {
             assignment.setSessionsRemaining(clamped);
         }
 
-        if (req.serviceOptionId() != null) {
-            ServiceOption option = serviceOptionRepo.findById(req.serviceOptionId())
-                    .orElseThrow(() -> new ResourceNotFoundException("ServiceOption not found: " + req.serviceOptionId()));
-            assignment.setServiceOption(option);
-            if (option.getService() != null) {
-                assignment.setService(option.getService());
+        // Phase-1 extension fields. Null means "leave existing value untouched" for sessionDurationMin
+        // and startSession; paidUpfront defaults to false when null (matches create semantics).
+        if (req.sessionDurationMin() != null) {
+            assignment.setSessionDurationMin(normalizePositive(req.sessionDurationMin()));
+        }
+        if (req.paidUpfront() != null) {
+            assignment.setPaidUpfront(req.paidUpfront());
+        }
+        if (req.startSession() != null && req.startSession() >= 1) {
+            assignment.setStartSession(req.startSession());
+        }
+
+        // Composition update. items[] is the source of truth when provided —
+        // we replace the collection AND re-derive the parent service/serviceOption
+        // from the new item position=0 to keep the "representative" mirror in sync.
+        // When items[] is absent we fall back to legacy single-option behaviour,
+        // then rebuild items[0] from the final parent state so the invariant
+        // "items[0] mirrors the parent representative" holds for both paths.
+        if (req.items() != null && !req.items().isEmpty()) {
+            List<ClientPackageAssignmentItem> newItems = buildItemsFromRequestList(req.items());
+            assignment.replaceItems(newItems);
+            ClientPackageAssignmentItem head = newItems.get(0);
+            ServiceOption headOption = head.getServiceOption();
+            ServiceItem headService = head.getService();
+            if (headService == null && headOption != null && headOption.getService() != null) {
+                headService = headOption.getService();
             }
+            assignment.setServiceOption(headOption);
+            assignment.setService(headService);
         } else {
-            assignment.setServiceOption(null);
-            // Note: we do NOT clear assignment.service here. The admin may want the
-            // package to stay tied to the underlying service even when the option is cleared.
+            if (req.serviceOptionId() != null) {
+                ServiceOption option = serviceOptionRepo.findById(req.serviceOptionId())
+                        .orElseThrow(() -> new ResourceNotFoundException("ServiceOption not found: " + req.serviceOptionId()));
+                assignment.setServiceOption(option);
+                if (option.getService() != null) {
+                    assignment.setService(option.getService());
+                }
+            } else {
+                assignment.setServiceOption(null);
+                // Note: we do NOT clear assignment.service here. The admin may want the
+                // package to stay tied to the underlying service even when the option is cleared.
+            }
+            // Rebuild items[0] from the (possibly updated) parent representative so
+            // legacy-shaped updates can no longer desync the composition mirror.
+            // Multi-line composition is by definition not expressible via legacy
+            // fields, so collapsing to a single mirror item is the correct semantics
+            // for legacy requests.
+            assignment.replaceItems(List.of(buildMirrorItemFromParent(assignment)));
         }
 
         if (req.linkedUserId() != null) {
@@ -406,8 +462,36 @@ public class ClientPackageService {
                 name = a.getClientName();
             }
             BigDecimal sessionPrice = computeSessionPrice(a);
-            return new PackageSummaryDTO(a.getId(), name, a.getSessionsRemaining(), sessionPrice);
+            return new PackageSummaryDTO(a.getId(), name, a.getSessionsRemaining(), sessionPrice, mapItemsToSummary(a));
         });
+    }
+
+    /**
+     * Maps the composition items of a package assignment to summary DTOs for the
+     * admin agenda card. Returned list is sorted by position. Safe to call on
+     * any assignment — returns an empty list when the items collection is null.
+     */
+    public List<PackageItemSummaryDTO> mapItemsToSummary(ClientPackageAssignment a) {
+        if (a == null || a.getItems() == null || a.getItems().isEmpty()) {
+            return List.of();
+        }
+        return a.getItems().stream()
+                .sorted(Comparator.comparingInt(ClientPackageAssignmentItem::getPosition))
+                .map(it -> {
+                    ServiceItem svc = it.getService();
+                    if (svc == null && it.getServiceOption() != null) {
+                        svc = it.getServiceOption().getService();
+                    }
+                    return new PackageItemSummaryDTO(
+                            it.getPosition(),
+                            svc != null ? svc.getServiceId() : null,
+                            svc != null ? svc.getTitle() : null,
+                            it.getServiceOption() != null ? it.getServiceOption().getOptionId() : null,
+                            it.getServiceOption() != null ? it.getServiceOption().getName() : null,
+                            it.getCustomName()
+                    );
+                })
+                .toList();
     }
 
     // ── Package persistence for admin booking integration ─────────────────────
@@ -484,6 +568,12 @@ public class ClientPackageService {
         } else {
             displayName = "Pacchetto senza nome";
         }
+        List<ClientPackageAssignmentItemDTO> itemDTOs = a.getItems() == null
+                ? List.of()
+                : a.getItems().stream()
+                        .sorted(Comparator.comparingInt(ClientPackageAssignmentItem::getPosition))
+                        .map(this::toItemDTO)
+                        .toList();
         return new ClientPackageAssignmentDTO(
                 a.getId(),
                 a.getClientName(),
@@ -500,8 +590,134 @@ public class ClientPackageService {
                 a.getStatus(),
                 a.getLinkedUser() != null ? a.getLinkedUser().getUserId() : null,
                 a.getCreatedAt(),
-                a.getUpdatedAt()
+                a.getUpdatedAt(),
+                itemDTOs,
+                a.getSessionDurationMin(),
+                a.isPaidUpfront(),
+                a.getStartSession()
         );
+    }
+
+    private ClientPackageAssignmentItemDTO toItemDTO(ClientPackageAssignmentItem it) {
+        ServiceItem svc = it.getService();
+        if (svc == null && it.getServiceOption() != null) {
+            svc = it.getServiceOption().getService();
+        }
+        return new ClientPackageAssignmentItemDTO(
+                it.getId(),
+                svc != null ? svc.getServiceId() : null,
+                svc != null ? svc.getTitle() : null,
+                it.getServiceOption() != null ? it.getServiceOption().getOptionId() : null,
+                it.getServiceOption() != null ? it.getServiceOption().getName() : null,
+                it.getCustomName(),
+                it.getPosition()
+        );
+    }
+
+    // ── Composition item builders ─────────────────────────────────────────────
+
+    /**
+     * Resolves the composition items collection for a creation request.
+     * Priority:
+     *   1. req.items() — source of truth when non-null and non-empty
+     *   2. Legacy req.serviceOptionId() → single item at position 0
+     *   3. Legacy req.customPackageName() → single custom item at position 0
+     *   4. Fallback: single all-null item at position 0 (preserves the
+     *      invariant "every package has >= 1 composition item")
+     */
+    private List<ClientPackageAssignmentItem> resolveItemsFromRequest(ClientPackageAssignmentRequestDTO req) {
+        if (req.items() != null && !req.items().isEmpty()) {
+            return buildItemsFromRequestList(req.items());
+        }
+        List<ClientPackageAssignmentItem> single = new ArrayList<>();
+        ClientPackageAssignmentItem item = new ClientPackageAssignmentItem();
+        item.setPosition(0);
+        if (req.serviceOptionId() != null) {
+            ServiceOption opt = serviceOptionRepo.findById(req.serviceOptionId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "ServiceOption not found: " + req.serviceOptionId()));
+            item.setServiceOption(opt);
+            if (opt.getService() != null) {
+                item.setService(opt.getService());
+            }
+        } else if (req.customPackageName() != null && !req.customPackageName().isBlank()) {
+            item.setCustomName(req.customPackageName().trim());
+        }
+        single.add(item);
+        return single;
+    }
+
+    /**
+     * Materialises composition items from request DTOs, sorted by position.
+     * Each item resolves to (service, serviceOption, customName); free-form
+     * lines without any catalog reference are accepted as custom-only.
+     */
+    private List<ClientPackageAssignmentItem> buildItemsFromRequestList(List<ClientPackageAssignmentItemRequestDTO> reqs) {
+        List<ClientPackageAssignmentItemRequestDTO> sorted = new ArrayList<>(reqs);
+        sorted.sort(Comparator.comparingInt(ClientPackageAssignmentItemRequestDTO::position));
+        List<ClientPackageAssignmentItem> built = new ArrayList<>(sorted.size());
+        for (int i = 0; i < sorted.size(); i++) {
+            ClientPackageAssignmentItemRequestDTO it = sorted.get(i);
+            ClientPackageAssignmentItem entity = new ClientPackageAssignmentItem();
+            entity.setPosition(it.position());
+
+            if (it.serviceOptionId() != null) {
+                ServiceOption opt = serviceOptionRepo.findById(it.serviceOptionId())
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "ServiceOption not found: " + it.serviceOptionId()));
+                entity.setServiceOption(opt);
+                ServiceItem svc = opt.getService();
+                // Explicit service override on the item: prefer it over option.service
+                if (it.serviceId() != null) {
+                    svc = serviceItemRepo.findById(it.serviceId())
+                            .orElseThrow(() -> new ResourceNotFoundException(
+                                    "ServiceItem not found: " + it.serviceId()));
+                }
+                entity.setService(svc);
+            } else if (it.serviceId() != null) {
+                ServiceItem svc = serviceItemRepo.findById(it.serviceId())
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "ServiceItem not found: " + it.serviceId()));
+                entity.setService(svc);
+            }
+
+            if (it.customName() != null && !it.customName().isBlank()) {
+                entity.setCustomName(it.customName().trim());
+            }
+
+            built.add(entity);
+        }
+        return built;
+    }
+
+    private static Integer normalizePositive(Integer value) {
+        if (value == null) return null;
+        return value > 0 ? value : null;
+    }
+
+    /**
+     * Builds a single composition item that mirrors the parent's representative
+     * (service / serviceOption / customPackageName). Used by the legacy update
+     * path so items[0] stays in sync with the parent even when callers do not
+     * pass items[]. Matches the V59 backfill fallback exactly: when neither a
+     * service nor an option nor a non-blank custom_package_name is available,
+     * customName falls back to 'Pacchetto' so the item always renders as
+     * something readable.
+     */
+    private ClientPackageAssignmentItem buildMirrorItemFromParent(ClientPackageAssignment a) {
+        ClientPackageAssignmentItem item = new ClientPackageAssignmentItem();
+        item.setPosition(0);
+        item.setServiceOption(a.getServiceOption());
+        if (a.getServiceOption() != null && a.getServiceOption().getService() != null) {
+            item.setService(a.getServiceOption().getService());
+        } else if (a.getService() != null) {
+            item.setService(a.getService());
+        }
+        if (item.getService() == null && item.getServiceOption() == null) {
+            String custom = a.getCustomPackageName();
+            item.setCustomName(custom != null && !custom.isBlank() ? custom.trim() : "Pacchetto");
+        }
+        return item;
     }
 
     BookingPackageLinkDTO toLinkDTO(BookingPackageLink l) {

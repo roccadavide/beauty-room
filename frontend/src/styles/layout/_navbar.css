@@ -261,7 +261,9 @@
   height: 100dvh;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.35s ease, backdrop-filter 0.35s ease;
+  transition:
+    opacity 0.35s ease,
+    backdrop-filter 0.35s ease;
 }
 .mobile-overlay.show {
   opacity: 1;
@@ -499,7 +501,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 .user-toggle:hover {
   background: rgba(212, 175, 55, 0.07);
@@ -534,7 +538,9 @@
   border: none;
   text-align: left;
   width: 100%;
-  transition: color 0.2s, padding-left 0.2s;
+  transition:
+    color 0.2s,
+    padding-left 0.2s;
   font-family: var(--font-text);
 }
 .user-submenu a:hover,
@@ -599,7 +605,9 @@
   letter-spacing: 1px;
   text-transform: uppercase;
   text-decoration: none;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
   position: relative;
   overflow: hidden;
 }

@@ -1773,7 +1773,12 @@ public class BookingService {
                     pkgName = "Trattamento";
                 }
                 BigDecimal sessionPrice = clientPackageService.computeSessionPrice(a);
-                linkedPkg = new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining(), sessionPrice);
+                linkedPkg = new PackageSummaryDTO(
+                        a.getId(),
+                        pkgName,
+                        a.getSessionsRemaining(),
+                        sessionPrice,
+                        clientPackageService.mapItemsToSummary(a));
             }
         } catch (Exception e) {
             log.warn("Could not resolve linkedPackage for booking {}: {}", b.getBookingId(), e.getMessage());
@@ -1949,7 +1954,12 @@ public class BookingService {
                             pkgName = "Trattamento";
                         }
                         BigDecimal sessionPrice = clientPackageService.computeSessionPrice(a);
-                        return new PackageSummaryDTO(a.getId(), pkgName, a.getSessionsRemaining(), sessionPrice);
+                        return new PackageSummaryDTO(
+                                a.getId(),
+                                pkgName,
+                                a.getSessionsRemaining(),
+                                sessionPrice,
+                                clientPackageService.mapItemsToSummary(a));
                     })
                     .orElse(null);
         } catch (Exception e) {

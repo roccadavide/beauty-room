@@ -4,6 +4,7 @@ import daviderocca.beautyroom.enums.ClientPackageStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record ClientPackageAssignmentDTO(
@@ -22,5 +23,10 @@ public record ClientPackageAssignmentDTO(
         ClientPackageStatus status,
         UUID linkedUserId,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        // Composition + phase-1 extensions
+        List<ClientPackageAssignmentItemDTO> items,
+        Integer sessionDurationMin,
+        boolean paidUpfront,
+        int startSession
 ) {}

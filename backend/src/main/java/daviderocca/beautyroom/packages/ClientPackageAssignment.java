@@ -5,12 +5,15 @@ import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -35,6 +38,8 @@ public class ClientPackageAssignment {
     /**
      * Direct reference to the catalog service. Independent of serviceOption,
      * so option-less services (e.g. Laminazione ciglia) can be associated with a package.
+     * Kept post-composition as a backward-compatible "representative" for the package
+     * (mirrors item position=0); items[] is the source of truth for the UI.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id")
@@ -67,11 +72,60 @@ public class ClientPackageAssignment {
     @JoinColumn(name = "linked_user_id")
     private User linkedUser;
 
+    /**
+     * Optional override applied to every session of this package.
+     * Phase-1 storage only — not yet read by booking duration calculation.
+     */
+    @Column(name = "session_duration_min")
+    private Integer sessionDurationMin;
+
+    @Column(name = "paid_upfront", nullable = false)
+    private boolean paidUpfront = false;
+
+    /**
+     * Starting session number for packages already mid-course at launch.
+     * Phase-1 storage only — recalculatePackageSessions still anchors on
+     * BookingPackageLink.sessionNumber.
+     */
+    @Column(name = "start_session", nullable = false)
+    private int startSession = 1;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * Composition items (1..N descriptive lines).
+     * Setter suppressed so the collection reference stays Hibernate-managed —
+     * use addItem / clearItems / replaceItems to mutate.
+     */
+    @Setter(AccessLevel.NONE)
+    @OneToMany(mappedBy = "assignment", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("position ASC")
+    private List<ClientPackageAssignmentItem> items = new ArrayList<>();
+
+    public void addItem(ClientPackageAssignmentItem item) {
+        item.setAssignment(this);
+        this.items.add(item);
+    }
+
+    public void clearItems() {
+        for (ClientPackageAssignmentItem i : this.items) {
+            i.setAssignment(null);
+        }
+        this.items.clear();
+    }
+
+    public void replaceItems(List<ClientPackageAssignmentItem> newItems) {
+        clearItems();
+        if (newItems != null) {
+            for (ClientPackageAssignmentItem i : newItems) {
+                addItem(i);
+            }
+        }
+    }
 
     @PrePersist
     void onCreate() {
