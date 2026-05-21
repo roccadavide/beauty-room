@@ -1,257 +1,862 @@
 @import url("https://fonts.googleapis.com/css2?family=Petrona:ital,wght@0,100..900;1,100..900&display=swap");
-@import url(https://db.onlinewebfonts.com/c/7b9ef47e477d7db975da9dda4b155d02?family=SaolDisplay-Light);
+@import url("https://db.onlinewebfonts.com/c/7b9ef47e477d7db975da9dda4b155d02?family=SaolDisplay-Light");
 
-/* ===== HERO SECTION ===== */
+/* ================================================
+   HERO SECTION — "Editorial Beauty"
+   Mobile-first · breakpoints: 768px, 1024px
+   Round 2.1: aurora a luci distinte, polvere che cade, sheen
+================================================ */
 
+/* ── Scene track — il binario alto su cui la hero resta pinnata ── */
+.hero-scene {
+  position: relative;
+  /* Binario mobile: corto, così una passata di pollice dà il beat
+     senza diventare lungo. Desktop/tablet allungano sotto. */
+  height: 140svh;
+}
+
+/* ── Sticky shell — ciò che resta inchiodato a schermo ── */
+.hero-sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  height: 100vh;
+}
+
+/* ── Section shell ── */
 .hero-section {
   position: relative;
-  min-height: 90svh;
-  min-height: 93vh;
-  display: grid;
-  place-items: stretch;
+  height: 100%;
   overflow: clip;
   isolation: isolate;
 }
 
-.hero-section::after {
-  content: "";
+/* ── Ken Burns wrapper ── (parte solo con .hero-ready, vedi gate JS) */
+.hero-photo-frame {
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
-  height: 15px;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(255, 253, 248, 0.08) 20%,
-    rgba(255, 253, 248, 0.22) 40%,
-    rgba(255, 253, 248, 0.48) 60%,
-    rgba(255, 253, 248, 0.76) 80%,
-    #fffdf8 100%
-  );
-  pointer-events: none;
-  z-index: 3;
+  height: 115%;
+  transform-origin: center top;
+  transform: scale(1.04);
+}
+
+.hero-ready .hero-photo-frame {
+  animation: hero-kb 3.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+@keyframes hero-kb {
+  from {
+    transform: scale(1.04);
+  }
+  to {
+    transform: scale(1);
+  }
 }
 
 .hero-media {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 115%;
+  height: 100%;
   object-fit: cover;
-  object-position: center;
-  padding: 0;
-  filter: contrast(1.03) saturate(1.04);
+  filter: contrast(1.02) saturate(1.04);
+  will-change: transform;
 }
 
+/* ── Warm top vignette ── */
 .hero-overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 25% 20%, rgba(255, 248, 236, 0.148), transparent 55%);
+  background: radial-gradient(ellipse 70% 38% at 50% 0%, rgba(0, 0, 0, 0.18) 0%, transparent 70%);
   z-index: 1;
   pointer-events: none;
 }
 
-.hero-inner {
+/* ── Velo di scurimento — pilotato dallo scroll (vedi HeroSection.jsx) ── */
+.hero-photo-darken {
   position: absolute;
   inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: clamp(16px, 3vh, 32px);
-  pointer-events: none;
-}
-
-/* --- pannello vetro centrale --- */
-.hero-glass {
-  position: relative;
-  pointer-events: auto;
-  color: #fff;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-
-  max-width: min(620px, 100%);
-  margin-inline: auto;
-  margin-bottom: clamp(10px, 2vh, 45px);
-
-  background: linear-gradient(180deg, rgba(20, 16, 10, 0.32) 0%, rgba(20, 16, 10, 0.24) 60%, rgba(20, 16, 10, 0.2) 100%);
-  -webkit-backdrop-filter: blur(10px) saturate(115%);
-  backdrop-filter: blur(10px) saturate(115%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-  padding: clamp(20px, 2.4vw, 32px) clamp(26px, 3.2vw, 40px);
-  overflow: hidden;
-  transform-style: preserve-3d;
-  transition:
-    transform 0.5s ease,
-    border-color 0.35s ease,
-    box-shadow 0.35s ease;
-  will-change: transform;
-  z-index: 4;
-}
-
-.hero-glass::before,
-.hero-glass::after {
-  content: "";
-  position: absolute;
-  inset: -40%;
-  background: linear-gradient(120deg, rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, 0.22) 50%, rgba(255, 255, 255, 0) 70%);
-  transform: translateX(-150%) rotate(12deg);
+  z-index: 6;
+  background: #2f2723;
   opacity: 0;
   pointer-events: none;
-  transition:
-    transform 1.6s ease,
-    opacity 0.6s ease;
 }
 
-.hero-glass::after {
-  background: linear-gradient(115deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0) 70%);
-  transform: translateX(-170%) rotate(-8deg);
-  transition-delay: 0.2s;
+/* ── Filo conduttore — l'ultimo filo di luce dorata della hero ──
+   Compare tardi (opacità pilotata dallo scroll) sul bordo basso
+   della hero ormai scura; raccorda con il filamento della card laser. */
+.hero-thread {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  z-index: 7;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 215, 161, 0.85) 22%,
+    rgba(255, 232, 192, 0.95) 50%,
+    rgba(255, 215, 161, 0.85) 78%,
+    transparent 100%
+  );
+  box-shadow: 0 0 16px 2px rgba(255, 200, 130, 0.4);
 }
 
-.hero-glass:hover {
-  border-color: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.22);
+/* ── Gradient veil ── (mobile: dal basso · tablet+: pannello sinistro) */
+.hero-gradient-veil {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 68%;
+  background: linear-gradient(to bottom, transparent 0%, rgba(255, 253, 248, 0.42) 20%, rgba(255, 253, 248, 0.86) 48%, #fffdf8 70%);
+  z-index: 2;
+  pointer-events: none;
 }
 
-.hero-glass:hover::before,
-.hero-glass:hover::after {
-  transform: translateX(150%) rotate(8deg);
-  opacity: 1;
+/* ════════════════════════════════════════════════
+   FX LAYER — base condivisa da aurora, polvere e shimmer.
+   Copre tutta l'area crema e si dissolve verso la foto con una mask.
+════════════════════════════════════════════════ */
+.hero-fx-layer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 68%;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 60%, transparent 96%);
+  mask-image: linear-gradient(to top, #000 0%, #000 60%, transparent 96%);
 }
 
-/* fallback blur */
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .hero-glass {
-    background: rgba(20, 16, 10, 0.55);
+/* ════════════════════════════════════════════════
+   AURORA — luci di colore distinte
+   7 zone di colore sparse su TUTTO il pannello crema. Ognuna deriva
+   lenta E "respira" in opacità con timing diversi → si accendono e
+   si spengono in punti diversi, illuminando tutta la zona bianca.
+   Blending normale (niente multiply) → i colori restano distinti.
+   Tutto compositor GPU, niente blur: costo prestazionale ~0.
+
+   MANOPOLE: l'alpha nei gradienti radiali = intensità del colore.
+             i picchi nei @keyframes hero-breathe-* = quanto si accende.
+════════════════════════════════════════════════ */
+.hero-aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  /* niente filter:blur — la morbidezza è nel gradiente radiale */
+}
+
+/* champagne */
+.hero-aurora-blob--1 {
+  width: clamp(190px, 32vw, 350px);
+  height: clamp(190px, 32vw, 350px);
+  left: -8%;
+  bottom: 50%;
+  background: radial-gradient(circle, rgba(234, 208, 152, 0.66) 0%, rgba(234, 208, 152, 0) 68%);
+  animation:
+    hero-drift-1 28s ease-in-out infinite alternate,
+    hero-breathe-1 13s ease-in-out infinite;
+  animation-delay:
+    0s,
+    -3s;
+}
+
+/* blush — rosa cipria */
+.hero-aurora-blob--2 {
+  width: clamp(170px, 29vw, 300px);
+  height: clamp(170px, 29vw, 300px);
+  left: 52%;
+  bottom: 58%;
+  background: radial-gradient(circle, rgba(236, 178, 174, 0.64) 0%, rgba(236, 178, 174, 0) 68%);
+  animation:
+    hero-drift-2 34s ease-in-out infinite alternate,
+    hero-breathe-2 16s ease-in-out infinite;
+  animation-delay:
+    0s,
+    -7s;
+}
+
+/* lilla — contrappunto freddo, ben separato */
+.hero-aurora-blob--3 {
+  width: clamp(185px, 31vw, 330px);
+  height: clamp(185px, 31vw, 330px);
+  left: 28%;
+  bottom: 30%;
+  background: radial-gradient(circle, rgba(196, 180, 228, 0.66) 0%, rgba(196, 180, 228, 0) 70%);
+  animation:
+    hero-drift-3 26s ease-in-out infinite alternate,
+    hero-breathe-3 12s ease-in-out infinite;
+  animation-delay:
+    0s,
+    -1s;
+}
+
+/* ambra — caldo profondo, alpha più contenuta */
+.hero-aurora-blob--4 {
+  width: clamp(185px, 31vw, 330px);
+  height: clamp(185px, 31vw, 330px);
+  left: -6%;
+  bottom: 6%;
+  background: radial-gradient(circle, rgba(218, 164, 104, 0.54) 0%, rgba(218, 164, 104, 0) 70%);
+  animation:
+    hero-drift-4 38s ease-in-out infinite alternate,
+    hero-breathe-4 19s ease-in-out infinite;
+  animation-delay:
+    0s,
+    -11s;
+}
+
+/* pesca — albicocca */
+.hero-aurora-blob--5 {
+  width: clamp(175px, 30vw, 310px);
+  height: clamp(175px, 30vw, 310px);
+  left: 46%;
+  bottom: 16%;
+  background: radial-gradient(circle, rgba(240, 196, 156, 0.62) 0%, rgba(240, 196, 156, 0) 70%);
+  animation:
+    hero-drift-5 30s ease-in-out infinite alternate,
+    hero-breathe-5 14s ease-in-out infinite;
+  animation-delay:
+    0s,
+    -5s;
+}
+
+/* oro tenue */
+.hero-aurora-blob--6 {
+  width: clamp(185px, 31vw, 330px);
+  height: clamp(185px, 31vw, 330px);
+  left: 6%;
+  bottom: 40%;
+  background: radial-gradient(circle, rgba(228, 198, 138, 0.62) 0%, rgba(228, 198, 138, 0) 70%);
+  animation:
+    hero-drift-6 32s ease-in-out infinite alternate,
+    hero-breathe-6 17s ease-in-out infinite;
+  animation-delay:
+    0s,
+    -9s;
+}
+
+/* malva — secondo accento freddo-rosato */
+.hero-aurora-blob--7 {
+  width: clamp(170px, 28vw, 290px);
+  height: clamp(170px, 28vw, 290px);
+  left: 38%;
+  bottom: -6%;
+  background: radial-gradient(circle, rgba(216, 186, 206, 0.58) 0%, rgba(216, 186, 206, 0) 70%);
+  animation:
+    hero-drift-7 24s ease-in-out infinite alternate,
+    hero-breathe-7 15s ease-in-out infinite;
+  animation-delay:
+    0s,
+    -2s;
+}
+
+/* deriva lenta — solo transform */
+@keyframes hero-drift-1 {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(8%, -7%, 0) scale(1.16);
+  }
+}
+@keyframes hero-drift-2 {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  to {
+    transform: translate3d(-8%, 6%, 0) scale(0.92);
+  }
+}
+@keyframes hero-drift-3 {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(7%, 8%, 0) scale(1.18);
+  }
+}
+@keyframes hero-drift-4 {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.06);
+  }
+  to {
+    transform: translate3d(-6%, -7%, 0) scale(0.94);
+  }
+}
+@keyframes hero-drift-5 {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(9%, -6%, 0) scale(1.14);
+  }
+}
+@keyframes hero-drift-6 {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.04);
+  }
+  to {
+    transform: translate3d(-7%, 7%, 0) scale(0.9);
+  }
+}
+@keyframes hero-drift-7 {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6%, -9%, 0) scale(1.2);
   }
 }
 
-/* ===== TESTO E BOTTONI ===== */
+/* respiro — solo opacity, picchi e durate sfasati → si accendono in tempi diversi */
+@keyframes hero-breathe-1 {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  48% {
+    opacity: 0.92;
+  }
+}
+@keyframes hero-breathe-2 {
+  0%,
+  100% {
+    opacity: 0.06;
+  }
+  56% {
+    opacity: 0.8;
+  }
+}
+@keyframes hero-breathe-3 {
+  0%,
+  100% {
+    opacity: 0.12;
+  }
+  44% {
+    opacity: 0.9;
+  }
+}
+@keyframes hero-breathe-4 {
+  0%,
+  100% {
+    opacity: 0.05;
+  }
+  60% {
+    opacity: 0.72;
+  }
+}
+@keyframes hero-breathe-5 {
+  0%,
+  100% {
+    opacity: 0.09;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+@keyframes hero-breathe-6 {
+  0%,
+  100% {
+    opacity: 0.07;
+  }
+  42% {
+    opacity: 0.88;
+  }
+}
+@keyframes hero-breathe-7 {
+  0%,
+  100% {
+    opacity: 0.11;
+  }
+  54% {
+    opacity: 0.82;
+  }
+}
+
+/* ── Polvere di luce (canvas) — granelli d'oro che CADONO dall'alto ──
+   Bitmap e loop rAF gestiti dal JS (pausa con tab nascosta / hero fuori
+   viewport). Qui solo box e mask via .hero-fx-layer. */
+.hero-dust {
+  display: block;
+}
+
+/* ── Shimmer del pannello: scia di luce che attraversa la zona crema ── */
+.hero-shimmer::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(115deg, transparent 38%, rgba(244, 228, 196, 0) 44%, rgba(248, 234, 205, 0.55) 50%, rgba(244, 228, 196, 0) 56%, transparent 62%);
+  transform: translateX(-185%);
+  animation: hero-shimmer 9s ease-in-out infinite;
+}
+
+@keyframes hero-shimmer {
+  0%,
+  78% {
+    transform: translateX(-185%);
+  }
+  93%,
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+/* ── Sfumatura inferiore (solo tablet+) — discreta ── */
+.hero-base-fade {
+  display: none;
+}
+
+/* ── Inner layout container ── */
+.hero-inner {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 !important;
+  pointer-events: none;
+}
+
+/* ── Text panel ── */
+.hero-text-panel {
+  width: 100%;
+  padding: 0 clamp(20px, 5.5vw, 32px) clamp(28px, 4vh, 56px);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* ── Eyebrow ── */
+.hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #8a6d3e;
+  margin-bottom: 10px;
+}
+
+.hero-eyebrow-mark {
+  color: #b8976a;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+/* ── Gold horizontal rule — nascosta mobile, visibile tablet+ ── */
+.hero-rule {
+  display: none;
+}
+
+/* ── Headline ──
+   Il wrap porta la tipografia: titolo reale + overlay sheen la ereditano. */
+.hero-title-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 0 0 14px;
+  font-family: "SaolDisplay-Light", serif;
+  font-size: clamp(2.6rem, 9.5vw, 3.2rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
 
 .hero-title {
-  color: #fff7ee;
-  font-size: 2.3rem;
-  line-height: 1.06;
-  letter-spacing: -0.02em;
-  font-family: "SaolDisplay-Light";
-  font-weight: 700;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  font: inherit;
+  letter-spacing: inherit;
+  margin: 0;
+  color: #2a1c10;
 }
 
+/* sheen del titolo — gleam oro che attraversa l'headline.
+   Cadenza ~8.5s, passata più lenta (~2s) → si nota meglio. */
+.hero-title-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: transparent;
+  background-image: linear-gradient(105deg, rgba(236, 210, 166, 0) 41%, rgba(240, 216, 174, 0.66) 50%, rgba(236, 210, 166, 0) 59%);
+  background-size: 220% 100%;
+  background-position: 150% 0;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: hero-title-sheen 8.5s ease-in-out infinite;
+}
+
+@keyframes hero-title-sheen {
+  0%,
+  70% {
+    background-position: 150% 0;
+  }
+  94%,
+  100% {
+    background-position: -65% 0;
+  }
+}
+
+/* ── Subtitle ── */
 .hero-subtitle {
-  font-size: clamp(0.98rem, 1.7vw, 1.08rem);
   font-family: "Petrona", serif;
-  font-weight: 500;
-  color: rgba(255, 238, 224, 0.95);
-  max-width: 60ch;
-  margin: 0 0 3px 0;
+  font-style: italic;
+  font-size: clamp(0.98rem, 2.6vw, 1.08rem);
+  font-weight: 400;
+  line-height: 1.6;
+  color: #5a3d28;
+  max-width: 40ch;
+  margin: 0 0 24px 0;
 }
 
+/* ── CTA row ── */
 .hero-cta-row {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 12px;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 20px;
 }
 
-.hero-cta-primary,
-.hero-cta-secondary {
-  min-width: 220px;
-  max-width: 260px;
-  justify-content: center;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 0.98rem;
-}
-
+/* ── Primary CTA ── */
 .hero-cta-primary {
-  background: #fff3e3;
-  color: #5a3d2a;
-  border: none;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  background: #b8976a !important;
+  color: #2a1c10 !important;
+  border: none !important;
+  border-radius: 999px !important;
+  min-height: 48px;
+  width: 100%;
+  padding: 0 32px !important;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700 !important;
+  font-size: 0.84rem !important;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(184, 151, 106, 0.38);
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.25s ease !important;
+}
+
+.hero-cta-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 28%, rgba(255, 255, 255, 0.42) 50%, transparent 72%);
+  transform: translateX(-170%);
+  transition: transform 0.65s ease;
+  pointer-events: none;
 }
 
 .hero-cta-primary:hover,
 .hero-cta-primary:focus-visible {
-  background: #ffe0c4;
-  color: #4a3122;
+  background: #9a7c54 !important;
+  color: #2a1c10 !important;
+  box-shadow: 0 8px 28px rgba(154, 124, 84, 0.48) !important;
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
 }
 
+.hero-cta-primary:hover::before {
+  transform: translateX(170%);
+}
+
+/* ── Secondary CTA ── */
 .hero-cta-secondary {
-  background: transparent;
-  color: #fff4e6;
-  border: 1px solid rgba(255, 225, 201, 0.95);
-  backdrop-filter: blur(4px);
+  background: transparent !important;
+  color: #3d2b1a !important;
+  border: 1.5px solid #b8976a !important;
+  border-radius: 999px !important;
+  min-height: 48px;
+  width: 100%;
+  padding: 0 28px !important;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600 !important;
+  font-size: 0.84rem !important;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease !important;
 }
 
 .hero-cta-secondary:hover,
 .hero-cta-secondary:focus-visible {
-  background: rgba(255, 236, 214, 0.15);
-  color: #fff9f1;
-  border-color: rgba(255, 236, 214, 1);
+  background: rgba(184, 151, 106, 0.11) !important;
+  color: #3d2b1a !important;
+  border-color: #9a7c54 !important;
 }
 
+/* ── Social proof ── */
 .hero-hint {
-  font-size: 0.9rem;
-  color: rgba(255, 242, 229, 0.9);
-  margin-top: 10px;
+  font-size: 0.82rem;
+  font-family: "Petrona", serif;
+  color: #5a3d28;
+  letter-spacing: 0.01em;
+  margin: 0;
 }
 
-/* ===== RESPONSIVE ===== */
+/* ── Keywords statiche ── */
+.hero-keywords {
+  display: none;
+}
 
-@media (max-width: 768px) {
-  .hero-inner {
-    align-items: flex-end;
-    padding-top: 0;
-    padding-inline: clamp(16px, 4vw, 24px);
+/* ── Elementi solo desktop ── */
+.hero-location-pill {
+  display: none;
+}
+
+/* ================================================
+   TABLET  ≥ 768px
+================================================ */
+@media (min-width: 768px) {
+  .hero-scene {
+    /* Binario più lungo su tablet/desktop = pin più ampio.
+       Tarabile: più alto = pin più lungo. */
+    height: 185svh;
   }
 
   .hero-media {
-    object-position: 46% center;
+    object-position: 58% center;
   }
 
-  .hero-glass {
-    max-width: 100%;
-    margin-inline: 0;
-    margin-bottom: 20px;
-    border-radius: 16px;
-    padding: 15px 22px;
+  .hero-gradient-veil {
+    top: 0;
+    bottom: 0;
+    height: 100%;
+    width: 62%;
+    right: auto;
+    background: linear-gradient(to right, #fffdf8 0%, #fffdf8 60%, rgba(255, 253, 248, 0.72) 82%, transparent 100%);
   }
 
-  .hero-title {
-    font-size: 1.75rem;
+  /* fx layer segue il pannello: colonna verticale, dissolve verso destra */
+  .hero-fx-layer {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: auto;
+    width: 62%;
+    height: auto;
+    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 68%, transparent 100%);
+    mask-image: linear-gradient(to right, #000 0%, #000 68%, transparent 100%);
+  }
+
+  /* aurora sparsa su TUTTO il pannello verticale (dall'alto al basso) */
+  .hero-aurora-blob--1 {
+    top: 5%;
+    bottom: auto;
+    left: -8%;
+  }
+  .hero-aurora-blob--2 {
+    top: 16%;
+    bottom: auto;
+    left: 46%;
+  }
+  .hero-aurora-blob--3 {
+    top: 38%;
+    bottom: auto;
+    left: -12%;
+  }
+  .hero-aurora-blob--4 {
+    top: 52%;
+    bottom: auto;
+    left: 28%;
+  }
+  .hero-aurora-blob--5 {
+    top: 66%;
+    bottom: auto;
+    left: 2%;
+  }
+  .hero-aurora-blob--6 {
+    top: 76%;
+    bottom: auto;
+    left: 40%;
+  }
+  .hero-aurora-blob--7 {
+    top: 88%;
+    bottom: auto;
+    left: -4%;
+  }
+
+  /* sfumatura inferiore discreta */
+  .hero-base-fade {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 150px;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(255, 253, 248, 0) 0%, rgba(255, 253, 248, 0.55) 72%, #fffdf8 100%);
+  }
+
+  .hero-inner {
+    align-items: center;
+  }
+
+  .hero-text-panel {
+    width: 56%;
+    max-width: 480px;
+    padding: clamp(32px, 4vh, 72px) 0 clamp(32px, 4vh, 72px) clamp(28px, 4vw, 56px);
+  }
+
+  .hero-title-wrap {
+    font-size: clamp(2.8rem, 5.5vw, 3.8rem);
+  }
+
+  .hero-rule {
+    display: block;
+    width: 44px;
+    height: 1px;
+    background: #b8976a;
+    border: none;
+    margin-bottom: 18px;
   }
 
   .hero-cta-row {
     flex-direction: row;
-    align-items: stretch;
+    width: auto;
   }
 
   .hero-cta-primary,
   .hero-cta-secondary {
-    max-width: 100%;
+    width: auto;
+    min-width: 160px;
+  }
+
+  .hero-keywords {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .hero-keyword {
+    font-family: "Montserrat", sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8a6d3e;
+  }
+
+  .hero-keywords-sep {
+    color: #b8976a;
+    font-size: 0.6rem;
+    line-height: 1;
+  }
+}
+
+/* ================================================
+   DESKTOP  ≥ 1024px
+================================================ */
+@media (min-width: 1024px) {
+  .hero-media {
+    object-position: 30% center;
+  }
+
+  .hero-photo-frame {
+    left: 20%;
+    right: 0;
     width: 100%;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .hero-media {
-    transform: none !important;
+  .hero-gradient-veil {
+    width: 54%;
+    background: linear-gradient(to right, #fffdf8 0%, #fffdf8 70%, rgba(255, 253, 248, 0.65) 87%, transparent 100%);
+  }
+
+  .hero-fx-layer {
+    width: 54%;
+  }
+
+  .hero-text-panel {
+    width: 50%;
+    max-width: 540px;
+    padding: 0 0 clamp(52px, 5.5vh, 88px) clamp(48px, 4.5vw, 88px);
+  }
+
+  .hero-title-wrap {
+    font-size: clamp(3.6rem, 4.8vw, 5.4rem);
+  }
+
+  .hero-subtitle {
+    max-width: 34ch;
+  }
+
+  /* ── Location pill ── */
+  .hero-location-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: absolute;
+    bottom: 56px;
+    right: clamp(28px, 3.5vw, 60px);
+    z-index: 4;
+    background: rgba(255, 253, 248, 0.82);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(184, 151, 106, 0.42);
+    border-radius: 999px;
+    padding: 9px 20px;
+    font-family: "Montserrat", sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #7a5c2e;
+    pointer-events: none;
   }
 }
 
-@media (max-width: 480px) {
-  .hero-inner {
-    transform: translateY(35px);
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .hero-scene {
+    height: 100svh;
+    height: 100vh;
+  }
+  .hero-sticky {
+    position: static;
+  }
+  .hero-photo-frame {
+    animation: none !important;
+    transform: scale(1);
+  }
+  .hero-aurora-blob {
+    animation: none !important;
+    opacity: 0.34;
+  }
+  .hero-shimmer::before {
+    animation: none !important;
+  }
+  .hero-title-sheen {
+    animation: none !important;
+  }
+}
+
+/* ── Fallback: no backdrop-filter support ── */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .hero-location-pill {
+    background: rgba(255, 253, 248, 0.98);
   }
 }

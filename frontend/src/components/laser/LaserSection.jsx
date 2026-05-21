@@ -1,6 +1,6 @@
 import LaserFlow from "./LaserFlow";
 import { Button, Container } from "react-bootstrap";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -9,54 +9,86 @@ const MotionDiv = motion.div;
 // ID stabile in produzione — aggiornare solo se il record viene ricreato
 const LASER_SERVICE_UUID = "ea41a8cd-bfec-49d3-bfa4-206c297ecd9d";
 
+// Soglia mobile: sotto questa larghezza la card non usa transform Framer
+// (i breakpoint mobile della LaserSection restano intatti).
+const MOBILE_BP = 725;
+
+// Progresso di scroll oltre il quale la card è "in posizione" → innesco fascio.
+const BEAM_IGNITE_AT = 0.8;
+
 const getFog = () => {
   if (typeof window === "undefined") return 2.1;
-  if (window.innerWidth <= 725) return 0.05;
+  if (window.innerWidth <= MOBILE_BP) return 0.05;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const ua = navigator.userAgent || "";
   const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua) && !/Chromium/.test(ua);
   return isSafari ? 2.1 / (dpr * 2.5) : 4.1 / dpr;
 };
 
+const getIsMobile = () => typeof window !== "undefined" && window.innerWidth <= MOBILE_BP;
+
 export default function LaserSection() {
   const reduce = useReducedMotion();
   const sectionRef = useRef(null);
   const cardRef = useRef(null);
   const stripRef = useRef(null);
+  const litRef = useRef(false);
   const navigate = useNavigate();
 
   const [fogValue, setFogValue] = useState(getFog);
+  const [isMobile, setIsMobile] = useState(getIsMobile);
+  // Innesco fascio: one-shot, parte spento. In reduced-motion è già acceso.
+  const [beamLit, setBeamLit] = useState(false);
 
-  useEffect(() => {
-    setFogValue(getFog());
-  }, []);
-
-  useEffect(() => {
-    const handler = () => setFogValue(getFog());
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start 90%", "start 55%"],
-  });
-
-  const liftY = useTransform(scrollYProgress, [0, 0.25, 1], [0, 0, reduce ? 0 : -70]);
-  const liftScale = useTransform(scrollYProgress, [0, 1], [1, reduce ? 1 : 1.02]);
-
-  // Su mobile nessun parallax (evita GPU compositing e fringing Safari)
-  const motionStyle = reduce ? {} : { y: liftY, scale: liftScale };
-
+  // Un solo listener resize: aggiorna fog e flag mobile insieme.
   useEffect(() => {
     const handler = () => {
       setFogValue(getFog());
+      setIsMobile(getIsMobile());
     };
+    handler();
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
 
-  // Entry animation — osserva il WRAPPER, non la MotionDiv
+  // Reduced-motion: il fascio è acceso da subito, niente innesco animato.
+  useEffect(() => {
+    if (reduce) {
+      litRef.current = true;
+      setBeamLit(true);
+    }
+  }, [reduce]);
+
+  /* ── Scroll della sezione — pilota l'ingresso "in scena" della card ──
+     offset: progress 0 = bordo alto sezione al fondo viewport;
+             progress 1 = bordo alto al 30% dell'altezza viewport. */
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "start 30%"],
+  });
+
+  // La card scura "sale a salutarti": risale, scala e proietta
+  // un'ombra calda crescente verso l'alto.
+  const cardY = useTransform(scrollYProgress, [0, 1], [110, 0]);
+  const cardScale = useTransform(scrollYProgress, [0, 1], [0.93, 1]);
+  const cardShadow = useTransform(scrollYProgress, [0.05, 0.85], ["0px 0px 0px 0px rgba(184, 151, 106, 0)", "0px -22px 60px -14px rgba(184, 151, 106, 0.4)"]);
+
+  // Innesco fascio: ONE-SHOT quando la card raggiunge la posizione.
+  // Slegato dallo scroll → l'accensione ha un suo ritmo e non si perde
+  // nemmeno scrollando veloce. Vale anche su mobile.
+  useMotionValueEvent(scrollYProgress, "change", v => {
+    if (!litRef.current && v >= BEAM_IGNITE_AT) {
+      litRef.current = true;
+      setBeamLit(true);
+    }
+  });
+
+  // Scena scroll attiva solo su desktop/tablet con animazioni consentite.
+  const sceneActive = !reduce && !isMobile;
+  const cardStyle = sceneActive ? { y: cardY, scale: cardScale, boxShadow: cardShadow } : {};
+
+  // Entry animation del CONTENUTO INTERNO — osserva il wrapper.
+  // (Movimento del wrapper = solo Framer; questo IO tocca solo i figli.)
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
@@ -101,10 +133,14 @@ export default function LaserSection() {
   return (
     <section ref={sectionRef} className="laser-section">
       <Container className="d-flex justify-content-center align-items-center">
-        <MotionDiv ref={cardRef} className="laser-card-wrapper" style={motionStyle}>
+        <MotionDiv ref={cardRef} className="laser-card-wrapper" style={cardStyle}>
+          {/* Filo conduttore — filamento d'oro sul bordo della card,
+              raccorda con .hero-thread; flare all'innesco del fascio */}
+          <div className={`laser-card-thread${beamLit ? " laser-card-thread--lit" : ""}`} aria-hidden="true" />
+
           <div className="laser-card laser-card--dark">
-            {/* WebGL beam */}
-            <div className="laser-fx" aria-hidden="true">
+            {/* WebGL beam — spento finché la card non è in scena (innesco one-shot) */}
+            <div className={`laser-fx${beamLit ? " laser-fx--lit" : ""}`} aria-hidden="true">
               <div className="laser-fx-inner">
                 <LaserFlow
                   background="#2F2723"
