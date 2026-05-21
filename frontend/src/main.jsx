@@ -13,6 +13,7 @@ import { fetchCurrentUser } from "./api/modules/users.api.js";
 import { authInitialized, loginSuccess, logout } from "./features/auth/slices/auth.slice.js";
 import { HelmetProvider } from "react-helmet-async";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
@@ -53,6 +54,7 @@ createRoot(document.getElementById("root")).render(
           <HelmetProvider>
             <App />
             <Analytics />
+            <SpeedInsights />
           </HelmetProvider>
         </BrowserRouter>
       </PersistGate>
