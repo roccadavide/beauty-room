@@ -18,6 +18,7 @@ import {
 import { getActivePackages, updateCustomer, deleteCustomer } from "../../api/modules/customer.api";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import EditPackageModal from "../../components/common/EditPackageModal";
+import PackagesTab from "../../components/admin/PackagesTab";
 import "./NewAppointmentDrawer.css";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1776,28 +1777,6 @@ function PersonalForm({ selectedDate, editingPersonal, onPersonalSaved, onClose 
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// PackagesTab — placeholder shell, real form lands in Phase 4
-// ══════════════════════════════════════════════════════════════════════════════
-function PackagesTab({ customer }) {
-  const hasCustomer = !!customer?.fullName?.trim();
-  return (
-    <div className="nad-placeholder">
-      <span className="nad-placeholder__icon">📦</span>
-      {hasCustomer ? (
-        <>
-          <p className="nad-placeholder__text">
-            Gestione pacchetti per <strong>{customer.fullName}</strong>
-          </p>
-          <p className="nad-placeholder__date">Sezione in arrivo — Fase 4</p>
-        </>
-      ) : (
-        <p className="nad-placeholder__text">Seleziona prima una cliente nella tab “Appuntamento”.</p>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
 // NewAppointmentDrawer — main shell
 // ══════════════════════════════════════════════════════════════════════════════
 /**
@@ -1840,6 +1819,8 @@ export default function NewAppointmentDrawer({
   useEffect(() => {
     if (isOpen) setCustomer(deriveCustomer(editBooking));
   }, [isOpen, editBooking]);
+
+  const handlePackageCreated = useCallback(() => setActiveTab("appointment"), []);
 
   // Switch to the right tab when opening
   useEffect(() => {
@@ -1948,7 +1929,9 @@ export default function NewAppointmentDrawer({
             />
           )}
 
-          {activeTab === "packages" && <PackagesTab customer={customer} />}
+          {activeTab === "packages" && (
+            <PackagesTab customer={customer} services={services} isOpen={isOpen} onPackageCreated={handlePackageCreated} />
+          )}
 
           {activeTab === "personal" && (
             <PersonalForm selectedDate={selectedDate} editingPersonal={editingPersonal} onPersonalSaved={onPersonalSaved} onClose={onClose} />

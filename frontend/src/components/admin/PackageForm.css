@@ -1,0 +1,360 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PackageForm — prefix: .pkgf-
+   Reuses .nad-* tokens for inputs/buttons/pills and .ag-service-* for picker.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pkgf-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pkgf-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pkgf-section__title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a8878;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0e8df;
+}
+
+/* ── Catalog picker block ──────────────────────────────────────────────────── */
+.pkgf-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Composition rows ──────────────────────────────────────────────────────── */
+.pkgf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #fdfaf6;
+  border: 1px solid #e8e0d5;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.pkgf-row.has-error {
+  border-color: #e8b0a8;
+}
+
+.pkgf-row__index {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #9a8878;
+  background: #f5ede0;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pkgf-row__name {
+  font-size: 0.88rem;
+  color: #3a2e22;
+  flex: 1;
+  min-width: 0;
+}
+
+.pkgf-row__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pkgf-row__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #c0392b;
+  font-size: 0.82rem;
+  padding: 2px 4px;
+  line-height: 1;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.pkgf-row__remove:hover {
+  opacity: 1;
+}
+
+.pkgf-row__error {
+  flex-basis: 100%;
+  font-size: 0.76rem;
+  color: #c0392b;
+}
+
+/* ── Add row block ─────────────────────────────────────────────────────────── */
+.pkgf-add-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px dashed #c9a97a;
+  border-radius: 8px;
+  background: #fefaf4;
+}
+
+.pkgf-add-row__pills {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pkgf-add-row__close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9a8878;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.pkgf-add-row__close:hover {
+  color: #3a2e22;
+}
+
+.pkgf-custom-input {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.pkgf-custom-input .nad-form__input {
+  flex: 1;
+}
+
+/* ── ServicePicker — inherits .ag-service-* visuals ───────────────────────── */
+.pkgf-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Sessions readout ──────────────────────────────────────────────────────── */
+.pkgf-readout {
+  font-size: 0.82rem;
+  color: #7a6855;
+  background: #f8f2ea;
+  border: 1px solid #e8d8c0;
+  border-radius: 8px;
+  padding: 7px 12px;
+}
+
+.pkgf-readout strong {
+  color: #5a4030;
+}
+
+.pkgf-readout__note {
+  color: #9a8878;
+  font-style: italic;
+}
+
+/* ── Discount chips ────────────────────────────────────────────────────────── */
+.pkgf-discounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pkgf-discounts__label {
+  font-size: 0.78rem;
+  color: #7a6855;
+}
+
+/* ── Paid toggle ───────────────────────────────────────────────────────────── */
+.pkgf-paid {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  color: #5a4030;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pkgf-paid input[type="checkbox"] {
+  accent-color: #b8976a;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PackagesTab — prefix: .pkgt-
+   Co-located here so both PackageForm and PackagesTab share one stylesheet
+   (PackagesTab imports PackageForm, which side-effect-imports this file).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pkgt {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.pkgt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pkgt-section__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a8878;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0e8df;
+}
+
+.pkgt-section__title strong {
+  text-transform: none;
+  letter-spacing: 0;
+  color: #5a4030;
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.pkgt-cancel-edit {
+  background: none;
+  border: none;
+  color: #b8976a;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.pkgt-cancel-edit:hover {
+  color: #8a6233;
+  text-decoration: underline;
+}
+
+/* ── Active package card ──────────────────────────────────────────────────── */
+.pkgt-card {
+  border: 1px solid #e0d5c8;
+  border-radius: 10px;
+  background: #fdfaf6;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pkgt-card.is-editing {
+  border-color: #b8976a;
+  background: #fdf8f0;
+}
+
+.pkgt-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pkgt-card__name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #3a2e22;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pkgt-card__sessions {
+  font-size: 0.78rem;
+  color: #9a7a50;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pkgt-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.pkgt-badge--paid {
+  background: #e8f5e8;
+  color: #4a7a3a;
+  border: 1px solid #c0e0b0;
+}
+
+.pkgt-card__items {
+  margin: 0;
+  padding-left: 22px;
+  font-size: 0.82rem;
+  color: #6c6c6c;
+  list-style: disc;
+}
+
+.pkgt-card__items li {
+  padding: 1px 0;
+}
+
+.pkgt-card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.pkgt-card__btn {
+  background: none;
+  border: 1px solid #e0d5c8;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #5a4030;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.13s ease, border-color 0.13s ease, color 0.13s ease;
+}
+
+.pkgt-card__btn:hover:not(:disabled) {
+  background: #f5ede0;
+  border-color: #c9a97a;
+}
+
+.pkgt-card__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pkgt-card__btn--danger {
+  color: #c0392b;
+}
+
+.pkgt-card__btn--danger:hover:not(:disabled) {
+  background: #fef0f0;
+  border-color: #e8b0a8;
+}
