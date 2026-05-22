@@ -267,9 +267,12 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
     // Package-linked bookings with no booking_services extras: do NOT pre-fill
     // selectedServices with the booking's primary service. That service is the
-    // package's underlying service, and the package itself (via selectedPackageId)
+    // package's underlying service, and the package itself (via selectedPackageIds)
     // already accounts for its duration. Pre-filling here would double-count.
-    if (editBooking.linkedPackage?.packageAssignmentId) {
+    const hasAnyLinkedPackage =
+      (Array.isArray(editBooking.linkedPackages) && editBooking.linkedPackages.length > 0) ||
+      editBooking.linkedPackage?.packageAssignmentId != null;
+    if (hasAnyLinkedPackage) {
       return [];
     }
     // Case 2: legacy single serviceId — look up from services catalog for accurate data
@@ -290,9 +293,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     return [];
   });
   const [totalDurationOverride, setTotalDurationOverride] = useState(null);
-  // Override for the active-package's contributed duration, editable inline via ✏ button
-  const [packageDurationOverride, setPackageDurationOverride] = useState(null);
-  const [editingPackageDuration, setEditingPackageDuration] = useState(false);
+  // Phase 5b: per-package duration overrides + per-package "editing duration" toggles,
+  // keyed by package id. Replaces the singular `packageDurationOverride` /
+  // `editingPackageDuration` that assumed a single selected package.
+  const [packageDurationOverrides, setPackageDurationOverrides] = useState(() => new Map());
+  const [editingDurationPkgIds, setEditingDurationPkgIds] = useState(() => new Set());
   const [editingTotalDuration, setEditingTotalDuration] = useState(false);
   const [editingServizio, setEditingServizio] = useState(null);
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -343,19 +348,32 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
   // ── Customer inline edit ───────────────────────────────────────────────────
   const [activePackages, setActivePackages] = useState([]);
-  // Read packageAssignmentId from linkedPackage where it actually lives in AdminBookingCardDTO.
-  // The previous version read editBooking.packageAssignmentId (which doesn't exist on the DTO),
-  // causing edit-mode validation and duration calculations to silently ignore the package.
-  const [selectedPackageId, setSelectedPackageId] = useState(() => {
-    if (!isEditMode || !editBooking?.linkedPackage) return null;
-    return editBooking.linkedPackage.packageAssignmentId ?? null;
+  // Phase 5b: multi-package selection — a Set of in-person ClientPackageAssignment ids.
+  // Edit-mode seeds from the new editBooking.linkedPackages[]; falls back to the
+  // legacy singular linkedPackage for one release so older backend responses still hydrate.
+  const [selectedPackageIds, setSelectedPackageIds] = useState(() => {
+    if (!isEditMode || !editBooking) return new Set();
+    if (Array.isArray(editBooking.linkedPackages) && editBooking.linkedPackages.length > 0) {
+      return new Set(editBooking.linkedPackages.map(p => p.packageAssignmentId).filter(Boolean));
+    }
+    const legacyId = editBooking.linkedPackage?.packageAssignmentId ?? null;
+    return legacyId ? new Set([legacyId]) : new Set();
   });
   const [selectedPackageCreditId, setSelectedPackageCreditId] = useState(() => {
     if (!isEditMode || !editBooking) return null;
     // packageCreditId lives at the top level of AdminBookingCardDTO (for online packages)
     return editBooking.packageCreditId ?? null;
   });
-  const [editPackageInfo] = useState(() => (isEditMode && editBooking?.linkedPackage ? editBooking.linkedPackage : null));
+  // editPackageInfo backs the read-only "Pacchetti attivi" header indicator. With N
+  // linked packages the indicator stays singular (= the first link) — the per-package
+  // detail lives in the "Servizi selezionati" panel.
+  const [editPackageInfo] = useState(() => {
+    if (!isEditMode || !editBooking) return null;
+    if (Array.isArray(editBooking.linkedPackages) && editBooking.linkedPackages.length > 0) {
+      return editBooking.linkedPackages[0];
+    }
+    return editBooking.linkedPackage ?? null;
+  });
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState({ fullName: "", phone: "", email: "" });
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
@@ -372,16 +390,59 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [deleteActivePkgName, setDeleteActivePkgName] = useState("");
 
   // Collapsible per-package state. `expandedPkgIds` covers the "Pacchetti attivi"
-  // selection cards (one expanded chevron per id). `selectedPkgExpanded` is a
-  // single boolean for the package row inside "Servizi selezionati" since at
-  // most one package can be selected at a time.
+  // selection cards. `expandedSelectedPkgIds` covers the "Servizi selezionati" rows
+  // (Phase 5b: multiple packages may be selected, each with its own collapsible).
   const [expandedPkgIds, setExpandedPkgIds] = useState(() => new Set());
-  const [selectedPkgExpanded, setSelectedPkgExpanded] = useState(false);
+  const [expandedSelectedPkgIds, setExpandedSelectedPkgIds] = useState(() => new Set());
   const togglePkgExpansion = useCallback(id => {
     setExpandedPkgIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  }, []);
+  const toggleSelectedPkgExpansion = useCallback(id => {
+    setExpandedSelectedPkgIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const toggleEditingDurationPkg = useCallback((id, on) => {
+    setEditingDurationPkgIds(prev => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  // Phase 5b: remove a package from selection and drop every per-package satellite
+  // collection (duration override, expansion state, editing-duration toggle) for that id.
+  const deselectAdminPackage = useCallback(id => {
+    setSelectedPackageIds(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setPackageDurationOverrides(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    setEditingDurationPkgIds(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setExpandedSelectedPkgIds(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
       return next;
     });
   }, []);
@@ -459,39 +520,56 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     });
   }, []);
 
-  // Total duration: catalog sum (with per-item or total override) + custom items
-  const totalDuration = useMemo(() => {
-    const catalogDur = selectedServices.reduce((sum, ss) => sum + (ss.overrideDurationMin ?? ss.defaultDurationMin), 0);
-    const itemsDur = serviceItems.reduce((sum, item) => sum + (parseInt(item.customDuration, 10) || 0), 0);
-    let base = catalogDur + itemsDur;
-
-    // Always include the duration of the currently-selected active package,
-    // on top of any extras. Prefer option duration > service duration > 60min fallback.
-    const activePkgId = selectedPackageId || selectedPackageCreditId;
-    if (activePkgId) {
-      const pkg = activePackages.find(p => p.id === activePkgId);
-      let pkgDuration = null;
+  // Total duration: catalog sum + custom items + every selected in-person package
+  // + the (single) online package credit, if any. Per-package fallback chain:
+  //   override → pkg.sessionDurationMin → option.durationMin → service.durationMin → 60.
+  // sessionDurationMin is the Phase 5b addition (Q10 of the audit): it lets the
+  // admin pick a per-package default duration on the package itself, which the
+  // booking duration now honors.
+  const resolvePkgDuration = useCallback(
+    (pkg, overrideMinutes) => {
+      if (overrideMinutes != null) return overrideMinutes;
+      if (pkg?.sessionDurationMin != null && pkg.sessionDurationMin > 0) return pkg.sessionDurationMin;
       if (pkg?.serviceOptionId) {
-        // Find the service that contains this option, then prefer the option's own duration
         const svc = services.find(s =>
           (s.options || s.serviceOptionList || s.serviceOptions || []).some(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId)),
         );
         if (svc) {
           const opts = svc.options || svc.serviceOptionList || svc.serviceOptions || [];
           const opt = opts.find(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId));
-          pkgDuration = opt?.durationMin ?? svc.durationMin;
+          const fromOption = opt?.durationMin ?? svc.durationMin;
+          if (fromOption) return fromOption;
         }
       } else if (pkg?.serviceTitle) {
-        // Option-less package: match the catalog service by title
         const name = pkg.serviceTitle.trim().toLowerCase();
         const svc = services.find(s => s.title?.trim().toLowerCase() === name);
-        pkgDuration = svc?.durationMin;
+        if (svc?.durationMin) return svc.durationMin;
       }
-      const defaultPkgDuration = pkgDuration ?? 60;
-      base += packageDurationOverride ?? defaultPkgDuration;
+      return 60;
+    },
+    [services],
+  );
+
+  const totalDuration = useMemo(() => {
+    const catalogDur = selectedServices.reduce((sum, ss) => sum + (ss.overrideDurationMin ?? ss.defaultDurationMin), 0);
+    const itemsDur = serviceItems.reduce((sum, item) => sum + (parseInt(item.customDuration, 10) || 0), 0);
+    let base = catalogDur + itemsDur;
+
+    // Sum every in-person package selected (Phase 5b: multi-select).
+    for (const pkgId of selectedPackageIds) {
+      const pkg = activePackages.find(p => p.id === pkgId);
+      if (!pkg) continue;
+      base += resolvePkgDuration(pkg, packageDurationOverrides.get(pkgId));
     }
+
+    // Online package credit (still single, unchanged contract).
+    if (selectedPackageCreditId) {
+      const pkg = activePackages.find(p => p.id === selectedPackageCreditId);
+      if (pkg) base += resolvePkgDuration(pkg, null);
+    }
+
     return totalDurationOverride ?? base;
-  }, [selectedServices, totalDurationOverride, serviceItems, services, selectedPackageId, selectedPackageCreditId, activePackages, packageDurationOverride]);
+  }, [selectedServices, totalDurationOverride, serviceItems, selectedPackageIds, selectedPackageCreditId, activePackages, packageDurationOverrides, resolvePkgDuration]);
 
   const ensureWalkInEmail = useCallback(() => {
     const d = new Date();
@@ -530,7 +608,9 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     try {
       await cancelPackageAssignment(deleteActivePkgId);
       setActivePackages(prev => prev.filter(p => p.id !== deleteActivePkgId));
-      if (selectedPackageId === deleteActivePkgId) setSelectedPackageId(null);
+      // Phase 5b: drop the cancelled package from the multi-select set + its
+      // per-package satellites. The online branch stays singular.
+      if (selectedPackageIds.has(deleteActivePkgId)) deselectAdminPackage(deleteActivePkgId);
       if (selectedPackageCreditId === deleteActivePkgId) setSelectedPackageCreditId(null);
     } catch (err) {
       setSubmitError("Errore durante la cancellazione del pacchetto: " + (err.message || "Errore sconosciuto"));
@@ -639,14 +719,24 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   }, [appointmentDate, totalDuration, fetchSlots, isEditMode, editBooking]);
 
   // ── Client handlers ───────────────────────────────────────────────────────
+  // Phase 5b: customer-change must clear the multi-select Set and every per-package
+  // satellite collection (overrides, expanded set, editing-duration set). The
+  // singular online-credit selection is reset as before.
+  const resetPackageSelectionState = useCallback(() => {
+    setSelectedPackageIds(new Set());
+    setPackageDurationOverrides(new Map());
+    setEditingDurationPkgIds(new Set());
+    setExpandedSelectedPkgIds(new Set());
+  }, []);
+
   const handleCustomerNameChange = useCallback(
     text => {
       onPatchCustomer({ fullName: text });
       setActivePackages([]);
-      setSelectedPackageId(null);
+      resetPackageSelectionState();
       setSelectedPackageCreditId(null);
     },
-    [onPatchCustomer],
+    [onPatchCustomer, resetPackageSelectionState],
   );
 
   const handleCustomerSelect = useCallback(
@@ -654,16 +744,14 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       // Different customer (or even same one re-clicked): clear any previously-selected
       // package — it belonged to the prior client. handleCustomerNameChange covers the
       // keystroke-typing path; this handler covers the autocomplete-click path.
-      setSelectedPackageId(null);
+      resetPackageSelectionState();
       setSelectedPackageCreditId(null);
-      setPackageDurationOverride(null);
-      setEditingPackageDuration(false);
 
       onSelectCustomer(c);
       setEditingCustomer(false);
       setCustomerEditMsg("");
     },
-    [onSelectCustomer],
+    [onSelectCustomer, resetPackageSelectionState],
   );
 
   const handleCustomerEditSave = async () => {
@@ -757,7 +845,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     if (!customerPhone.trim()) errs.customerPhone = "Telefono obbligatorio";
     if (!walkIn && !customerEmail.trim()) errs.customerEmail = "Email obbligatoria";
 
-    const hasService = selectedServices.length > 0 || serviceItems.length > 0 || selectedPackageId != null || selectedPackageCreditId != null;
+    const hasService =
+      selectedServices.length > 0 ||
+      serviceItems.length > 0 ||
+      selectedPackageIds.size > 0 ||
+      selectedPackageCreditId != null;
     if (!hasService) {
       errs.services = "Seleziona almeno un servizio o un pacchetto attivo";
     }
@@ -788,7 +880,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     customerEmail,
     selectedServices,
     serviceItems,
-    selectedPackageId,
+    selectedPackageIds,
     selectedPackageCreditId,
     appointmentDate,
     selectedSlot,
@@ -832,12 +924,16 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         })),
         customTotalDurationMin:
           totalDurationOverride ??
-          (selectedPackageId != null || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null) ? totalDuration : null),
+          (selectedPackageIds.size > 0 || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null) ? totalDuration : null),
         hasCustomService: customItems.length > 0,
         customServiceName: customItems.length > 0 ? customItems.map(i => i.customName.trim()).join(", ") : null,
         customServiceDurationMinutes: customItems.length > 0 ? customItems.reduce((s, i) => s + (parseInt(i.customDuration, 10) || 0), 0) : null,
         customServicePrice: customItems.length > 0 && customItems[0].customPrice ? parseFloat(customItems[0].customPrice) : null,
-        packageAssignmentId: selectedPackageId ?? null,
+        // Phase 5b: send the full list. Singular packageAssignmentId is sent as null —
+        // the Phase 5a backend wraps the singular as a one-element list only when the
+        // list field is missing, so we explicitly use the new contract.
+        packageAssignmentIds: Array.from(selectedPackageIds),
+        packageAssignmentId: null,
         packageCreditId: selectedPackageCreditId ?? null,
         serviceOptionId: selectedServices[0]?.optionId ?? null, // backward compat; serviceEntries takes precedence
         paidInStore,
@@ -1011,19 +1107,23 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 {activePackages.map(pkg => {
                   const sessionsUsed = pkg.totalSessions - pkg.sessionsRemaining;
                   const isOnline = pkg.source === "ONLINE";
-                  const isSelected = isOnline ? selectedPackageCreditId === pkg.id : selectedPackageId === pkg.id;
+                  const isSelected = isOnline ? selectedPackageCreditId === pkg.id : selectedPackageIds.has(pkg.id);
                   const handleClick = () => {
                     if (isOnline) {
+                      // Online package credit: stays single (unchanged contract).
                       setSelectedPackageCreditId(isSelected ? null : pkg.id);
-                      setSelectedPackageId(null);
                     } else {
-                      setSelectedPackageId(isSelected ? null : pkg.id);
-                      setSelectedPackageCreditId(null);
-                    }
-                    // When deselecting the package, also clear any duration override on it
-                    if (isSelected) {
-                      setPackageDurationOverride(null);
-                      setEditingPackageDuration(false);
+                      // Phase 5b: in-person packages toggle add/remove in the Set —
+                      // multiple may be selected at the same time.
+                      if (isSelected) {
+                        deselectAdminPackage(pkg.id);
+                      } else {
+                        setSelectedPackageIds(prev => {
+                          const next = new Set(prev);
+                          next.add(pkg.id);
+                          return next;
+                        });
+                      }
                     }
                     // Note: we no longer wipe selectedServices here — package and extras coexist.
                   };
@@ -1110,7 +1210,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                   );
                 })}
               </div>
-              {(selectedPackageId || selectedPackageCreditId) && (
+              {(selectedPackageIds.size > 0 || selectedPackageCreditId) && (
                 <div className="nad-help mt-1">Seduta scalata automaticamente dal pacchetto al salvataggio.</div>
               )}
             </>
@@ -1230,119 +1330,109 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         </div>
 
         {/* ── Selected services panel ───────────────────────────────────────── */}
-        {(selectedPackageId || selectedServices.length > 0) && (
+        {(selectedPackageIds.size > 0 || selectedServices.length > 0) && (
           <div className="ag-selected-services">
-            <div className="ag-selected-services__label">Servizi selezionati ({(selectedPackageId ? 1 : 0) + selectedServices.length})</div>
-            {selectedPackageId &&
-              (() => {
-                const pkg = activePackages.find(p => p.id === selectedPackageId);
-                if (!pkg) return null;
-                // Compute the package's default duration the same way totalDuration does
-                let defaultDur = null;
-                if (pkg.serviceOptionId) {
-                  const svc = services.find(s =>
-                    (s.options || s.serviceOptionList || s.serviceOptions || []).some(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId)),
-                  );
-                  if (svc) {
-                    const opts = svc.options || svc.serviceOptionList || svc.serviceOptions || [];
-                    const opt = opts.find(o => String(o.optionId ?? o.id) === String(pkg.serviceOptionId));
-                    defaultDur = opt?.durationMin ?? svc.durationMin;
-                  }
-                } else if (pkg.serviceTitle) {
-                  const name = pkg.serviceTitle.trim().toLowerCase();
-                  const svc = services.find(s => s.title?.trim().toLowerCase() === name);
-                  defaultDur = svc?.durationMin;
-                }
-                defaultDur = defaultDur ?? 60;
-                const displayDur = packageDurationOverride ?? defaultDur;
-                const sessionNum = isEditMode && editBooking?.currentSession ? editBooking.currentSession : pkg.totalSessions - pkg.sessionsRemaining + 1;
-                const pkgItems = Array.isArray(pkg.items) ? [...pkg.items].sort((a, b) => a.position - b.position) : [];
-                const hasMultipleItems = pkgItems.length >= 2;
-                return (
-                  <div
-                    className="ag-selected-service-row"
-                    style={{ background: "rgba(184, 151, 106, 0.08)", borderLeft: "3px solid var(--card-gold, #b8976a)", flexWrap: "wrap" }}
-                  >
-                    <span className="ag-selected-service-row__name">
-                      📦 {pkg.displayName || pkg.serviceTitle || "Pacchetto"}
-                      <span className="ag-pkg-session-badge" style={{ marginLeft: 8 }}>
-                        Seduta {sessionNum}/{pkg.totalSessions}
-                      </span>
-                      {hasMultipleItems && (
-                        <button
-                          type="button"
-                          className="pkgi-toggle"
-                          aria-expanded={selectedPkgExpanded}
-                          onClick={() => setSelectedPkgExpanded(v => !v)}
-                          style={{ marginLeft: 8 }}
-                        >
-                          <span className={`pkgi-toggle__chevron${selectedPkgExpanded ? " is-expanded" : ""}`}>▸</span>
-                          {pkgItems.length} trattamenti
-                        </button>
-                      )}
+            <div className="ag-selected-services__label">Servizi selezionati ({selectedPackageIds.size + selectedServices.length})</div>
+            {Array.from(selectedPackageIds).map(pkgId => {
+              const pkg = activePackages.find(p => p.id === pkgId);
+              if (!pkg) return null;
+              const overrideDur = packageDurationOverrides.get(pkgId) ?? null;
+              const defaultDur = resolvePkgDuration(pkg, null);
+              const displayDur = overrideDur ?? defaultDur;
+              const isEditingDur = editingDurationPkgIds.has(pkgId);
+              const isRowExpanded = expandedSelectedPkgIds.has(pkgId);
+              // Per-package "Seduta X/Y": Phase 5b uses each package's own counter — with
+              // N links the booking-level editBooking.currentSession describes only the first.
+              const sessionNum = pkg.totalSessions - pkg.sessionsRemaining + 1;
+              const pkgItems = Array.isArray(pkg.items) ? [...pkg.items].sort((a, b) => a.position - b.position) : [];
+              const hasMultipleItems = pkgItems.length >= 2;
+              return (
+                <div
+                  key={pkgId}
+                  className="ag-selected-service-row"
+                  style={{ background: "rgba(184, 151, 106, 0.08)", borderLeft: "3px solid var(--card-gold, #b8976a)", flexWrap: "wrap" }}
+                >
+                  <span className="ag-selected-service-row__name">
+                    📦 {pkg.displayName || pkg.serviceTitle || "Pacchetto"}
+                    <span className="ag-pkg-session-badge" style={{ marginLeft: 8 }}>
+                      Seduta {sessionNum}/{pkg.totalSessions}
                     </span>
-                    {editingPackageDuration ? (
-                      <input
-                        type="number"
-                        min={5}
-                        max={480}
-                        step={5}
-                        defaultValue={displayDur}
-                        autoFocus
-                        className="nad-form__input"
-                        style={{ width: 70 }}
-                        onBlur={e => {
-                          const n = parseInt(e.target.value, 10);
-                          setPackageDurationOverride(!isNaN(n) && n > 0 && n !== defaultDur ? n : null);
-                          setEditingPackageDuration(false);
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === "Enter") e.currentTarget.blur();
-                          if (e.key === "Escape") setEditingPackageDuration(false);
-                        }}
-                      />
-                    ) : (
-                      <span className="ag-selected-service-row__dur">
-                        {formatDuration(displayDur)}
-                        {packageDurationOverride != null && packageDurationOverride !== defaultDur && (
-                          <span className="ag-selected-service-row__orig"> (era {formatDuration(defaultDur)})</span>
-                        )}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className="ag-selected-service-row__edit"
-                      title="Modifica durata del pacchetto per questo appuntamento"
-                      onClick={() => setEditingPackageDuration(true)}
-                    >
-                      ✏
-                    </button>
-                    {!isEditMode && (
+                    {hasMultipleItems && (
                       <button
                         type="button"
-                        className="ag-selected-service-row__remove"
-                        title="Rimuovi pacchetto"
-                        onClick={() => {
-                          setSelectedPackageId(null);
-                          setPackageDurationOverride(null);
-                          setEditingPackageDuration(false);
-                        }}
+                        className="pkgi-toggle"
+                        aria-expanded={isRowExpanded}
+                        onClick={() => toggleSelectedPkgExpansion(pkgId)}
+                        style={{ marginLeft: 8 }}
                       >
-                        ✕
+                        <span className={`pkgi-toggle__chevron${isRowExpanded ? " is-expanded" : ""}`}>▸</span>
+                        {pkgItems.length} trattamenti
                       </button>
                     )}
-                    {hasMultipleItems && selectedPkgExpanded && (
-                      <ul className="pkgi-list">
-                        {pkgItems.map(it => (
-                          <li key={it.id ?? it.position} className="pkgi-list__item">
-                            {formatPackageItemLabel(it)}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })()}
+                  </span>
+                  {isEditingDur ? (
+                    <input
+                      type="number"
+                      min={5}
+                      max={480}
+                      step={5}
+                      defaultValue={displayDur}
+                      autoFocus
+                      className="nad-form__input"
+                      style={{ width: 70 }}
+                      onBlur={e => {
+                        const n = parseInt(e.target.value, 10);
+                        setPackageDurationOverrides(prev => {
+                          const next = new Map(prev);
+                          if (!isNaN(n) && n > 0 && n !== defaultDur) next.set(pkgId, n);
+                          else next.delete(pkgId);
+                          return next;
+                        });
+                        toggleEditingDurationPkg(pkgId, false);
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                        if (e.key === "Escape") toggleEditingDurationPkg(pkgId, false);
+                      }}
+                    />
+                  ) : (
+                    <span className="ag-selected-service-row__dur">
+                      {formatDuration(displayDur)}
+                      {overrideDur != null && overrideDur !== defaultDur && (
+                        <span className="ag-selected-service-row__orig"> (era {formatDuration(defaultDur)})</span>
+                      )}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="ag-selected-service-row__edit"
+                    title="Modifica durata del pacchetto per questo appuntamento"
+                    onClick={() => toggleEditingDurationPkg(pkgId, true)}
+                  >
+                    ✏
+                  </button>
+                  {!isEditMode && (
+                    <button
+                      type="button"
+                      className="ag-selected-service-row__remove"
+                      title="Rimuovi pacchetto"
+                      onClick={() => deselectAdminPackage(pkgId)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                  {hasMultipleItems && isRowExpanded && (
+                    <ul className="pkgi-list">
+                      {pkgItems.map(it => (
+                        <li key={it.id ?? it.position} className="pkgi-list__item">
+                          {formatPackageItemLabel(it)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
             {selectedServices.map(ss => (
               <div key={ss.uid} className="ag-selected-service-row">
                 <span className="ag-selected-service-row__name">{ss.title}</span>
