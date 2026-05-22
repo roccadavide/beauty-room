@@ -1018,9 +1018,13 @@
 }
 
 .nad-next-slot-btn {
-  font-size: 0.75rem;
-  padding: 4px 12px;
-  border-radius: 20px;
+  /* Phase 6c: enlarged tap target — Michela uses this with a client in front
+     of her. Was 0.75rem/4×12; now ~38-40px tall, still gold outline → fill on
+     hover, still inside the Editorial Beauty styling. */
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 9px 22px;
+  border-radius: 22px;
   border: 1px solid var(--card-gold, #b8976a);
   background: transparent;
   color: var(--card-gold, #b8976a);

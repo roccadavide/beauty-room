@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import CustomerAutocomplete from "../../components/admin/CustomerAutocomplete";
 import DateTimeField from "../../components/common/DateTimeField";
+import DurationField from "../../components/common/DurationField";
 import TimePicker from "../../components/common/TimePicker";
 import formatDuration from "../../utils/formatDuration";
 import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
@@ -112,13 +113,17 @@ function EditServizioModal({ servizio, catalogServices, onSave, onClose }) {
         </div>
         <div className="ag-edit-svc-service-name">{servizio.title}</div>
         <div className="ag-edit-svc-body">
-          <label className="ag-edit-svc-label">
-            Durata (min)
-            <input type="number" className="ag-edit-svc-input" value={durata} min={5} step={5} onChange={e => setDurata(e.target.value)} autoFocus />
+          <div className="ag-edit-svc-label">
+            <DurationField
+              label="Durata"
+              value={parseInt(durata, 10) || null}
+              onChange={n => setDurata(n != null ? String(n) : "")}
+              required
+            />
             {(servizio.overrideDurationMin ?? servizio.defaultDurationMin) !== servizio.defaultDurationMin && (
               <span className="ag-edit-svc-orig">default: {servizio.defaultDurationMin} min</span>
             )}
-          </label>
+          </div>
           <label className="ag-edit-svc-label">
             Prezzo (€)
             <input
@@ -1369,46 +1374,45 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                     )}
                   </span>
                   {isEditingDur ? (
-                    <input
-                      type="number"
-                      min={5}
-                      max={480}
-                      step={5}
-                      defaultValue={displayDur}
-                      autoFocus
-                      className="nad-form__input"
-                      style={{ width: 70 }}
-                      onBlur={e => {
-                        const n = parseInt(e.target.value, 10);
-                        setPackageDurationOverrides(prev => {
-                          const next = new Map(prev);
-                          if (!isNaN(n) && n > 0 && n !== defaultDur) next.set(pkgId, n);
-                          else next.delete(pkgId);
-                          return next;
-                        });
-                        toggleEditingDurationPkg(pkgId, false);
-                      }}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") e.currentTarget.blur();
-                        if (e.key === "Escape") toggleEditingDurationPkg(pkgId, false);
-                      }}
-                    />
+                    <>
+                      <DurationField
+                        value={displayDur}
+                        onChange={n => {
+                          setPackageDurationOverrides(prev => {
+                            const next = new Map(prev);
+                            if (n != null && n > 0 && n !== defaultDur) next.set(pkgId, n);
+                            else next.delete(pkgId);
+                            return next;
+                          });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="ag-selected-service-row__edit"
+                        title="Conferma durata"
+                        onClick={() => toggleEditingDurationPkg(pkgId, false)}
+                      >
+                        ✓
+                      </button>
+                    </>
                   ) : (
-                    <span className="ag-selected-service-row__dur">
-                      {formatDuration(displayDur)}
-                      {overrideDur != null && overrideDur !== defaultDur && (
-                        <span className="ag-selected-service-row__orig"> (era {formatDuration(defaultDur)})</span>
-                      )}
-                    </span>
+                    <>
+                      <span className="ag-selected-service-row__dur">
+                        {formatDuration(displayDur)}
+                        {overrideDur != null && overrideDur !== defaultDur && (
+                          <span className="ag-selected-service-row__orig"> (era {formatDuration(defaultDur)})</span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="ag-selected-service-row__edit"
+                        title="Modifica durata del pacchetto per questo appuntamento"
+                        onClick={() => toggleEditingDurationPkg(pkgId, true)}
+                      >
+                        ✏
+                      </button>
+                    </>
                   )}
-                  <button
-                    type="button"
-                    className="ag-selected-service-row__edit"
-                    title="Modifica durata del pacchetto per questo appuntamento"
-                    onClick={() => toggleEditingDurationPkg(pkgId, true)}
-                  >
-                    ✏
-                  </button>
                   {!isEditMode && (
                     <button
                       type="button"
@@ -1481,21 +1485,20 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       ✏
                     </button>
                   ) : (
-                    <input
-                      type="number"
-                      min={5}
-                      max={480}
-                      step={5}
-                      defaultValue={displayTotal}
-                      autoFocus
-                      className="nad-form__input"
-                      style={{ width: 70 }}
-                      onBlur={e => {
-                        const n = parseInt(e.target.value, 10);
-                        setTotalDurationOverride(!isNaN(n) && n > 0 ? n : null);
-                        setEditingTotalDuration(false);
-                      }}
-                    />
+                    <>
+                      <DurationField
+                        value={displayTotal}
+                        onChange={n => setTotalDurationOverride(n != null && n > 0 && n !== computedTotal ? n : null)}
+                      />
+                      <button
+                        type="button"
+                        className="ag-selected-service-row__edit"
+                        title="Conferma durata"
+                        onClick={() => setEditingTotalDuration(false)}
+                      >
+                        ✓
+                      </button>
+                    </>
                   )}
                   {totalDurationOverride !== null && (
                     <button

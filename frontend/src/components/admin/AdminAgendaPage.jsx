@@ -49,14 +49,19 @@ const minutes = hhmm => {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmtTime = dt => new Date(dt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+// Phase 6c: refined palette in the Editorial Beauty family — warm muted tones
+// only. Each entry stays tasteful while staying distinguishable at a glance.
+// The first entry remains the warm-brown-gold "primary" so untagged data still
+// reads as on-brand. Refined from the prior loud primaries (indigo / pink /
+// teal / orange) that didn't fit the cream/gold palette.
 const CATEGORY_PALETTE = [
-  { bg: "rgba(139,94,60,.24)", border: "#b8976a", text: "#6b4226" },
-  { bg: "rgba(99,102,241,.2)", border: "#818cf8", text: "#4338ca" },
-  { bg: "rgba(34,197,94,.18)", border: "#4ade80", text: "#166534" },
-  { bg: "rgba(251,191,36,.2)", border: "#fbbf24", text: "#92400e" },
-  { bg: "rgba(236,72,153,.2)", border: "#f472b6", text: "#9d174d" },
-  { bg: "rgba(20,184,166,.2)", border: "#2dd4bf", text: "#134e4a" },
-  { bg: "rgba(249,115,22,.2)", border: "#fb923c", text: "#7c2d12" },
+  { bg: "rgba(184, 151, 106, 0.22)", border: "#b8976a", text: "#6b4226" }, // warm brown gold
+  { bg: "rgba(199, 134, 142, 0.22)", border: "#c7868e", text: "#7a3a4a" }, // dusty rose
+  { bg: "rgba(150, 170, 130, 0.24)", border: "#a3b88c", text: "#4a6b3a" }, // muted sage
+  { bg: "rgba(170, 150, 190, 0.22)", border: "#b09cc4", text: "#5a4a78" }, // soft lavender
+  { bg: "rgba(217, 175, 110, 0.24)", border: "#d9af6e", text: "#7a5223" }, // honey amber
+  { bg: "rgba(140, 162, 184, 0.22)", border: "#94a8c0", text: "#3a5278" }, // dusk slate blue
+  { bg: "rgba(190, 130, 95, 0.22)", border: "#c98563", text: "#7a3e1a" }, // terracotta clay
 ];
 const categoryColor = cat => {
   if (!cat) return CATEGORY_PALETTE[0];
@@ -300,13 +305,17 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
   const hasAutoScrolledRef = useRef(false);
 
   const viewWindow = useMemo(() => {
-    const fallback = { startMin: 8 * 60, endMin: 20 * 60 };
-    if (!data?.openRanges?.length) return fallback;
+    // Phase 6c: the timeline must ALWAYS span at least 08:00-20:00 so the
+    // admin can place personal appointments anywhere in the day regardless of
+    // the salon's actual opening hours that day. May widen past those bounds
+    // when openRanges extend earlier or later, but never narrower.
+    const MIN_START = 8 * 60;
+    const MIN_END = 20 * 60;
+    if (!data?.openRanges?.length) return { startMin: MIN_START, endMin: MIN_END };
     const minStart = Math.min(...data.openRanges.map(r => minutes(r.start)));
     const maxEnd = Math.max(...data.openRanges.map(r => minutes(r.end)));
-    const startMin = clamp(minStart - 30, 0, 24 * 60);
-    const endMin = clamp(maxEnd + 30, 0, 24 * 60);
-    if (endMin - startMin < 6 * 60) return fallback;
+    const startMin = clamp(Math.min(MIN_START, minStart - 30), 0, 24 * 60);
+    const endMin = clamp(Math.max(MIN_END, maxEnd + 30), 0, 24 * 60);
     return { startMin, endMin };
   }, [data]);
 
@@ -349,8 +358,24 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const bookingHeight = toPct(Math.min(effectiveEnd, viewWindow.endMin)) - top;
     const durationMin = effectiveEnd - start;
     const tier = durationMin < 20 ? "tiny" : durationMin < 40 ? "compact" : "full";
-    const cat = booking?.categoryName ?? booking?.category ?? null;
-    const color = categoryColor(cat);
+    // Phase 6c color key cascade: AdminBookingCardDTO doesn't expose
+    // categoryName/category today, which left every block falling through to
+    // PALETTE[0] (the "wall of brown"). Cascade through the next-best
+    // identifiers so adjacent bookings for different services / packages /
+    // custom treatments hash to distinct palette entries.
+    const colorKey =
+      booking?.categoryName ??
+      booking?.category ??
+      booking?.linkedPackages?.[0]?.packageName ??
+      booking?.linkedPackage?.packageName ??
+      booking?.serviceTitle ??
+      booking?.customServiceName ??
+      null;
+    const color = categoryColor(colorKey);
+    // Subtle secondary signal: package-linked bookings get a slightly thicker
+    // left accent so they're identifiable even when their color collides with
+    // a plain-service neighbour's hash bucket.
+    const isPackageLinked = !!(booking?.linkedPackages?.length || booking?.linkedPackage);
     // Phase 6: timeline blocks are small — surface only the FIRST package's name,
     // its own "S.x/y" badge, and a +N suffix that counts (extra services + extra
     // packages beyond the first). Details live in the appointment list / drawer.
@@ -386,7 +411,7 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
           height: `${Math.max(bookingHeight, 0)}%`,
           background: color.bg,
           borderColor: color.border,
-          borderLeft: `3px solid ${color.border}`,
+          borderLeft: `${isPackageLinked ? 4 : 3}px solid ${color.border}`,
         }}
         role={booking ? "button" : undefined}
         tabIndex={booking ? 0 : undefined}
