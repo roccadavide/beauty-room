@@ -2049,6 +2049,7 @@ public class BookingService {
                 a.getTotalSessions(),
                 a.getSessionsRemaining(),
                 sessionPrice,
+                a.isPaidUpfront(),
                 clientPackageService.mapItemsToSummary(a));
     }
 

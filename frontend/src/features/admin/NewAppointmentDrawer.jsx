@@ -364,16 +364,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     // packageCreditId lives at the top level of AdminBookingCardDTO (for online packages)
     return editBooking.packageCreditId ?? null;
   });
-  // editPackageInfo backs the read-only "Pacchetti attivi" header indicator. With N
-  // linked packages the indicator stays singular (= the first link) — the per-package
-  // detail lives in the "Servizi selezionati" panel.
-  const [editPackageInfo] = useState(() => {
-    if (!isEditMode || !editBooking) return null;
-    if (Array.isArray(editBooking.linkedPackages) && editBooking.linkedPackages.length > 0) {
-      return editBooking.linkedPackages[0];
-    }
-    return editBooking.linkedPackage ?? null;
-  });
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState({ fullName: "", phone: "", email: "" });
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
@@ -1091,19 +1081,12 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       </div>
 
       {/* ── Active packages — shown after customer select ────────────────── */}
-      {(activePackages.length > 0 || editPackageInfo) && (
+      {activePackages.length > 0 && (
         <div className="nad-section ag-packages-section">
           <div className="ag-active-pkg-header">
             <span className="ag-active-pkg-header__icon">📦</span>
             <span className="ag-active-pkg-header__label">Pacchetti attivi</span>
           </div>
-
-          {editPackageInfo && (
-            <div className="ag-edit-pkg-indicator">
-              📦 {editPackageInfo.serviceName || editPackageInfo.packageName || editPackageInfo.serviceTitle || "Pacchetto"} · Seduta{" "}
-              {editPackageInfo.sessionNumber ?? "—"} · {editPackageInfo.sessionsRemaining ?? "?"} rimanenti
-            </div>
-          )}
 
           {activePackages.length > 0 && (
             <>

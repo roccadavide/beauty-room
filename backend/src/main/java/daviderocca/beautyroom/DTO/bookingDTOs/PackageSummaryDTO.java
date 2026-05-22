@@ -20,6 +20,11 @@ import java.util.UUID;
  * zeroed by the Phase 5a paidUpfront rule so prepaid sessions don't double-count in
  * the day's estimated revenue KPI. Null when no usable price exists.
  * <p>
+ * {@code paidUpfront} mirrors {@code ClientPackageAssignment.paidUpfront} so the
+ * agenda card can mark a prepaid package on the booking row (Phase 6b "Pagato"
+ * pill). Already drives the {@code sessionPrice = 0} rule on the backend — now
+ * exposed verbatim so the UI can render it.
+ * <p>
  * {@code items} exposes the full multi-line composition. Descriptive only; never
  * empty after migration V59 (invariant: every package has >= 1 composition item).
  */
@@ -30,5 +35,6 @@ public record PackageSummaryDTO(
         int totalSessions,
         int sessionsRemaining,
         BigDecimal sessionPrice,
+        boolean paidUpfront,
         List<PackageItemSummaryDTO> items
 ) {}

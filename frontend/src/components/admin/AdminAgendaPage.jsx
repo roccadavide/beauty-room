@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
 import {
@@ -1640,125 +1640,117 @@ export default function AdminAgendaPage() {
                               <div className="ag-item__name">{b.customerName}</div>
                               <div className="ag-item__service">
                                 {(() => {
-                                  // Phase 6: linkedPackages[] is the source of truth; legacy singular
+                                  // Phase 6b: ONE unified list of entries — every linked package
+                                  // and every extra service is an equal citizen. Packages keep
+                                  // their 📦 icon, "Seduta X/Y" badge, "⚠ Ultima" pill, "Pagato"
+                                  // pill, and the pkgi-toggle collapsible; extras carry plain
+                                  // typography only. Same divider between everything.
+                                  // linkedPackages[] is the source of truth; legacy singular
                                   // linkedPackage wraps into a one-element list for pre-5a bookings.
                                   const itemPkgs = b.linkedPackages?.length
                                     ? b.linkedPackages
                                     : b.linkedPackage
                                       ? [b.linkedPackage]
                                       : [];
-                                  if (itemPkgs.length > 0) {
-                                    // Compute "extras" once — filter out any catalog service that
-                                    // duplicates a package label (legacy collision avoidance).
+                                  const services = Array.isArray(b.services) && b.services.length > 0 ? b.services : [];
+
+                                  if (itemPkgs.length > 0 || services.length > 0) {
+                                    // Filter out catalog services whose name duplicates a package
+                                    // label (legacy collision avoidance — pre-Phase-4 bookings
+                                    // sometimes carry the package's own service as a "duplicate"
+                                    // entry in booking.services).
                                     const pkgLabelsNorm = new Set(
                                       itemPkgs
                                         .map(pkg => (pkg.packageName || pkg.serviceTitle || pkg.serviceName || "").trim().toLowerCase())
                                         .filter(Boolean),
                                     );
-                                    const extras =
-                                      Array.isArray(b.services) && b.services.length > 0
-                                        ? b.services
-                                            .map(s => s.name || s.title || s.serviceName || "?")
-                                            .filter(name => !pkgLabelsNorm.has(name?.trim().toLowerCase()))
-                                        : [];
+                                    const extras = services
+                                      .map(s => {
+                                        const svcLabel = s.name || s.title || s.serviceName || "?";
+                                        return s.optionName ? `${svcLabel} · ${s.optionName}` : svcLabel;
+                                      })
+                                      .filter(label => !pkgLabelsNorm.has(label.trim().toLowerCase()));
 
-                                    return itemPkgs.map((pkg, pkgIdx) => {
-                                      const pkgLabel = pkg.packageName || pkg.serviceTitle || pkg.serviceName || "—";
-                                      // Per-package counters (Phase 6 DTO); legacy bookings fall back
-                                      // to booking-level fields for the first link only.
-                                      const sessionNum = pkg.sessionNumber ?? (pkgIdx === 0 ? b.currentSession : null);
-                                      const totalSess = pkg.totalSessions ?? (pkgIdx === 0 ? b.totalSessions : null);
-                                      const pkgItems = Array.isArray(pkg.items)
-                                        ? [...pkg.items].sort((x, y) => x.position - y.position)
-                                        : [];
-                                      const hasMultipleItems = pkgItems.length >= 2;
-                                      const expansionKey = agendaPkgKey(b.bookingId, pkg.packageAssignmentId);
-                                      const isExpanded = expandedAgendaPkgs.has(expansionKey);
-                                      // Chevron handlers MUST stop propagation — the surrounding
-                                      // booking card has its own click that opens the edit drawer.
-                                      const onChevronClick = e => {
-                                        e.stopPropagation();
-                                        toggleAgendaPkg(b.bookingId, pkg.packageAssignmentId);
-                                      };
-                                      const onChevronKeyDown = e => {
-                                        if (e.key === "Enter" || e.key === " ") {
-                                          e.stopPropagation();
-                                          e.preventDefault();
-                                          toggleAgendaPkg(b.bookingId, pkg.packageAssignmentId);
-                                        }
-                                      };
-                                      // Render extras ONCE — attach them to the last package block.
-                                      const showExtras = extras.length > 0 && pkgIdx === itemPkgs.length - 1;
-                                      return (
-                                        <div className="ag-pkg-block" key={pkg.packageAssignmentId ?? pkgIdx}>
-                                          <div className="ag-pkg-block__header">
-                                            <span className="ag-service">{pkgLabel}</span>
-                                            {sessionNum && totalSess && (
-                                              <span className="ag-pkg-session-badge">
-                                                Seduta {sessionNum}/{totalSess}
-                                              </span>
-                                            )}
-                                            {/* Phase 6a fix: the badge marks THIS booking as the last
-                                                session, not the package's live state. Keying off
-                                                pkg.sessionsRemaining === 1 landed the warning on the
-                                                wrong appointment whenever later bookings advanced the
-                                                package's counter. sessionNumber / totalSessions are
-                                                frozen on the link at create time. */}
-                                            {sessionNum && totalSess && sessionNum === totalSess && (
-                                              <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
-                                                ⚠ Ultima
-                                              </span>
-                                            )}
-                                            {hasMultipleItems && (
-                                              <button
-                                                type="button"
-                                                className="pkgi-toggle"
-                                                aria-expanded={isExpanded}
-                                                onClick={onChevronClick}
-                                                onKeyDown={onChevronKeyDown}
-                                              >
-                                                <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
-                                                {pkgItems.length} trattamenti
-                                              </button>
-                                            )}
-                                          </div>
-                                          {hasMultipleItems && isExpanded && (
-                                            <ul className="pkgi-list">
-                                              {pkgItems.map(it => (
-                                                <li key={`${b.bookingId}-${pkg.packageAssignmentId ?? pkgIdx}-${it.position}`} className="pkgi-list__item">
-                                                  {formatPackageItemLabel(it)}
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          )}
-                                          {showExtras && (
-                                            <>
-                                              <div className="ag-pkg-block__divider" />
-                                              {extras.map((svc, i) => (
-                                                <div key={i} className="ag-pkg-block__extra">
-                                                  <span className="ag-pkg-block__extra-plus">+</span>
-                                                  {svc}
-                                                </div>
-                                              ))}
-                                            </>
-                                          )}
-                                        </div>
-                                      );
-                                    });
-                                  }
-                                  if (Array.isArray(b.services) && b.services.length > 0) {
                                     return (
-                                      <div className="ag-svc-list-block">
-                                        {b.services.map((s, i) => {
-                                          const svcLabel = s.name || s.title || s.serviceName || "?";
-                                          const label = s.optionName ? `${svcLabel} · ${s.optionName}` : svcLabel;
+                                      <div className="ag-svc-entries">
+                                        {itemPkgs.map((pkg, pkgIdx) => {
+                                          const pkgLabel = pkg.packageName || pkg.serviceTitle || pkg.serviceName || "—";
+                                          // Per-package counters (Phase 6 DTO); legacy bookings fall back
+                                          // to booking-level fields for the first link only.
+                                          const sessionNum = pkg.sessionNumber ?? (pkgIdx === 0 ? b.currentSession : null);
+                                          const totalSess = pkg.totalSessions ?? (pkgIdx === 0 ? b.totalSessions : null);
+                                          const pkgItems = Array.isArray(pkg.items)
+                                            ? [...pkg.items].sort((x, y) => x.position - y.position)
+                                            : [];
+                                          const hasMultipleItems = pkgItems.length >= 2;
+                                          const expansionKey = agendaPkgKey(b.bookingId, pkg.packageAssignmentId);
+                                          const isExpanded = expandedAgendaPkgs.has(expansionKey);
+                                          // Chevron handlers MUST stop propagation — the surrounding
+                                          // booking card has its own click that opens the edit drawer.
+                                          const onChevronClick = e => {
+                                            e.stopPropagation();
+                                            toggleAgendaPkg(b.bookingId, pkg.packageAssignmentId);
+                                          };
+                                          const onChevronKeyDown = e => {
+                                            if (e.key === "Enter" || e.key === " ") {
+                                              e.stopPropagation();
+                                              e.preventDefault();
+                                              toggleAgendaPkg(b.bookingId, pkg.packageAssignmentId);
+                                            }
+                                          };
                                           return (
-                                            <Fragment key={i}>
-                                              {i > 0 && <hr className="ag-svc-list-block__divider" />}
-                                              <div className="ag-svc-list-block__item">{label}</div>
-                                            </Fragment>
+                                            <div className="ag-svc-entries__row" key={pkg.packageAssignmentId ?? `pkg-${pkgIdx}`}>
+                                              <span className="ag-svc-entries__pkg-icon" aria-hidden="true">📦</span>
+                                              <span className="ag-svc-entries__name">{pkgLabel}</span>
+                                              {sessionNum && totalSess && (
+                                                <span className="ag-pkg-session-badge">
+                                                  Seduta {sessionNum}/{totalSess}
+                                                </span>
+                                              )}
+                                              {/* Phase 6a fix: the badge marks THIS booking as the
+                                                  last session, not the package's live state. */}
+                                              {sessionNum && totalSess && sessionNum === totalSess && (
+                                                <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
+                                                  ⚠ Ultima
+                                                </span>
+                                              )}
+                                              {pkg.paidUpfront && (
+                                                <span className="ag-paid-badge" title="Pacchetto pagato in anticipo">
+                                                  ✓ Pagato
+                                                </span>
+                                              )}
+                                              {hasMultipleItems && (
+                                                <button
+                                                  type="button"
+                                                  className="pkgi-toggle"
+                                                  aria-expanded={isExpanded}
+                                                  onClick={onChevronClick}
+                                                  onKeyDown={onChevronKeyDown}
+                                                >
+                                                  <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
+                                                  {pkgItems.length} trattamenti
+                                                </button>
+                                              )}
+                                              {hasMultipleItems && isExpanded && (
+                                                <ul className="pkgi-list">
+                                                  {pkgItems.map(it => (
+                                                    <li
+                                                      key={`${b.bookingId}-${pkg.packageAssignmentId ?? pkgIdx}-${it.position}`}
+                                                      className="pkgi-list__item"
+                                                    >
+                                                      {formatPackageItemLabel(it)}
+                                                    </li>
+                                                  ))}
+                                                </ul>
+                                              )}
+                                            </div>
                                           );
                                         })}
+                                        {extras.map((label, i) => (
+                                          <div className="ag-svc-entries__row" key={`extra-${i}`}>
+                                            <span className="ag-svc-entries__name">{label}</span>
+                                          </div>
+                                        ))}
                                       </div>
                                     );
                                   }

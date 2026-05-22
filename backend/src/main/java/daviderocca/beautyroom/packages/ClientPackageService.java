@@ -477,6 +477,7 @@ public class ClientPackageService {
                     a.getTotalSessions(),
                     a.getSessionsRemaining(),
                     sessionPrice,
+                    a.isPaidUpfront(),
                     mapItemsToSummary(a));
         });
     }

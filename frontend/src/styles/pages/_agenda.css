@@ -704,18 +704,49 @@ body.modal-open {
   gap: 3px;
 }
 
-/* ── Package booking vertical block ── */
-.ag-pkg-block {
+/* ── Unified service entries list (Phase 6b) ──────────────────────────────────
+   Packages and extra catalog services render as ONE homogeneous list. Each row
+   is full-dignity: same size, same separator. Packages carry a 📦 icon + their
+   session badge + optional "⚠ Ultima" + optional "Pagato" pill; non-package
+   extras carry just the name. The shared gold hairline divider is applied
+   between adjacent rows via the sibling combinator — no per-row divider element.
+   Replaces the old .ag-pkg-block / .ag-pkg-block__extra / .ag-svc-list-block
+   classes (no subordinate "+ name" species anymore).
+   ─────────────────────────────────────────────────────────────────────────── */
+.ag-svc-entries {
   display: flex;
   flex-direction: column;
   width: 100%;
 }
 
-.ag-pkg-block__header {
+.ag-svc-entries__row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
+  padding: 5px 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ag-mocha);
+  line-height: 1.35;
+}
+
+.ag-svc-entries__row + .ag-svc-entries__row {
+  border-top: 1px solid rgba(184, 151, 106, 0.2);
+}
+
+.ag-svc-entries__pkg-icon {
+  color: var(--card-gold, #b8976a);
+  font-size: 0.95rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ag-svc-entries__name {
+  /* Typography inherited from .ag-svc-entries__row — both packages and extras
+     read at the same weight, the same size, the same colour. The 📦 + badges
+     are what mark a row as a package, not the typography. */
+  word-break: break-word;
 }
 
 .ag-pkg-session-badge {
@@ -725,53 +756,7 @@ body.modal-open {
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 10px;
-  margin-left: 2px;
   white-space: nowrap;
-}
-
-.ag-pkg-block__divider {
-  border: none;
-  border-top: 1px solid rgba(184, 151, 106, 0.25);
-  margin: 4px 0;
-}
-
-.ag-pkg-block__extra {
-  display: flex;
-  align-items: baseline;
-  font-size: 0.78rem;
-  color: #6b5c4e;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.ag-pkg-block__extra-plus {
-  color: var(--card-gold, #b8976a);
-  font-weight: 600;
-  margin-right: 4px;
-  flex-shrink: 0;
-}
-
-/* ── Non-package multi-service vertical list ── */
-.ag-svc-list-block {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: 2px;
-}
-
-.ag-svc-list-block__item {
-  font-size: 0.88rem;
-  color: var(--ag-mocha);
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-hr.ag-svc-list-block__divider {
-  border: none;
-  border-top: 1px solid var(--card-gold, #b8976a);
-  opacity: 0.25;
-  margin: 0;
-  width: 100%;
 }
 
 .ag-item__service .ag-notes {
@@ -2985,17 +2970,6 @@ hr.ag-svc-list-block__divider {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #b8976a;
-}
-
-/* Edit mode package indicator (FIX 4) */
-.ag-edit-pkg-indicator {
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(184, 151, 106, 0.1);
-  border: 1px solid rgba(184, 151, 106, 0.25);
-  font-size: 0.82rem;
-  color: #9a7a50;
-  margin-bottom: 10px;
 }
 
 /* ── EstimatoModal ───────────────────────────────────────────── */
