@@ -81,7 +81,15 @@ public class ClientPackageService {
         assignment.setService(headService);
         assignment.setServiceOption(headOption);
         assignment.setTotalSessions(req.totalSessions());
-        assignment.setSessionsRemaining(req.totalSessions());
+        // Honor explicit sessionsRemaining (admin correction / mid-course packages with
+        // startSession > 1). Same clamp as update(): 0..totalSessions. Default to
+        // totalSessions when caller omits it.
+        if (req.sessionsRemaining() != null) {
+            int clamped = Math.max(0, Math.min(req.sessionsRemaining(), req.totalSessions()));
+            assignment.setSessionsRemaining(clamped);
+        } else {
+            assignment.setSessionsRemaining(req.totalSessions());
+        }
         assignment.setPricePaid(req.pricePaid());
         assignment.setNotes(req.notes() != null ? req.notes().trim() : null);
         assignment.setCustomPackageName(req.customPackageName() != null ? req.customPackageName().trim() : null);
