@@ -10,9 +10,13 @@ import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.Role;
+import daviderocca.beautyroom.packages.BookingPackageLink;
+import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
+import daviderocca.beautyroom.packages.ClientPackageAssignment;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
 import daviderocca.beautyroom.services.BookingService;
+import daviderocca.beautyroom.packages.ClientPackageService;
 import daviderocca.beautyroom.services.CustomerService;
 import daviderocca.beautyroom.services.PackageCreditService;
 import daviderocca.beautyroom.services.ServiceItemService;
@@ -25,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,6 +50,10 @@ class BookingServiceTest {
     private PackageCreditService packageCreditService;
     @Mock
     private CustomerService customerService;
+    @Mock
+    private BookingPackageLinkRepository bookingPackageLinkRepository;
+    @Mock
+    private ClientPackageService clientPackageService;
 
     @InjectMocks
     private BookingService bookingService;
@@ -143,6 +152,52 @@ class BookingServiceTest {
         ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(captor.capture());
         assertThat(captor.getValue().getCustomer()).isEqualTo(mockCustomer);
+    }
+
+    // =========================================================================
+    // TC-5a: Phase 5a — maybeRecalculatePackage iterates over N in-person links
+    // =========================================================================
+    @Test
+    @DisplayName("TC-5a: cancelling a booking with N in-person package links recalculates EACH assignment")
+    void updateBookingStatus_cancelled_recalculatesAllLinkedAssignments() {
+        UUID bookingId    = UUID.randomUUID();
+        UUID assignmentA  = UUID.randomUUID();
+        UUID assignmentB  = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setCreatedAt(LocalDateTime.now().minusDays(1));
+        booking.setStartTime(LocalDateTime.now().plusHours(2));
+
+        when(bookingRepository.findByIdForUpdate(bookingId)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Two mock links pointing at distinct assignments — the new plural
+        // maybeRecalculatePackage path must invoke recalculatePackageSessions once
+        // per assignment, NOT just once for the first one (the singular bug Phase 5a fixes).
+        ClientPackageAssignment a = new ClientPackageAssignment();
+        setFieldReflectively(a, "id", assignmentA);
+        ClientPackageAssignment b = new ClientPackageAssignment();
+        setFieldReflectively(b, "id", assignmentB);
+        BookingPackageLink linkA = new BookingPackageLink();
+        linkA.setAssignment(a);
+        BookingPackageLink linkB = new BookingPackageLink();
+        linkB.setAssignment(b);
+        when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId))
+                .thenReturn(List.of(linkA, linkB));
+
+        User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
+        admin.setRole(Role.ADMIN);
+
+        // CONFIRMED → CANCELLED triggers maybeRecalculatePackage(bookingId)
+        bookingService.updateBookingStatus(bookingId, BookingStatus.CANCELLED, admin);
+
+        verify(clientPackageService, times(1)).recalculatePackageSessions(assignmentA);
+        verify(clientPackageService, times(1)).recalculatePackageSessions(assignmentB);
+        verifyNoMoreInteractions(
+                ignoreStubs(clientPackageService) // any other invocations would be a regression
+        );
     }
 
     /**

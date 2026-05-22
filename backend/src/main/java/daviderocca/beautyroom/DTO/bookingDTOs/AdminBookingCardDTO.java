@@ -44,8 +44,13 @@ public record AdminBookingCardDTO(
         // Account linking
         UUID linkedUserId,
         String linkingStatus,
-        // New package assignment system
+        // New package assignment system — deprecated singular kept for back-compat.
+        // Equals linkedPackages.isEmpty() ? null : linkedPackages.get(0).
+        @Deprecated
         PackageSummaryDTO linkedPackage,
+        // Phase 5a: every in-person package link this booking participates in.
+        // Empty when the booking is not linked to any in-person package.
+        List<PackageSummaryDTO> linkedPackages,
         boolean paidInStore,
         // Payment / refund
         LocalDateTime paidAt,

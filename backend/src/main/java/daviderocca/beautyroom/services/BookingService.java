@@ -419,6 +419,7 @@ public class BookingService {
                 " currentSession=" + dto.currentSession() +
                 " totalSessions=" + dto.totalSessions() +
                 " packageAssignmentId=" + dto.packageAssignmentId() +
+                " packageAssignmentIds=" + dto.packageAssignmentIds() +
                 " packageCreditId=" + dto.packageCreditId() +
                 " serviceIds=" + dto.serviceIds() +
                 " serviceEntries=" + (dto.serviceEntries() != null ? dto.serviceEntries().size() + " entries" : "null") +
@@ -426,10 +427,17 @@ public class BookingService {
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni.");
 
         // ── Step 1: validate at least one service source ──────────────────────
+        // Phase 5a: singular→list adapter for in-person package links. The deprecated
+        // dto.packageAssignmentId() is honored only when dto.packageAssignmentIds() is
+        // null or empty. Once the frontend ships 5b, callers send the list directly.
+        final List<UUID> assignmentIds = (dto.packageAssignmentIds() != null && !dto.packageAssignmentIds().isEmpty())
+                ? dto.packageAssignmentIds()
+                : (dto.packageAssignmentId() != null ? List.of(dto.packageAssignmentId()) : List.of());
+
         boolean useEntries    = dto.serviceEntries() != null && !dto.serviceEntries().isEmpty();
         boolean hasCatalog    = useEntries || (dto.serviceIds() != null && !dto.serviceIds().isEmpty());
         boolean hasCustom     = Boolean.TRUE.equals(dto.hasCustomService());
-        boolean hasPkg        = dto.packageAssignmentId() != null;
+        boolean hasPkg        = !assignmentIds.isEmpty();
         boolean hasPkgCredit  = dto.packageCreditId() != null;
 
         if (!hasCatalog && !hasCustom && !hasPkg && !hasPkgCredit) {
@@ -454,9 +462,11 @@ public class BookingService {
                         ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
                         : List.of());
 
-        ClientPackageAssignment assignment = null;
+        List<ClientPackageAssignment> assignments = new ArrayList<>();
         if (hasPkg) {
-            assignment = clientPackageService.validateActivePackage(dto.packageAssignmentId());
+            for (UUID aid : assignmentIds) {
+                assignments.add(clientPackageService.validateActivePackage(aid));
+            }
         }
 
         PackageCredit packageCredit = null;
@@ -497,13 +507,16 @@ public class BookingService {
                 }
             }
             if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
-            if (hasPkg && assignment != null && assignment.getServiceOption() != null) {
-                ServiceOption pkgOption = assignment.getServiceOption();
-                Integer optDuration = pkgOption.getDurationMin();
-                if (optDuration != null && optDuration > 0) {
-                    totalDuration += optDuration;
-                } else if (pkgOption.getService() != null && pkgOption.getService().getDurationMin() > 0) {
-                    totalDuration += pkgOption.getService().getDurationMin();
+            if (hasPkg) {
+                for (ClientPackageAssignment a : assignments) {
+                    if (a.getServiceOption() == null) continue;
+                    ServiceOption pkgOption = a.getServiceOption();
+                    Integer optDuration = pkgOption.getDurationMin();
+                    if (optDuration != null && optDuration > 0) {
+                        totalDuration += optDuration;
+                    } else if (pkgOption.getService() != null && pkgOption.getService().getDurationMin() > 0) {
+                        totalDuration += pkgOption.getService().getDurationMin();
+                    }
                 }
             }
             if (hasPkgCredit && packageCredit != null && packageCredit.getServiceOption() != null) {
@@ -620,58 +633,74 @@ public class BookingService {
         boolean hasSessionNumbers = dto.currentSession() != null && dto.totalSessions() != null;
 
         if (hasPkg) {
-            // CASE C — packageAssignmentId provided. Direct-compute session number (mirror CASE A/B);
-            // no recalculate. Also inherit service+serviceOption from the package onto the booking
-            // when the booking has no catalog services of its own, so the agenda shows the correct
-            // title/option/price and the linked package is discoverable in edit mode.
-            if (assignment.getSessionsRemaining() <= 0) {
-                throw new BadRequestException("Il pacchetto non ha sessioni rimanenti.");
+            // CASE C — N in-person packages may be linked at once (Phase 5a).
+            // For each: validate remaining > 0, compute its own sessionNumber from its
+            // own counter, create a BookingPackageLink with sessionTrackedAtCreation=true,
+            // inline-decrement THAT assignment's sessionsRemaining.
+            // dto.currentSession is intentionally ignored here — with N packages it would be
+            // ambiguous; per-assignment computation is canonical. CASE A/B still honors it.
+            for (ClientPackageAssignment a : assignments) {
+                if (a.getSessionsRemaining() <= 0) {
+                    throw new BadRequestException(
+                            "Il pacchetto '"
+                                    + (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()
+                                            ? a.getCustomPackageName() : a.getId())
+                                    + "' non ha sessioni rimanenti.");
+                }
             }
 
-            int sessionsUsedBefore = assignment.getTotalSessions() - assignment.getSessionsRemaining();
-            int newSessionNumber = (dto.currentSession() != null && dto.currentSession() > 0)
-                    ? dto.currentSession()
-                    : sessionsUsedBefore + 1;
-            int newRemaining = Math.max(0, assignment.getTotalSessions() - newSessionNumber);
-
-            // Inherit service/option from the package when the booking has none.
+            // Inherit service/option from the FIRST package only — back-compat.
             // This is what makes the agenda show "Epilazione laser · Inguine" instead of empty,
-            // and what makes the price/duration derivable in the UI.
+            // and what makes the price/duration derivable in the legacy single-package UI.
+            ClientPackageAssignment head = assignments.get(0);
             if (saved.getService() == null) {
-                ServiceItem pkgService = assignment.getService();
-                if (pkgService == null && assignment.getServiceOption() != null) {
-                    pkgService = assignment.getServiceOption().getService();
+                ServiceItem pkgService = head.getService();
+                if (pkgService == null && head.getServiceOption() != null) {
+                    pkgService = head.getServiceOption().getService();
                 }
                 if (pkgService != null) {
                     saved.setService(pkgService);
                 }
             }
-            if (saved.getServiceOption() == null && assignment.getServiceOption() != null) {
-                saved.setServiceOption(assignment.getServiceOption());
+            if (saved.getServiceOption() == null && head.getServiceOption() != null) {
+                saved.setServiceOption(head.getServiceOption());
             }
 
-            BookingPackageLink pkgLink = new BookingPackageLink();
-            pkgLink.setBooking(saved);
-            pkgLink.setAssignment(assignment);
-            pkgLink.setSessionNumber(newSessionNumber);
-            pkgLink.setSessionTrackedAtCreation(true);
-            bookingPackageLinkRepository.save(pkgLink);
+            Integer firstSessionNumber = null;
+            Integer firstTotalSessions = null;
+            for (ClientPackageAssignment a : assignments) {
+                int sessionsUsedBefore = a.getTotalSessions() - a.getSessionsRemaining();
+                int newSessionNumber = sessionsUsedBefore + 1;
+                int newRemaining = Math.max(0, a.getTotalSessions() - newSessionNumber);
 
-            assignment.setSessionsRemaining(newRemaining);
-            if (newRemaining == 0) {
-                assignment.setStatus(ClientPackageStatus.EXHAUSTED);
+                BookingPackageLink pkgLink = new BookingPackageLink();
+                pkgLink.setBooking(saved);
+                pkgLink.setAssignment(a);
+                pkgLink.setSessionNumber(newSessionNumber);
+                pkgLink.setSessionTrackedAtCreation(true);
+                bookingPackageLinkRepository.save(pkgLink);
+
+                a.setSessionsRemaining(newRemaining);
+                if (newRemaining == 0) {
+                    a.setStatus(ClientPackageStatus.EXHAUSTED);
+                }
+                clientPackageService.saveAssignment(a);
+
+                if (firstSessionNumber == null) {
+                    firstSessionNumber = newSessionNumber;
+                    firstTotalSessions = a.getTotalSessions();
+                }
+
+                log.info("CASE C: bookingId={} linked to assignmentId={} session {}/{} (remaining={})",
+                        saved.getBookingId(), a.getId(),
+                        newSessionNumber, a.getTotalSessions(), newRemaining);
             }
-            clientPackageService.saveAssignment(assignment);
 
-            saved.setCurrentSession(newSessionNumber);
-            saved.setTotalSessions(assignment.getTotalSessions());
+            // Populate booking.currentSession / totalSessions from the FIRST link only
+            // (back-compat — agenda still reads these direct booking fields until Phase 6).
+            saved.setCurrentSession(firstSessionNumber);
+            saved.setTotalSessions(firstTotalSessions);
             bookingRepository.save(saved);
-
-            log.info("CASE C: bookingId={} linked to assignmentId={} session {}/{} (remaining={}, inheritedService={}, inheritedOption={})",
-                    saved.getBookingId(), assignment.getId(),
-                    newSessionNumber, assignment.getTotalSessions(), newRemaining,
-                    saved.getService() != null ? saved.getService().getServiceId() : "none",
-                    saved.getServiceOption() != null ? saved.getServiceOption().getOptionId() : "none");
         } else if (hasPkgCredit) {
             // CASE D — packageCreditId provided: PackageCredit FK already set before save.
             // Session will be decremented by packageCreditService.consumeSessionForBooking()
@@ -1099,17 +1128,20 @@ public class BookingService {
             );
         }
 
-        // Capture assignmentId before delete — the link row will cascade-delete with the booking
-        UUID pkgAssignmentId = null;
+        // Phase 5a: capture ALL link assignment ids before delete — every assignment
+        // this booking was linked to needs its session count realigned afterwards.
+        List<UUID> pkgAssignmentIds = List.of();
         try {
-            pkgAssignmentId = bookingPackageLinkRepository.findByBookingBookingIdWithAssignment(bookingId)
+            pkgAssignmentIds = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(bookingId)
+                    .stream()
                     .map(l -> l.getAssignment().getId())
-                    .orElse(null);
+                    .toList();
         } catch (Exception e) {
-            log.warn("Could not load package link before delete for booking {}: {}", bookingId, e.getMessage());
+            log.warn("Could not load package links before delete for booking {}: {}", bookingId, e.getMessage());
         }
 
-        // Delete the link first via bulk JPQL — bypasses L1 cache entirely, goes straight to DB.
+        // Delete the links first via bulk JPQL — bypasses L1 cache entirely, goes straight to DB.
         // We cannot call bookingRepository.delete(found) while a MANAGED BookingPackageLink entity
         // still references 'found': when flush() fires Hibernate detects a MANAGED→REMOVED
         // reference and throws TransientObjectException before any SQL runs.
@@ -1126,11 +1158,11 @@ public class BookingService {
         // L1 cache is clean — no stale link entity pointing at the about-to-be-removed booking.
         bookingRepository.deleteById(bookingId);
         bookingRepository.flush();
-        log.info("Booking hard-deleted by admin: id={}", bookingId);
+        log.info("Booking hard-deleted by admin: id={} unlinkedAssignments={}", bookingId, pkgAssignmentIds.size());
 
-        // Link is now gone (cascade); recalculate so remaining count drops correctly
-        if (pkgAssignmentId != null) {
-            final UUID assignmentId = pkgAssignmentId;
+        // Links are now gone (cascade); recalculate each formerly-linked assignment
+        // so its sessionsRemaining count picks up the freed slots.
+        for (UUID assignmentId : pkgAssignmentIds) {
             try {
                 clientPackageService.recalculatePackageSessions(assignmentId);
             } catch (Exception e) {
@@ -1403,11 +1435,14 @@ public class BookingService {
                     .executeUpdate();
             found.setServices(new ArrayList<>());
 
-            BookingPackageLink existingLink = bookingPackageLinkRepository
-                    .findByBookingBookingIdWithAssignment(bookingId)
-                    .orElse(null);
-            if (existingLink != null) {
-                ClientPackageAssignment pkg = existingLink.getAssignment();
+            // Phase 5a: re-derive from the FIRST linked package (back-compat with the
+            // single-link agenda display). Plural lookup keeps semantics identical when
+            // there is exactly one link, which is the only case that hits this branch
+            // in the deployed singular-link world.
+            List<BookingPackageLink> existingLinksHere = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(bookingId);
+            if (!existingLinksHere.isEmpty()) {
+                ClientPackageAssignment pkg = existingLinksHere.get(0).getAssignment();
                 ServiceItem pkgService = pkg.getService();
                 if (pkgService == null && pkg.getServiceOption() != null) {
                     pkgService = pkg.getServiceOption().getService();
@@ -1416,11 +1451,11 @@ public class BookingService {
                     found.setService(pkgService);
                 }
                 found.setServiceOption(pkg.getServiceOption());
-                log.info("updateMultiServiceBooking: cleared booking_services for bookingId={}, re-derived service={} option={} from pkg={}",
+                log.info("updateMultiServiceBooking: cleared booking_services for bookingId={}, re-derived service={} option={} from headPkg={} (linksCount={})",
                         bookingId,
                         pkgService != null ? pkgService.getServiceId() : "none",
                         pkg.getServiceOption() != null ? pkg.getServiceOption().getOptionId() : "none",
-                        pkg.getId());
+                        pkg.getId(), existingLinksHere.size());
             } else {
                 log.info("updateMultiServiceBooking: cleared booking_services for bookingId={} (no linked package)", bookingId);
             }
@@ -1476,9 +1511,81 @@ public class BookingService {
             }
         }
 
+        // ── Phase 5a: reconcile in-person package links (N → M) ────────────────
+        // Diff existing links against the requested set; delete removed, insert added.
+        // sessionsRemaining is then made canonical by recalculatePackageSessions for the
+        // union of (removed ∪ added) assignment ids.
+        final List<UUID> requestedAssignmentIds = (dto.packageAssignmentIds() != null && !dto.packageAssignmentIds().isEmpty())
+                ? dto.packageAssignmentIds()
+                : (dto.packageAssignmentId() != null ? List.of(dto.packageAssignmentId()) : List.of());
+
+        List<BookingPackageLink> currentLinks = bookingPackageLinkRepository
+                .findAllByBookingBookingIdWithAssignment(bookingId);
+        java.util.Set<UUID> existingAssignmentIdSet = currentLinks.stream()
+                .map(l -> l.getAssignment().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Set<UUID> requestedAssignmentIdSet = new java.util.HashSet<>(requestedAssignmentIds);
+
+        java.util.Set<UUID> idsToRemove = new java.util.HashSet<>(existingAssignmentIdSet);
+        idsToRemove.removeAll(requestedAssignmentIdSet);
+        java.util.Set<UUID> idsToAdd = new java.util.HashSet<>(requestedAssignmentIdSet);
+        idsToAdd.removeAll(existingAssignmentIdSet);
+
+        if (!idsToRemove.isEmpty()) {
+            for (UUID aid : idsToRemove) {
+                entityManager.createQuery(
+                                "DELETE FROM BookingPackageLink bpl " +
+                                "WHERE bpl.booking.bookingId = :bid AND bpl.assignment.id = :aid")
+                        .setParameter("bid", bookingId)
+                        .setParameter("aid", aid)
+                        .executeUpdate();
+            }
+            entityManager.flush();
+            entityManager.clear();
+            // Cache is now stale: re-fetch the booking before further work.
+            found = findBookingById(bookingId);
+            updated = found;
+        }
+        if (!idsToAdd.isEmpty()) {
+            for (UUID aid : idsToAdd) {
+                ClientPackageAssignment a = clientPackageService.validateActivePackage(aid);
+                if (a.getSessionsRemaining() <= 0) {
+                    throw new BadRequestException(
+                            "Il pacchetto '"
+                                    + (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()
+                                            ? a.getCustomPackageName() : a.getId())
+                                    + "' non ha sessioni rimanenti.");
+                }
+                int sessionsUsedBefore = a.getTotalSessions() - a.getSessionsRemaining();
+                BookingPackageLink pkgLink = new BookingPackageLink();
+                pkgLink.setBooking(found);
+                pkgLink.setAssignment(a);
+                pkgLink.setSessionNumber(sessionsUsedBefore + 1);
+                pkgLink.setSessionTrackedAtCreation(true);
+                bookingPackageLinkRepository.save(pkgLink);
+                // No inline-decrement: recalculatePackageSessions below is canonical.
+            }
+        }
+
+        // Recalc the removed assignments explicitly — they no longer have a link on
+        // THIS booking so maybeRecalculatePackage would skip them.
+        for (UUID aid : idsToRemove) {
+            try {
+                clientPackageService.recalculatePackageSessions(aid);
+            } catch (Exception e) {
+                log.warn("Recalc-after-unlink failed for assignmentId={}: {}", aid, e.getMessage());
+            }
+        }
+
+        // Recalc every assignment still linked to this booking (covers added + unchanged).
         maybeRecalculatePackage(bookingId);
-        // If the admin explicitly provided a session number, restore it after recalculate.
-        if (dto.currentSession() != null) {
+
+        // Back-compat: when the booking has exactly one link and the request resolves
+        // to that same single package, honor dto.currentSession as a direct session-number
+        // override (Phase 4 behaviour). With multiple links this is intentionally ignored.
+        if (dto.currentSession() != null
+                && existingAssignmentIdSet.size() == 1
+                && requestedAssignmentIdSet.equals(existingAssignmentIdSet)) {
             found.setCurrentSession(dto.currentSession());
             bookingRepository.save(found);
             bookingPackageLinkRepository.findByBookingBookingIdWithAssignment(bookingId)
@@ -1488,8 +1595,10 @@ public class BookingService {
                     });
         }
         emailOutboxService.enqueueBookingConfirmed(updated);
-        log.info("Multi-service booking updated: id={} start={} duration={}min custom={}",
-                updated.getBookingId(), start, totalDuration, hasCustom);
+        log.info("Multi-service booking updated: id={} start={} duration={}min custom={} pkgLinks={}->{} (added={}, removed={})",
+                updated.getBookingId(), start, totalDuration, hasCustom,
+                existingAssignmentIdSet.size(), requestedAssignmentIdSet.size(),
+                idsToAdd.size(), idsToRemove.size());
         return convertToDTO(updated);
     }
 
@@ -1743,48 +1852,29 @@ public class BookingService {
         boolean consentRequired = (b.getService() != null && b.getService().isConsentRequired())
                 || services.stream().anyMatch(s -> false); // service-level consent flag not on summary
 
-        // Load the package link once; use it for both the linkedPkg summary AND the live
-        // session number (booking.currentSession may be null for CASE C bookings where the
-        // frontend sends null, and stale for bookings created before this fix was deployed).
+        // Phase 5a: load ALL in-person package links for this booking. Singular
+        // `linkedPkg` is preserved as the first link for legacy frontend (= null when none).
+        // `linkedPkgs` carries every link so the new UI can render N "Seduta X/Y" badges.
+        // `linkSessionNumber` / `linkTotalSessions` continue to mirror the FIRST link
+        // (back-compat — agenda still reads these direct booking fields until Phase 6).
         Integer linkSessionNumber   = null;
         Integer linkTotalSessions   = null;
         PackageSummaryDTO linkedPkg = null;
+        List<PackageSummaryDTO> linkedPkgs = List.of();
         try {
-            var linkOpt = bookingPackageLinkRepository
-                    .findByBookingBookingIdWithAssignment(b.getBookingId());
-            if (linkOpt.isPresent()) {
-                BookingPackageLink link = linkOpt.get();
-                ClientPackageAssignment a = link.getAssignment();
-                if (link.getSessionNumber() > 0) linkSessionNumber = link.getSessionNumber();
-                linkTotalSessions = a.getTotalSessions();
-                // Prefer admin-entered customPackageName; fall back to representative
-                // service/option only when no custom name is set. See ClientPackageService.toDTO()
-                // for the matching displayName resolution.
-                String pkgName;
-                ServiceItem pkgSvc = a.getService() != null
-                        ? a.getService()
-                        : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
-                if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
-                    pkgName = a.getCustomPackageName();
-                } else if (a.getServiceOption() != null && pkgSvc != null) {
-                    pkgName = pkgSvc.getTitle() + " · " + a.getServiceOption().getName();
-                } else if (a.getServiceOption() != null) {
-                    pkgName = a.getServiceOption().getName();
-                } else if (pkgSvc != null) {
-                    pkgName = pkgSvc.getTitle();
-                } else {
-                    pkgName = "Trattamento";
-                }
-                BigDecimal sessionPrice = clientPackageService.computeSessionPrice(a);
-                linkedPkg = new PackageSummaryDTO(
-                        a.getId(),
-                        pkgName,
-                        a.getSessionsRemaining(),
-                        sessionPrice,
-                        clientPackageService.mapItemsToSummary(a));
+            List<BookingPackageLink> links = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(b.getBookingId());
+            if (!links.isEmpty()) {
+                BookingPackageLink first = links.get(0);
+                if (first.getSessionNumber() > 0) linkSessionNumber = first.getSessionNumber();
+                linkTotalSessions = first.getAssignment().getTotalSessions();
+                linkedPkgs = links.stream()
+                        .map(l -> buildPackageSummary(l.getAssignment()))
+                        .toList();
+                linkedPkg = linkedPkgs.get(0);
             }
         } catch (Exception e) {
-            log.warn("Could not resolve linkedPackage for booking {}: {}", b.getBookingId(), e.getMessage());
+            log.warn("Could not resolve linkedPackages for booking {}: {}", b.getBookingId(), e.getMessage());
         }
 
         // Custom service duration: compute as total duration minus catalog services' sum.
@@ -1837,6 +1927,7 @@ public class BookingService {
                 b.getLinkedUser() != null ? b.getLinkedUser().getUserId() : null,
                 b.getLinkingStatus() != null ? b.getLinkingStatus().name() : null,
                 linkedPkg,
+                linkedPkgs,
                 b.isPaidInStore(),
                 b.getPaidAt(),
                 paidOnline,
@@ -1901,16 +1992,58 @@ public class BookingService {
     }
 
     /**
-     * If the booking has a package link, triggers a full recalculation of that
-     * assignment's session counts. Best-effort — never propagates exceptions.
+     * For every in-person package link this booking participates in, triggers a
+     * full recalculation of that assignment's session counts. Phase 5a: extended
+     * from singular to plural. Best-effort — never propagates exceptions.
      */
     private void maybeRecalculatePackage(UUID bookingId) {
         try {
-            bookingPackageLinkRepository.findByBookingBookingIdWithAssignment(bookingId)
-                    .ifPresent(link -> clientPackageService.recalculatePackageSessions(link.getAssignment().getId()));
+            bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId)
+                    .forEach(link -> {
+                        try {
+                            clientPackageService.recalculatePackageSessions(link.getAssignment().getId());
+                        } catch (Exception inner) {
+                            log.warn("recalc failed for assignmentId={} (bookingId={}): {}",
+                                    link.getAssignment().getId(), bookingId, inner.getMessage());
+                        }
+                    });
         } catch (Exception e) {
             log.warn("maybeRecalculatePackage failed for bookingId={}: {}", bookingId, e.getMessage());
         }
+    }
+
+    /**
+     * Builds a {@link PackageSummaryDTO} for one assignment, applying the unified
+     * display-name resolution (admin-entered customPackageName wins) and the
+     * Phase 5a paidUpfront rule: when the assignment was paid in full upfront,
+     * the per-session price reported to the agenda is zero — so paid-upfront
+     * sessions don't double-count in the day's estimated revenue KPI.
+     */
+    private PackageSummaryDTO buildPackageSummary(ClientPackageAssignment a) {
+        ServiceItem pkgSvc = a.getService() != null
+                ? a.getService()
+                : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
+        String pkgName;
+        if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+            pkgName = a.getCustomPackageName();
+        } else if (a.getServiceOption() != null && pkgSvc != null) {
+            pkgName = pkgSvc.getTitle() + " · " + a.getServiceOption().getName();
+        } else if (a.getServiceOption() != null) {
+            pkgName = a.getServiceOption().getName();
+        } else if (pkgSvc != null) {
+            pkgName = pkgSvc.getTitle();
+        } else {
+            pkgName = "Trattamento";
+        }
+        BigDecimal sessionPrice = a.isPaidUpfront()
+                ? BigDecimal.ZERO
+                : clientPackageService.computeSessionPrice(a);
+        return new PackageSummaryDTO(
+                a.getId(),
+                pkgName,
+                a.getSessionsRemaining(),
+                sessionPrice,
+                clientPackageService.mapItemsToSummary(a));
     }
 
     private boolean isAdmin(User user) {
@@ -1939,34 +2072,7 @@ public class BookingService {
         try {
             linkedPackage = bookingPackageLinkRepository
                     .findByBookingBookingIdWithAssignment(booking.getBookingId())
-                    .map(link -> {
-                        ClientPackageAssignment a = link.getAssignment();
-                        // Prefer admin-entered customPackageName; fall back to representative
-                        // service/option only when no custom name is set. See
-                        // ClientPackageService.toDTO() for the matching displayName resolution.
-                        String pkgName;
-                        ServiceItem pkgSvc = a.getService() != null
-                                ? a.getService()
-                                : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
-                        if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
-                            pkgName = a.getCustomPackageName();
-                        } else if (a.getServiceOption() != null && pkgSvc != null) {
-                            pkgName = pkgSvc.getTitle() + " · " + a.getServiceOption().getName();
-                        } else if (a.getServiceOption() != null) {
-                            pkgName = a.getServiceOption().getName();
-                        } else if (pkgSvc != null) {
-                            pkgName = pkgSvc.getTitle();
-                        } else {
-                            pkgName = "Trattamento";
-                        }
-                        BigDecimal sessionPrice = clientPackageService.computeSessionPrice(a);
-                        return new PackageSummaryDTO(
-                                a.getId(),
-                                pkgName,
-                                a.getSessionsRemaining(),
-                                sessionPrice,
-                                clientPackageService.mapItemsToSummary(a));
-                    })
+                    .map(link -> buildPackageSummary(link.getAssignment()))
                     .orElse(null);
         } catch (Exception e) {
             log.warn("Could not resolve package summary for booking {}: {}", booking.getBookingId(), e.getMessage());

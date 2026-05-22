@@ -491,16 +491,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       base += packageDurationOverride ?? defaultPkgDuration;
     }
     return totalDurationOverride ?? base;
-  }, [
-    selectedServices,
-    totalDurationOverride,
-    serviceItems,
-    services,
-    selectedPackageId,
-    selectedPackageCreditId,
-    activePackages,
-    packageDurationOverride,
-  ]);
+  }, [selectedServices, totalDurationOverride, serviceItems, services, selectedPackageId, selectedPackageCreditId, activePackages, packageDurationOverride]);
 
   const ensureWalkInEmail = useCallback(() => {
     const d = new Date();
@@ -1072,13 +1063,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                         </div>
                         {hasMultipleItems && (
                           <>
-                            <button
-                              type="button"
-                              className="pkgi-toggle"
-                              aria-expanded={isExpanded}
-                              onClick={onChevronClick}
-                              onKeyDown={onChevronKeyDown}
-                            >
+                            <button type="button" className="pkgi-toggle" aria-expanded={isExpanded} onClick={onChevronClick} onKeyDown={onChevronKeyDown}>
                               <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
                               {items.length} trattamenti
                             </button>
@@ -1632,7 +1617,9 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         confirmVariant="danger"
       />
 
-      {editingActivePkg && <EditPackageModal pkg={editingActivePkg} services={services} onClose={() => setEditingActivePkg(null)} onSave={handleActivePkgSaved} />}
+      {editingActivePkg && (
+        <EditPackageModal pkg={editingActivePkg} services={services} onClose={() => setEditingActivePkg(null)} onSave={handleActivePkgSaved} />
+      )}
 
       {editingServizio && (
         <EditServizioModal
@@ -2028,9 +2015,7 @@ export default function NewAppointmentDrawer({
             />
           )}
 
-          {activeTab === "packages" && (
-            <PackagesTab customer={customer} services={services} isOpen={isOpen} onPackageCreated={handlePackageCreated} />
-          )}
+          {activeTab === "packages" && <PackagesTab customer={customer} services={services} isOpen={isOpen} onPackageCreated={handlePackageCreated} />}
 
           {activeTab === "personal" && (
             <PersonalForm selectedDate={selectedDate} editingPersonal={editingPersonal} onPersonalSaved={onPersonalSaved} onClose={onClose} />

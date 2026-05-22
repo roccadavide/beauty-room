@@ -16,9 +16,14 @@ import java.util.UUID;
  * all combinable in a single appointment.
  *
  * Validation rules (enforced in service layer):
- *   - At least one of: serviceIds non-empty, hasCustomService=true, packageAssignmentId non-null
+ *   - At least one of: serviceIds non-empty, hasCustomService=true, packageAssignmentIds non-empty,
+ *     packageAssignmentId non-null (deprecated)
  *   - If hasCustomService=true: customServiceName and customServiceDurationMinutes are required
  *   - date and startTime are always required
+ *
+ * Phase 5a: a single booking may now link N in-person packages at once via
+ * {@code packageAssignmentIds}. The legacy singular {@code packageAssignmentId}
+ * is honored only when {@code packageAssignmentIds} is null/empty.
  */
 public record AdminBookingCreateDTO(
 
@@ -42,8 +47,14 @@ public record AdminBookingCreateDTO(
         BigDecimal customServicePrice,
         Integer customServiceDurationMinutes,
 
-        // Package session (links one session of an existing ClientPackageAssignment)
+        // Package session (links one session of an existing ClientPackageAssignment).
+        // Deprecated — kept for back-compat. New clients must use packageAssignmentIds.
+        @Deprecated
         UUID packageAssignmentId,
+
+        // Phase 5a: N in-person package links per booking.
+        // When non-empty this takes precedence over packageAssignmentId.
+        List<UUID> packageAssignmentIds,
 
         // Package session (links one session of an online/Stripe-purchased PackageCredit)
         UUID packageCreditId,
