@@ -1059,6 +1059,28 @@
   font-style: italic;
 }
 
+/* ── Phase 6d: inline custom-service form ──────────────────────────────────
+   Sits between the catalog list and "Servizi selezionati". A small bordered
+   container in the gold-cream palette — discoverable but not heavy. */
+.nad-custom-form {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #e8d8c0;
+  border-radius: 10px;
+  background: #fdf8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nad-custom-form__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a7a50;
+}
+
 /* ── Package price calculator (H1) ─────────────────────────────────────── */
 .nad-price-calc {
   display: flex;

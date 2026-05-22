@@ -155,74 +155,10 @@ function EditServizioModal({ servizio, catalogServices, onSave, onClose }) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ServiceItemCard — one custom service in the multi-service builder
-// ══════════════════════════════════════════════════════════════════════════════
-function ServiceItemCard({ item, index, onUpdate, onRemove, canRemove, error }) {
-  const durationLabel = useMemo(() => {
-    const d = parseInt(item.customDuration, 10);
-    return d > 0 ? formatDuration(d) : null;
-  }, [item.customDuration]);
-
-  return (
-    <div className={`nad-svc-card${error ? " has-error" : ""}`}>
-      <div className="nad-svc-card__header">
-        <span className="nad-svc-card__index">Servizio {index + 1}</span>
-        {canRemove && (
-          <button type="button" className="nad-svc-card__remove" onClick={onRemove} aria-label="Rimuovi servizio">
-            ✕
-          </button>
-        )}
-      </div>
-
-      <div className="nad-svc-card__body">
-        <div className="nad-form__row">
-          <label className="nad-form__label">Nome trattamento *</label>
-          <input
-            type="text"
-            className="nad-form__input"
-            value={item.customName}
-            onChange={e => onUpdate({ customName: e.target.value })}
-            placeholder="Es. Ceretta sopracciglia"
-            maxLength={255}
-          />
-        </div>
-        <div className="nad-form__row nad-form__row--2col">
-          <div>
-            <label className="nad-form__label">Durata (min) *</label>
-            <input
-              type="number"
-              className="nad-form__input"
-              value={item.customDuration}
-              onChange={e => onUpdate({ customDuration: e.target.value })}
-              min={5}
-              max={480}
-              step={5}
-              placeholder="60"
-            />
-          </div>
-          <div>
-            <label className="nad-form__label">Prezzo (€)</label>
-            <input
-              type="number"
-              className="nad-form__input"
-              value={item.customPrice}
-              onChange={e => onUpdate({ customPrice: e.target.value })}
-              min={0}
-              step={0.5}
-              placeholder="Opzionale"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="nad-svc-card__footer">
-        {durationLabel && <span className="nad-svc-card__duration">{durationLabel}</span>}
-        {error && <div className="nad-svc-card__error">{error}</div>}
-      </div>
-    </div>
-  );
-}
+// Phase 6d removed the dedicated ServiceItemCard component: custom services are
+// now first-class rows in "Servizi selezionati" (added via an inline form
+// triggered from "+ Servizio personalizzato"). See AppointmentForm below for
+// the new customForm state and the row rendering.
 
 // ══════════════════════════════════════════════════════════════════════════════
 // AppointmentForm — rendered when activeTab === "appointment"
@@ -692,7 +628,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   }, []);
 
   // Auto-fetch slots when date OR total duration changes.
-  // In edit mode, the initial fetch must NOT clear selectedSlot (it's pre-filled from the booking).
+  // Phase 6d: this effect ONLY fetches — it no longer also clears
+  // selectedSlot/customTime. The previous "clear on every key change except
+  // the very first" logic dropped the preselected time in edit mode whenever
+  // activePackages loaded asynchronously and totalDuration recomputed
+  // (because the second-run key change saw isInitial=false and cleared). User
+  // actions that genuinely need the time cleared (date change, slot pick,
+  // custom time pick) clear it explicitly at the source.
   const prevFetchKey = useRef("");
   useEffect(() => {
     if (!appointmentDate) {
@@ -703,12 +645,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
     const key = `${appointmentDate}:${totalDuration}`;
     if (key !== prevFetchKey.current) {
-      const isInitial = prevFetchKey.current === "";
       prevFetchKey.current = key;
-      if (!(isInitial && isEditMode)) {
-        setSelectedSlot("");
-        setCustomTime("");
-      }
       fetchSlots(appointmentDate, totalDuration, isEditMode ? editBooking?.bookingId : null);
     }
   }, [appointmentDate, totalDuration, fetchSlots, isEditMode, editBooking]);
@@ -769,16 +706,73 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   };
 
   // ── Service item handlers ─────────────────────────────────────────────────
-  const addServiceItem = useCallback(() => {
-    setServiceItems(prev => [...prev, newServiceItem()]);
+  // Phase 6d: custom services are now first-class rows in "Servizi selezionati".
+  // The admin opens a small inline form (name + DurationField + price) via the
+  // "+ Servizio personalizzato" button, Salva commits it to serviceItems[].
+  // Each row can be re-opened in the same form for editing (✏) or removed (✕).
+  // Wire payload contract unchanged: N rows are still flattened on submit
+  // (join name, sum durations, first price) as the backend expects.
+  const blankCustomForm = { active: false, editingId: null, name: "", durationMinutes: 60, price: "" };
+  const [customForm, setCustomForm] = useState(blankCustomForm);
+  const [customFormError, setCustomFormError] = useState("");
+
+  const openCreateCustomForm = useCallback(() => {
+    setCustomForm({ active: true, editingId: null, name: "", durationMinutes: 60, price: "" });
+    setCustomFormError("");
   }, []);
+
+  const openEditCustomForm = useCallback(item => {
+    setCustomForm({
+      active: true,
+      editingId: item.id,
+      name: item.customName ?? "",
+      durationMinutes: parseInt(item.customDuration, 10) || null,
+      price: item.customPrice ?? "",
+    });
+    setCustomFormError("");
+  }, []);
+
+  const cancelCustomForm = useCallback(() => {
+    setCustomForm(prev => ({ ...prev, active: false }));
+    setCustomFormError("");
+  }, []);
+
+  const submitCustomForm = useCallback(() => {
+    const name = customForm.name.trim();
+    const dur = customForm.durationMinutes;
+    if (!name) {
+      setCustomFormError("Nome trattamento obbligatorio.");
+      return;
+    }
+    if (!dur || dur < 5) {
+      setCustomFormError("Durata minima 5 minuti.");
+      return;
+    }
+    if (customForm.price !== "" && Number(customForm.price) < 0) {
+      setCustomFormError("Prezzo non può essere negativo.");
+      return;
+    }
+    if (customForm.editingId) {
+      setServiceItems(prev =>
+        prev.map(it =>
+          it.id === customForm.editingId
+            ? { ...it, customName: name, customDuration: String(dur), customPrice: customForm.price }
+            : it,
+        ),
+      );
+    } else {
+      setServiceItems(prev => [
+        ...prev,
+        { ...newServiceItem(), customName: name, customDuration: String(dur), customPrice: customForm.price },
+      ]);
+    }
+    setCustomForm(blankCustomForm);
+    setCustomFormError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customForm]);
 
   const removeServiceItem = useCallback(id => {
     setServiceItems(prev => prev.filter(item => item.id !== id));
-  }, []);
-
-  const updateServiceItem = useCallback((id, patch) => {
-    setServiceItems(prev => prev.map(item => (item.id === id ? { ...item, ...patch } : item)));
   }, []);
 
   // ── "Prossimo disponibile" handler ───────────────────────────────────────
@@ -1321,10 +1315,66 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           })}
         </div>
 
+        {/* ── Phase 6d: + Servizio personalizzato + inline form ─────────────── */}
+        {!customForm.active ? (
+          <button type="button" className="nad-add-service" onClick={openCreateCustomForm} style={{ marginTop: 12 }}>
+            + Servizio personalizzato
+          </button>
+        ) : (
+          <div className="nad-custom-form">
+            <div className="nad-custom-form__title">{customForm.editingId ? "Modifica servizio personalizzato" : "Nuovo servizio personalizzato"}</div>
+            <div className="nad-form__row">
+              <label className="nad-form__label">Nome trattamento *</label>
+              <input
+                type="text"
+                className="nad-form__input"
+                value={customForm.name}
+                onChange={e => setCustomForm(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Es. Trattamento personalizzato"
+                maxLength={255}
+                autoFocus
+              />
+            </div>
+            <div className="nad-form__row nad-form__row--2col">
+              <div>
+                <DurationField
+                  label="Durata *"
+                  value={customForm.durationMinutes}
+                  onChange={n => setCustomForm(prev => ({ ...prev, durationMinutes: n }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="nad-form__label">Prezzo (€)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  className="nad-form__input"
+                  value={customForm.price}
+                  onChange={e => setCustomForm(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="Opzionale"
+                />
+              </div>
+            </div>
+            {customFormError && <div className="nad-field-error">{customFormError}</div>}
+            <div className="nad-form__actions">
+              <button type="button" className="nad-btn" onClick={cancelCustomForm}>
+                Annulla
+              </button>
+              <button type="button" className="nad-btn nad-btn--primary" onClick={submitCustomForm}>
+                Salva
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Selected services panel ───────────────────────────────────────── */}
-        {(selectedPackageIds.size > 0 || selectedServices.length > 0) && (
+        {(selectedPackageIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0) && (
           <div className="ag-selected-services">
-            <div className="ag-selected-services__label">Servizi selezionati ({selectedPackageIds.size + selectedServices.length})</div>
+            <div className="ag-selected-services__label">
+              Servizi selezionati ({selectedPackageIds.size + selectedServices.length + serviceItems.length})
+            </div>
             {/* Phase 6a fix: in edit mode the per-link session number is FROZEN on
                 the BookingPackageLink at create time — read it from
                 editBooking.linkedPackages[] keyed by packageAssignmentId, NOT the
@@ -1466,6 +1516,41 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 </button>
               </div>
             ))}
+            {/* Phase 6d: custom services render as first-class rows in this panel,
+                same typography + ✏/✕ affordances as catalog rows. */}
+            {serviceItems.map(item => {
+              const durMin = parseInt(item.customDuration, 10) || 0;
+              const rowError = submitted ? (itemErrors[item.id] ?? null) : null;
+              return (
+                <div key={item.id} className="ag-selected-service-row">
+                  <span className="ag-selected-service-row__name">{item.customName || <em>Senza nome</em>}</span>
+                  <span className="ag-selected-service-row__dur">{durMin > 0 ? formatDuration(durMin) : "—"}</span>
+                  {item.customPrice !== "" && item.customPrice != null && (
+                    <span className="ag-selected-service-row__price-override">
+                      €{Number(item.customPrice).toFixed(0)}{" "}
+                      <span className="ag-selected-service-row__price-tag">personalizzato</span>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="ag-selected-service-row__edit"
+                    title="Modifica servizio personalizzato"
+                    onClick={() => openEditCustomForm(item)}
+                  >
+                    ✏
+                  </button>
+                  <button
+                    type="button"
+                    className="ag-selected-service-row__remove"
+                    title="Rimuovi"
+                    onClick={() => removeServiceItem(item.id)}
+                  >
+                    ✕
+                  </button>
+                  {rowError && <span className="nad-field-error" style={{ flexBasis: "100%" }}>{rowError}</span>}
+                </div>
+              );
+            })}
             {(() => {
               const computedTotal = totalDuration;
               const displayTotal = totalDurationOverride ?? computedTotal;
@@ -1518,33 +1603,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
         {submitted && errors.services && <div className="nad-field-error">{errors.services}</div>}
 
-        {/* ── Custom items ──────────────────────────────────────────────────── */}
-        {serviceItems.length > 0 && (
-          <div className="nad-svc-list" style={{ marginTop: 12 }}>
-            {serviceItems.map((item, idx) => (
-              <ServiceItemCard
-                key={item.id}
-                item={item}
-                index={idx}
-                onUpdate={patch => updateServiceItem(item.id, patch)}
-                onRemove={() => removeServiceItem(item.id)}
-                canRemove={true}
-                error={submitted ? (itemErrors[item.id] ?? null) : null}
-              />
-            ))}
-          </div>
-        )}
-
-        <button type="button" className="nad-add-service" onClick={addServiceItem}>
-          + Servizio personalizzato
-        </button>
-
-        {totalDuration > 0 && serviceItems.length > 0 && (
-          <div className="nad-duration-total">
-            Durata totale: <strong>{formatDuration(totalDuration)}</strong>
-          </div>
-        )}
-
         {serviceItems.length > 0 && <div className="nad-help">I servizi personalizzati non sono visibili ai clienti.</div>}
       </div>
 
@@ -1579,6 +1637,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           value={appointmentDate}
           onChange={v => {
             setAppointmentDate(v);
+            // Phase 6d: when the admin picks a different date, the old time
+            // probably doesn't fit the new day's slots — clear it here so the
+            // grid + custom-time picker reset together. The slot-fetch effect
+            // no longer does this implicitly (it would otherwise nuke the
+            // edit-mode preselected time on async re-fetch).
+            setSelectedSlot("");
+            setCustomTime("");
             setNextSlotResult(null);
             lastSuggestedSlotRef.current = null;
           }}
