@@ -650,6 +650,29 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
   }, [appointmentDate, totalDuration, fetchSlots, isEditMode, editBooking]);
 
+  // Phase 6e Bug 3 (strategy b): after slots are (re)fetched, revalidate the
+  // current time selection — a duration change can leave the previously-picked
+  // slot/time no longer fitting the new window. The Phase 6d cleanup removed
+  // the indiscriminate auto-clear; this is the surgical replacement.
+  //   - selectedSlot: clear when the new grid no longer contains it.
+  //   - customTime: clear only when it would HARD-overlap another booking
+  //     (hasConflict). Out-of-hours stays — we already show the soft
+  //     "⚠ Fuori orario di apertura — puoi procedere" hint and the admin can
+  //     still submit; auto-clearing would be too aggressive.
+  useEffect(() => {
+    if (slotsLoading) return;
+    if (slots.length === 0) return;
+    if (selectedSlot && !slots.includes(selectedSlot)) {
+      setSelectedSlot("");
+    }
+    if (customTime && !slots.includes(customTime) && hasConflict(customTime)) {
+      setCustomTime("");
+    }
+    // hasConflict is recreated each render and reads the latest `slots` from
+    // closure — including it in deps would re-fire this effect unnecessarily.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slots, slotsLoading, selectedSlot, customTime]);
+
   // ── Client handlers ───────────────────────────────────────────────────────
   // Phase 5b: customer-change must clear the multi-select Set and every per-package
   // satellite collection (overrides, expanded set, editing-duration set). The
