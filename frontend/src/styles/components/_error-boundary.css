@@ -1,0 +1,244 @@
+/* ===== Error Boundary — Editorial Beauty ===== */
+
+.eb-screen {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(120% 120% at 50% 0%, #fffdf8 0%, #fef7ef 58%, #f6ebdd 100%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.eb-card {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  padding: 56px 40px 40px;
+  text-align: center;
+  background: #fffdf8;
+  border: 1px solid rgba(184, 151, 106, 0.18);
+  border-radius: 24px;
+  box-shadow:
+    0 2px 8px rgba(140, 109, 63, 0.06),
+    0 24px 60px -20px rgba(140, 109, 63, 0.22);
+  overflow: hidden;
+  animation: eb-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes eb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Linea accento oro in cima */
+.eb-accent-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, #b8976a 25%, #8c6d3f 50%, #b8976a 75%, transparent 100%);
+}
+
+/* Brand mark — diamante ✦ */
+.eb-mark {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(184, 151, 106, 0.35);
+  background: radial-gradient(circle at 50% 40%, #fef7ef, #fffdf8);
+  box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.6);
+}
+
+.eb-mark-diamond {
+  font-size: 26px;
+  line-height: 1;
+  color: #b8976a;
+  animation: eb-pulse 3.4s ease-in-out infinite;
+}
+
+@keyframes eb-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+.eb-eyebrow {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #b8976a;
+}
+
+.eb-title {
+  margin: 0 0 16px;
+  font-family: "SaolDisplay-Light", "Petrona", Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(30px, 6vw, 40px);
+  line-height: 1.15;
+  color: #2c2620;
+}
+
+.eb-subtitle {
+  margin: 0 auto 32px;
+  max-width: 390px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: #8a7f70;
+}
+
+.eb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.eb-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 13px 26px;
+  border-radius: 999px;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    background 0.25s ease;
+}
+
+.eb-btn:active {
+  transform: translateY(1px);
+}
+
+.eb-btn--primary {
+  position: relative;
+  overflow: hidden;
+  color: #fffdf8;
+  background: linear-gradient(135deg, #b8976a, #8c6d3f);
+  box-shadow: 0 8px 20px -8px rgba(140, 109, 63, 0.6);
+}
+
+.eb-btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px -8px rgba(140, 109, 63, 0.7);
+}
+
+/* Shimmer sul bottone primario */
+.eb-btn--primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.7s ease;
+}
+
+.eb-btn--primary:hover::after {
+  transform: translateX(120%);
+}
+
+.eb-btn--ghost {
+  color: #8c6d3f;
+  background: transparent;
+  border: 1px solid rgba(184, 151, 106, 0.5);
+}
+
+.eb-btn--ghost:hover {
+  transform: translateY(-2px);
+  background: rgba(184, 151, 106, 0.08);
+}
+
+.eb-retry-link {
+  margin: 22px auto 0;
+  display: inline-block;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #a99a82;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+
+.eb-retry-link:hover {
+  color: #8c6d3f;
+}
+
+.eb-ref {
+  margin: 24px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #c4b8a3;
+}
+
+.eb-ref span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #8c6d3f;
+}
+
+.eb-debug {
+  margin-top: 24px;
+  text-align: left;
+}
+
+.eb-debug summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #a99a82;
+}
+
+.eb-debug pre {
+  margin-top: 10px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  background: #2c2620;
+  color: #f3e7d5;
+  border-radius: 12px;
+}
+
+@media (max-width: 480px) {
+  .eb-card {
+    padding: 44px 24px 32px;
+  }
+  .eb-actions {
+    flex-direction: column;
+  }
+  .eb-btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eb-card,
+  .eb-mark-diamond,
+  .eb-btn,
+  .eb-btn--primary::after {
+    animation: none;
+    transition: none;
+  }
+}

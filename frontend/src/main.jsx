@@ -6,7 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { PersistGate } from "redux-persist/integration/react";
 import store, { persistor } from "./app/store.js";
-import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
+import ErrorBoundary, { RouteErrorBoundary } from "./components/common/ErrorBoundary.jsx";
 import Loading from "./components/common/Loading.jsx";
 import { setAccessToken, clearAccessToken } from "./utils/token.js";
 import { fetchCurrentUser } from "./api/modules/users.api.js";
@@ -52,7 +52,9 @@ createRoot(document.getElementById("root")).render(
       <PersistGate loading={<Loading message="Caricamento dati utente..." />} persistor={persistor}>
         <BrowserRouter>
           <HelmetProvider>
-            <App />
+            <RouteErrorBoundary>
+              <App />
+            </RouteErrorBoundary>
             <Analytics />
             <SpeedInsights />
           </HelmetProvider>
