@@ -23,6 +23,8 @@ const TYPE_CONFIG = {
   BOOKING_MODIFIED: { icon: "✏️", label: "Modifica prenotazione", color: "#2e6da4", link: "/profilo/admin/agenda" },
   NEW_ORDER: { icon: "📦", label: "Nuovo ordine", color: "#2e6da4", link: "/profilo/admin/prodotti" },
   ORDER_CANCELLED: { icon: "📦", label: "Ordine cancellato", color: "#c0392b", link: "/profilo/admin/prodotti" },
+  CLOSURE_REMINDER: { icon: "🔒", label: "Chiusura programmata", color: "#946a3a", link: "/profilo/admin/agenda" },
+  BOOKING_CLOSURE_CONFLICT: { icon: "⚠️", label: "Prenotazione in conflitto", color: "#c0392b", link: "/profilo/admin/agenda" },
 };
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
