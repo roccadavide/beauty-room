@@ -1698,7 +1698,13 @@ export default function AdminAgendaPage() {
                                                 Seduta {sessionNum}/{totalSess}
                                               </span>
                                             )}
-                                            {pkg.sessionsRemaining === 1 && (
+                                            {/* Phase 6a fix: the badge marks THIS booking as the last
+                                                session, not the package's live state. Keying off
+                                                pkg.sessionsRemaining === 1 landed the warning on the
+                                                wrong appointment whenever later bookings advanced the
+                                                package's counter. sessionNumber / totalSessions are
+                                                frozen on the link at create time. */}
+                                            {sessionNum && totalSess && sessionNum === totalSess && (
                                               <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
                                                 ⚠ Ultima
                                               </span>

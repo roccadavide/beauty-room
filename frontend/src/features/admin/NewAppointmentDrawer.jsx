@@ -796,9 +796,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         setNextSlotResult({ notFound: true });
         return;
       }
-      const { date, slotStart } = result.slot;
+      const { date, slotStart, slotEnd } = result.slot;
       const time = (slotStart || "").slice(0, 5); // "HH:mm"
-      lastSuggestedSlotRef.current = `${date}T${slotStart}`;
+      // Phase 6a fix: cycle by slot END, not start. Storing slotStart caused the
+      // backend to return the SAME slot on the next "Successivo ✦" click (the
+      // request asks for slots starting at-or-after `after`, and the just-shown
+      // slot starts exactly at slotStart). Mirrors AdminAgendaPage.searchNextSlotAgain.
+      lastSuggestedSlotRef.current = slotEnd ? `${date}T${slotEnd.slice(0, 5)}:00` : `${date}T${slotStart}`;
       setAppointmentDate(date);
       setCustomTime(time);
       setSelectedSlot("");
@@ -1333,6 +1337,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         {(selectedPackageIds.size > 0 || selectedServices.length > 0) && (
           <div className="ag-selected-services">
             <div className="ag-selected-services__label">Servizi selezionati ({selectedPackageIds.size + selectedServices.length})</div>
+            {/* Phase 6a fix: in edit mode the per-link session number is FROZEN on
+                the BookingPackageLink at create time — read it from
+                editBooking.linkedPackages[] keyed by packageAssignmentId, NOT the
+                live activePackages counter (which advances with later bookings). */}
             {Array.from(selectedPackageIds).map(pkgId => {
               const pkg = activePackages.find(p => p.id === pkgId);
               if (!pkg) return null;
@@ -1341,9 +1349,16 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               const displayDur = overrideDur ?? defaultDur;
               const isEditingDur = editingDurationPkgIds.has(pkgId);
               const isRowExpanded = expandedSelectedPkgIds.has(pkgId);
-              // Per-package "Seduta X/Y": Phase 5b uses each package's own counter — with
-              // N links the booking-level editBooking.currentSession describes only the first.
-              const sessionNum = pkg.totalSessions - pkg.sessionsRemaining + 1;
+              // Per-package "Seduta X/Y":
+              //   - edit mode + a frozen link exists for this pkgId → use the link's
+              //     sessionNumber/totalSessions (the values captured at booking creation).
+              //   - otherwise (create mode, or a package added during this edit session
+              //     that has no link yet) → compute from the live package counter.
+              const frozen = isEditMode
+                ? (editBooking?.linkedPackages || []).find(lp => String(lp.packageAssignmentId) === String(pkgId))
+                : null;
+              const sessionNum = frozen?.sessionNumber ?? pkg.totalSessions - pkg.sessionsRemaining + 1;
+              const totalSess = frozen?.totalSessions ?? pkg.totalSessions;
               const pkgItems = Array.isArray(pkg.items) ? [...pkg.items].sort((a, b) => a.position - b.position) : [];
               const hasMultipleItems = pkgItems.length >= 2;
               return (
@@ -1355,7 +1370,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                   <span className="ag-selected-service-row__name">
                     📦 {pkg.displayName || pkg.serviceTitle || "Pacchetto"}
                     <span className="ag-pkg-session-badge" style={{ marginLeft: 8 }}>
-                      Seduta {sessionNum}/{pkg.totalSessions}
+                      Seduta {sessionNum}/{totalSess}
                     </span>
                     {hasMultipleItems && (
                       <button
