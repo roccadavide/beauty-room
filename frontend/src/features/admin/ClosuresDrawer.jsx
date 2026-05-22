@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DateTimeField from "../../components/common/DateTimeField";
+import RangeCalendar from "../../components/common/RangeCalendar";
 import TimePicker from "../../components/common/TimePicker";
 import {
   createClosure,
@@ -62,8 +63,11 @@ export default function ClosuresDrawer({
   const today = useMemo(() => todayISO(), []);
 
   // ── Form state ────────────────────────────────────────────────────────────
+  // Both dates start EMPTY: the range calendar's first-tap rule needs a
+  // clean slate, otherwise a pre-filled "today" would always trigger
+  // "extend end" on the user's next tap.
   const [mode, setMode] = useState("fullDay"); // "fullDay" | "window"
-  const [startDate, setStartDate] = useState(selectedDate && selectedDate >= today ? selectedDate : today);
+  const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -90,9 +94,8 @@ export default function ClosuresDrawer({
   // ── Reset form when drawer opens ──────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const initDate = selectedDate && selectedDate >= today ? selectedDate : today;
     setMode("fullDay");
-    setStartDate(initDate);
+    setStartDate("");
     setEndDate("");
     setStartTime("");
     setEndTime("");
@@ -100,7 +103,7 @@ export default function ClosuresDrawer({
     setEditingId(null);
     setError(null);
     setConflictPreview(null);
-  }, [isOpen, selectedDate, today]);
+  }, [isOpen]);
 
   // ── Body scroll lock (mirrors NewAppointmentDrawer) ───────────────────────
   useEffect(() => {
@@ -242,7 +245,7 @@ export default function ClosuresDrawer({
 
   const resetForm = () => {
     setMode("fullDay");
-    setStartDate(today);
+    setStartDate("");
     setEndDate("");
     setStartTime("");
     setEndTime("");
@@ -351,28 +354,30 @@ export default function ClosuresDrawer({
             </div>
 
             {mode === "fullDay" ? (
-              <div className="cld-dates">
-                <div className="cld-field">
-                  <label className="cld-label">Dal</label>
-                  <DateTimeField
-                    mode="date"
-                    value={startDate}
-                    onChange={setStartDate}
-                    placeholder="Seleziona data"
-                    minDate={today}
-                  />
-                </div>
-                <div className="cld-field">
-                  <label className="cld-label">
-                    Al <span className="cld-optional">(opzionale)</span>
-                  </label>
-                  <DateTimeField
-                    mode="date"
-                    value={endDate}
-                    onChange={setEndDate}
-                    placeholder="Stessa data"
-                    minDate={startDate || today}
-                  />
+              <div className="cld-cal-section">
+                <RangeCalendar
+                  startDate={startDate}
+                  endDate={endDate || startDate}
+                  onChange={({ startDate: sd, endDate: ed }) => {
+                    setStartDate(sd);
+                    setEndDate(ed);
+                  }}
+                  minDate={today}
+                />
+                <div className="cld-cal-summary">
+                  {!startDate ? (
+                    <span className="cld-cal-hint">
+                      Tocca una data per iniziare. Tocca un giorno successivo per estendere l'intervallo.
+                    </span>
+                  ) : endDate && endDate !== startDate ? (
+                    <span>
+                      Dal <strong>{fmtDateLong(startDate)}</strong> al <strong>{fmtDateLong(endDate)}</strong>
+                    </span>
+                  ) : (
+                    <span>
+                      Singolo giorno · <strong>{fmtDateLong(startDate)}</strong>
+                    </span>
+                  )}
                 </div>
               </div>
             ) : (

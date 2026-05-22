@@ -169,13 +169,32 @@
 .cld-optional { color: #b9a892; font-weight: 400; font-size: 0.78rem; }
 .cld-hint     { color: #9a8878; font-size: 0.76rem; margin-top: 2px; }
 
-.cld-dates {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+/* ── Inline range calendar wrapper + summary ──────────────────────────── */
+.cld-cal-section {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
-@media (max-width: 420px) {
-  .cld-dates { grid-template-columns: 1fr; }
+.cld-cal-summary {
+  background: #f7efe0;
+  border: 1px solid #ecdfc4;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.86rem;
+  color: #5a4a36;
+  text-align: center;
+  line-height: 1.35;
+}
+.cld-cal-summary strong {
+  color: #946a3a;
+  font-weight: 600;
+  text-transform: capitalize;
+  font-variant-numeric: tabular-nums;
+}
+.cld-cal-hint {
+  color: #9a8878;
+  font-style: italic;
+  font-size: 0.82rem;
 }
 
 .cld-times {

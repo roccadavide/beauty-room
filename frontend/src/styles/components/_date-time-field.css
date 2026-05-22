@@ -408,3 +408,35 @@
   overflow: hidden;
   padding: 0.65rem;
 }
+
+/* ── Range modifiers (used by inline RangeCalendar) ─────────────────────────
+   start/end/single use the same solid gold fill as `--selected`;
+   in-range cells get a soft gold pill so the strip stays visually distinct
+   without bleeding outside their grid cell on narrow widths.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.dtf-day--range-start,
+.dtf-day--range-end,
+.dtf-day--range-single {
+  background: var(--card-gold, #b8976a) !important;
+  color: #fff !important;
+  font-weight: 700;
+  box-shadow: none !important;
+  z-index: 1;
+}
+
+.dtf-day--range-single {
+  /* subtle aura to set the single-day pick apart from a 2-day range */
+  box-shadow: 0 0 0 3px rgba(184, 151, 106, 0.16) !important;
+}
+
+.dtf-day--in-range {
+  background: rgba(184, 151, 106, 0.22);
+  color: #6b4226;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.dtf-day--in-range:hover {
+  background: rgba(184, 151, 106, 0.32);
+}
