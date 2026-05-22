@@ -13,18 +13,18 @@ import {
   refundBooking,
   patchBookingConsent,
   getPersonalAppointmentsDay,
-  createPersonalAppointment,
+  getClosuresRange,
 } from "../../api/modules/adminAgenda.api";
 import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../utils/reminders";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
 import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
+import ClosuresDrawer from "../../features/admin/ClosuresDrawer";
 import ConfirmDialog from "../common/ConfirmDialog";
 import WeeklyCalendar from "./WeeklyCalendar";
 import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
 import DateTimeField from "../common/DateTimeField";
-import TimePicker from "../common/TimePicker";
 import SEO from "../common/SEO";
 import formatDuration from "../../utils/formatDuration";
 import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
@@ -343,9 +343,31 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const top = toPct(Math.max(start, viewWindow.startMin));
     const height = toPct(Math.min(end, viewWindow.endMin)) - top;
 
-    if (kind !== "booking") {
-      const cls = kind === "open" ? "ag-tl-block ag-tl-open" : "ag-tl-block ag-tl-closure";
-      return <div key={`${kind}-${idx}`} className={cls} style={{ top: `${top}%`, height: `${Math.max(height, 0)}%` }} />;
+    if (kind === "open") {
+      return <div key={`open-${idx}`} className="ag-tl-block ag-tl-open" style={{ top: `${top}%`, height: `${Math.max(height, 0)}%` }} />;
+    }
+
+    if (kind === "closure") {
+      const blockHeight = Math.max(height, 0);
+      const showLabel = blockHeight > 3; // hide label on very thin slivers
+      const titleText = slot.reason ? `🔒 Chiuso — ${slot.reason}` : "🔒 Chiuso";
+      return (
+        <div
+          key={`closure-${idx}`}
+          className="ag-tl-block ag-tl-closure ag-tl-closure-adhoc"
+          style={{ top: `${top}%`, height: `${blockHeight}%` }}
+          title={titleText}
+        >
+          {showLabel && (
+            <div className="ag-tl-closure__label">
+              <span className="ag-tl-closure__icon">🔒</span>
+              <span className="ag-tl-closure__text">
+                {slot.reason ? `Chiuso · ${slot.reason}` : "Chiuso"}
+              </span>
+            </div>
+          )}
+        </div>
+      );
     }
 
     // Booking block — arricchito con dati cliente/servizio
@@ -679,9 +701,8 @@ export default function AdminAgendaPage() {
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
   const [confirmModal, setConfirmModal] = useState(null);
   const [completedUndo, setCompletedUndo] = useState({});
-  const [blockSlotOpen, setBlockSlotOpen] = useState(false);
-  const [blockForm, setBlockForm] = useState({ date: "", startTime: "", endTime: "", reason: "" });
-  const [blockSaving, setBlockSaving] = useState(false);
+  const [closuresDrawerOpen, setClosuresDrawerOpen] = useState(false);
+  const [closures, setClosures] = useState([]);
   const [openSalePanel, setOpenSalePanel] = useState(null);
   const [paddingEditing, setPaddingEditing] = useState(null); // bookingId in edit
   const [paddingSaving, setPaddingSaving] = useState(null); // bookingId in saving
@@ -748,6 +769,58 @@ export default function AdminAgendaPage() {
     for (let i = -3; i <= 3; i++) out.push(addDays(base, i));
     return out;
   }, [dateISO]);
+
+  // ── Closures fetch covers both the ±3-day strip and the Mon-Sun week view ──
+  const closuresVisibleRange = useMemo(() => {
+    const base = fromISODateLocal(dateISO);
+    const stripStart = addDays(base, -3);
+    const stripEnd   = addDays(base, 3);
+    // Monday of the week containing base
+    const weekStart  = (() => {
+      const d = new Date(base);
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setDate(d.getDate() + diff);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    })();
+    const weekEnd = addDays(weekStart, 6);
+    const from = stripStart < weekStart ? stripStart : weekStart;
+    const toIncl = stripEnd > weekEnd ? stripEnd : weekEnd;
+    return { from: toISODate(from), to: toISODate(addDays(toIncl, 1)) };
+  }, [dateISO]);
+
+  const refreshClosures = useCallback(async () => {
+    try {
+      const data = await getClosuresRange(closuresVisibleRange.from, closuresVisibleRange.to);
+      setClosures(Array.isArray(data) ? data : []);
+    } catch {
+      // Non-fatal: closure indicators degrade silently.
+      setClosures([]);
+    }
+  }, [closuresVisibleRange.from, closuresVisibleRange.to]);
+
+  useEffect(() => {
+    refreshClosures();
+  }, [refreshClosures]);
+
+  // Day-chip "is-closed" indicator: only full-day closures shade a day.
+  const closedDatesSet = useMemo(() => {
+    const s = new Set();
+    for (const c of closures) {
+      if (!c.fullDay) continue;
+      const sd = c.startDate || c.date;
+      const ed = c.endDate || sd;
+      if (!sd) continue;
+      let cursor = fromISODateLocal(sd);
+      const endD = fromISODateLocal(ed);
+      while (cursor <= endD) {
+        s.add(toISODate(cursor));
+        cursor = addDays(cursor, 1);
+      }
+    }
+    return s;
+  }, [closures]);
 
   const loadServices = useCallback(async () => {
     setServicesErr("");
@@ -1231,11 +1304,19 @@ export default function AdminAgendaPage() {
                 {dayStrip.map(d => {
                   const iso = toISODate(d);
                   const isActive = iso === dateISO;
+                  const isClosed = closedDatesSet.has(iso);
                   const dow = d.toLocaleDateString("it-IT", { weekday: "short" });
                   return (
-                    <button key={iso} className={`ag-daychip ${isActive ? "is-active" : ""}`} onClick={() => setDate(d)} type="button">
+                    <button
+                      key={iso}
+                      className={`ag-daychip ${isActive ? "is-active" : ""}${isClosed ? " is-closed" : ""}`}
+                      onClick={() => setDate(d)}
+                      type="button"
+                      title={isClosed ? "Chiuso" : undefined}
+                    >
                       <span className="ag-daychip__dow">{dow}</span>
                       <span className="ag-daychip__dd">{d.getDate()}</span>
+                      {isClosed && <span className="ag-daychip__lock" aria-hidden="true">🔒</span>}
                     </button>
                   );
                 })}
@@ -1350,12 +1431,9 @@ export default function AdminAgendaPage() {
                 <div className="d-flex gap-2">
                   <Button
                     className="ag-btn ag-btn--ghost"
-                    onClick={() => {
-                      setBlockForm({ date: dateISO, startTime: "", endTime: "", reason: "" });
-                      setBlockSlotOpen(true);
-                    }}
+                    onClick={() => setClosuresDrawerOpen(true)}
                   >
-                    🔒 Blocca
+                    🔒 Chiusure
                   </Button>
                   <Button
                     className="ag-btn ag-btn--primary"
@@ -1377,11 +1455,19 @@ export default function AdminAgendaPage() {
                   {dayStrip.map(d => {
                     const iso = toISODate(d);
                     const isActive = iso === dateISO;
+                    const isClosed = closedDatesSet.has(iso);
                     const dow = d.toLocaleDateString("it-IT", { weekday: "short" });
                     return (
-                      <button key={iso} className={`ag-daychip ${isActive ? "is-active" : ""}`} onClick={() => setDate(d)} type="button">
+                      <button
+                        key={iso}
+                        className={`ag-daychip ${isActive ? "is-active" : ""}${isClosed ? " is-closed" : ""}`}
+                        onClick={() => setDate(d)}
+                        type="button"
+                        title={isClosed ? "Chiuso" : undefined}
+                      >
                         <span className="ag-daychip__dow">{dow}</span>
                         <span className="ag-daychip__dd">{d.getDate()}</span>
+                        {isClosed && <span className="ag-daychip__lock" aria-hidden="true">🔒</span>}
                       </button>
                     );
                   })}
@@ -1623,6 +1709,7 @@ export default function AdminAgendaPage() {
                   onPrevWeek={() => setDate(d => addDays(d, -7))}
                   onNextWeek={() => setDate(d => addDays(d, 7))}
                   refreshKey={weekRefreshKey}
+                  closedDates={closedDatesSet}
                 />
               ) : isCompact && compactTab === "timeline" ? (
                 <TimelineDay
@@ -2256,60 +2343,6 @@ export default function AdminAgendaPage() {
         </div>
       )}
 
-      {blockSlotOpen && (
-        <div className="ag-confirm-overlay" onClick={() => setBlockSlotOpen(false)}>
-          <div className="ag-confirm-box" onClick={e => e.stopPropagation()}>
-            <div className="ag-confirm-title">🔒 Blocca fascia oraria</div>
-            <div className="d-flex flex-column gap-2 mt-2">
-              <DateTimeField mode="date" value={blockForm.date} onChange={v => setBlockForm(f => ({ ...f, date: v }))} placeholder="Seleziona data" />
-              <div style={{ display: "flex", gap: 16, justifyContent: "center", margin: "12px 0" }}>
-                <TimePicker label="Dalle" value={blockForm.startTime} onChange={v => setBlockForm(f => ({ ...f, startTime: v }))} />
-                <TimePicker label="Alle" value={blockForm.endTime} onChange={v => setBlockForm(f => ({ ...f, endTime: v }))} />
-              </div>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                placeholder="Motivo (opzionale) — es. Pranzo, Formazione"
-                value={blockForm.reason}
-                onChange={e => setBlockForm(f => ({ ...f, reason: e.target.value }))}
-              />
-            </div>
-            <div className="ag-confirm-actions">
-              <button className="ag-btn ag-btn--ghost" onClick={() => setBlockSlotOpen(false)}>
-                Annulla
-              </button>
-              <button
-                className="ag-btn ag-btn--primary"
-                disabled={blockSaving || !blockForm.date || !blockForm.startTime || !blockForm.endTime}
-                onClick={async () => {
-                  setBlockSaving(true);
-                  try {
-                    const [sh, sm] = blockForm.startTime.split(":").map(Number);
-                    const [eh, em] = blockForm.endTime.split(":").map(Number);
-                    const durationMin = eh * 60 + em - (sh * 60 + sm);
-                    await createPersonalAppointment({
-                      appointmentDate: blockForm.date,
-                      startTime: blockForm.startTime,
-                      durationMinutes: durationMin,
-                      title: blockForm.reason || "Blocco",
-                    });
-                    setBlockSlotOpen(false);
-                    setBlockForm({ date: "", startTime: "", endTime: "", reason: "" });
-                    await refresh();
-                  } catch (e) {
-                    setErr(e.message);
-                  } finally {
-                    setBlockSaving(false);
-                  }
-                }}
-              >
-                {blockSaving ? "…" : "🔒 Blocca"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {pendingDelete && (
         <div className="ag-snackbar">
           <span className="ag-snackbar__text">
@@ -2355,6 +2388,18 @@ export default function AdminAgendaPage() {
         }}
       />
 
+      <ClosuresDrawer
+        isOpen={closuresDrawerOpen}
+        onClose={() => setClosuresDrawerOpen(false)}
+        selectedDate={dateISO}
+        dayOpenRanges={timeline?.openRanges}
+        onClosuresChanged={() => {
+          refreshClosures();
+          refresh();
+          if (viewMode === "week") setWeekRefreshKey(k => k + 1);
+        }}
+      />
+
       <ConfirmDialog
         show={!!refundConfirmBooking}
         onHide={() => setRefundConfirmBooking(null)}
@@ -2390,12 +2435,9 @@ export default function AdminAgendaPage() {
           <button
             type="button"
             className="ag-fab ag-fab--secondary"
-            title="Blocca fascia oraria"
-            aria-label="Blocca fascia oraria"
-            onClick={() => {
-              setBlockForm({ date: dateISO, startTime: "", endTime: "", reason: "" });
-              setBlockSlotOpen(true);
-            }}
+            title="Gestisci chiusure"
+            aria-label="Gestisci chiusure"
+            onClick={() => setClosuresDrawerOpen(true)}
           >
             🔒
           </button>

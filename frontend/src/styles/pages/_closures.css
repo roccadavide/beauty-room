@@ -1,0 +1,99 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   _closures.css — agenda-side closure indicators
+   Drawer-internal styles live in ClosuresDrawer.css. This file only covers
+   the day-chip lock dot and the timeline ad-hoc closure block.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Day-chip "is-closed" indicator (compact strip + desktop strip) ───────── */
+.ag-daychip.is-closed {
+  position: relative;
+  background: linear-gradient(180deg, #faf2e2 0%, #f3e7cb 100%);
+  border-color: #d8c69a;
+  color: #946a3a;
+}
+.ag-daychip.is-closed .ag-daychip__dow,
+.ag-daychip.is-closed .ag-daychip__dd {
+  color: #946a3a;
+}
+.ag-daychip.is-closed.is-active {
+  background: linear-gradient(180deg, #b8976a 0%, #946a3a 100%);
+  border-color: #946a3a;
+  color: #fffdf8;
+}
+.ag-daychip.is-closed.is-active .ag-daychip__dow,
+.ag-daychip.is-closed.is-active .ag-daychip__dd {
+  color: #fffdf8;
+}
+.ag-daychip__lock {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 0.62rem;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* ── Timeline ad-hoc closure block — distinct from .ag-tl-closure weekly ──── */
+.ag-tl-closure-adhoc {
+  /* warm, semi-opaque "do not disturb" stripe, visually richer than the
+     legacy .ag-tl-closure which renders unstyled here */
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(184, 151, 106, 0.18) 0 8px,
+      rgba(184, 151, 106, 0.32) 8px 16px
+    ),
+    #faf2e2 !important;
+  border: 1px solid #cbb38b !important;
+  border-left: 3px solid #946a3a !important;
+  border-radius: 6px;
+  z-index: 2; /* above .ag-tl-open background, below booking blocks (z=3+) */
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.ag-tl-closure__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  color: #6b4226;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.ag-tl-closure__icon { font-size: 0.85rem; }
+.ag-tl-closure__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── WeeklyCalendar closed-day shading ────────────────────────────────────── */
+.ag-week__header-cell.is-closed {
+  background: linear-gradient(180deg, #faf2e2 0%, #f3e7cb 100%);
+  color: #946a3a;
+}
+.ag-week__header-cell.is-closed.is-selected {
+  background: linear-gradient(180deg, #b8976a 0%, #946a3a 100%);
+  color: #fffdf8;
+}
+.ag-week__header-lock {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+.ag-week__day-col.is-closed {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(184, 151, 106, 0.08) 0 8px,
+    rgba(184, 151, 106, 0.16) 8px 16px
+  );
+}

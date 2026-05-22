@@ -44,7 +44,7 @@ const GRID_END_HOUR = 22;
 const HOUR_HEIGHT = 60;
 const GRID_START_MIN = GRID_START_HOUR * 60;
 
-export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick, onSlotClick, onPrevWeek, onNextWeek, refreshKey = 0 }) {
+export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick, onSlotClick, onPrevWeek, onNextWeek, refreshKey = 0, closedDates }) {
   const gridRef = useRef(null);
   const [bookings, setBookings] = useState([]);
   const [personalAppts, setPersonalAppts] = useState([]);
@@ -256,22 +256,27 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
       <div ref={gridRef} className="ag-week">
         <div className="ag-week__grid" style={{ gridTemplateColumns }}>
           <div className="ag-week__header-cell ag-week__time-header" style={{ gridRow: 1, gridColumn: 1 }} />
-          {visibleDays.map((d, idx) => (
-            <div
-              key={d.iso}
-              className={`ag-week__header-cell ${d.iso === todayISO ? "is-today" : ""} ${d.iso === anchorISO ? "is-selected" : ""}`}
-              style={{ gridRow: 1, gridColumn: idx + 2 }}
-              onClick={() => onDayClick?.(d.iso)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={e => e.key === "Enter" && onDayClick?.(d.iso)}
-            >
-              <span className="dow">{DOW_IT[d.date.getDay()]}</span>
-              <span className="dd">
-                {d.date.getDate()} {MONTH_IT[d.date.getMonth()].slice(0, 3)}
-              </span>
-            </div>
-          ))}
+          {visibleDays.map((d, idx) => {
+            const isClosed = !!closedDates && (closedDates.has ? closedDates.has(d.iso) : false);
+            return (
+              <div
+                key={d.iso}
+                className={`ag-week__header-cell ${d.iso === todayISO ? "is-today" : ""} ${d.iso === anchorISO ? "is-selected" : ""}${isClosed ? " is-closed" : ""}`}
+                style={{ gridRow: 1, gridColumn: idx + 2 }}
+                onClick={() => onDayClick?.(d.iso)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === "Enter" && onDayClick?.(d.iso)}
+                title={isClosed ? "Chiuso" : undefined}
+              >
+                <span className="dow">{DOW_IT[d.date.getDay()]}</span>
+                <span className="dd">
+                  {d.date.getDate()} {MONTH_IT[d.date.getMonth()].slice(0, 3)}
+                </span>
+                {isClosed && <span className="ag-week__header-lock" aria-hidden="true">🔒</span>}
+              </div>
+            );
+          })}
 
           {hours.map((hour, i) => (
             <div key={`time-${hour}`} className="ag-week__time-col ag-week__hour-row" style={{ gridRow: i + 2, gridColumn: 1 }}>
@@ -279,8 +284,14 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
             </div>
           ))}
 
-          {visibleDays.map((d, dayIdx) => (
-            <div key={d.iso} className="ag-week__day-col" style={{ gridColumn: dayIdx + 2, gridRow: "2 / -1" }}>
+          {visibleDays.map((d, dayIdx) => {
+            const isClosed = !!closedDates && (closedDates.has ? closedDates.has(d.iso) : false);
+            return (
+            <div
+              key={d.iso}
+              className={`ag-week__day-col${isClosed ? " is-closed" : ""}`}
+              style={{ gridColumn: dayIdx + 2, gridRow: "2 / -1" }}
+            >
               {hours.map(hour => (
                 <div
                   key={hour}
@@ -376,7 +387,8 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
               })}
               {nowLine?.iso === d.iso && <div className="ag-week-nowline" style={{ top: nowLine.topPx }} />}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

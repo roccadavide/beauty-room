@@ -31,6 +31,7 @@
 @import "./components/_card-testimonial.css";
 @import "./components/_laser.css";
 @import "./components/_stack.css";
+@import "./components/_error-boundary.css";
 
 /* ===== SECTIONS ===== */
 @import "./sections/_hero-section.css";
@@ -57,6 +58,7 @@
 @import "./pages/_product-details-page.css";
 @import "./pages/_services-details-page.css";
 @import "./pages/_agenda.css";
+@import "./pages/_closures.css";
 @import "./pages/_confirmation.css";
 @import "./pages/_clienti.css";
 @import "./pages/_report.css";

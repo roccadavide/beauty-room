@@ -171,7 +171,7 @@ export default function ClosuresDrawer({
         const payload = buildPayload({ mode, startDate, endDate, startTime, endTime, reason: reason || "preview" });
         const result = await previewClosureConflicts(payload);
         if (myToken === previewAbortRef.current) setConflictPreview(result);
-      } catch (_e) {
+      } catch {
         if (myToken === previewAbortRef.current) setConflictPreview(null);
       } finally {
         if (myToken === previewAbortRef.current) setPreviewLoading(false);

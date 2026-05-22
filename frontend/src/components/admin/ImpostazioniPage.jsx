@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Container } from "react-bootstrap";
 import * as api from "../../api/modules/impostazioni.api";
 import { fetchCancellationPolicy, patchCancellationHoursLimit } from "../../api/modules/users.api";
-import DateTimeField from "../common/DateTimeField";
 import SEO from "../common/SEO";
 
 /* ============================================================
@@ -20,22 +19,6 @@ const DOW_IT = {
 };
 
 const DOW_ORDER = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
-
-function getTodayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function formatDateIT(isoDate) {
-  if (!isoDate) return "";
-  const d = new Date(isoDate + "T00:00:00");
-  return d.toLocaleDateString("it-IT", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
 
 function validateWH(form) {
   if (form.closed) return "";
@@ -247,149 +230,6 @@ function DayCard({ wh, onSave }) {
 }
 
 /* ============================================================
-   ClosureForm — inline create / edit form
-   ============================================================ */
-
-function ClosureForm({ initial, todayISO, onSave, onCancel }) {
-  const isEdit = !!initial?.id;
-
-  const [form, setForm] = useState({
-    date: initial?.date || "",
-    fullDay: initial ? (initial.fullDay ?? true) : true,
-    startTime: initial?.startTime || "",
-    endTime: initial?.endTime || "",
-    reason: initial?.reason || "",
-  });
-
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const setField = useCallback((key, val) => setForm(f => ({ ...f, [key]: val })), []);
-
-  const validate = () => {
-    if (!form.date) return "Seleziona una data.";
-    if (form.date < todayISO) return "La data non può essere nel passato.";
-    if (!form.fullDay) {
-      if (!form.startTime || !form.endTime) return "Inserisci orario di inizio e fine.";
-      if (form.startTime >= form.endTime) return "L'orario di fine deve essere dopo l'inizio.";
-    }
-    if (!form.reason.trim()) return "Inserisci un motivo.";
-    return "";
-  };
-
-  const handleSave = async () => {
-    const err = validate();
-    if (err) { setError(err); return; }
-    setError("");
-    setLoading(true);
-
-    const payload = {
-      date: form.date,
-      startTime: form.fullDay ? null : form.startTime,
-      endTime: form.fullDay ? null : form.endTime,
-      reason: form.reason.trim(),
-    };
-
-    try {
-      await onSave(initial?.id || null, payload);
-    } catch (e) {
-      setError(e.message || "Errore durante il salvataggio.");
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="imp-closure-form">
-      <div className="imp-form-title">{isEdit ? "✏️ Modifica chiusura" : "➕ Nuova chiusura"}</div>
-
-      {/* Date */}
-      <div className="imp-form-row">
-        <div className="imp-form-group imp-form-group--full">
-          <DateTimeField
-            className="imp-dtf-date"
-            label="Data"
-            mode="date"
-            minDate={todayISO}
-            value={form.date}
-            onChange={v => setField("date", v)}
-            placeholder="Seleziona data"
-          />
-        </div>
-      </div>
-
-      {/* Full day toggle */}
-      <div className="imp-form-row">
-        <label className="imp-checkbox-label">
-          <input
-            type="checkbox"
-            checked={form.fullDay}
-            onChange={e => setField("fullDay", e.target.checked)}
-          />
-          Giornata intera
-        </label>
-      </div>
-
-      {/* Partial time */}
-      {!form.fullDay && (
-        <div className="imp-form-row imp-form-row--times">
-          <div className="imp-form-group">
-            <DateTimeField
-              className="imp-dtf-time"
-              label="Dalle"
-              mode="time"
-              value={form.startTime}
-              onChange={v => setField("startTime", v)}
-              placeholder="—:—"
-            />
-          </div>
-          <div className="imp-form-group">
-            <DateTimeField
-              className="imp-dtf-time"
-              label="Alle"
-              mode="time"
-              value={form.endTime}
-              onChange={v => setField("endTime", v)}
-              placeholder="—:—"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Reason */}
-      <div className="imp-form-row">
-        <div className="imp-form-group imp-form-group--full">
-          <label className="imp-form-label">
-            Motivazione{" "}
-            <span className="imp-char-count">{form.reason.length}/150</span>
-          </label>
-          <input
-            type="text"
-            className="imp-form-input"
-            maxLength={150}
-            placeholder="es. Ferragosto, Formazione, etc."
-            value={form.reason}
-            onChange={e => setField("reason", e.target.value)}
-          />
-        </div>
-      </div>
-
-      {error && <div className="imp-field-error">{error}</div>}
-
-      <div className="imp-form-actions">
-        {isEdit && (
-          <button className="imp-btn imp-btn--ghost" onClick={onCancel}>
-            Annulla
-          </button>
-        )}
-        <button className="imp-btn imp-btn--primary" onClick={handleSave} disabled={loading}>
-          {loading ? "Salvataggio…" : "Salva chiusura"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
    CategoryForm — inline create / edit
    ============================================================ */
 
@@ -517,18 +357,11 @@ function CategoryForm({ initial, onSave, onCancel }) {
    ============================================================ */
 
 export default function ImpostazioniPage() {
-  const todayISO = useMemo(() => getTodayISO(), []);
-
   const [tab, setTab] = useState("orari");
   const [workingHours, setWorkingHours] = useState([]);
-  const [closures, setClosures] = useState([]);
   const [categories, setCategories] = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [globalError, setGlobalError] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editingClosure, setEditingClosure] = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -544,15 +377,10 @@ export default function ImpostazioniPage() {
   const sortWH = list =>
     [...list].sort((a, b) => DOW_ORDER.indexOf(a.dayOfWeek) - DOW_ORDER.indexOf(b.dayOfWeek));
 
-  const filterFutureClosures = useCallback(
-    list => list.filter(c => c.date >= todayISO).sort((a, b) => a.date.localeCompare(b.date)),
-    [todayISO],
-  );
-
   const load = useCallback(async () => {
     setGlobalError("");
     try {
-      const [whData, clData] = await Promise.all([api.getWorkingHours(), api.getAllClosures()]);
+      const whData = await api.getWorkingHours();
 
       if (whData.length === 0) {
         await api.initDefaultWeek();
@@ -561,14 +389,12 @@ export default function ImpostazioniPage() {
       } else {
         setWorkingHours(sortWH(whData));
       }
-
-      setClosures(filterFutureClosures(clData));
     } catch (e) {
       setGlobalError(e.message || "Errore durante il caricamento.");
     } finally {
       setPageLoading(false);
     }
-  }, [filterFutureClosures]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -611,34 +437,6 @@ export default function ImpostazioniPage() {
     setWorkingHours(sortWH(fresh));
   }, []);
 
-  /* ── Closure save ── */
-  const handleSaveClosure = useCallback(async (id, payload) => {
-    if (id) {
-      await api.updateClosure(id, payload);
-    } else {
-      await api.createClosure(payload);
-    }
-    setShowForm(false);
-    setEditingClosure(null);
-    const fresh = await api.getAllClosures();
-    setClosures(filterFutureClosures(fresh));
-  }, [filterFutureClosures]);
-
-  /* ── Closure delete ── */
-  const handleDeleteClosure = async id => {
-    setDeleteLoading(true);
-    try {
-      await api.deleteClosure(id);
-      setDeleteConfirm(null);
-      const fresh = await api.getAllClosures();
-      setClosures(filterFutureClosures(fresh));
-    } catch (e) {
-      setGlobalError(e.message || "Errore durante l'eliminazione.");
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
   const refreshCategories = useCallback(async () => {
     const fresh = await api.getCategories();
     setCategories(sortCategories(fresh));
@@ -666,21 +464,6 @@ export default function ImpostazioniPage() {
     } finally {
       setCategoryDeleteLoading(false);
     }
-  };
-
-  const openEdit = closure => {
-    setEditingClosure(closure);
-    setShowForm(true);
-  };
-
-  const openNew = () => {
-    setEditingClosure(null);
-    setShowForm(true);
-  };
-
-  const cancelForm = () => {
-    setShowForm(false);
-    setEditingClosure(null);
   };
 
   const openCategoryNew = () => {
@@ -718,7 +501,7 @@ export default function ImpostazioniPage() {
         <div className="imp-header">
           <h1 className="imp-title">Impostazioni</h1>
           <p className="imp-subtitle">
-            Gestisci orari di apertura, chiusure straordinarie e categorie servizi
+            Gestisci orari di apertura e categorie servizi
           </p>
         </div>
 
@@ -735,13 +518,6 @@ export default function ImpostazioniPage() {
             onClick={() => setTab("orari")}
           >
             🕐 Orari
-          </button>
-          <button
-            type="button"
-            className={`imp-tab-pill${tab === "chiusure" ? " imp-tab-pill--active" : ""}`}
-            onClick={() => setTab("chiusure")}
-          >
-            📅 Chiusure
           </button>
           <button
             type="button"
@@ -778,109 +554,6 @@ export default function ImpostazioniPage() {
                 <DayCard key={wh.id} wh={wh} onSave={handleSaveWH} />
               ))}
             </div>
-          </div>
-        )}
-
-        {/* ══════════════════════════════════
-            CHIUSURE TAB
-            ══════════════════════════════════ */}
-        {tab === "chiusure" && (
-          <div className="imp-section">
-            <div className="imp-section-header">
-              <div>
-                <div className="imp-section-title">Chiusure straordinarie</div>
-                <div className="imp-section-sub">
-                  Solo date future · {closures.length} programmata/e
-                </div>
-              </div>
-              {!showForm && (
-                <button type="button" className="imp-btn imp-btn--primary" onClick={openNew}>
-                  + Aggiungi chiusura
-                </button>
-              )}
-            </div>
-
-            {/* Inline form */}
-            {showForm && (
-              <ClosureForm
-                initial={editingClosure}
-                todayISO={todayISO}
-                onSave={handleSaveClosure}
-                onCancel={cancelForm}
-              />
-            )}
-
-            {/* Empty state */}
-            {closures.length === 0 && !showForm && (
-              <div className="imp-empty">
-                Nessuna chiusura programmata — ottimo! ✨
-              </div>
-            )}
-
-            {/* List */}
-            {closures.length > 0 && (
-              <div className="imp-closure-list">
-                {closures.map(c => (
-                  <div
-                    key={c.id}
-                    className={`imp-closure-card${editingClosure?.id === c.id ? " imp-closure-card--editing" : ""}`}
-                  >
-                    <div className="imp-closure-info">
-                      <div className="imp-closure-date">{formatDateIT(c.date)}</div>
-                      <div className="imp-closure-meta">
-                        {c.fullDay ? (
-                          <span className="imp-badge imp-badge--fullday">Giornata intera</span>
-                        ) : (
-                          <span className="imp-badge imp-badge--partial">
-                            {c.startTime} – {c.endTime}
-                          </span>
-                        )}
-                        <span className="imp-closure-reason">{c.reason}</span>
-                      </div>
-                    </div>
-
-                    <div className="imp-closure-actions">
-                      <button
-                        type="button"
-                        className="imp-btn imp-btn--sm imp-btn--ghost"
-                        onClick={() => openEdit(c)}
-                      >
-                        Modifica
-                      </button>
-
-                      {deleteConfirm === c.id ? (
-                        <>
-                          <span className="imp-delete-confirm-text">Sei sicura?</span>
-                          <button
-                            type="button"
-                            className="imp-btn imp-btn--sm imp-btn--danger"
-                            onClick={() => handleDeleteClosure(c.id)}
-                            disabled={deleteLoading}
-                          >
-                            {deleteLoading ? "…" : "Sì, elimina"}
-                          </button>
-                          <button
-                            type="button"
-                            className="imp-btn imp-btn--sm imp-btn--ghost"
-                            onClick={() => setDeleteConfirm(null)}
-                          >
-                            No
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="imp-btn imp-btn--sm imp-btn--danger-ghost"
-                          onClick={() => setDeleteConfirm(c.id)}
-                        >
-                          Elimina
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
