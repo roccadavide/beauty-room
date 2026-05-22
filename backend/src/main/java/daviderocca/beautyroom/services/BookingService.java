@@ -75,6 +75,7 @@ public class BookingService {
     private final CustomerService customerService;
     private final WorkingHoursRepository workingHoursRepository;
     private final ClosureRepository closureRepository;
+    private final ClosureService closureService;
     private final AdminNotificationService notificationService;
     private final WaitlistService waitlistService;
     private final EmailOutboxService emailOutboxService;
@@ -168,6 +169,7 @@ public class BookingService {
         if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
+        closureService.assertNoOverlappingClosure(start, end);
 
         String name  = safeTrim(payload.customerName(), "Nome cliente obbligatorio");
         String phone = safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio");
@@ -235,6 +237,7 @@ public class BookingService {
         if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
+        closureService.assertNoOverlappingClosure(start, end);
 
         String name  = safeTrim(currentUser.getName() + " " + currentUser.getSurname(), "Nome cliente obbligatorio");
         String email = currentUser.getEmail().toLowerCase();
@@ -323,6 +326,7 @@ public class BookingService {
         if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
+        closureService.assertNoOverlappingClosure(start, end);
 
         Booking booking = new Booking(
                 safeTrim(payload.customerName(), "Nome cliente obbligatorio"),
@@ -538,6 +542,7 @@ public class BookingService {
         if (hasOverlapIncludingPadding(start, end)) {
             throw new BadRequestException("Lo slot selezionato non è disponibile.");
         }
+        closureService.assertNoOverlappingClosure(start, end);
 
         // ── Step 5: build booking ─────────────────────────────────────────────
         // Primary FK kept for backward compat with existing agenda queries
@@ -898,6 +903,25 @@ public class BookingService {
             log.warn("Notification failed for multi-service webhook booking {}: {}", saved.getBookingId(), e.getMessage());
         }
 
+        // Closure overlap on a webhook booking: NEVER reject — the customer already
+        // paid via Stripe. We honour the booking and flag it for the admin instead.
+        try {
+            if (closureService.hasOverlappingClosure(saved.getStartTime(), saved.getEndTime())) {
+                String svc  = primary != null ? primary.getTitle() : (services.isEmpty() ? "Trattamento" : services.get(0).getTitle());
+                String when = saved.getStartTime().format(NOTIF_FMT);
+                notificationService.create(
+                    NotificationType.BOOKING_CLOSURE_CONFLICT,
+                    "⚠ Prenotazione online dentro una chiusura",
+                    name + " · " + svc + " · " + when + " — verifica con il cliente.",
+                    saved.getBookingId(),
+                    "BOOKING"
+                );
+                log.warn("Webhook booking {} falls inside a programmed closure", saved.getBookingId());
+            }
+        } catch (Exception e) {
+            log.warn("Closure conflict check failed for webhook booking {}: {}", saved.getBookingId(), e.getMessage());
+        }
+
         // Auto account-linking (best-effort)
         try {
             LinkingOutcome outcome = userLookupService.tryLink(saved.getCustomerName());
@@ -1037,7 +1061,7 @@ public class BookingService {
                 openRanges.add(new LocalTime[]{wh.getAfternoonStart(), wh.getAfternoonEnd()});
             if (openRanges.isEmpty()) continue;
 
-            List<Closure> closures = closureRepository.findByDate(day);
+            List<Closure> closures = closureRepository.findOverlappingDate(day);
             boolean fullDayClosed = closures.stream().anyMatch(Closure::isFullDay);
             if (fullDayClosed) continue;
 

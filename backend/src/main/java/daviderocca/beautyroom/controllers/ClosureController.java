@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.controllers;
 
+import daviderocca.beautyroom.DTO.closureDTOs.ClosureConflictPreviewDTO;
 import daviderocca.beautyroom.DTO.closureDTOs.ClosureResponseDTO;
 import daviderocca.beautyroom.DTO.closureDTOs.NewClosureDTO;
 import daviderocca.beautyroom.exceptions.BadRequestException;
@@ -46,9 +47,20 @@ public class ClosureController {
     // ---------------------------------- POST ----------------------------------
     @PostMapping
     public ResponseEntity<ClosureResponseDTO> createClosure(@Valid @RequestBody NewClosureDTO payload) {
-        log.info("Richiesta creazione chiusura per data {}", payload.date());
+        log.info("Richiesta creazione chiusura [{} → {}]",
+                payload.effectiveStartDate(), payload.effectiveEndDate());
         ClosureResponseDTO created = closureService.createClosure(payload);
         return ResponseEntity.status(201).body(created);
+    }
+
+    // ---------------------------------- POST /preview ----------------------------------
+    /**
+     * Returns the count + light list of active bookings that overlap the proposed
+     * closure range. Never throws on conflicts — informational only.
+     */
+    @PostMapping("/preview")
+    public ResponseEntity<ClosureConflictPreviewDTO> previewClosure(@Valid @RequestBody NewClosureDTO payload) {
+        return ResponseEntity.ok(closureService.previewClosure(payload));
     }
 
     // ---------------------------------- PUT ----------------------------------

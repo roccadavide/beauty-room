@@ -1,17 +1,24 @@
 package daviderocca.beautyroom.services;
 
+import daviderocca.beautyroom.DTO.closureDTOs.ClosureConflictPreviewDTO;
+import daviderocca.beautyroom.DTO.closureDTOs.ClosureConflictPreviewDTO.ConflictBookingInfo;
 import daviderocca.beautyroom.DTO.closureDTOs.ClosureResponseDTO;
 import daviderocca.beautyroom.DTO.closureDTOs.NewClosureDTO;
+import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Closure;
+import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
+import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ClosureRepository;
+import daviderocca.beautyroom.scheduler.ClosureReminderScheduler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
@@ -21,9 +28,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ClosureService {
 
-    private final ClosureRepository closureRepository;
+    private static final List<BookingStatus> BLOCKING_STATUSES =
+            List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
 
-    // -------------------------- FIND ALL --------------------------
+    private final ClosureRepository closureRepository;
+    private final BookingRepository bookingRepository;
+    private final ClosureReminderScheduler closureReminderScheduler;
+
+    // -------------------------- FIND --------------------------
     @Transactional(readOnly = true)
     public List<ClosureResponseDTO> findAllClosures() {
         return closureRepository.findAll().stream()
@@ -44,17 +56,27 @@ public class ClosureService {
     // -------------------------- CREATE --------------------------
     @Transactional
     public ClosureResponseDTO createClosure(NewClosureDTO payload) {
-        validateClosure(payload, null);
+        validateClosure(payload, null, /*isUpdate*/ false);
+
+        LocalDate startDate = payload.effectiveStartDate();
+        LocalDate endDate   = payload.effectiveEndDate();
 
         Closure closure = new Closure(
-                payload.date(),
+                startDate,
+                endDate,
                 payload.startTime(),
                 payload.endTime(),
-                payload.reason()
+                payload.reason() != null ? payload.reason().trim() : null
         );
 
         Closure saved = closureRepository.save(closure);
-        log.info("Nuova chiusura creata per il giorno {}", saved.getDate());
+        int bookingConflicts = countOverlappingBookings(saved);
+        log.info("Nuova chiusura creata id={} [{} → {}] conflittiBooking={}",
+                saved.getId(), saved.getStartDate(), saved.getEndDate(), bookingConflicts);
+
+        // Safety net: closure starting today or tomorrow → fire reminder immediately.
+        closureReminderScheduler.emitReminderForTomorrowIfApplicable(saved);
+
         return convertToDTO(saved);
     }
 
@@ -64,15 +86,23 @@ public class ClosureService {
         Closure closure = closureRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Chiusura non trovata con id: " + id));
 
-        validateClosure(payload, id);
+        validateClosure(payload, id, /*isUpdate*/ true);
 
-        closure.setDate(payload.date());
+        LocalDate startDate = payload.effectiveStartDate();
+        LocalDate endDate   = payload.effectiveEndDate();
+
+        closure.setStartDate(startDate);
+        closure.setEndDate(endDate);
+        closure.setDate(startDate); // keep legacy column in sync
         closure.setStartTime(payload.startTime());
         closure.setEndTime(payload.endTime());
-        closure.setReason(payload.reason());
+        closure.setReason(payload.reason() != null ? payload.reason().trim() : null);
 
         Closure updated = closureRepository.save(closure);
-        log.info("Chiusura {} aggiornata per la data {}", updated.getId(), updated.getDate());
+        log.info("Chiusura {} aggiornata [{} → {}]", updated.getId(), updated.getStartDate(), updated.getEndDate());
+
+        closureReminderScheduler.emitReminderForTomorrowIfApplicable(updated);
+
         return convertToDTO(updated);
     }
 
@@ -86,74 +116,180 @@ public class ClosureService {
         log.info("Chiusura {} eliminata.", id);
     }
 
+    // -------------------------- PREVIEW (conflict report) --------------------------
+
+    /**
+     * Returns the count and a light list of active bookings overlapping the proposed
+     * closure range. Never throws on conflicts: this is informational only.
+     */
+    @Transactional(readOnly = true)
+    public ClosureConflictPreviewDTO previewClosure(NewClosureDTO payload) {
+        LocalDate startDate = payload.effectiveStartDate();
+        LocalDate endDate   = payload.effectiveEndDate();
+        if (startDate == null) return new ClosureConflictPreviewDTO(0, List.of());
+        if (endDate == null || endDate.isBefore(startDate)) endDate = startDate;
+
+        Closure probe = new Closure(startDate, endDate,
+                payload.startTime(), payload.endTime(),
+                payload.reason() != null ? payload.reason() : "preview");
+        return countOverlappingBookingsAsDTO(probe);
+    }
+
+    // -------------------------- BOOKING-SIDE HELPERS --------------------------
+
+    /**
+     * True iff any active closure covers any part of [bookingStart, bookingEnd).
+     * Used by BookingService to reject pre-payment bookings that fall in a closure
+     * and to flag webhook bookings as conflicting after the fact.
+     */
+    @Transactional(readOnly = true)
+    public boolean hasOverlappingClosure(LocalDateTime bookingStart, LocalDateTime bookingEnd) {
+        if (bookingStart == null || bookingEnd == null) return false;
+        if (!bookingStart.isBefore(bookingEnd)) return false;
+
+        LocalDate startDate = bookingStart.toLocalDate();
+        LocalDate endDate   = bookingEnd.toLocalDate();
+
+        LocalDate cursor = startDate;
+        while (!cursor.isAfter(endDate)) {
+            List<Closure> dayClosures = closureRepository.findOverlappingDate(cursor);
+            for (Closure c : dayClosures) {
+                if (c.isFullDay()) return true;
+                LocalTime bs = cursor.equals(startDate) ? bookingStart.toLocalTime() : LocalTime.MIN;
+                LocalTime be = cursor.equals(endDate)   ? bookingEnd.toLocalTime()   : LocalTime.MAX;
+                if (bs.isBefore(c.getEndTime()) && c.getStartTime().isBefore(be)) {
+                    return true;
+                }
+            }
+            cursor = cursor.plusDays(1);
+        }
+        return false;
+    }
+
+    public void assertNoOverlappingClosure(LocalDateTime bookingStart, LocalDateTime bookingEnd) {
+        if (hasOverlappingClosure(bookingStart, bookingEnd)) {
+            throw new BadRequestException(
+                    "Lo slot ricade in una chiusura programmata: prenotazione non consentita."
+            );
+        }
+    }
+
     // -------------------------- VALIDATION --------------------------
-    private void validateClosure(NewClosureDTO payload, UUID excludeId) {
+    private void validateClosure(NewClosureDTO payload, UUID excludeId, boolean isUpdate) {
         if (payload == null) throw new BadRequestException("Payload mancante.");
 
-        if (payload.date() == null) throw new BadRequestException("La data della chiusura è obbligatoria.");
-        if (payload.date().isBefore(LocalDate.now())) {
+        LocalDate startDate = payload.effectiveStartDate();
+        LocalDate endDate   = payload.effectiveEndDate();
+        if (startDate == null) throw new BadRequestException("La data di inizio è obbligatoria.");
+        if (endDate == null) endDate = startDate;
+        if (endDate.isBefore(startDate)) {
+            throw new BadRequestException("La data finale deve essere uguale o successiva a quella di inizio.");
+        }
+
+        // "No past" only for NEW closures. Editing an existing closure that has
+        // already started (e.g. extending the endDate or fixing the reason) is allowed.
+        if (!isUpdate && endDate.isBefore(LocalDate.now())) {
             throw new BadRequestException("La data della chiusura non può essere nel passato.");
         }
 
         if (payload.reason() == null || payload.reason().trim().isEmpty()) {
             throw new BadRequestException("La motivazione della chiusura è obbligatoria.");
         }
+        if (payload.reason().length() > 150) {
+            throw new BadRequestException("La motivazione può essere lunga al massimo 150 caratteri.");
+        }
 
         LocalTime start = payload.startTime();
-        LocalTime end = payload.endTime();
+        LocalTime end   = payload.endTime();
+        boolean fullDay  = (start == null && end == null);
+        boolean multiDay = endDate.isAfter(startDate);
 
-        boolean fullDay = (start == null && end == null);
-
-        // Se parziale, devono esserci entrambi
         if (!fullDay) {
             if (start == null || end == null) {
-                throw new BadRequestException("Per una chiusura parziale devi specificare sia startTime che endTime.");
+                throw new BadRequestException("Per una chiusura parziale devi specificare sia inizio che fine fascia.");
             }
             if (!start.isBefore(end)) {
                 throw new BadRequestException("L'orario di inizio deve essere precedente a quello di fine.");
             }
+            if (multiDay) {
+                throw new BadRequestException("Una chiusura su più giorni deve essere a giornata intera.");
+            }
         }
 
-        // Carico le closures del giorno (escludendo se update)
-        List<Closure> sameDay = (excludeId == null)
-                ? closureRepository.findByDate(payload.date())
-                : closureRepository.findByDateExcluding(payload.date(), excludeId);
+        // Closure-vs-closure overlap detection across the entire range.
+        // Self-overlap is excluded via excludeId so editing the same row never reports itself.
+        LocalDate cursor = startDate;
+        while (!cursor.isAfter(endDate)) {
+            List<Closure> existing = (excludeId == null)
+                    ? closureRepository.findOverlappingDate(cursor)
+                    : closureRepository.findOverlappingDateExcluding(cursor, excludeId);
 
-        // Se esiste già una full-day, nessun’altra closure è ammessa
-        if (sameDay.stream().anyMatch(Closure::isFullDay)) {
-            throw new BadRequestException("Esiste già una chiusura di intera giornata per questa data.");
-        }
-
-        // Se la nuova è full-day, non devono esistere closures parziali
-        if (fullDay && !sameDay.isEmpty()) {
-            throw new BadRequestException("Non puoi impostare una chiusura giornaliera: esistono già chiusure parziali per questa data.");
-        }
-
-        // Overlap tra chiusure parziali
-        if (!fullDay) {
-            for (Closure c : sameDay) {
-                if (c.isFullDay()) continue; // già gestito sopra
-                if (overlaps(start, end, c.getStartTime(), c.getEndTime())) {
-                    throw new BadRequestException("La chiusura si sovrappone a un'altra chiusura già presente in questa data.");
+            for (Closure c : existing) {
+                if (c.isFullDay() || fullDay) {
+                    throw new BadRequestException(
+                            "Sovrapposizione con chiusura esistente del " + cursor + " (" + c.getReason() + ").");
+                }
+                // both partial — must be same single day per multiDay guard above
+                if (start.isBefore(c.getEndTime()) && c.getStartTime().isBefore(end)) {
+                    throw new BadRequestException(
+                            "La chiusura si sovrappone a un'altra del " + cursor +
+                            " (" + c.getStartTime() + "-" + c.getEndTime() + ", " + c.getReason() + ").");
                 }
             }
+            cursor = cursor.plusDays(1);
         }
     }
 
-    private boolean overlaps(LocalTime aStart, LocalTime aEnd, LocalTime bStart, LocalTime bEnd) {
-        // overlap su [start, end)
-        return aStart.isBefore(bEnd) && bStart.isBefore(aEnd);
+    // -------------------------- BOOKING OVERLAP HELPERS (preview + log) --------------------------
+
+    private int countOverlappingBookings(Closure c) {
+        return countOverlappingBookingsAsDTO(c).overlappingBookingsCount();
+    }
+
+    private ClosureConflictPreviewDTO countOverlappingBookingsAsDTO(Closure c) {
+        LocalDate startDate = c.getStartDate();
+        LocalDate endDate   = c.getEndDate();
+        if (startDate == null || endDate == null) {
+            return new ClosureConflictPreviewDTO(0, List.of());
+        }
+
+        LocalDateTime rangeStart = c.isFullDay()
+                ? startDate.atStartOfDay()
+                : startDate.atTime(c.getStartTime());
+        LocalDateTime rangeEnd = c.isFullDay()
+                ? endDate.plusDays(1).atStartOfDay()
+                : startDate.atTime(c.getEndTime());
+
+        if (!rangeStart.isBefore(rangeEnd)) {
+            return new ClosureConflictPreviewDTO(0, List.of());
+        }
+
+        List<Booking> overlapping = bookingRepository
+                .findBookingsByStatusesIntersectingRange(rangeStart, rangeEnd, BLOCKING_STATUSES);
+
+        List<ConflictBookingInfo> infos = overlapping.stream()
+                .map(b -> new ConflictBookingInfo(
+                        b.getBookingId(),
+                        b.getStartTime(),
+                        b.getEndTime(),
+                        b.getCustomerName()
+                ))
+                .toList();
+        return new ClosureConflictPreviewDTO(infos.size(), infos);
     }
 
     // ---------------------------- CONVERTER ----------------------------
     private ClosureResponseDTO convertToDTO(Closure closure) {
         return new ClosureResponseDTO(
                 closure.getId(),
-                closure.getDate(),
+                closure.getStartDate(),  // legacy `date` alias = startDate
+                closure.getStartDate(),
+                closure.getEndDate(),
                 closure.getStartTime(),
                 closure.getEndTime(),
                 closure.getReason(),
                 closure.isFullDay(),
+                closure.isMultiDay(),
                 closure.getCreatedAt()
         );
     }

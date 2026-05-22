@@ -10,9 +10,10 @@ import java.util.UUID;
 
 @Entity
 @Table(
-        name="closures",
+        name = "closures",
         indexes = {
-                @Index(name="idx_closure_date", columnList="date")
+                @Index(name = "idx_closure_date",  columnList = "date"),
+                @Index(name = "idx_closure_range", columnList = "start_date,end_date")
         }
 )
 @NoArgsConstructor
@@ -29,8 +30,16 @@ public class Closure {
     @Column(name = "closure_id", nullable = false, updatable = false)
     private UUID id;
 
+    // Legacy column: still NOT NULL in DB. Kept in sync with startDate on every save.
+    // A later migration will drop it once no code path references it.
     @Column(name = "date", nullable = false)
     private LocalDate date;
+
+    @Column(name = "start_date", nullable = false)
+    private LocalDate startDate;
+
+    @Column(name = "end_date", nullable = false)
+    private LocalDate endDate;
 
     @Column(name = "start_time")
     private LocalTime startTime;
@@ -44,19 +53,39 @@ public class Closure {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public Closure(LocalDate date, LocalTime startTime, LocalTime endTime, String reason) {
-        this.date = date;
+    public Closure(LocalDate startDate, LocalDate endDate,
+                   LocalTime startTime, LocalTime endTime, String reason) {
+        this.startDate = startDate;
+        this.endDate = (endDate != null) ? endDate : startDate;
         this.startTime = startTime;
         this.endTime = endTime;
         this.reason = reason;
+        this.date = this.startDate;
     }
 
     @PrePersist
     void onCreate() {
         this.createdAt = LocalDateTime.now();
+        if (this.endDate == null) this.endDate = this.startDate;
+        if (this.date == null) this.date = this.startDate;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        if (this.endDate == null) this.endDate = this.startDate;
+        if (this.startDate != null) this.date = this.startDate;
     }
 
     public boolean isFullDay() {
         return startTime == null && endTime == null;
+    }
+
+    public boolean isMultiDay() {
+        return endDate != null && startDate != null && endDate.isAfter(startDate);
+    }
+
+    public boolean coversDate(LocalDate d) {
+        if (d == null || startDate == null || endDate == null) return false;
+        return !d.isBefore(startDate) && !d.isAfter(endDate);
     }
 }

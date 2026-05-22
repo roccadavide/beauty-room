@@ -4,6 +4,7 @@ import daviderocca.beautyroom.DTO.availabilityDTOs.AvailabilityResponseDTO;
 import daviderocca.beautyroom.DTO.availabilityDTOs.AvailabilitySlotDTO;
 import daviderocca.beautyroom.DTO.availabilityDTOs.DayTimelineDTO;
 import daviderocca.beautyroom.DTO.availabilityDTOs.PublicNextSlotDTO;
+import daviderocca.beautyroom.DTO.availabilityDTOs.TimelineClosureDTO;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Closure;
 import daviderocca.beautyroom.entities.ServiceItem;
@@ -86,7 +87,7 @@ public class AvailabilityService {
             return new AvailabilityResponseDTO(serviceId, date, durationMin, List.of());
         }
 
-        List<TimeRange> openRanges = buildOpenRanges(wh, closureRepository.findByDate(date));
+        List<TimeRange> openRanges = buildOpenRanges(wh, closureRepository.findOverlappingDate(date));
         if (openRanges.isEmpty()) {
             return new AvailabilityResponseDTO(serviceId, date, durationMin, List.of());
         }
@@ -167,11 +168,11 @@ public class AvailabilityService {
                 .orElseThrow(() -> new BadRequestException(
                         "Orari non configurati per " + date.getDayOfWeek()));
 
-        List<Closure> closures = closureRepository.findByDate(date);
+        List<Closure> closures = closureRepository.findOverlappingDate(date);
 
         List<TimeRange> baseRanges  = wh.isClosed() ? List.of() : buildBaseRanges(wh);
         List<TimeRange> openRanges  = applyClosures(baseRanges, closures);
-        List<TimeRange> closureRanges = closuresToRanges(closures);
+        List<TimelineClosureDTO> closureDTOs = closuresToTimelineDTO(closures);
 
         LocalDateTime from = date.atStartOfDay();
         LocalDateTime to   = date.plusDays(1).atStartOfDay();
@@ -182,7 +183,7 @@ public class AvailabilityService {
         return new DayTimelineDTO(
                 date,
                 toDTO(openRanges),
-                toDTO(closureRanges),
+                closureDTOs,
                 toDTO(bookingRanges)
         );
     }
@@ -214,7 +215,7 @@ public class AvailabilityService {
                 .orElse(null);
         if (wh == null || wh.isClosed()) return List.of();
 
-        List<TimeRange> openRanges = buildOpenRanges(wh, closureRepository.findByDate(date));
+        List<TimeRange> openRanges = buildOpenRanges(wh, closureRepository.findOverlappingDate(date));
         if (openRanges.isEmpty()) return List.of();
 
         LocalDateTime from = date.atStartOfDay();
@@ -409,6 +410,38 @@ public class AvailabilityService {
             }
         }
         return mergeAdjacent(out);
+    }
+
+    /**
+     * Builds enriched timeline closure DTOs from the closures covering the day —
+     * keeps id + reason + fullDay so the agenda can render, label, and edit each
+     * block. Unlike {@link #closuresToRanges} this does NOT merge adjacent ranges:
+     * each closure must stay distinct on the timeline.
+     */
+    private List<TimelineClosureDTO> closuresToTimelineDTO(List<Closure> closures) {
+        if (closures == null || closures.isEmpty()) return List.of();
+        List<TimelineClosureDTO> out = new ArrayList<>();
+        for (Closure c : closures) {
+            if (c.isFullDay()) {
+                out.add(new TimelineClosureDTO(
+                        c.getId(),
+                        LocalTime.MIN.format(HHMM),
+                        LocalTime.of(23, 59).format(HHMM),
+                        true,
+                        c.getReason()
+                ));
+            } else if (c.getStartTime() != null && c.getEndTime() != null
+                    && c.getStartTime().isBefore(c.getEndTime())) {
+                out.add(new TimelineClosureDTO(
+                        c.getId(),
+                        c.getStartTime().format(HHMM),
+                        c.getEndTime().format(HHMM),
+                        false,
+                        c.getReason()
+                ));
+            }
+        }
+        return out;
     }
 
     private List<TimeRange> bookingsToRanges(List<Booking> bookings, LocalDate date) {

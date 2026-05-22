@@ -6,6 +6,6 @@ import java.util.List;
 public record DayTimelineDTO(
         LocalDate date,
         List<AvailabilitySlotDTO> openRanges,
-        List<AvailabilitySlotDTO> closureRanges,
+        List<TimelineClosureDTO>  closureRanges,
         List<AvailabilitySlotDTO> bookingRanges
 ) {}
