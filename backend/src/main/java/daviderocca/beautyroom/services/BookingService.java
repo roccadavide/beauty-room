@@ -1869,7 +1869,7 @@ public class BookingService {
                 if (first.getSessionNumber() > 0) linkSessionNumber = first.getSessionNumber();
                 linkTotalSessions = first.getAssignment().getTotalSessions();
                 linkedPkgs = links.stream()
-                        .map(l -> buildPackageSummary(l.getAssignment()))
+                        .map(l -> buildPackageSummary(l.getAssignment(), l.getSessionNumber()))
                         .toList();
                 linkedPkg = linkedPkgs.get(0);
             }
@@ -2018,8 +2018,12 @@ public class BookingService {
      * Phase 5a paidUpfront rule: when the assignment was paid in full upfront,
      * the per-session price reported to the agenda is zero — so paid-upfront
      * sessions don't double-count in the day's estimated revenue KPI.
+     * <p>
+     * {@code sessionNumber} comes from the link row (this booking's position in
+     * the package), not from the assignment itself — different links on the same
+     * assignment carry different session numbers.
      */
-    private PackageSummaryDTO buildPackageSummary(ClientPackageAssignment a) {
+    private PackageSummaryDTO buildPackageSummary(ClientPackageAssignment a, int sessionNumber) {
         ServiceItem pkgSvc = a.getService() != null
                 ? a.getService()
                 : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
@@ -2041,6 +2045,8 @@ public class BookingService {
         return new PackageSummaryDTO(
                 a.getId(),
                 pkgName,
+                sessionNumber,
+                a.getTotalSessions(),
                 a.getSessionsRemaining(),
                 sessionPrice,
                 clientPackageService.mapItemsToSummary(a));
@@ -2072,7 +2078,7 @@ public class BookingService {
         try {
             linkedPackage = bookingPackageLinkRepository
                     .findByBookingBookingIdWithAssignment(booking.getBookingId())
-                    .map(link -> buildPackageSummary(link.getAssignment()))
+                    .map(link -> buildPackageSummary(link.getAssignment(), link.getSessionNumber()))
                     .orElse(null);
         } catch (Exception e) {
             log.warn("Could not resolve package summary for booking {}: {}", booking.getBookingId(), e.getMessage());

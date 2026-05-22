@@ -470,7 +470,14 @@ public class ClientPackageService {
                 name = a.getClientName();
             }
             BigDecimal sessionPrice = computeSessionPrice(a);
-            return new PackageSummaryDTO(a.getId(), name, a.getSessionsRemaining(), sessionPrice, mapItemsToSummary(a));
+            return new PackageSummaryDTO(
+                    a.getId(),
+                    name,
+                    link.getSessionNumber(),
+                    a.getTotalSessions(),
+                    a.getSessionsRemaining(),
+                    sessionPrice,
+                    mapItemsToSummary(a));
         });
     }
 

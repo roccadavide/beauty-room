@@ -7,19 +7,27 @@ import java.util.UUID;
 /**
  * Summary of a ClientPackageAssignment attached to a booking.
  * <p>
- * {@code sessionPrice} is the catalog per-session price (option price if the package
- * targets a specific option, else the underlying service's price). Used by the admin
- * agenda's "incasso stimato" to add the package's per-session contribution alongside
- * any extra catalog services on the booking. Null when neither the option nor the
- * service has a usable price (e.g. truly custom free-form packages).
+ * {@code sessionNumber} is THIS booking's position in the package (from the
+ * {@link daviderocca.beautyroom.packages.BookingPackageLink}'s sessionNumber column),
+ * and {@code totalSessions} is the assignment's total. Together they let the agenda
+ * card render "Seduta X/Y" per linked package — Phase 5a/5b made the booking carry
+ * N links, Phase 6 needs each link's own counter rather than the FIRST-link
+ * back-compat values exposed on the booking root.
  * <p>
- * {@code items} exposes the full multi-line composition of the package so the agenda
- * card can render every line. Descriptive only; never empty after migration V59
- * (invariant: every package has >= 1 composition item).
+ * {@code sessionsRemaining} is the assignment's live counter (shared across all links
+ * of that assignment). {@code sessionPrice} is the catalog per-session price (option
+ * price if the package targets a specific option, else the underlying service's price),
+ * zeroed by the Phase 5a paidUpfront rule so prepaid sessions don't double-count in
+ * the day's estimated revenue KPI. Null when no usable price exists.
+ * <p>
+ * {@code items} exposes the full multi-line composition. Descriptive only; never
+ * empty after migration V59 (invariant: every package has >= 1 composition item).
  */
 public record PackageSummaryDTO(
         UUID packageAssignmentId,
         String packageName,
+        int sessionNumber,
+        int totalSessions,
         int sessionsRemaining,
         BigDecimal sessionPrice,
         List<PackageItemSummaryDTO> items

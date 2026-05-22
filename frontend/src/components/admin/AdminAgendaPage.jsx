@@ -99,23 +99,33 @@ function shortCustomerName(name) {
 function buildBreakdownItems(booking, priceMap) {
   const items = [];
 
-  // a. Package contribution
-  if (booking.linkedPackage) {
-    const pkg = booking.linkedPackage;
-    const name = pkg.serviceTitle || pkg.serviceName || pkg.packageName || "Pacchetto";
-    const sessionNum = booking.currentSession ?? pkg.sessionNumber;
-    const totalSess = booking.totalSessions;
+  // Phase 6: linkedPackages[] is the source of truth; legacy singular linkedPackage
+  // is wrapped into a one-element list for pre-5a bookings.
+  const pkgs = booking.linkedPackages?.length
+    ? booking.linkedPackages
+    : booking.linkedPackage
+      ? [booking.linkedPackage]
+      : [];
+  const isLegacySingle = !booking.linkedPackages?.length && !!booking.linkedPackage;
+
+  // a. Package contribution — one row per linked package
+  pkgs.forEach((pkg, idx) => {
+    const name = pkg.packageName || pkg.serviceTitle || pkg.serviceName || "Pacchetto";
+    // Per-package counters (Phase 6 DTO). Pre-5a bookings only carry the first
+    // link via booking-level fields; honor those for the legacy-single case.
+    const sessionNum = pkg.sessionNumber ?? (idx === 0 ? booking.currentSession : null);
+    const totalSess = pkg.totalSessions ?? (idx === 0 ? booking.totalSessions : null);
     const suffix = sessionNum && totalSess ? ` · Seduta ${sessionNum}/${totalSess}` : "";
     const label = `📦 ${name}${suffix}`;
     let price = null;
     if (pkg.sessionPrice != null) price = Number(pkg.sessionPrice);
-    else if (booking.optionPrice != null) price = Number(booking.optionPrice);
-    else {
+    else if (isLegacySingle && booking.optionPrice != null) price = Number(booking.optionPrice);
+    else if (isLegacySingle) {
       const p = priceMap.get(String(booking.serviceId));
       if (p != null) price = p;
     }
     items.push({ label, price, kind: "package" });
-  }
+  });
 
   // b. Extras from booking.services
   if (Array.isArray(booking.services) && booking.services.length > 0) {
@@ -123,7 +133,7 @@ function buildBreakdownItems(booking, priceMap) {
       const name = s.name || s.title || s.serviceName || "?";
       const label = s.optionName ? `${name} · ${s.optionName}` : name;
       let price;
-      if (!booking.linkedPackage && i === 0 && booking.optionPrice != null && !s.optionId) {
+      if (pkgs.length === 0 && i === 0 && booking.optionPrice != null && !s.optionId) {
         price = Number(booking.optionPrice);
       } else if (s.price != null) {
         price = Number(s.price);
@@ -341,14 +351,26 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const tier = durationMin < 20 ? "tiny" : durationMin < 40 ? "compact" : "full";
     const cat = booking?.categoryName ?? booking?.category ?? null;
     const color = categoryColor(cat);
-    const pkgName = booking?.linkedPackage
-      ? booking.linkedPackage.serviceTitle || booking.linkedPackage.serviceName || booking.linkedPackage.packageName || "—"
+    // Phase 6: timeline blocks are small — surface only the FIRST package's name,
+    // its own "S.x/y" badge, and a +N suffix that counts (extra services + extra
+    // packages beyond the first). Details live in the appointment list / drawer.
+    const pkgList = booking?.linkedPackages?.length
+      ? booking.linkedPackages
+      : booking?.linkedPackage
+        ? [booking.linkedPackage]
+        : [];
+    const firstPkg = pkgList[0] ?? null;
+    const pkgName = firstPkg
+      ? firstPkg.packageName || firstPkg.serviceTitle || firstPkg.serviceName || "—"
       : null;
     const extraSvcs = Array.isArray(booking?.services) && booking.services.length > 0 ? booking.services : [];
-    const sessionNum = booking?.currentSession ?? booking?.linkedPackage?.sessionNumber;
-    const sessionBadge = sessionNum ? ` S.${sessionNum}${booking?.totalSessions ? `/${booking.totalSessions}` : ""}` : "";
+    const sessionNum = firstPkg?.sessionNumber ?? booking?.currentSession;
+    const totalSess = firstPkg?.totalSessions ?? booking?.totalSessions;
+    const sessionBadge = sessionNum ? ` S.${sessionNum}${totalSess ? `/${totalSess}` : ""}` : "";
+    const extraPkgCount = Math.max(0, pkgList.length - 1);
+    const additionalCount = extraSvcs.length + extraPkgCount;
     const baseServiceName = pkgName
-      ? `${pkgName}${sessionBadge}${extraSvcs.length > 0 ? ` +${extraSvcs.length}` : ""}`
+      ? `${pkgName}${sessionBadge}${additionalCount > 0 ? ` +${additionalCount}` : ""}`
       : extraSvcs.length > 1
         ? `${extraSvcs[0].name || extraSvcs[0].title || "?"} +${extraSvcs.length - 1}`
         : extraSvcs[0]?.name || extraSvcs[0]?.title || booking?.serviceTitle || booking?.customServiceName || "—";
@@ -610,16 +632,20 @@ export default function AdminAgendaPage() {
   const [editingPersonal, setEditingPersonal] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
 
-  // Per-booking expansion state for the package items collapsible inside the
-  // agenda card. Tapping the chevron toggles ONLY this set — the chevron's
-  // click/keyDown handlers stop propagation so the parent booking card never
-  // opens the edit drawer in the process.
+  // Per-(booking, package) expansion state for the package items collapsible
+  // inside the agenda card. Phase 6: with N packages per booking the key must
+  // identify BOTH the booking and the specific package — using just bookingId
+  // would mean all N packages on one card share a single collapse state.
+  // The chevron handlers stop propagation so the booking card never opens the
+  // edit drawer in the process.
   const [expandedAgendaPkgs, setExpandedAgendaPkgs] = useState(() => new Set());
-  const toggleAgendaPkg = useCallback(bookingId => {
+  const agendaPkgKey = (bookingId, pkgAssignmentId) => `${bookingId}::${pkgAssignmentId ?? "first"}`;
+  const toggleAgendaPkg = useCallback((bookingId, pkgAssignmentId) => {
+    const key = agendaPkgKey(bookingId, pkgAssignmentId);
     setExpandedAgendaPkgs(prev => {
       const next = new Set(prev);
-      if (next.has(bookingId)) next.delete(bookingId);
-      else next.add(bookingId);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }, []);
@@ -816,28 +842,39 @@ export default function AdminAgendaPage() {
     // Priorità per servizio: optionPrice (se option su quell'entry) → price catalog
     // Per multi-servizio: somma tutte le entry; per singolo: fallback a optionPrice booking-level
     const effectivePrice = b => {
-      // 1) Package contribution: backend-provided sessionPrice has priority.
-      //    Fall back to booking-level optionPrice (legacy bookings) or to the catalog
-      //    service price keyed by b.serviceId (option-less packages without sessionPrice).
+      // Phase 6: sum EVERY linked package's sessionPrice — previously only the first
+      // counted, which under-reported revenue for multi-package bookings.
+      // The Phase 5a backend already zeroes sessionPrice for paidUpfront packages,
+      // so summing here automatically excludes prepaid sessions from the KPI.
+      const pkgs = b.linkedPackages?.length
+        ? b.linkedPackages
+        : b.linkedPackage
+          ? [b.linkedPackage]
+          : [];
+      const isLegacySingle = !b.linkedPackages?.length && !!b.linkedPackage;
+
+      // 1) Package contribution: sum each package's sessionPrice. Fall backs
+      //    (b.optionPrice → priceMap[serviceId]) only apply on the legacy
+      //    single-package path — they describe ONE package, not N.
       let pkgPrice = 0;
-      if (b.linkedPackage) {
-        if (b.linkedPackage.sessionPrice != null) {
-          pkgPrice = Number(b.linkedPackage.sessionPrice);
-        } else if (b.optionPrice != null) {
-          pkgPrice = Number(b.optionPrice);
-        } else if (b.serviceId) {
-          pkgPrice = priceMap.get(String(b.serviceId)) ?? 0;
+      for (const pkg of pkgs) {
+        if (pkg.sessionPrice != null) {
+          pkgPrice += Number(pkg.sessionPrice);
+        } else if (isLegacySingle && b.optionPrice != null) {
+          pkgPrice += Number(b.optionPrice);
+        } else if (isLegacySingle && b.serviceId) {
+          pkgPrice += priceMap.get(String(b.serviceId)) ?? 0;
         }
       }
 
-      // 2) Catalog extras. When a package is linked, b.services contains ONLY extras —
-      //    so we must NOT use the legacy "first service gets b.optionPrice" shortcut
-      //    (that would re-apply the package's option price to the first extra row).
+      // 2) Catalog extras. When any package is linked, b.services contains ONLY
+      //    extras — so we must NOT use the legacy "first service gets b.optionPrice"
+      //    shortcut (it would re-apply a package's option price to the first extra row).
       let extrasSum = 0;
       if (Array.isArray(b.services) && b.services.length > 0) {
         extrasSum = b.services.reduce((acc, s, i) => {
           const unitPrice =
-            !b.linkedPackage && i === 0 && b.optionPrice != null && !s.optionId
+            pkgs.length === 0 && i === 0 && b.optionPrice != null && !s.optionId
               ? Number(b.optionPrice) // legacy: booking-level option on first service (non-package only)
               : s.optionId && s.price != null
                 ? Number(s.price)
@@ -853,7 +890,7 @@ export default function AdminAgendaPage() {
 
       // 4) If any explicit contribution is present, sum them; otherwise fall back to
       //    the legacy single-service path.
-      if (b.linkedPackage || (Array.isArray(b.services) && b.services.length > 0) || b.customServicePrice != null) {
+      if (pkgs.length > 0 || (Array.isArray(b.services) && b.services.length > 0) || b.customServicePrice != null) {
         return pkgPrice + extrasSum + customPrice;
       }
 
@@ -1603,92 +1640,109 @@ export default function AdminAgendaPage() {
                               <div className="ag-item__name">{b.customerName}</div>
                               <div className="ag-item__service">
                                 {(() => {
-                                  if (b.linkedPackage) {
-                                    const pkgLabel = b.linkedPackage.serviceTitle || b.linkedPackage.serviceName || b.linkedPackage.packageName || "—";
-                                    const pkgLabelNorm = pkgLabel?.trim().toLowerCase() ?? "";
+                                  // Phase 6: linkedPackages[] is the source of truth; legacy singular
+                                  // linkedPackage wraps into a one-element list for pre-5a bookings.
+                                  const itemPkgs = b.linkedPackages?.length
+                                    ? b.linkedPackages
+                                    : b.linkedPackage
+                                      ? [b.linkedPackage]
+                                      : [];
+                                  if (itemPkgs.length > 0) {
+                                    // Compute "extras" once — filter out any catalog service that
+                                    // duplicates a package label (legacy collision avoidance).
+                                    const pkgLabelsNorm = new Set(
+                                      itemPkgs
+                                        .map(pkg => (pkg.packageName || pkg.serviceTitle || pkg.serviceName || "").trim().toLowerCase())
+                                        .filter(Boolean),
+                                    );
                                     const extras =
                                       Array.isArray(b.services) && b.services.length > 0
-                                        ? b.services.map(s => s.name || s.title || s.serviceName || "?").filter(name => name?.trim().toLowerCase() !== pkgLabelNorm)
+                                        ? b.services
+                                            .map(s => s.name || s.title || s.serviceName || "?")
+                                            .filter(name => !pkgLabelsNorm.has(name?.trim().toLowerCase()))
                                         : [];
-                                    const sessionNum = b.currentSession ?? b.linkedPackage.sessionNumber;
-                                    const totalSess = b.totalSessions;
-                                    const pkgItems = Array.isArray(b.linkedPackage.items)
-                                      ? [...b.linkedPackage.items].sort((x, y) => x.position - y.position)
-                                      : [];
-                                    const hasMultipleItems = pkgItems.length >= 2;
-                                    const isExpanded = expandedAgendaPkgs.has(b.bookingId);
-                                    // Chevron handlers MUST stop propagation — the surrounding
-                                    // booking card has its own click that opens the edit drawer.
-                                    const onChevronClick = e => {
-                                      e.stopPropagation();
-                                      toggleAgendaPkg(b.bookingId);
-                                    };
-                                    const onChevronKeyDown = e => {
-                                      if (e.key === "Enter" || e.key === " ") {
+
+                                    return itemPkgs.map((pkg, pkgIdx) => {
+                                      const pkgLabel = pkg.packageName || pkg.serviceTitle || pkg.serviceName || "—";
+                                      // Per-package counters (Phase 6 DTO); legacy bookings fall back
+                                      // to booking-level fields for the first link only.
+                                      const sessionNum = pkg.sessionNumber ?? (pkgIdx === 0 ? b.currentSession : null);
+                                      const totalSess = pkg.totalSessions ?? (pkgIdx === 0 ? b.totalSessions : null);
+                                      const pkgItems = Array.isArray(pkg.items)
+                                        ? [...pkg.items].sort((x, y) => x.position - y.position)
+                                        : [];
+                                      const hasMultipleItems = pkgItems.length >= 2;
+                                      const expansionKey = agendaPkgKey(b.bookingId, pkg.packageAssignmentId);
+                                      const isExpanded = expandedAgendaPkgs.has(expansionKey);
+                                      // Chevron handlers MUST stop propagation — the surrounding
+                                      // booking card has its own click that opens the edit drawer.
+                                      const onChevronClick = e => {
                                         e.stopPropagation();
-                                        e.preventDefault();
-                                        toggleAgendaPkg(b.bookingId);
-                                      }
-                                    };
-                                    return (
-                                      <div className="ag-pkg-block">
-                                        <div className="ag-pkg-block__header">
-                                          <span className="ag-service">{pkgLabel}</span>
-                                          {sessionNum && totalSess && (
-                                            <span className="ag-pkg-session-badge">
-                                              Seduta {sessionNum}/{totalSess}
-                                            </span>
+                                        toggleAgendaPkg(b.bookingId, pkg.packageAssignmentId);
+                                      };
+                                      const onChevronKeyDown = e => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          toggleAgendaPkg(b.bookingId, pkg.packageAssignmentId);
+                                        }
+                                      };
+                                      // Render extras ONCE — attach them to the last package block.
+                                      const showExtras = extras.length > 0 && pkgIdx === itemPkgs.length - 1;
+                                      return (
+                                        <div className="ag-pkg-block" key={pkg.packageAssignmentId ?? pkgIdx}>
+                                          <div className="ag-pkg-block__header">
+                                            <span className="ag-service">{pkgLabel}</span>
+                                            {sessionNum && totalSess && (
+                                              <span className="ag-pkg-session-badge">
+                                                Seduta {sessionNum}/{totalSess}
+                                              </span>
+                                            )}
+                                            {pkg.sessionsRemaining === 1 && (
+                                              <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
+                                                ⚠ Ultima
+                                              </span>
+                                            )}
+                                            {hasMultipleItems && (
+                                              <button
+                                                type="button"
+                                                className="pkgi-toggle"
+                                                aria-expanded={isExpanded}
+                                                onClick={onChevronClick}
+                                                onKeyDown={onChevronKeyDown}
+                                              >
+                                                <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
+                                                {pkgItems.length} trattamenti
+                                              </button>
+                                            )}
+                                          </div>
+                                          {hasMultipleItems && isExpanded && (
+                                            <ul className="pkgi-list">
+                                              {pkgItems.map(it => (
+                                                <li key={`${b.bookingId}-${pkg.packageAssignmentId ?? pkgIdx}-${it.position}`} className="pkgi-list__item">
+                                                  {formatPackageItemLabel(it)}
+                                                </li>
+                                              ))}
+                                            </ul>
                                           )}
-                                          {b.sessionsRemaining === 1 && (
-                                            <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
-                                              ⚠ Ultima
-                                            </span>
-                                          )}
-                                          {hasMultipleItems && (
-                                            <button
-                                              type="button"
-                                              className="pkgi-toggle"
-                                              aria-expanded={isExpanded}
-                                              onClick={onChevronClick}
-                                              onKeyDown={onChevronKeyDown}
-                                            >
-                                              <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
-                                              {pkgItems.length} trattamenti
-                                            </button>
+                                          {showExtras && (
+                                            <>
+                                              <div className="ag-pkg-block__divider" />
+                                              {extras.map((svc, i) => (
+                                                <div key={i} className="ag-pkg-block__extra">
+                                                  <span className="ag-pkg-block__extra-plus">+</span>
+                                                  {svc}
+                                                </div>
+                                              ))}
+                                            </>
                                           )}
                                         </div>
-                                        {hasMultipleItems && isExpanded && (
-                                          <ul className="pkgi-list">
-                                            {pkgItems.map(it => (
-                                              <li key={`${b.bookingId}-${it.position}`} className="pkgi-list__item">
-                                                {formatPackageItemLabel(it)}
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        )}
-                                        {extras.length > 0 && (
-                                          <>
-                                            <div className="ag-pkg-block__divider" />
-                                            {extras.map((svc, i) => (
-                                              <div key={i} className="ag-pkg-block__extra">
-                                                <span className="ag-pkg-block__extra-plus">+</span>
-                                                {svc}
-                                              </div>
-                                            ))}
-                                          </>
-                                        )}
-                                      </div>
-                                    );
+                                      );
+                                    });
                                   }
                                   if (Array.isArray(b.services) && b.services.length > 0) {
                                     return (
                                       <div className="ag-svc-list-block">
-                                        {Array.isArray(b.services) &&
-                                          b.services.length > 0 &&
-                                          (() => {
-                                            console.log(`[AGENDA-LIST] booking ${b.bookingId} services:`, JSON.stringify(b.services));
-                                            return null;
-                                          })()}
                                         {b.services.map((s, i) => {
                                           const svcLabel = s.name || s.title || s.serviceName || "?";
                                           const label = s.optionName ? `${svcLabel} · ${s.optionName}` : svcLabel;
@@ -1717,12 +1771,15 @@ export default function AdminAgendaPage() {
                                     );
                                   return <span className="ag-service">—</span>;
                                 })()}
-                                {!b.linkedPackage && b.currentSession && b.totalSessions && (
+                                {/* Legacy session pills: only when the booking is NOT linked to any
+                                    in-person package (the per-package "Seduta X/Y" badges above
+                                    cover the linked case for both Phase 6 and pre-5a data). */}
+                                {!(b.linkedPackages?.length || b.linkedPackage) && b.currentSession && b.totalSessions && (
                                   <span className="ag-session-pill">
                                     Seduta {b.currentSession}/{b.totalSessions}
                                   </span>
                                 )}
-                                {!b.linkedPackage && b.sessionsRemaining === 1 && (
+                                {!(b.linkedPackages?.length || b.linkedPackage) && b.sessionsRemaining === 1 && (
                                   <span className="ag-session-pill ag-session-pill--last">⚠ Ultima seduta</span>
                                 )}
                                 {b.notes && <span className="ag-notes">{b.notes}</span>}
@@ -2147,11 +2204,15 @@ export default function AdminAgendaPage() {
             {confirmModal.type === "delete" && confirmModal.stripeSessionId && (
               <div className="ag-confirm-warning">⚠️ Questa prenotazione è stata pagata online. Eliminandola non verrà emesso alcun rimborso automatico.</div>
             )}
-            {confirmModal.type === "delete" && confirmModal.booking?.status === "COMPLETED" && confirmModal.booking?.packageCreditId && (
-              <div className="ag-confirm-warning">
-                ⚠️ Questa prenotazione è COMPLETATA e collegata a un pacchetto. La seduta consumata NON verrà ripristinata automaticamente.
-              </div>
-            )}
+            {confirmModal.type === "delete" &&
+              confirmModal.booking?.status === "COMPLETED" &&
+              (confirmModal.booking?.packageCreditId ||
+                (Array.isArray(confirmModal.booking?.linkedPackages) && confirmModal.booking.linkedPackages.length > 0) ||
+                confirmModal.booking?.linkedPackage) && (
+                <div className="ag-confirm-warning">
+                  ⚠️ Questa prenotazione è COMPLETATA e collegata a un pacchetto. La seduta consumata NON verrà ripristinata automaticamente.
+                </div>
+              )}
             <div className="ag-confirm-actions">
               <button className="ag-btn ag-btn--ghost" onClick={() => setConfirmModal(null)}>
                 Indietro
