@@ -560,19 +560,23 @@ public class ClientPackageService {
                         ? a.getServiceOption().getService().getServiceId()
                         : null);
         // Display name preference order:
-        //   1. service title · option name  (catalog with option)
-        //   2. service title                (catalog without option)
-        //   3. customPackageName            (truly custom free-form package)
-        //   4. fallback
+        //   1. customPackageName            (admin-entered name — always wins when present)
+        //   2. service title · option name  (multi-line package's representative item)
+        //   3. option name                  (option only)
+        //   4. service title                (service only)
+        //   5. fallback
+        // Prior order put customPackageName last, which broke packages like
+        // "Mani e piedi" whose representative items[0] had a service+option:
+        // the admin's name was silently overridden by "Manicure · Smalto normale".
         String displayName;
-        if (a.getServiceOption() != null && serviceTitle != null) {
+        if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+            displayName = a.getCustomPackageName();
+        } else if (a.getServiceOption() != null && serviceTitle != null) {
             displayName = serviceTitle + " · " + a.getServiceOption().getName();
         } else if (a.getServiceOption() != null) {
             displayName = a.getServiceOption().getName();
         } else if (serviceTitle != null) {
             displayName = serviceTitle;
-        } else if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
-            displayName = a.getCustomPackageName();
         } else {
             displayName = "Pacchetto senza nome";
         }

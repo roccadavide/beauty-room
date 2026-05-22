@@ -1757,18 +1757,21 @@ public class BookingService {
                 ClientPackageAssignment a = link.getAssignment();
                 if (link.getSessionNumber() > 0) linkSessionNumber = link.getSessionNumber();
                 linkTotalSessions = a.getTotalSessions();
+                // Prefer admin-entered customPackageName; fall back to representative
+                // service/option only when no custom name is set. See ClientPackageService.toDTO()
+                // for the matching displayName resolution.
                 String pkgName;
                 ServiceItem pkgSvc = a.getService() != null
                         ? a.getService()
                         : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
-                if (a.getServiceOption() != null && pkgSvc != null) {
+                if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+                    pkgName = a.getCustomPackageName();
+                } else if (a.getServiceOption() != null && pkgSvc != null) {
                     pkgName = pkgSvc.getTitle() + " · " + a.getServiceOption().getName();
                 } else if (a.getServiceOption() != null) {
                     pkgName = a.getServiceOption().getName();
                 } else if (pkgSvc != null) {
                     pkgName = pkgSvc.getTitle();
-                } else if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
-                    pkgName = a.getCustomPackageName();
                 } else {
                     pkgName = "Trattamento";
                 }
@@ -1938,18 +1941,21 @@ public class BookingService {
                     .findByBookingBookingIdWithAssignment(booking.getBookingId())
                     .map(link -> {
                         ClientPackageAssignment a = link.getAssignment();
+                        // Prefer admin-entered customPackageName; fall back to representative
+                        // service/option only when no custom name is set. See
+                        // ClientPackageService.toDTO() for the matching displayName resolution.
                         String pkgName;
                         ServiceItem pkgSvc = a.getService() != null
                                 ? a.getService()
                                 : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
-                        if (a.getServiceOption() != null && pkgSvc != null) {
+                        if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+                            pkgName = a.getCustomPackageName();
+                        } else if (a.getServiceOption() != null && pkgSvc != null) {
                             pkgName = pkgSvc.getTitle() + " · " + a.getServiceOption().getName();
                         } else if (a.getServiceOption() != null) {
                             pkgName = a.getServiceOption().getName();
                         } else if (pkgSvc != null) {
                             pkgName = pkgSvc.getTitle();
-                        } else if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
-                            pkgName = a.getCustomPackageName();
                         } else {
                             pkgName = "Trattamento";
                         }

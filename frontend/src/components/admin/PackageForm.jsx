@@ -23,13 +23,16 @@ const newCustomRow = (patch = {}) => ({
 });
 
 const round2 = n => Math.round(n * 100) / 100;
-
 const DISCOUNT_CHIPS = [0.05, 0.1, 0.15, 0.2];
 
+// Stable key for picker selection lookup. Plain service → "<id>::"; with option → "<id>::<optionId>".
+const serviceKey = (serviceId, optionId) => `${serviceId}::${optionId ?? ""}`;
+
 // ── ServicePicker ─────────────────────────────────────────────────────────────
-// Compact catalog picker mirroring AppointmentForm's .ag-service-list pattern.
-// Used both for "Da servizio" mode-pick and for adding composition rows.
-function ServicePicker({ services, onPick }) {
+// Full catalog list mirroring AppointmentForm's .ag-service-list pattern.
+// Multi-select via toggle: clicking a row that is already in `selectedKeys`
+// removes it; otherwise it is added (parent decides via onPick).
+function ServicePicker({ services, selectedKeys, onPick }) {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
@@ -109,28 +112,42 @@ function ServicePicker({ services, onPick }) {
                 </button>
                 {isExpanded && (
                   <div className="ag-service-options">
-                    {opts.map(opt => (
-                      <button
-                        key={opt.optionId ?? opt.id}
-                        type="button"
-                        className="ag-service-option-item"
-                        onClick={() => onPick(s, opt)}
-                      >
-                        <span className="ag-service-option-item__name">{opt.name}</span>
-                        <span className="ag-service-item__meta">
-                          {opt.price != null ? `€${Number(opt.price).toFixed(0)}` : ""}
-                        </span>
-                      </button>
-                    ))}
+                    {opts.map(opt => {
+                      const optId = opt.optionId ?? opt.id;
+                      const isSelected = selectedKeys.has(serviceKey(s.serviceId, optId));
+                      return (
+                        <button
+                          key={optId}
+                          type="button"
+                          className={`ag-service-option-item${isSelected ? " ag-service-option-item--selected" : ""}`}
+                          onClick={() => onPick(s, opt)}
+                        >
+                          <span className="ag-service-option-item__name">{opt.name}</span>
+                          <span className="ag-service-item__meta">
+                            {opt.price != null ? `€${Number(opt.price).toFixed(0)}` : ""}
+                            {isSelected && <span className="ag-option-check"> ✓</span>}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             );
           }
+          const isSelected = selectedKeys.has(serviceKey(s.serviceId, null));
           return (
-            <button key={s.serviceId} type="button" className="ag-service-item" onClick={() => onPick(s, null)}>
+            <button
+              key={s.serviceId}
+              type="button"
+              className={`ag-service-item${isSelected ? " ag-service-item--selected" : ""}`}
+              onClick={() => onPick(s, null)}
+            >
               <span className="ag-service-item__title">{s.title}</span>
-              <span className="ag-service-item__meta">{s.price != null ? `€${Number(s.price).toFixed(0)}` : ""}</span>
+              <span className="ag-service-item__meta">
+                {s.price != null ? `€${Number(s.price).toFixed(0)}` : ""}
+                {isSelected && <span className="ag-service-item__selected-count"> ✓</span>}
+              </span>
             </button>
           );
         })}
@@ -143,14 +160,14 @@ function ServicePicker({ services, onPick }) {
 export default function PackageForm({ customer, services = [], editingPackage = null, onSaved }) {
   const isEdit = editingPackage != null;
 
-  // Original completed sessions — frozen for the duration of this edit session
-  // (matches backend update() guard: req.totalSessions cannot fall below completed).
+  // Original completed sessions — frozen for this edit session
   const completedOriginal = useMemo(
     () => (isEdit ? Math.max(0, (editingPackage.totalSessions ?? 0) - (editingPackage.sessionsRemaining ?? 0)) : 0),
     [isEdit, editingPackage],
   );
 
   // ── State ───────────────────────────────────────────────────────────────────
+  // Two modes only: "catalog" | "service". Edit always renders the "service" UI.
   const [mode, setMode] = useState(isEdit ? "service" : "catalog");
   const [name, setName] = useState("");
   const [composition, setComposition] = useState([]);
@@ -160,20 +177,16 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   const [pricePaid, setPricePaid] = useState("");
   const [paidUpfront, setPaidUpfront] = useState(false);
   const [notes, setNotes] = useState("");
-  const [showAddRow, setShowAddRow] = useState(false);
-  const [addRowKind, setAddRowKind] = useState("service");
 
-  // Mode-pick UI state
   const [catalogPackages, setCatalogPackages] = useState([]);
   const [catalogSearch, setCatalogSearch] = useState("");
 
-  // Submission
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
 
-  // ── Fetch catalog packages once ─────────────────────────────────────────────
+  // ── Catalog packages fetch (once) ───────────────────────────────────────────
   useEffect(() => {
     fetchCatalogPackages()
       .then(opts => setCatalogPackages(opts || []))
@@ -184,15 +197,25 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   useEffect(() => {
     if (isEdit) {
       setMode("service");
-      setName(editingPackage.customPackageName ?? editingPackage.displayName ?? "");
+      // Use customPackageName as-is; if absent the user can leave the field empty
+      // and the derived-name logic provides a sensible default on save.
+      setName(editingPackage.customPackageName ?? "");
       const items = Array.isArray(editingPackage.items) ? [...editingPackage.items].sort((a, b) => a.position - b.position) : [];
       setComposition(
         items.length > 0
-          ? items.map(it =>
-              it.serviceId || it.serviceOptionId
-                ? newServiceRow({ serviceId: it.serviceId ?? "", serviceOptionId: it.serviceOptionId ?? null, customName: it.serviceOptionName || it.serviceTitle || "" })
-                : newCustomRow({ customName: it.customName ?? "" }),
-            )
+          ? items.map(it => {
+              if (it.serviceId || it.serviceOptionId) {
+                const fullTitle = it.serviceOptionName
+                  ? `${it.serviceTitle ?? ""}${it.serviceTitle && it.serviceOptionName ? " · " : ""}${it.serviceOptionName ?? ""}`.trim()
+                  : (it.serviceTitle ?? "");
+                return newServiceRow({
+                  serviceId: it.serviceId ?? "",
+                  serviceOptionId: it.serviceOptionId ?? null,
+                  customName: fullTitle,
+                });
+              }
+              return newCustomRow({ customName: it.customName ?? "" });
+            })
           : [],
       );
       setTotalSessions(String(editingPackage.totalSessions ?? 1));
@@ -213,14 +236,12 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       setNotes("");
     }
     setCatalogSearch("");
-    setShowAddRow(false);
-    setAddRowKind("service");
     setSubmitted(false);
     setErrors({});
     setSubmitError("");
   }, [editingPackage, isEdit]);
 
-  // ── Mode switch resets form ────────────────────────────────────────────────
+  // Mode switch (create only) resets composition + derived defaults
   const switchMode = useCallback(next => {
     setMode(next);
     setName("");
@@ -230,13 +251,9 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     setSessionDurationMin(null);
     setPricePaid("");
     setCatalogSearch("");
-    setShowAddRow(false);
   }, []);
 
-  // ── "Da catalogo" pick ──────────────────────────────────────────────────────
-  // Look up the option's durationMin from the `services` catalog (PackageResponseDTO
-  // does not expose it). If not found, leave duration unset — the admin can still
-  // fill DurationField manually.
+  // ── Catalog mode pick (single-pick prefill, unchanged from Phase 4) ────────
   const handleCatalogPick = useCallback(
     opt => {
       const svc = services.find(s => String(s.serviceId) === String(opt.serviceId));
@@ -262,33 +279,63 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     [services],
   );
 
-  // ── "Da servizio" pick ──────────────────────────────────────────────────────
-  const handleServicePick = useCallback((svc, opt) => {
-    const title = opt ? `${svc.title} · ${opt.name}` : svc.title;
-    setName(prev => (prev ? prev : title));
-    setComposition(prev => [
-      ...prev,
-      newServiceRow({
-        serviceId: svc.serviceId,
-        serviceOptionId: opt ? (opt.optionId ?? opt.id) : null,
-        customName: title,
-      }),
-    ]);
+  // ── Service mode: toggle catalog row in composition ────────────────────────
+  const toggleServiceRow = useCallback((svc, opt) => {
+    const optId = opt ? (opt.optionId ?? opt.id) : null;
+    setComposition(prev => {
+      const idx = prev.findIndex(
+        r => r.kind === "service" && String(r.serviceId) === String(svc.serviceId) && String(r.serviceOptionId ?? "") === String(optId ?? ""),
+      );
+      if (idx >= 0) return prev.filter((_, i) => i !== idx);
+      return [
+        ...prev,
+        newServiceRow({
+          serviceId: svc.serviceId,
+          serviceOptionId: optId,
+          customName: opt ? `${svc.title} · ${opt.name}` : svc.title,
+        }),
+      ];
+    });
   }, []);
 
-  // ── Composition row helpers ────────────────────────────────────────────────
+  const addEmptyCustomRow = useCallback(() => {
+    setComposition(prev => [...prev, newCustomRow({ customName: "" })]);
+  }, []);
+
   const removeRow = useCallback(uid => setComposition(prev => prev.filter(r => r.uid !== uid)), []);
-  const addCustomRow = useCallback(name => {
-    setComposition(prev => [...prev, newCustomRow({ customName: name })]);
+  const updateCustomRow = useCallback((uid, customName) => {
+    setComposition(prev => prev.map(r => (r.uid === uid ? { ...r, customName } : r)));
   }, []);
-  const updateRow = useCallback((uid, patch) => {
-    setComposition(prev => prev.map(r => (r.uid === uid ? { ...r, ...patch } : r)));
-  }, []);
+
+  // ── Derived: selected keys for picker highlight ────────────────────────────
+  const selectedServiceKeys = useMemo(() => {
+    const set = new Set();
+    composition.forEach(r => {
+      if (r.kind === "service") set.add(serviceKey(r.serviceId, r.serviceOptionId));
+    });
+    return set;
+  }, [composition]);
+
+  // ── Derived: auto-name when exactly one row and name empty ─────────────────
+  // For a single-row composition the system can name the package after that row.
+  // For 2+ rows there is no sensible auto-name — the user must provide one
+  // (enforced by validation below).
+  const derivedName = useMemo(() => {
+    if (composition.length !== 1) return null;
+    const row = composition[0];
+    if (row.kind === "custom") return row.customName?.trim() || null;
+    if (row.customName) return row.customName;
+    const svc = services.find(s => String(s.serviceId) === String(row.serviceId));
+    if (!svc) return null;
+    if (row.serviceOptionId != null) {
+      const opts = svc.options || svc.serviceOptionList || svc.serviceOptions || [];
+      const opt = opts.find(o => String(o.optionId ?? o.id) === String(row.serviceOptionId));
+      return opt ? `${svc.title} · ${opt.name}` : svc.title;
+    }
+    return svc.title;
+  }, [composition, services]);
 
   // ── Price calc ──────────────────────────────────────────────────────────────
-  // Full catalog price = sum over non-custom rows. Use option.price when available,
-  // otherwise fall back to service.price. Only valid when every non-custom row
-  // contributes a numeric price.
   const fullPriceData = useMemo(() => {
     const serviceRows = composition.filter(r => r.kind === "service");
     if (serviceRows.length === 0) return null;
@@ -308,11 +355,8 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       } else {
         p = svc.price ?? null;
       }
-      if (p == null) {
-        allKnown = false;
-      } else {
-        total += Number(p);
-      }
+      if (p == null) allKnown = false;
+      else total += Number(p);
     }
     return allKnown && total > 0 ? { total, perSession: total / Math.max(1, Number(totalSessions) || 1) } : null;
   }, [composition, services, totalSessions]);
@@ -335,7 +379,6 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     [fullPriceData],
   );
 
-  // ── Sessions readout ────────────────────────────────────────────────────────
   const totalNum = parseInt(totalSessions, 10) || 0;
   const startNum = parseInt(startSession, 10) || 0;
   const doneFromStart = Math.max(0, startNum - 1);
@@ -345,11 +388,15 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   const validate = useCallback(() => {
     const errs = {};
     if (!customer?.fullName?.trim()) errs.customer = "Seleziona una cliente prima di creare un pacchetto.";
-    if (composition.length === 0) errs.composition = "Aggiungi almeno una riga di composizione.";
+    if (composition.length === 0) errs.composition = "Aggiungi almeno un servizio o una riga personalizzata.";
     composition.forEach(r => {
       if (r.kind === "service" && !r.serviceId) errs[r.uid] = "Servizio mancante";
       if (r.kind === "custom" && !r.customName.trim()) errs[r.uid] = "Nome obbligatorio";
     });
+    // Multi-row packages cannot be auto-named: require an explicit name
+    if (composition.length > 1 && !name.trim()) {
+      errs.name = "Dai un nome al pacchetto quando contiene più trattamenti.";
+    }
     const tn = parseInt(totalSessions, 10);
     if (!tn || tn < 1) errs.totalSessions = "Sedute totali ≥ 1";
     const sn = parseInt(startSession, 10);
@@ -360,15 +407,12 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     if (pricePaid !== "" && Number(pricePaid) < 0) errs.pricePaid = "Prezzo ≥ 0";
     setErrors(errs);
     return Object.keys(errs).length === 0;
-  }, [composition, totalSessions, startSession, pricePaid, customer, isEdit, completedOriginal]);
+  }, [composition, totalSessions, startSession, pricePaid, customer, isEdit, completedOriginal, name]);
 
-  // ── Payload builder ─────────────────────────────────────────────────────────
+  // ── Payload builder (contract unchanged) ───────────────────────────────────
   const buildPayload = useCallback(() => {
     const tn = parseInt(totalSessions, 10);
     const sn = parseInt(startSession, 10);
-    // For create: sessionsRemaining = totalSessions - (startSession - 1).
-    // For update: anchor on the ORIGINAL completed count so admin edits don't
-    // accidentally rewind sessions already burned via booking links.
     const sessionsRemaining = isEdit ? Math.max(0, tn - completedOriginal) : Math.max(0, tn - (sn - 1));
     return {
       clientName: customer.fullName.trim(),
@@ -391,7 +435,6 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     };
   }, [composition, customer, isEdit, completedOriginal, name, notes, paidUpfront, pricePaid, sessionDurationMin, startSession, totalSessions]);
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async e => {
     e.preventDefault();
     setSubmitted(true);
@@ -409,154 +452,123 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
   const filteredCatalog = useMemo(() => {
     const needle = catalogSearch.trim().toLowerCase();
     if (!needle) return catalogPackages;
-    return catalogPackages.filter(opt =>
-      (opt.optionName || "").toLowerCase().includes(needle) || (opt.serviceName || "").toLowerCase().includes(needle),
+    return catalogPackages.filter(
+      opt => (opt.optionName || "").toLowerCase().includes(needle) || (opt.serviceName || "").toLowerCase().includes(needle),
     );
   }, [catalogPackages, catalogSearch]);
 
+  // ── Render ──────────────────────────────────────────────────────────────────
+  // The "Nuovo / Modifica pacchetto" page-level heading lives in PackagesTab —
+  // intentionally NOT repeated here.
   return (
     <form onSubmit={handleSubmit} className="pkgf-form" noValidate>
-      <div className="pkgf-section">
-        <div className="pkgf-section__title">{isEdit ? "Modifica pacchetto" : "Nuovo pacchetto"}</div>
+      {/* Mode pills — create only */}
+      {!isEdit && (
+        <div className="nad-pkg-mode-toggle">
+          <button type="button" className={`nad-pkg-mode-pill${mode === "catalog" ? " is-active" : ""}`} onClick={() => switchMode("catalog")}>
+            Da catalogo
+          </button>
+          <button type="button" className={`nad-pkg-mode-pill${mode === "service" ? " is-active" : ""}`} onClick={() => switchMode("service")}>
+            Da servizio
+          </button>
+        </div>
+      )}
 
-        {/* Mode pills — only in create mode */}
-        {!isEdit && (
-          <div className="nad-pkg-mode-toggle">
-            <button type="button" className={`nad-pkg-mode-pill${mode === "catalog" ? " is-active" : ""}`} onClick={() => switchMode("catalog")}>
-              Da catalogo
-            </button>
-            <button type="button" className={`nad-pkg-mode-pill${mode === "service" ? " is-active" : ""}`} onClick={() => switchMode("service")}>
-              Da servizio
-            </button>
-            <button type="button" className={`nad-pkg-mode-pill${mode === "custom" ? " is-active" : ""}`} onClick={() => switchMode("custom")}>
-              Personalizzato
-            </button>
+      {/* Catalog mode: pre-built packages picker (single-pick prefill) */}
+      {!isEdit && mode === "catalog" && (
+        <div className="pkgf-section">
+          <input
+            type="text"
+            className="nad-form__input"
+            placeholder="Cerca pacchetto…"
+            value={catalogSearch}
+            onChange={e => setCatalogSearch(e.target.value)}
+          />
+          <div className="nad-pkg-list">
+            {filteredCatalog.length === 0 && <div className="nad-help">Nessun pacchetto a catalogo.</div>}
+            {filteredCatalog.map(opt => (
+              <button
+                key={opt.optionId}
+                type="button"
+                className={`nad-pkg-item${composition[0]?.serviceOptionId === opt.optionId ? " is-selected" : ""}`}
+                onClick={() => handleCatalogPick(opt)}
+              >
+                <span className="nad-pkg-item__name">
+                  {opt.optionName}
+                  {opt.serviceName ? ` · ${opt.serviceName}` : ""}
+                </span>
+                {opt.sessions != null && <span className="nad-pkg-item__sessions">{opt.sessions} sed.</span>}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Catalog picker — only in catalog create mode */}
-        {!isEdit && mode === "catalog" && (
-          <div className="pkgf-catalog">
-            <input
-              type="text"
-              className="nad-form__input"
-              placeholder="Cerca pacchetto…"
-              value={catalogSearch}
-              onChange={e => setCatalogSearch(e.target.value)}
-            />
-            <div className="nad-pkg-list">
-              {filteredCatalog.length === 0 && <div className="nad-help">Nessun pacchetto a catalogo.</div>}
-              {filteredCatalog.map(opt => (
-                <button
-                  key={opt.optionId}
-                  type="button"
-                  className={`nad-pkg-item${composition[0]?.serviceOptionId === opt.optionId ? " is-selected" : ""}`}
-                  onClick={() => handleCatalogPick(opt)}
-                >
-                  <span className="nad-pkg-item__name">
-                    {opt.optionName}
-                    {opt.serviceName ? ` · ${opt.serviceName}` : ""}
-                  </span>
-                  {opt.sessions != null && <span className="nad-pkg-item__sessions">{opt.sessions} sed.</span>}
-                </button>
-              ))}
+      {/* Service mode (and edit mode): full catalog multi-select + custom-row affordance */}
+      {(isEdit || mode === "service") && (
+        <div className="pkgf-section">
+          <ServicePicker services={services} selectedKeys={selectedServiceKeys} onPick={toggleServiceRow} />
+          <button type="button" className="nad-add-service" onClick={addEmptyCustomRow}>
+            + Riga personalizzata
+          </button>
+        </div>
+      )}
+
+      {/* Composition — visible whenever there's at least one row */}
+      {composition.length > 0 && (
+        <div className="pkgf-section">
+          <div className="pkgf-section__title">Composizione</div>
+          {composition.map((row, idx) => (
+            <div key={row.uid} className={`pkgf-row${submitted && errors[row.uid] ? " has-error" : ""}`}>
+              <span className="pkgf-row__index">{idx + 1}</span>
+              {row.kind === "service" ? (
+                <span className="pkgf-row__name">
+                  {row.customName || (() => {
+                    const svc = services.find(s => String(s.serviceId) === String(row.serviceId));
+                    return svc?.title ?? "Servizio";
+                  })()}
+                </span>
+              ) : (
+                <input
+                  type="text"
+                  className="nad-form__input pkgf-row__input"
+                  value={row.customName}
+                  onChange={e => updateCustomRow(row.uid, e.target.value)}
+                  placeholder="Trattamento personalizzato"
+                  maxLength={255}
+                />
+              )}
+              <button type="button" className="pkgf-row__remove" onClick={() => removeRow(row.uid)} aria-label="Rimuovi riga">
+                ✕
+              </button>
+              {submitted && errors[row.uid] && <span className="pkgf-row__error">{errors[row.uid]}</span>}
             </div>
-          </div>
-        )}
+          ))}
+        </div>
+      )}
 
-        {/* Name — always editable */}
+      {submitted && errors.composition && <div className="nad-field-error">{errors.composition}</div>}
+
+      {/* Name — always editable. Auto-derive when single row, required when multi-row. */}
+      <div className="pkgf-section">
         <div className="nad-form__row">
-          <label className="nad-form__label">Nome pacchetto</label>
+          <label className="nad-form__label">Nome pacchetto{composition.length > 1 ? " *" : ""}</label>
           <input
             type="text"
             className="nad-form__input"
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="Es. Pacchetto laser gambe"
+            placeholder={derivedName ? `${derivedName} (auto)` : "Es. Pacchetto laser gambe"}
             maxLength={255}
           />
+          {submitted && errors.name && <div className="nad-field-error">{errors.name}</div>}
+          {composition.length === 1 && !name.trim() && derivedName && (
+            <div className="nad-help">Lascia vuoto per usare «{derivedName}», oppure scrivine uno diverso.</div>
+          )}
         </div>
-      </div>
-
-      {/* Composition */}
-      <div className="pkgf-section">
-        <div className="pkgf-section__title">Composizione</div>
-        {composition.length === 0 && <div className="nad-help">Aggiungi almeno una riga.</div>}
-        {composition.map((row, idx) => (
-          <div key={row.uid} className={`pkgf-row${submitted && errors[row.uid] ? " has-error" : ""}`}>
-            <span className="pkgf-row__index">{idx + 1}</span>
-            {row.kind === "service" ? (
-              <span className="pkgf-row__name">
-                {row.customName || (() => {
-                  const svc = services.find(s => String(s.serviceId) === String(row.serviceId));
-                  return svc?.title ?? "Servizio";
-                })()}
-              </span>
-            ) : (
-              <input
-                type="text"
-                className="nad-form__input pkgf-row__input"
-                value={row.customName}
-                onChange={e => updateRow(row.uid, { customName: e.target.value })}
-                placeholder="Trattamento personalizzato"
-                maxLength={255}
-              />
-            )}
-            <button type="button" className="pkgf-row__remove" onClick={() => removeRow(row.uid)} aria-label="Rimuovi riga">
-              ✕
-            </button>
-            {submitted && errors[row.uid] && <span className="pkgf-row__error">{errors[row.uid]}</span>}
-          </div>
-        ))}
-
-        {!showAddRow ? (
-          <button type="button" className="nad-add-service" onClick={() => setShowAddRow(true)}>
-            + Aggiungi riga
-          </button>
-        ) : (
-          <div className="pkgf-add-row">
-            <div className="pkgf-add-row__pills">
-              <button
-                type="button"
-                className={`nad-pkg-mode-pill${addRowKind === "service" ? " is-active" : ""}`}
-                onClick={() => setAddRowKind("service")}
-              >
-                Da catalogo
-              </button>
-              <button
-                type="button"
-                className={`nad-pkg-mode-pill${addRowKind === "custom" ? " is-active" : ""}`}
-                onClick={() => setAddRowKind("custom")}
-              >
-                Personalizzato
-              </button>
-              <button type="button" className="pkgf-add-row__close" onClick={() => setShowAddRow(false)} aria-label="Chiudi">
-                ✕
-              </button>
-            </div>
-            {addRowKind === "service" ? (
-              <ServicePicker
-                services={services}
-                onPick={(svc, opt) => {
-                  handleServicePick(svc, opt);
-                  setShowAddRow(false);
-                }}
-              />
-            ) : (
-              <CustomRowInput
-                onAdd={n => {
-                  addCustomRow(n);
-                  setShowAddRow(false);
-                }}
-              />
-            )}
-          </div>
-        )}
-        {submitted && errors.composition && <div className="nad-field-error">{errors.composition}</div>}
       </div>
 
       {/* Sessions */}
@@ -682,33 +694,5 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         </button>
       </div>
     </form>
-  );
-}
-
-// ── CustomRowInput (helper) ───────────────────────────────────────────────────
-function CustomRowInput({ onAdd }) {
-  const [value, setValue] = useState("");
-  return (
-    <div className="pkgf-custom-input">
-      <input
-        type="text"
-        className="nad-form__input"
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        placeholder="Nome trattamento personalizzato"
-        maxLength={255}
-        autoFocus
-      />
-      <button
-        type="button"
-        className="nad-btn nad-btn--primary"
-        onClick={() => {
-          if (value.trim()) onAdd(value.trim());
-        }}
-        disabled={!value.trim()}
-      >
-        Aggiungi
-      </button>
-    </div>
   );
 }

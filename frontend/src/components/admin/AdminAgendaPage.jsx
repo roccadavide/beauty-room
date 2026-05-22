@@ -27,6 +27,9 @@ import DateTimeField from "../common/DateTimeField";
 import TimePicker from "../common/TimePicker";
 import SEO from "../common/SEO";
 import formatDuration from "../../utils/formatDuration";
+import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
+// pkgi-* classes for the collapsible package items toggle
+import "./PackageForm.css";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -606,6 +609,20 @@ export default function AdminAgendaPage() {
   const [newDrawerOpen, setNewDrawerOpen] = useState(false);
   const [editingPersonal, setEditingPersonal] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
+
+  // Per-booking expansion state for the package items collapsible inside the
+  // agenda card. Tapping the chevron toggles ONLY this set — the chevron's
+  // click/keyDown handlers stop propagation so the parent booking card never
+  // opens the edit drawer in the process.
+  const [expandedAgendaPkgs, setExpandedAgendaPkgs] = useState(() => new Set());
+  const toggleAgendaPkg = useCallback(bookingId => {
+    setExpandedAgendaPkgs(prev => {
+      const next = new Set(prev);
+      if (next.has(bookingId)) next.delete(bookingId);
+      else next.add(bookingId);
+      return next;
+    });
+  }, []);
 
   const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
@@ -1595,6 +1612,24 @@ export default function AdminAgendaPage() {
                                         : [];
                                     const sessionNum = b.currentSession ?? b.linkedPackage.sessionNumber;
                                     const totalSess = b.totalSessions;
+                                    const pkgItems = Array.isArray(b.linkedPackage.items)
+                                      ? [...b.linkedPackage.items].sort((x, y) => x.position - y.position)
+                                      : [];
+                                    const hasMultipleItems = pkgItems.length >= 2;
+                                    const isExpanded = expandedAgendaPkgs.has(b.bookingId);
+                                    // Chevron handlers MUST stop propagation — the surrounding
+                                    // booking card has its own click that opens the edit drawer.
+                                    const onChevronClick = e => {
+                                      e.stopPropagation();
+                                      toggleAgendaPkg(b.bookingId);
+                                    };
+                                    const onChevronKeyDown = e => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        toggleAgendaPkg(b.bookingId);
+                                      }
+                                    };
                                     return (
                                       <div className="ag-pkg-block">
                                         <div className="ag-pkg-block__header">
@@ -1609,7 +1644,28 @@ export default function AdminAgendaPage() {
                                               ⚠ Ultima
                                             </span>
                                           )}
+                                          {hasMultipleItems && (
+                                            <button
+                                              type="button"
+                                              className="pkgi-toggle"
+                                              aria-expanded={isExpanded}
+                                              onClick={onChevronClick}
+                                              onKeyDown={onChevronKeyDown}
+                                            >
+                                              <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
+                                              {pkgItems.length} trattamenti
+                                            </button>
+                                          )}
                                         </div>
+                                        {hasMultipleItems && isExpanded && (
+                                          <ul className="pkgi-list">
+                                            {pkgItems.map(it => (
+                                              <li key={`${b.bookingId}-${it.position}`} className="pkgi-list__item">
+                                                {formatPackageItemLabel(it)}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
                                         {extras.length > 0 && (
                                           <>
                                             <div className="ag-pkg-block__divider" />

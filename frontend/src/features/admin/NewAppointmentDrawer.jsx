@@ -4,6 +4,7 @@ import CustomerAutocomplete from "../../components/admin/CustomerAutocomplete";
 import DateTimeField from "../../components/common/DateTimeField";
 import TimePicker from "../../components/common/TimePicker";
 import formatDuration from "../../utils/formatDuration";
+import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
 import {
   cancelPackageAssignment,
   createMultiServiceBooking,
@@ -370,6 +371,21 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [deleteActivePkgId, setDeleteActivePkgId] = useState(null);
   const [deleteActivePkgName, setDeleteActivePkgName] = useState("");
 
+  // Collapsible per-package state. `expandedPkgIds` covers the "Pacchetti attivi"
+  // selection cards (one expanded chevron per id). `selectedPkgExpanded` is a
+  // single boolean for the package row inside "Servizi selezionati" since at
+  // most one package can be selected at a time.
+  const [expandedPkgIds, setExpandedPkgIds] = useState(() => new Set());
+  const [selectedPkgExpanded, setSelectedPkgExpanded] = useState(false);
+  const togglePkgExpansion = useCallback(id => {
+    setExpandedPkgIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   // ── Submission ────────────────────────────────────────────────────────────
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -533,11 +549,31 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
   };
 
-  // Load active package assignments when customer is identified
+  // Load active package assignments when customer is identified.
+  // UnifiedActivePackageDTO (from /customers/{id}/active-packages) does NOT carry
+  // composition items[] — we fetch ClientPackageAssignmentDTO[] by name in parallel
+  // and merge items[] into ADMIN-source rows so the collapsible can render them.
+  // The closure captures the customerName valid at customerId-change time; we do
+  // not re-fetch on every keystroke.
   useEffect(() => {
     if (customerId) {
-      getActivePackages(customerId)
-        .then(pkgs => setActivePackages(pkgs.filter(p => p.status === "ACTIVE")))
+      const name = customerName?.trim();
+      const adminByNameFetch = name ? getClientPackageAssignmentsByName(name).catch(() => []) : Promise.resolve([]);
+      Promise.all([getActivePackages(customerId), adminByNameFetch])
+        .then(([unified, admin]) => {
+          const adminById = new Map((admin || []).map(p => [String(p.id), p]));
+          setActivePackages(
+            (unified || [])
+              .filter(p => p.status === "ACTIVE")
+              .map(p => {
+                if (p.source === "ADMIN") {
+                  const detail = adminById.get(String(p.id));
+                  if (detail?.items) return { ...p, items: detail.items };
+                }
+                return p;
+              }),
+          );
+        })
         .catch(() => setActivePackages([]));
     } else {
       setActivePackages([]);
@@ -547,6 +583,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       //   - handleCustomerNameChange (admin types a different name)
       //   - handleCustomerSelect      (admin picks a different customer from autocomplete)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
   // Pre-fetch client packages in edit mode or duplicate mode.
@@ -999,6 +1036,22 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                     }
                     // Note: we no longer wipe selectedServices here — package and extras coexist.
                   };
+                  const items = Array.isArray(pkg.items) ? [...pkg.items].sort((a, b) => a.position - b.position) : [];
+                  const hasMultipleItems = items.length >= 2;
+                  const isExpanded = expandedPkgIds.has(pkg.id);
+                  // Chevron handlers must stop propagation so they never fire the parent's
+                  // select/deselect handler (click on card body / Enter on focused card).
+                  const onChevronClick = e => {
+                    e.stopPropagation();
+                    togglePkgExpansion(pkg.id);
+                  };
+                  const onChevronKeyDown = e => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      togglePkgExpansion(pkg.id);
+                    }
+                  };
                   return (
                     <div
                       key={pkg.id}
@@ -1017,6 +1070,29 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                           Seduta {sessionsUsed + 1}/{pkg.totalSessions}
                           {pkg.sessionsRemaining === 1 && <span style={{ color: "#fbbf24" }}> · ultima!</span>}
                         </div>
+                        {hasMultipleItems && (
+                          <>
+                            <button
+                              type="button"
+                              className="pkgi-toggle"
+                              aria-expanded={isExpanded}
+                              onClick={onChevronClick}
+                              onKeyDown={onChevronKeyDown}
+                            >
+                              <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
+                              {items.length} trattamenti
+                            </button>
+                            {isExpanded && (
+                              <ul className="pkgi-list">
+                                {items.map(it => (
+                                  <li key={it.id ?? it.position} className="pkgi-list__item">
+                                    {formatPackageItemLabel(it)}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </>
+                        )}
                       </div>
                       {!isOnline && (
                         <div className="ag-pkg-select-card__actions">
@@ -1195,16 +1271,30 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 defaultDur = defaultDur ?? 60;
                 const displayDur = packageDurationOverride ?? defaultDur;
                 const sessionNum = isEditMode && editBooking?.currentSession ? editBooking.currentSession : pkg.totalSessions - pkg.sessionsRemaining + 1;
+                const pkgItems = Array.isArray(pkg.items) ? [...pkg.items].sort((a, b) => a.position - b.position) : [];
+                const hasMultipleItems = pkgItems.length >= 2;
                 return (
                   <div
                     className="ag-selected-service-row"
-                    style={{ background: "rgba(184, 151, 106, 0.08)", borderLeft: "3px solid var(--card-gold, #b8976a)" }}
+                    style={{ background: "rgba(184, 151, 106, 0.08)", borderLeft: "3px solid var(--card-gold, #b8976a)", flexWrap: "wrap" }}
                   >
                     <span className="ag-selected-service-row__name">
                       📦 {pkg.displayName || pkg.serviceTitle || "Pacchetto"}
                       <span className="ag-pkg-session-badge" style={{ marginLeft: 8 }}>
                         Seduta {sessionNum}/{pkg.totalSessions}
                       </span>
+                      {hasMultipleItems && (
+                        <button
+                          type="button"
+                          className="pkgi-toggle"
+                          aria-expanded={selectedPkgExpanded}
+                          onClick={() => setSelectedPkgExpanded(v => !v)}
+                          style={{ marginLeft: 8 }}
+                        >
+                          <span className={`pkgi-toggle__chevron${selectedPkgExpanded ? " is-expanded" : ""}`}>▸</span>
+                          {pkgItems.length} trattamenti
+                        </button>
+                      )}
                     </span>
                     {editingPackageDuration ? (
                       <input
@@ -1255,6 +1345,15 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       >
                         ✕
                       </button>
+                    )}
+                    {hasMultipleItems && selectedPkgExpanded && (
+                      <ul className="pkgi-list">
+                        {pkgItems.map(it => (
+                          <li key={it.id ?? it.position} className="pkgi-list__item">
+                            {formatPackageItemLabel(it)}
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
                 );

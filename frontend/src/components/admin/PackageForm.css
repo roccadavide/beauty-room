@@ -358,3 +358,70 @@
   background: #fef0f0;
   border-color: #e8b0a8;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Package items collapsible (prefix: .pkgi-)
+   Reused by AppointmentForm "Pacchetti attivi" cards, the selected-package row
+   in "Servizi selezionati", and the AdminAgendaPage booking card.
+   PackagesTab keeps its existing always-expanded list (.pkgt-card__items) —
+   that view is a management surface, not a calendar surface.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pkgi-toggle {
+  background: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-top: 4px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #9a7a50;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: background 0.13s ease, color 0.13s ease;
+  /* Generous tap target for touch (Michela works on tablet) */
+  min-height: 32px;
+  align-self: flex-start;
+}
+
+.pkgi-toggle:hover {
+  background: rgba(184, 151, 106, 0.1);
+  color: #5a4030;
+}
+
+.pkgi-toggle:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+.pkgi-toggle__chevron {
+  display: inline-block;
+  transition: transform 0.18s ease;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.pkgi-toggle__chevron.is-expanded {
+  transform: rotate(90deg);
+}
+
+.pkgi-list {
+  list-style: none;
+  margin: 6px 0 2px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.pkgi-list__item {
+  font-size: 0.82rem;
+  color: #6c6c6c;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid #e8d8c0;
+  line-height: 1.35;
+}
