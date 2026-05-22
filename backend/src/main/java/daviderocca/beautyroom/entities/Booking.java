@@ -161,6 +161,14 @@ public class Booking {
     @Column(name = "custom_service_price", precision = 10, scale = 2)
     private BigDecimal customServicePrice;
 
+    // Per-custom-service duration (V61, Phase 6e). The frontend always sent it
+    // on create; before V61 it wasn't persisted and the response builder
+    // inferred it as (total − catalog sum), which inflated when packages were
+    // also linked → custom duration doubled on every edit. NULL on pre-V61
+    // rows; the builder falls back to the legacy inference for those.
+    @Column(name = "custom_service_duration_min")
+    private Integer customServiceDurationMin;
+
     // Session tracking (e.g. "session 2 of 6")
     @Column(name = "current_session")
     private Integer currentSession;

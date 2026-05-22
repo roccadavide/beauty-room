@@ -1765,8 +1765,13 @@ export default function AdminAgendaPage() {
                                       ? [b.linkedPackage]
                                       : [];
                                   const services = Array.isArray(b.services) && b.services.length > 0 ? b.services : [];
+                                  // Phase 6e Bug 2: a custom service is a first-class entry in the
+                                  // unified list. Previously the linkedPackages branch returned
+                                  // before reaching the custom fallback, so a package+custom
+                                  // booking dropped the custom from the card entirely.
+                                  const hasCustom = !!(b.isCustomService && b.customServiceName);
 
-                                  if (itemPkgs.length > 0 || services.length > 0) {
+                                  if (itemPkgs.length > 0 || services.length > 0 || hasCustom) {
                                     // Filter out catalog services whose name duplicates a package
                                     // label (legacy collision avoidance — pre-Phase-4 bookings
                                     // sometimes carry the package's own service as a "duplicate"
@@ -1863,6 +1868,17 @@ export default function AdminAgendaPage() {
                                             <span className="ag-svc-entries__name">{label}</span>
                                           </div>
                                         ))}
+                                        {/* Phase 6e Bug 2: custom service as a normal entry —
+                                            same typography, no 📦, no badge. Placed last so
+                                            packages → catalog extras → custom is the consistent
+                                            order across packaged AND package-less bookings. */}
+                                        {hasCustom && (
+                                          <div className="ag-svc-entries__row" key="custom">
+                                            <span className="ag-svc-entries__name">
+                                              <em>{b.customServiceName}</em>
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   }
@@ -1871,12 +1887,6 @@ export default function AdminAgendaPage() {
                                       <span className="ag-service">
                                         {b.serviceTitle}
                                         {b.optionName ? ` · ${b.optionName}` : ""}
-                                      </span>
-                                    );
-                                  if (b.isCustomService && b.customServiceName)
-                                    return (
-                                      <span className="ag-service">
-                                        <em>{b.customServiceName}</em>
                                       </span>
                                     );
                                   return <span className="ag-service">—</span>;

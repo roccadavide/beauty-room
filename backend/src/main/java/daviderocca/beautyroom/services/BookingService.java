@@ -575,6 +575,9 @@ public class BookingService {
             booking.setCustomService(true);
             booking.setCustomServiceName(dto.customServiceName().trim());
             booking.setCustomServicePrice(dto.customServicePrice());
+            // Phase 6e (V61): persist the per-custom-service duration so the
+            // response can return it verbatim instead of inferring from total.
+            booking.setCustomServiceDurationMin(dto.customServiceDurationMinutes());
         }
 
         booking.setDurationMinutes(totalDuration);
@@ -1490,10 +1493,15 @@ public class BookingService {
         if (hasCustom) {
             found.setCustomServiceName(dto.customServiceName().trim());
             found.setCustomServicePrice(dto.customServicePrice());
+            // Phase 6e (V61): keep the persisted custom duration in step with the
+            // incoming payload. Without this the column stays stale across edits
+            // and the response would fall through to the legacy inference.
+            found.setCustomServiceDurationMin(dto.customServiceDurationMinutes());
         } else if (hasCatalog) {
             // Switching from custom to catalog — clear stale custom fields
             found.setCustomServiceName(null);
             found.setCustomServicePrice(null);
+            found.setCustomServiceDurationMin(null);
         }
 
         found.setNotes(dto.notes());
@@ -1901,13 +1909,21 @@ public class BookingService {
             log.warn("Could not resolve linkedPackages for booking {}: {}", b.getBookingId(), e.getMessage());
         }
 
-        // Custom service duration: compute as total duration minus catalog services' sum.
-        // This is exact for custom-only bookings and a best-effort approximation for mixed ones.
+        // Custom service duration. Phase 6e (V61) added a persisted column on the
+        // booking — when present we return it verbatim (eliminates the Phase 6e
+        // Bug 1 "every edit doubles the duration" loop, which was caused by the
+        // legacy total-minus-catalog inference not subtracting linked-package
+        // contributions). Pre-V61 rows have NULL → fall back to the legacy
+        // best-effort inference so they still render plausibly.
         Integer customServiceDurationMinutes = null;
         if (b.isCustomService()) {
-            int catalogTotal = b.getServices().stream().mapToInt(ServiceItem::getDurationMin).sum();
-            int raw = (b.getDurationMinutes() != null ? b.getDurationMinutes() : 0) - catalogTotal;
-            customServiceDurationMinutes = raw > 0 ? raw : (b.getDurationMinutes() != null ? b.getDurationMinutes() : 60);
+            if (b.getCustomServiceDurationMin() != null && b.getCustomServiceDurationMin() > 0) {
+                customServiceDurationMinutes = b.getCustomServiceDurationMin();
+            } else {
+                int catalogTotal = b.getServices().stream().mapToInt(ServiceItem::getDurationMin).sum();
+                int raw = (b.getDurationMinutes() != null ? b.getDurationMinutes() : 0) - catalogTotal;
+                customServiceDurationMinutes = raw > 0 ? raw : (b.getDurationMinutes() != null ? b.getDurationMinutes() : 60);
+            }
         }
 
         boolean paidOnline = b.getStripeSessionId() != null && !b.isPaidInStore();

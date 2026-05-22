@@ -54,6 +54,11 @@ class BookingServiceTest {
     private BookingPackageLinkRepository bookingPackageLinkRepository;
     @Mock
     private ClientPackageService clientPackageService;
+    // Added as a final dependency of BookingService by the closure feature work
+    // (commits before Phase 6e). Without mocking it createManualBooking ... NPEs
+    // on closureService.assertNoOverlappingClosure(...). Pure test-infra fix.
+    @Mock
+    private daviderocca.beautyroom.services.ClosureService closureService;
 
     @InjectMocks
     private BookingService bookingService;
