@@ -253,6 +253,21 @@ export const deleteClosure = async id => {
   }
 };
 
+/**
+ * Returns the count + light list of active bookings that overlap a (proposed
+ * or existing) closure range. Informational only — never blocks saving.
+ * Backend: POST /closures/preview → { overlappingBookingsCount, overlappingBookings: [...] }
+ */
+export const previewClosureConflicts = async payload => {
+  try {
+    const { data } = await http.post(`${CLOSURE_ENDPOINTS.BASE}/preview`, payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile verificare i conflitti.";
+    throw new Error(message);
+  }
+};
+
 /* ================= WORKING HOURS (ADMIN) ================= */
 export const getWorkingHoursAll = async () => {
   try {
