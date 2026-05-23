@@ -1,48 +1,41 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import "./TimePicker.css";
 
-const ITEM_H  = 44;
+const ITEM_H = 44;
 const VISIBLE = 5;
-const PAD     = Math.floor(VISIBLE / 2) * ITEM_H; // 88px top/bottom spacer
+const PAD = Math.floor(VISIBLE / 2) * ITEM_H; // 88px top/bottom spacer
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function initTime(value, minuteStep) {
   if (value && /^\d{2}:\d{2}$/.test(value)) return value;
-  const now  = new Date();
-  const h    = String(now.getHours()).padStart(2, "0");
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, "0");
   const rawM = now.getMinutes();
   const rounded = Math.round(rawM / minuteStep) * minuteStep;
-  const m    = String(rounded >= 60 ? 60 - minuteStep : rounded).padStart(2, "0");
+  const m = String(rounded >= 60 ? 60 - minuteStep : rounded).padStart(2, "0");
   return `${h}:${m}`;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TimePicker({ value, onChange, minuteStep = 5, label, className }) {
-  const hours = useMemo(
-    () => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")),
-    [],
-  );
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")), []);
 
-  const minutes = useMemo(
-    () => Array.from({ length: Math.floor(60 / minuteStep) }, (_, i) =>
-      String(i * minuteStep).padStart(2, "0")),
-    [minuteStep],
-  );
+  const minutes = useMemo(() => Array.from({ length: Math.floor(60 / minuteStep) }, (_, i) => String(i * minuteStep).padStart(2, "0")), [minuteStep]);
 
   // ── Single source of truth ────────────────────────────────────────────────
   // internalValue: always a valid "HH:mm" string — drums and confirm read from this
   // inputText:     what the keyboard input shows — may be a partial string mid-typing
   const [internalValue, setInternalValue] = useState(() => initTime(value, minuteStep));
-  const [inputText,     setInputText]     = useState(() => initTime(value, minuteStep));
-  const [open,          setOpen]          = useState(false);
+  const [inputText, setInputText] = useState(() => initTime(value, minuteStep));
+  const [open, setOpen] = useState(false);
 
-  const containerRef      = useRef(null);
-  const hourColRef        = useRef(null);
-  const minColRef         = useRef(null);
+  const containerRef = useRef(null);
+  const hourColRef = useRef(null);
+  const minColRef = useRef(null);
   const hourScrollTimeout = useRef(null);
-  const minScrollTimeout  = useRef(null);
+  const minScrollTimeout = useRef(null);
 
   // ── Close on outside click ────────────────────────────────────────────────
   useEffect(() => {
@@ -60,7 +53,7 @@ export default function TimePicker({ value, onChange, minuteStep = 5, label, cla
       setInternalValue(value);
       setInputText(value);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   // ── Sync drums whenever internalValue or open changes ────────────────────
@@ -104,10 +97,13 @@ export default function TimePicker({ value, onChange, minuteStep = 5, label, cla
   }, [open]);
 
   // ── Scroll timeout cleanup on unmount ─────────────────────────────────────
-  useEffect(() => () => {
-    clearTimeout(hourScrollTimeout.current);
-    clearTimeout(minScrollTimeout.current);
-  }, []);
+  useEffect(
+    () => () => {
+      clearTimeout(hourScrollTimeout.current);
+      clearTimeout(minScrollTimeout.current);
+    },
+    [],
+  );
 
   // ── Drum scroll handlers ──────────────────────────────────────────────────
   const handleHourScroll = useCallback(() => {
@@ -116,7 +112,7 @@ export default function TimePicker({ value, onChange, minuteStep = 5, label, cla
       if (!hourColRef.current) return;
       const idx = Math.max(0, Math.min(23, Math.round(hourColRef.current.scrollTop / ITEM_H)));
       hourColRef.current.scrollTop = idx * ITEM_H; // snap to exact position
-      const h   = String(idx).padStart(2, "0");
+      const h = String(idx).padStart(2, "0");
       setInternalValue(prev => {
         const currentM = prev.split(":")[1] ?? "00";
         const next = `${h}:${currentM}`;
@@ -131,9 +127,9 @@ export default function TimePicker({ value, onChange, minuteStep = 5, label, cla
     minScrollTimeout.current = setTimeout(() => {
       if (!minColRef.current) return;
       const maxIdx = Math.floor(60 / minuteStep) - 1;
-      const idx    = Math.max(0, Math.min(maxIdx, Math.round(minColRef.current.scrollTop / ITEM_H)));
+      const idx = Math.max(0, Math.min(maxIdx, Math.round(minColRef.current.scrollTop / ITEM_H)));
       minColRef.current.scrollTop = idx * ITEM_H; // snap to exact position
-      const m   = String(idx * minuteStep).padStart(2, "0");
+      const m = String(idx * minuteStep).padStart(2, "0");
       setInternalValue(prev => {
         const currentH = prev.split(":")[0] ?? "00";
         const next = `${currentH}:${m}`;
@@ -146,18 +142,26 @@ export default function TimePicker({ value, onChange, minuteStep = 5, label, cla
   // ── Derived selected indices for CSS highlight ────────────────────────────
   const { hourIdx, minIdx } = useMemo(() => {
     const [hStr = "0", mStr = "0"] = internalValue.split(":");
-    const h  = Math.max(0, Math.min(parseInt(hStr, 10) || 0, 23));
-    const m  = parseInt(mStr, 10) || 0;
+    const h = Math.max(0, Math.min(parseInt(hStr, 10) || 0, 23));
+    const m = parseInt(mStr, 10) || 0;
     const mI = minutes.indexOf(String(m).padStart(2, "0"));
     return { hourIdx: h, minIdx: mI >= 0 ? mI : 0 };
   }, [internalValue, minutes]);
 
   // ── Keyboard input handler ────────────────────────────────────────────────
   const handleKeyboardInput = e => {
-    let v = e.target.value.replace(/[^0-9:]/g, "");
-    if (/^\d{2}$/.test(v)) v = v + ":";  // auto-insert colon after 2 digits
+    const raw = e.target.value;
+    const digits = raw.replace(/\D/g, "").slice(0, 4); // solo cifre, max 4
+    const isDeleting = raw.length < inputText.length;
+
+    let v = digits;
+    if (digits.length > 2) {
+      v = digits.slice(0, 2) + ":" + digits.slice(2); // 3ª cifra → minuti
+    } else if (digits.length === 2 && !isDeleting) {
+      v = digits + ":"; // colon dopo 2 cifre
+    }
     setInputText(v);
-    // Update drums only when fully valid
+
     if (/^\d{2}:\d{2}$/.test(v)) {
       const [h, m] = v.split(":").map(Number);
       if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
@@ -185,33 +189,16 @@ export default function TimePicker({ value, onChange, minuteStep = 5, label, cla
       {label && <div className="tp-label">{label}</div>}
 
       {/* Collapsed trigger */}
-      <div
-        className={`tp-trigger${open ? " is-open" : ""}`}
-        onClick={handleOpen}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === "Enter" && handleOpen()}
-      >
+      <div className={`tp-trigger${open ? " is-open" : ""}`} onClick={handleOpen} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && handleOpen()}>
         <span className="tp-trigger__icon">🕐</span>
-        {value
-          ? <span className="tp-trigger__value">{value}</span>
-          : <span className="tp-trigger__placeholder">— : —</span>
-        }
+        {value ? <span className="tp-trigger__value">{value}</span> : <span className="tp-trigger__placeholder">— : —</span>}
         <span className="tp-trigger__arrow">▾</span>
       </div>
 
       {/* Expanded panel */}
       {open && (
         <div className="tp-panel">
-          <input
-            type="text"
-            className="tp-keyboard-input"
-            value={inputText}
-            onChange={handleKeyboardInput}
-            placeholder="09:00"
-            maxLength={5}
-            autoFocus
-          />
+          <input type="text" className="tp-keyboard-input" value={inputText} onChange={handleKeyboardInput} placeholder="09:00" maxLength={5} />
 
           <div className="tp-drum">
             <div className="tp-col-wrap">
