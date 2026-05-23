@@ -1,27 +1,15 @@
 import { Fragment, useRef, useEffect, useState } from "react";
 import { Container, Button } from "react-bootstrap";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { animate, splitText, stagger } from "animejs";
 
 const MotionDiv = motion.div;
 const MotionH1 = motion.h1;
 const MotionP = motion.p;
-const MotionImg = motion.img;
 
 /* Parole chiave statiche — sostituiscono il vecchio marquee scorrevole. */
 const KEYWORDS = ["Laser", "Permanent Make-Up", "Estetica Avanzata"];
-
-/* ── Spinta su Michela — punto d'arrivo della "camera" ──────────────
-   Mentre il contenuto crema sfuma, la foto fa pan + zoom per
-   ri-centrare e avvicinare Michela. VALORI DA TARARE per breakpoint
-   sulla foto reale (Sprint 2): scale = zoom finale, x/y = pan in px. */
-const PUSH = {
-  desktop: { scale: 1.3, x: -90, y: 22 },
-  mobile: { scale: 1.22, x: -30, y: 14 },
-};
-
-const HERO_MOBILE_BP = 768;
 
 /* L'app è "visibile" quando lo splash-screen di index.html è sparito. */
 function appIsReady() {
@@ -33,8 +21,6 @@ function appIsReady() {
   if (splash.classList.contains("splash-hidden")) return true;
   return false;
 }
-
-const getIsMobile = () => typeof window !== "undefined" && window.innerWidth < HERO_MOBILE_BP;
 
 export default function HeroSection({
   title = "La Bellezza\nÈ Un'Arte",
@@ -51,7 +37,6 @@ export default function HeroSection({
   imgAlt = "Michela — Beauty Room, centro estetico a Calusco d'Adda",
 }) {
   const reduce = useReducedMotion();
-  const sceneRef = useRef(null);
   const titleRef = useRef(null);
   const dustRef = useRef(null);
   const hasAnimated = useRef(false);
@@ -60,7 +45,6 @@ export default function HeroSection({
      Le animazioni d'INGRESSO partono solo quando lo splash è sparito.
      Aurora, polvere e shimmer NON sono gated: sono loop ambientali. */
   const [ready, setReady] = useState(appIsReady);
-  const [isMobile, setIsMobile] = useState(getIsMobile);
 
   useEffect(() => {
     if (ready) return;
@@ -91,51 +75,6 @@ export default function HeroSection({
       clearTimeout(fallback);
     };
   }, [ready]);
-
-  // Larghezza viewport → scelta dei valori di spinta + (CSS) lunghezza binario.
-  useEffect(() => {
-    const handler = () => setIsMobile(getIsMobile());
-    handler();
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-
-  /* ── Scroll della scena ───────────────────────────────────────────
-     Il target è il BINARIO alto (.hero-scene), non la section: la hero
-     resta pinnata e il progress 0→1 copre l'intero binario. */
-  const { scrollYProgress } = useScroll({
-    target: sceneRef,
-    offset: ["start start", "end start"],
-  });
-
-  const push = isMobile ? PUSH.mobile : PUSH.desktop;
-
-  // Spinta su Michela: pan + zoom convergente, conclusa entro il 46%.
-  const photoScale = useTransform(scrollYProgress, [0, 0.46], [1, reduce ? 1 : push.scale]);
-  const photoX = useTransform(scrollYProgress, [0, 0.46], [0, reduce ? 0 : push.x]);
-  const photoY = useTransform(scrollYProgress, [0, 0.46], [0, reduce ? 0 : push.y]);
-  // Velo scuro: luce di sera, non notte piena — Michela resta leggibile.
-  const photoDarken = useTransform(scrollYProgress, [0.1, 0.46], [0, reduce ? 0 : 0.52]);
-  // Contenuto crema: si solleva e sfuma presto, dentro la fase di pin.
-  const contentOpacity = useTransform(scrollYProgress, [0, 0.28], [1, 0]);
-  const contentY = useTransform(scrollYProgress, [0, 0.34], [0, reduce ? 0 : -80]);
-  // Filo conduttore: l'ultimo residuo di luce dorata della hero.
-  const threadOpacity = useTransform(scrollYProgress, [0.55, 0.92], [0, reduce ? 0 : 1]);
-
-  const fadeUp = {
-    hidden: { opacity: 0, y: reduce ? 0 : 20 },
-    visible: (i = 0) => ({
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.6, delay: 0.09 * i, ease: [0.22, 0.61, 0.36, 1] },
-    }),
-  };
-
-  // Titolo: solo opacità. Lo scorrimento dei caratteri lo fa anime.js.
-  const titleReveal = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { duration: 0.4 } },
-  };
 
   /* ── anime.js — split caratteri SOLO sul titolo, dopo il gate ────── */
   useEffect(() => {
@@ -291,33 +230,41 @@ export default function HeroSection({
   const titleLines = title.split("\n");
   const animState = ready ? "visible" : "hidden";
 
+  const fadeUp = {
+    hidden: { opacity: 0, y: reduce ? 0 : 20 },
+    visible: (i = 0) => ({
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.6, delay: 0.09 * i, ease: [0.22, 0.61, 0.36, 1] },
+    }),
+  };
+
+  // Titolo: solo opacità. Lo scorrimento dei caratteri lo fa anime.js.
+  const titleReveal = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { duration: 0.4 } },
+  };
+
   return (
-    <div ref={sceneRef} className="hero-scene">
+    <div className="hero-scene">
       <div className="hero-sticky">
         <section className={`hero-section${ready ? " hero-ready" : ""}`}>
-          {/* Foto di sfondo — Ken Burns sul frame, spinta (pan+zoom) sull'img */}
+          {/* Foto di sfondo — Ken Burns sul frame (CSS) */}
           <div className="hero-photo-frame">
             <picture>
               <source srcSet={imgAvif} type="image/avif" />
               <source srcSet={imgWebp} type="image/webp" />
-              <MotionImg
-                src={imgJpg}
-                alt={imgAlt}
-                className="hero-media"
-                decoding="async"
-                fetchPriority="high"
-                style={reduce ? {} : { scale: photoScale, x: photoX, y: photoY }}
-              />
+              <img src={imgJpg} alt={imgAlt} className="hero-media" decoding="async" fetchPriority="high" />
             </picture>
           </div>
 
           {/* Vignettatura calda in alto */}
           <div className="hero-overlay" aria-hidden="true" />
 
-          {/* Velo crema — mobile: sfuma dal basso · tablet+: pannello sinistro */}
+          {/* Velo crema */}
           <div className="hero-gradient-veil" aria-hidden="true" />
 
-          {/* Aurora — 7 luci di colore distinte sparse su tutta la zona crema */}
+          {/* Aurora */}
           <div className="hero-fx-layer hero-aurora" aria-hidden="true">
             <span className="hero-aurora-blob hero-aurora-blob--1" />
             <span className="hero-aurora-blob hero-aurora-blob--2" />
@@ -331,21 +278,18 @@ export default function HeroSection({
           {/* Polvere di luce — granelli d'oro che cadono dall'alto (canvas) */}
           <canvas ref={dustRef} className="hero-fx-layer hero-dust" aria-hidden="true" />
 
-          {/* Shimmer del pannello — scia di luce dorata che lo attraversa */}
+          {/* Shimmer del pannello */}
           <div className="hero-fx-layer hero-shimmer" aria-hidden="true" />
 
-          {/* Sfumatura inferiore — chiude la hero su crema (tablet+) */}
+          {/* Sfumatura inferiore */}
           <div className="hero-base-fade" aria-hidden="true" />
 
-          {/* Velo di scurimento — la hero "va a riposo" mentre la card sale */}
-          <MotionDiv className="hero-photo-darken" aria-hidden="true" style={reduce ? {} : { opacity: photoDarken }} />
-
-          {/* Filo conduttore — l'ultimo filo di luce dorata della hero */}
-          <MotionDiv className="hero-thread" aria-hidden="true" style={reduce ? {} : { opacity: threadOpacity }} />
+          {/* Faretto morbido — valorizza Michela al centro */}
+          <div className="hero-spotlight" aria-hidden="true" />
 
           {/* Contenuto */}
           <Container fluid className="hero-inner">
-            <MotionDiv className="hero-text-panel" style={reduce ? {} : { opacity: contentOpacity, y: contentY }}>
+            <div className="hero-text-panel">
               <MotionDiv className="hero-eyebrow" variants={fadeUp} initial="hidden" animate={animState} custom={0}>
                 <span className="hero-eyebrow-mark" aria-hidden="true">
                   ✦
@@ -405,7 +349,7 @@ export default function HeroSection({
                   </Fragment>
                 ))}
               </MotionDiv>
-            </MotionDiv>
+            </div>
           </Container>
 
           {/* Pill località — solo desktop */}

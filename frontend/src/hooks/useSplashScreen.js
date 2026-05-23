@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export function useSplashScreen() {
+  const [splashDone, setSplashDone] = useState(false);
+
   useEffect(() => {
     const minDelay = new Promise(resolve => setTimeout(resolve, 2000));
     const fontsReady = document.fonts.ready;
@@ -17,6 +19,10 @@ export function useSplashScreen() {
       if (root) {
         root.classList.add("app-visible");
       }
+
+      setSplashDone(true);
     });
   }, []);
+
+  return splashDone;
 }

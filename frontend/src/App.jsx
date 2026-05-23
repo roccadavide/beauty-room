@@ -5,7 +5,6 @@ import { useDispatch } from "react-redux";
 
 import AboutSection from "./features/about/AboutSection";
 import Footer from "./components/layout/Footer";
-import HeroSection from "./components/layout/HeroSection";
 import PageTransition from "./components/common/PageTransition";
 import AcademySection from "./components/layout/AcademySection";
 import TestimonialsSection from "./components/layout/TestimonialsSection";
@@ -20,9 +19,10 @@ import Toaster from "./components/feedback/Toaster";
 import { clearAccessToken } from "./utils/token";
 import { logoutUser } from "./api/modules/auth.api";
 import Map from "./components/layout/Map";
-import LaserSection from "./components/laser/LaserSection";
 import ScrollVelocity from "./components/common/ScrollVelocity";
 import SEO from "./components/common/SEO";
+import HeroSection from "./components/layout/HeroSection";
+import LaserSection from "./components/laser/LaserSection";
 
 const ProductsPage = lazy(() => import("./features/products/ProductsPage"));
 const ProductDetail = lazy(() => import("./features/products/ProductDetails"));
@@ -126,6 +126,8 @@ function App() {
   }, []);
 
   const isHeroPage = location.pathname === "/";
+
+  const splashDone = useSplashScreen();
 
   const handleExitComplete = () => {
     const lenis = window.__lenis;

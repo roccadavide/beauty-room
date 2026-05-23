@@ -13,8 +13,14 @@ const LASER_SERVICE_UUID = "ea41a8cd-bfec-49d3-bfa4-206c297ecd9d";
 // (i breakpoint mobile della LaserSection restano intatti).
 const MOBILE_BP = 725;
 
-// Progresso di scroll oltre il quale la card è "in posizione" → innesco fascio.
-const BEAM_IGNITE_AT = 0.8;
+// Lunghezza verticale del fascio: cresce dal manipolo verso il basso man
+// mano che la sezione entra. min = stub iniziale al manipolo · max = pieno.
+// STEP = quantizzazione → limita i re-render di LaserFlow. TARARE su device.
+const BEAM_LEN_MIN = 0.35;
+const BEAM_LEN_MAX = 2.1;
+const BEAM_LEN_STEP = 0.08;
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 const getFog = () => {
   if (typeof window === "undefined") return 2.1;
@@ -32,13 +38,15 @@ export default function LaserSection() {
   const sectionRef = useRef(null);
   const cardRef = useRef(null);
   const stripRef = useRef(null);
-  const litRef = useRef(false);
   const navigate = useNavigate();
 
   const [fogValue, setFogValue] = useState(getFog);
   const [isMobile, setIsMobile] = useState(getIsMobile);
-  // Innesco fascio: one-shot, parte spento. In reduced-motion è già acceso.
-  const [beamLit, setBeamLit] = useState(false);
+  // Montaggio differito di LaserFlow: lo shader WebGL si compila a
+  // pagina ferma (idle), NON al primo paint → niente scatto iniziale.
+  const [showBeam, setShowBeam] = useState(false);
+  // Lunghezza del fascio, pilotata dallo scroll (quantizzata).
+  const [beamLen, setBeamLen] = useState(reduce ? BEAM_LEN_MAX : BEAM_LEN_MIN);
 
   // Un solo listener resize: aggiorna fog e flag mobile insieme.
   useEffect(() => {
@@ -51,36 +59,49 @@ export default function LaserSection() {
     return () => window.removeEventListener("resize", handler);
   }, []);
 
-  // Reduced-motion: il fascio è acceso da subito, niente innesco animato.
+  // Montaggio differito: durante un momento di idle dopo il load
+  // (fallback a timeout dove requestIdleCallback non esiste).
   useEffect(() => {
-    if (reduce) {
-      litRef.current = true;
-      setBeamLit(true);
+    let idleId;
+    let timeoutId;
+    const mount = () => setShowBeam(true);
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(mount, { timeout: 2500 });
+    } else {
+      timeoutId = setTimeout(mount, 1800);
     }
+    return () => {
+      if (idleId && window.cancelIdleCallback) window.cancelIdleCallback(idleId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
+
+  // Reduced-motion: fascio a piena lunghezza da subito.
+  useEffect(() => {
+    if (reduce) setBeamLen(BEAM_LEN_MAX);
   }, [reduce]);
 
-  /* ── Scroll della sezione — pilota l'ingresso "in scena" della card ──
-     offset: progress 0 = bordo alto sezione al fondo viewport;
-             progress 1 = bordo alto al 30% dell'altezza viewport. */
+  /* ── Scroll della sezione — pilota l'ingresso della card e la
+     crescita del fascio. offset: progress 0 = bordo alto al fondo
+     viewport; progress 1 = bordo alto al 16% dell'altezza viewport. */
   const { scrollYProgress } = useScroll({
     target: sectionRef,
-    offset: ["start end", "start 30%"],
+    offset: ["start end", "start 16%"],
   });
 
-  // La card scura "sale a salutarti": risale, scala e proietta
-  // un'ombra calda crescente verso l'alto.
-  const cardY = useTransform(scrollYProgress, [0, 1], [110, 0]);
-  const cardScale = useTransform(scrollYProgress, [0, 1], [0.93, 1]);
+  // La card "sale a salutarti": parte più in basso e più piccola
+  // (effetto risalita marcato), poi si assesta in posizione.
+  const cardY = useTransform(scrollYProgress, [0, 1], [200, 0]);
+  const cardScale = useTransform(scrollYProgress, [0, 1], [0.86, 1]);
   const cardShadow = useTransform(scrollYProgress, [0.05, 0.85], ["0px 0px 0px 0px rgba(184, 151, 106, 0)", "0px -22px 60px -14px rgba(184, 151, 106, 0.4)"]);
 
-  // Innesco fascio: ONE-SHOT quando la card raggiunge la posizione.
-  // Slegato dallo scroll → l'accensione ha un suo ritmo e non si perde
-  // nemmeno scrollando veloce. Vale anche su mobile.
+  // Fascio laser: la lunghezza verticale cresce dal manipolo verso il
+  // basso mentre scendi. Quantizzato per limitare i re-render di LaserFlow.
   useMotionValueEvent(scrollYProgress, "change", v => {
-    if (!litRef.current && v >= BEAM_IGNITE_AT) {
-      litRef.current = true;
-      setBeamLit(true);
-    }
+    if (reduce) return;
+    const raw = BEAM_LEN_MIN + clamp(v, 0, 1) * (BEAM_LEN_MAX - BEAM_LEN_MIN);
+    const q = Math.round(raw / BEAM_LEN_STEP) * BEAM_LEN_STEP;
+    setBeamLen(prev => (Math.abs(prev - q) > 1e-4 ? q : prev));
   });
 
   // Scena scroll attiva solo su desktop/tablet con animazioni consentite.
@@ -134,30 +155,28 @@ export default function LaserSection() {
     <section ref={sectionRef} className="laser-section">
       <Container className="d-flex justify-content-center align-items-center">
         <MotionDiv ref={cardRef} className="laser-card-wrapper" style={cardStyle}>
-          {/* Filo conduttore — filamento d'oro sul bordo della card,
-              raccorda con .hero-thread; flare all'innesco del fascio */}
-          <div className={`laser-card-thread${beamLit ? " laser-card-thread--lit" : ""}`} aria-hidden="true" />
-
           <div className="laser-card laser-card--dark">
-            {/* WebGL beam — spento finché la card non è in scena (innesco one-shot) */}
-            <div className={`laser-fx${beamLit ? " laser-fx--lit" : ""}`} aria-hidden="true">
+            {/* WebGL beam — montato in differita; la lunghezza cresce con lo scroll */}
+            <div className="laser-fx" aria-hidden="true">
               <div className="laser-fx-inner">
-                <LaserFlow
-                  background="#2F2723"
-                  color="#FFD7A1"
-                  horizontalBeamOffset={0.25}
-                  verticalBeamOffset={-0.3}
-                  wispDensity={5.0}
-                  wispSpeed={2.8}
-                  wispIntensity={6.5}
-                  flowSpeed={0.85}
-                  flowStrength={0.18}
-                  fogIntensity={fogValue}
-                  fogScale={0.11}
-                  decay={2.8}
-                  verticalSizing={2.1}
-                  horizontalSizing={0.5}
-                />
+                {showBeam && (
+                  <LaserFlow
+                    background="#2F2723"
+                    color="#FFD7A1"
+                    horizontalBeamOffset={0.25}
+                    verticalBeamOffset={-0.3}
+                    wispDensity={5.0}
+                    wispSpeed={2.8}
+                    wispIntensity={6.5}
+                    flowSpeed={0.85}
+                    flowStrength={0.18}
+                    fogIntensity={fogValue}
+                    fogScale={0.11}
+                    decay={2.8}
+                    verticalSizing={beamLen}
+                    horizontalSizing={0.5}
+                  />
+                )}
               </div>
             </div>
 
