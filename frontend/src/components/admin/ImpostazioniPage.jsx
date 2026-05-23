@@ -3,6 +3,7 @@ import { Container } from "react-bootstrap";
 import * as api from "../../api/modules/impostazioni.api";
 import { fetchCancellationPolicy, patchCancellationHoursLimit } from "../../api/modules/users.api";
 import SEO from "../common/SEO";
+import DateTimeField from "../common/DateTimeField";
 
 /* ============================================================
    CONSTANTS
