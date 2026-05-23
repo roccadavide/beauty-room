@@ -1959,7 +1959,7 @@ function PersonalForm({ selectedDate, editingPersonal, onPersonalSaved, onClose 
           <DateTimeField label="Data *" mode="date" value={apptDate} onChange={v => setApptDate(v)} />
         </div>
         <div>
-          <DateTimeField label="Ora inizio *" mode="time" value={startTime} onChange={v => setStartTime(v)} />
+          <TimePicker label="Ora inizio *" value={startTime} onChange={v => setStartTime(v)} />
         </div>
       </div>
 
