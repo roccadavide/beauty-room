@@ -783,7 +783,9 @@
   color: #2e2118;
 }
 .pd-footer {
-  padding: 1rem 1.5rem;
+  /* padding-bottom respects the iOS home indicator (viewport-fit=cover):
+     contains the primary "Prenota" CTA. */
+  padding: 1rem 1.5rem max(1rem, env(safe-area-inset-bottom));
   border-top: 1px solid rgba(184, 151, 106, 0.15);
   display: flex;
   flex-direction: column;

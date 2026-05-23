@@ -64,7 +64,10 @@
     right: 0;
     bottom: 0;
     width: 100%;
-    max-height: 92dvh;
+    /* min(dvh, --app-dvh) — fallback for iOS/iPad Safari, which sometimes
+       fails to recompute dvh after the body scroll-lock applied on open.
+       --app-dvh is published by useLenis from visualViewport.height. */
+    max-height: min(92dvh, calc(var(--app-dvh, 100vh) * 0.92));
     border-radius: 20px 20px 0 0; /* rounded top corners, flush bottom */
     box-shadow: 0 -4px 32px rgba(90, 60, 20, 0.18);
     transform: translateY(100%); /* hidden: off-screen below viewport */
@@ -164,10 +167,12 @@
 }
 
 /* ── Content area ─────────────────────────────────────────────────────────── */
+/* padding-bottom respects the iOS home indicator (viewport-fit=cover).
+   NAD has no sticky footer — the CTA lives inside this scroll area. */
 .nad-content {
   flex: 1;
   min-height: 0;
-  padding: 24px 20px;
+  padding: 24px 20px max(24px, env(safe-area-inset-bottom));
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;

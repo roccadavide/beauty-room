@@ -52,7 +52,9 @@
     right: 0;
     bottom: 0;
     width: 100%;
-    max-height: 92dvh;
+    /* min(dvh, --app-dvh): same iOS/iPad Safari fallback used by .ud-panel
+       and .nad-drawer (see useLenis.js for --app-dvh publisher). */
+    max-height: min(92dvh, calc(var(--app-dvh, 100vh) * 0.92));
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -4px 32px rgba(90, 60, 20, 0.18);
     transform: translateY(100%);
@@ -99,10 +101,11 @@
 }
 
 /* ── Content (single scrolling column) ────────────────────────────────────── */
+/* padding-bottom respects the iOS home indicator (viewport-fit=cover). */
 .cld-content {
   flex: 1;
   min-height: 0;
-  padding: 22px 20px 32px;
+  padding: 22px 20px max(32px, env(safe-area-inset-bottom));
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;

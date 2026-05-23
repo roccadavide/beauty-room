@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import useLenisModalLock from "../../hooks/useLenisModalLock";
 import PromoCountdown from "./PromoCountdown";
 
 const getDiscountLabel = promo => {
@@ -43,6 +44,9 @@ export default function PromoDetailDrawer({
   showCancelBanner = false,
 }) {
   const navigate = useNavigate();
+  // Lock Lenis while the drawer is open: previously the page kept scrolling
+  // underneath because this drawer never registered a lock.
+  useLenisModalLock(show);
   const isExpired = promo?.endDate && new Date(promo.endDate) < new Date();
   const discount = getDiscountLabel(promo);
 

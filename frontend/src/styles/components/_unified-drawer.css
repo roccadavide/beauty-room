@@ -67,12 +67,15 @@
 }
 
 /* Bottom sheet (mobile <768px) */
+/* Height uses min(dvh, --app-dvh) so iOS Safari, which sometimes fails
+   to recompute dvh after a body scroll-lock, falls back to the JS-driven
+   --app-dvh published by useLenis. */
 .ud-panel--sheet {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 92dvh;
-  max-height: 92dvh;
+  height: min(92dvh, calc(var(--app-dvh, 100vh) * 0.92));
+  max-height: min(92dvh, calc(var(--app-dvh, 100vh) * 0.92));
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 40px rgba(46, 33, 24, 0.18);
   transform: translateY(100%);
@@ -150,11 +153,14 @@
 }
 
 /* ── Body ── */
+/* padding-bottom protects content that ends without a sticky footer
+   (e.g. step screens whose CTA lives inside the scroll area) from being
+   covered by the iOS home indicator under viewport-fit=cover. */
 .ud-body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 1.5rem 1.75rem;
+  padding: 1.5rem 1.75rem max(1.5rem, env(safe-area-inset-bottom));
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -163,7 +169,7 @@
 
 /* ── Footer ── */
 .ud-footer {
-  padding: 1rem 1.75rem 1.5rem;
+  padding: 1rem 1.75rem max(1.5rem, env(safe-area-inset-bottom));
   border-top: 1px solid rgba(180, 148, 106, 0.18);
   background: #fffdf8;
   flex-shrink: 0;

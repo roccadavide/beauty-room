@@ -291,6 +291,8 @@
   flex-direction: column;
   /* bordo oro sottile sul lato destro */
   border-right: 1px solid rgba(212, 175, 55, 0.18);
+  /* Respect iOS home indicator (viewport-fit=cover). */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .mobile-drawer.open {

@@ -2005,7 +2005,8 @@ body.modal-open {
 /* ── Snackbar (undo delete) ── */
 .ag-snackbar {
   position: fixed;
-  bottom: 24px;
+  /* iOS home indicator (viewport-fit=cover). */
+  bottom: max(24px, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   background: #6f4a2f;
@@ -2062,7 +2063,7 @@ body.modal-open {
 
 @media (max-width: 767px) {
   .ag-snackbar {
-    bottom: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom));
     left: 16px;
     right: 16px;
     transform: none;
@@ -3488,7 +3489,8 @@ body.modal-open {
 .ag-page--has-compact .ag-fab-container {
   display: flex;
   position: fixed;
-  bottom: 20px;
+  /* iOS home indicator (viewport-fit=cover): keep the FAB above the home bar. */
+  bottom: max(20px, env(safe-area-inset-bottom));
   right: 20px;
   z-index: 100;
   flex-direction: column-reverse;
@@ -3549,9 +3551,11 @@ body.modal-open {
   border-color: rgba(111, 74, 47, 0.2);
 }
 
-/* Lift FAB above the undo-delete snackbar when it appears */
+/* Lift FAB above the undo-delete snackbar when it appears.
+   The 54px gap above the snackbar grows by env(safe-area-inset-bottom)
+   so the relationship "FAB sits clear of snackbar + home bar" holds on iOS. */
 .ag-page--has-compact:has(.ag-snackbar) .ag-fab-container {
-  bottom: 78px;
+  bottom: max(78px, calc(54px + env(safe-area-inset-bottom)));
 }
 
 /* ── Width-scoped overrides ────────────────────────────────── */

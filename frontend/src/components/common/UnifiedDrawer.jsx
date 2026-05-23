@@ -78,21 +78,26 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // VisualViewport: shift bottom-sheet above keyboard (mobile)
+  // VisualViewport: shift bottom-sheet above keyboard (mobile).
+  // Threshold distinguishes a real virtual keyboard from the browser's
+  // address-bar/toolbar (which can also reduce visualViewport.height by
+  // 40–160 px and previously caused the drawer to lift, leaving a gap
+  // at the bottom).
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport || isDesktop) return;
     const vv = window.visualViewport;
+    const KEYBOARD_THRESHOLD_PX = 180;
     const adjust = () => {
-      if (panelRef.current) {
-        const offsetBottom = window.innerHeight - (vv.offsetTop + vv.height);
-        panelRef.current.style.bottom = `${Math.max(0, offsetBottom)}px`;
-      }
+      if (!panelRef.current) return;
+      const offsetBottom = window.innerHeight - (vv.offsetTop + vv.height);
+      panelRef.current.style.bottom = offsetBottom >= KEYBOARD_THRESHOLD_PX ? `${offsetBottom}px` : "";
     };
     vv.addEventListener("resize", adjust);
     vv.addEventListener("scroll", adjust);
     return () => {
       vv.removeEventListener("resize", adjust);
       vv.removeEventListener("scroll", adjust);
+      if (panelRef.current) panelRef.current.style.bottom = "";
     };
   }, [isDesktop]);
 
