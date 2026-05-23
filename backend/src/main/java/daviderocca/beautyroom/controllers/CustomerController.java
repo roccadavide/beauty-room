@@ -78,6 +78,7 @@ public class CustomerController {
                 a.serviceOptionId(),
                 a.totalSessions(),
                 a.sessionsRemaining(),
+                a.sessionDurationMin(),
                 a.status().name(),
                 "ADMIN",
                 a.clientName(),
@@ -102,6 +103,7 @@ public class CustomerController {
                     pc.getServiceOption() != null ? pc.getServiceOption().getOptionId() : null,
                     pc.getSessionsTotal(),
                     pc.getSessionsRemaining(),
+                    null,
                     pc.getStatus().name(),
                     "ONLINE",
                     null, null, null, null, null

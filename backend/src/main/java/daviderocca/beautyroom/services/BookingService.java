@@ -513,6 +513,13 @@ public class BookingService {
             if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
             if (hasPkg) {
                 for (ClientPackageAssignment a : assignments) {
+                    // Prefer the package's own per-session override when present and positive;
+                    // only fall back to the option-then-service chain when it is null/non-positive.
+                    Integer pkgSessionDuration = a.getSessionDurationMin();
+                    if (pkgSessionDuration != null && pkgSessionDuration > 0) {
+                        totalDuration += pkgSessionDuration;
+                        continue;
+                    }
                     if (a.getServiceOption() == null) continue;
                     ServiceOption pkgOption = a.getServiceOption();
                     Integer optDuration = pkgOption.getDurationMin();
