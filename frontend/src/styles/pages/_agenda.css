@@ -1070,8 +1070,9 @@ body.modal-open {
 }
 
 /* IMPORTANT: qui non “rimpiccioliamo” a caso: usiamo l’algoritmo bootstrap */
+/* DEAD CSS — no JSX references .ag-modal-dialog; conversion has no runtime effect. */
 .ag-modal-dialog.modal-dialog-scrollable {
-  height: calc(100vh - 2rem);
+  height: calc(100dvh - 2rem);
 }
 .ag-modal-dialog .modal-content {
   max-height: 100%;
@@ -1152,13 +1153,15 @@ body.modal-open {
   opacity: 1;
 }
 
+/* DEAD CSS — no JSX references .ag-dialog-panel (NAD uses .nad-drawer).
+   Conversion is cosmetic, no runtime effect. */
 .ag-dialog-panel {
   position: relative;
   background: #fff;
   color: var(--ag-text);
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
+  max-height: 100dvh;
   pointer-events: auto;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1190,9 +1193,10 @@ body.modal-open {
   }
 }
 
+/* DEAD CSS — see .ag-dialog-panel note above. */
 .ag-dialog-panel--sheet {
   width: 100%;
-  max-height: 85vh;
+  max-height: 85dvh;
   margin-top: auto;
   border-radius: 18px 18px 0 0;
   box-shadow: 0 -10px 24px rgba(35, 26, 20, 0.18);
@@ -2087,7 +2091,9 @@ body.modal-open {
     font-size: 0.72rem;
   }
   .ag-week {
-    max-height: calc(100vh - 140px);
+    /* svh keeps row heights stable while the mobile browser bars
+       hide/show: avoids reflow during calendar reading. */
+    max-height: calc(100svh - 140px);
   }
 }
 
@@ -2142,7 +2148,8 @@ body.modal-open {
 .ag-week {
   overflow-x: auto;
   overflow-y: auto;
-  max-height: calc(100vh - 180px);
+  /* svh: stable across browser-bar retraction (see decision 6a). */
+  max-height: calc(100svh - 180px);
   border-radius: 12px;
   border: 1px solid var(--ag-border);
   background: var(--ag-card2);

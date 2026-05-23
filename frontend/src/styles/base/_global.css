@@ -95,7 +95,7 @@ a:hover {
 }
 
 .container-base {
-  min-height: 85vh;
+  min-height: 85dvh;
   display: flex;
   justify-content: center;
   align-items: center;

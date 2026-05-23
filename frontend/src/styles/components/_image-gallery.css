@@ -169,7 +169,7 @@
 
 .ig-lightbox__img-wrap img {
   max-width: 90vw;
-  max-height: 85vh;
+  max-height: 85dvh;
   object-fit: contain;
   border-radius: 12px;
   display: block;

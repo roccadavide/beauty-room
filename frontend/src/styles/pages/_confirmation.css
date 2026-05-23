@@ -6,7 +6,7 @@
 
 /* ── Page wrapper ── */
 .conf-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: #fffdf8;
   padding-top: 4.5rem;
 }

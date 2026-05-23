@@ -1,5 +1,5 @@
 .register-page {
-  min-height: calc(95vh - var(--nav-current, 72px));
+  min-height: calc(95dvh - var(--nav-current, 72px));
   display: flex;
   flex-direction: column;
   align-items: center;

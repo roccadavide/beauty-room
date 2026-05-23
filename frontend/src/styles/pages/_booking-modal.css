@@ -28,13 +28,15 @@
   opacity: 1;
 }
 
+/* DEAD CSS — no JSX references .bm-panel (BookingModal migrated to UnifiedDrawer).
+   Kept here in a consistent state; conversion has no runtime effect. */
 .bm-panel {
   position: fixed;
   background: #fffdf8;
   color: #2e2118;
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
+  max-height: 100dvh;
   pointer-events: auto;
   transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
 }

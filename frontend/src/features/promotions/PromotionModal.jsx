@@ -191,7 +191,7 @@ const PromotionModal = ({ show, onHide, onSaved, products, services, promotion }
       <Modal.Body
         data-lenis-prevent
         style={{
-          maxHeight: "80vh",
+          maxHeight: "80dvh",
           overflowY: "auto",
           overscrollBehavior: "contain",
         }}

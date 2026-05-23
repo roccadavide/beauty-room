@@ -4,7 +4,7 @@
 ───────────────────────────────────────── */
 
 .nf-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 100px 0 60px;
   background: #fffdf8;
 }

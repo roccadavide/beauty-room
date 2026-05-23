@@ -68,7 +68,7 @@ export default function WaitlistPage() {
         description="Sei in lista d'attesa per un trattamento di Beauty Room. Ti contatteremo appena si libera uno slot."
         noindex={true}
       />
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60dvh" }}>
         <div style={{ textAlign: "center" }}>
           <Spinner animation="border" style={{ color: "#b8976a" }} />
           <p style={{ color: "#8d6e63", marginTop: "1rem", fontFamily: "Georgia, serif" }}>Preparazione prenotazione…</p>

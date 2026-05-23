@@ -38,12 +38,12 @@
 .results-root {
   background: var(--results-bg);
   color: var(--results-text);
-  min-height: 100vh;
+  min-height: 100dvh;
   padding-bottom: 6rem;
 }
 
 .rp-loading {
-  min-height: 60vh;
+  min-height: 60dvh;
   display: flex;
   align-items: center;
   justify-content: center;

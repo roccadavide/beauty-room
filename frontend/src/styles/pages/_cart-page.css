@@ -2,13 +2,13 @@
 
 .cart-page {
   padding: 4rem 0 5rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: #fffdf8;
 }
 
 .cart-empty-page {
   padding: 9rem 0 6rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: #fffdf8;
   display: flex;
   align-items: center;

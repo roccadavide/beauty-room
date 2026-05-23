@@ -3,7 +3,7 @@
 .product-detail {
   background: linear-gradient(180deg, #fffdf8 0%, #fef7ef 60%, #fffaf5 100%);
   padding: 1.5rem 0 0;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .detail-info {

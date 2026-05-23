@@ -2,7 +2,7 @@
 
 .mo-page {
   padding: 7rem 0 5rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: #fffdf8;
 }
 
@@ -277,7 +277,7 @@
 /* ── ALL ORDERS admin ── */
 .ao-page {
   padding: 7rem 0 5rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: #fffdf8;
 }
 

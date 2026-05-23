@@ -230,7 +230,7 @@ function OccasioniPage() {
   if (isLoading) return <OccasioniPageSkeleton />;
 
   return (
-    <Container fluid className="py-4 px-3 px-md-4" style={{ background: "#fffdf8", minHeight: "80vh" }}>
+    <Container fluid className="py-4 px-3 px-md-4" style={{ background: "#fffdf8", minHeight: "80dvh" }}>
       <SEO title="Occasioni" description="Promozioni e offerte speciali su trattamenti laser ed estetica avanzata a Calusco d'Adda." />
       {/* HEAD */}
       <div className="text-center mb-4">
