@@ -585,6 +585,8 @@ public class BookingService {
             // Phase 6e (V61): persist the per-custom-service duration so the
             // response can return it verbatim instead of inferring from total.
             booking.setCustomServiceDurationMin(dto.customServiceDurationMinutes());
+            // V62: per-line paid for the custom service line.
+            booking.setCustomServicePaid(Boolean.TRUE.equals(dto.customServicePaid()));
         }
 
         booking.setDurationMinutes(totalDuration);
@@ -623,14 +625,16 @@ public class BookingService {
                 saved.getBookingId(), totalDuration, catalogServices.size(), hasCustom, hasPkg);
 
         // ── Step 5b: persist per-service option_id in booking_services ───────
+        // V62: also persist bs.paid (mirror existing override pattern exactly —
+        // booking_services has no JPA entity, so we drive it via native INSERT).
         if (useEntries) {
             entityManager.flush(); // ensure booking row is committed before FK insert
             List<ServiceEntryDTO> entries = dto.serviceEntries();
             for (int i = 0; i < entries.size(); i++) {
                 ServiceEntryDTO e = entries.get(i);
                 entityManager.createNativeQuery("""
-                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order, override_duration_min, price_override)
-                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder, :overrideDurationMin, :priceOverride)
+                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order, override_duration_min, price_override, paid)
+                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder, :overrideDurationMin, :priceOverride, :paid)
                         """)
                         .setParameter("bookingId", saved.getBookingId())
                         .setParameter("serviceId", e.serviceId())
@@ -638,6 +642,7 @@ public class BookingService {
                         .setParameter("sortOrder", i + 1)
                         .setParameter("overrideDurationMin", e.overrideDurationMin())
                         .setParameter("priceOverride", e.prezzoOverride())
+                        .setParameter("paid", Boolean.TRUE.equals(e.paid()))
                         .executeUpdate();
             }
         }
@@ -693,6 +698,9 @@ public class BookingService {
                 pkgLink.setAssignment(a);
                 pkgLink.setSessionNumber(newSessionNumber);
                 pkgLink.setSessionTrackedAtCreation(true);
+                // V62: per-session paid. Locked packages (paidUpfront) skip this:
+                // the upfront flag is authoritative, the map value is ignored.
+                pkgLink.setPaid(resolveLinkPaid(dto.packageSessionPaid(), a));
                 bookingPackageLinkRepository.save(pkgLink);
 
                 a.setSessionsRemaining(newRemaining);
@@ -808,6 +816,8 @@ public class BookingService {
             pkgLink.setAssignment(pkg);
             pkgLink.setSessionNumber(dto.currentSession());
             pkgLink.setSessionTrackedAtCreation(true);
+            // V62: same per-session paid resolution as CASE C.
+            pkgLink.setPaid(resolveLinkPaid(dto.packageSessionPaid(), pkg));
             bookingPackageLinkRepository.save(pkgLink);
 
             saved.setCurrentSession(dto.currentSession());
@@ -1504,11 +1514,14 @@ public class BookingService {
             // incoming payload. Without this the column stays stale across edits
             // and the response would fall through to the legacy inference.
             found.setCustomServiceDurationMin(dto.customServiceDurationMinutes());
+            // V62: per-line paid for the custom service line.
+            found.setCustomServicePaid(Boolean.TRUE.equals(dto.customServicePaid()));
         } else if (hasCatalog) {
             // Switching from custom to catalog — clear stale custom fields
             found.setCustomServiceName(null);
             found.setCustomServicePrice(null);
             found.setCustomServiceDurationMin(null);
+            found.setCustomServicePaid(false);
         }
 
         found.setNotes(dto.notes());
@@ -1531,14 +1544,15 @@ public class BookingService {
         Booking updated = bookingRepository.save(found);
 
         // Persist per-service option_id: flush JPA deletes first, then re-insert with option_id
+        // V62: also persist bs.paid (mirror the create path exactly).
         if (useEntries && hasCatalog) {
             entityManager.flush();
             List<ServiceEntryDTO> entries = dto.serviceEntries();
             for (int i = 0; i < entries.size(); i++) {
                 ServiceEntryDTO e = entries.get(i);
                 entityManager.createNativeQuery("""
-                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order, override_duration_min, price_override)
-                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder, :overrideDurationMin, :priceOverride)
+                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order, override_duration_min, price_override, paid)
+                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder, :overrideDurationMin, :priceOverride, :paid)
                         """)
                         .setParameter("bookingId", updated.getBookingId())
                         .setParameter("serviceId", e.serviceId())
@@ -1546,6 +1560,7 @@ public class BookingService {
                         .setParameter("sortOrder", i + 1)
                         .setParameter("overrideDurationMin", e.overrideDurationMin())
                         .setParameter("priceOverride", e.prezzoOverride())
+                        .setParameter("paid", Boolean.TRUE.equals(e.paid()))
                         .executeUpdate();
             }
         }
@@ -1601,8 +1616,31 @@ public class BookingService {
                 pkgLink.setAssignment(a);
                 pkgLink.setSessionNumber(sessionsUsedBefore + 1);
                 pkgLink.setSessionTrackedAtCreation(true);
+                // V62: per-session paid for newly-added link.
+                pkgLink.setPaid(resolveLinkPaid(dto.packageSessionPaid(), a));
                 bookingPackageLinkRepository.save(pkgLink);
                 // No inline-decrement: recalculatePackageSessions below is canonical.
+            }
+        }
+
+        // V62: for links that survived the diff (existed before + still requested),
+        // apply paid from the payload map so toggling "Pagato" on an existing
+        // session persists without having to drop and re-create the link.
+        if (dto.packageSessionPaid() != null && !dto.packageSessionPaid().isEmpty()) {
+            java.util.Set<UUID> idsToSync = new java.util.HashSet<>(requestedAssignmentIdSet);
+            idsToSync.retainAll(existingAssignmentIdSet);
+            if (!idsToSync.isEmpty()) {
+                List<BookingPackageLink> survivors = bookingPackageLinkRepository
+                        .findAllByBookingBookingIdWithAssignment(bookingId);
+                for (BookingPackageLink lnk : survivors) {
+                    UUID aid = lnk.getAssignment().getId();
+                    if (!idsToSync.contains(aid)) continue;
+                    boolean newPaid = resolveLinkPaid(dto.packageSessionPaid(), lnk.getAssignment());
+                    if (lnk.isPaid() != newPaid) {
+                        lnk.setPaid(newPaid);
+                        bookingPackageLinkRepository.save(lnk);
+                    }
+                }
             }
         }
 
@@ -1853,14 +1891,17 @@ public class BookingService {
             serviceId = b.getServices().get(0).getServiceId();
         }
 
-        // Fetch services with per-entry option_id from booking_services join table
+        // Fetch services with per-entry option_id from booking_services join table.
+        // V62: bs.paid is the per-line settled flag — surfaced in ServiceSummaryDTO
+        // and consumed by the agenda for incasso stimato and per-line badges.
         @SuppressWarnings("unchecked")
         List<Object[]> svcRows = entityManager.createNativeQuery("""
                 SELECT bs.service_id, s.title,
                        COALESCE(bs.override_duration_min, so.duration_min, s.duration_min) AS duration_min,
                        COALESCE(bs.price_override, so.price, s.price) AS price,
                        bs.option_id, so.name AS option_name,
-                       bs.override_duration_min, bs.price_override
+                       bs.override_duration_min, bs.price_override,
+                       bs.paid
                 FROM booking_services bs
                 JOIN services s ON s.service_id = bs.service_id
                 LEFT JOIN service_options so ON so.option_id = bs.option_id
@@ -1875,6 +1916,7 @@ public class BookingService {
                     UUID oId = r[4] == null ? null : (r[4] instanceof UUID u ? u : UUID.fromString(r[4].toString()));
                     Integer overrideDur = r[6] != null ? ((Number) r[6]).intValue() : null;
                     BigDecimal priceOvr = r[7] instanceof BigDecimal bd ? bd : (r[7] != null ? new BigDecimal(r[7].toString()) : null);
+                    boolean paid = r[8] != null && (Boolean) r[8];
                     return new ServiceSummaryDTO(
                             sId,
                             (String) r[1],
@@ -1883,7 +1925,8 @@ public class BookingService {
                             oId,
                             (String) r[5],
                             overrideDur,
-                            priceOvr
+                            priceOvr,
+                            paid
                     );
                 })
                 .toList();
@@ -1908,7 +1951,7 @@ public class BookingService {
                 if (first.getSessionNumber() > 0) linkSessionNumber = first.getSessionNumber();
                 linkTotalSessions = first.getAssignment().getTotalSessions();
                 linkedPkgs = links.stream()
-                        .map(l -> buildPackageSummary(l.getAssignment(), l.getSessionNumber()))
+                        .map(this::buildPackageSummary)
                         .toList();
                 linkedPkg = linkedPkgs.get(0);
             }
@@ -1976,6 +2019,7 @@ public class BookingService {
                 linkedPkg,
                 linkedPkgs,
                 b.isPaidInStore(),
+                b.isCustomServicePaid(),
                 b.getPaidAt(),
                 paidOnline,
                 refundable,
@@ -2066,11 +2110,11 @@ public class BookingService {
      * the per-session price reported to the agenda is zero — so paid-upfront
      * sessions don't double-count in the day's estimated revenue KPI.
      * <p>
-     * {@code sessionNumber} comes from the link row (this booking's position in
-     * the package), not from the assignment itself — different links on the same
-     * assignment carry different session numbers.
+     * The link carries this booking's session position AND (V62) the per-session
+     * paid flag — different links on the same assignment can be paid independently.
      */
-    private PackageSummaryDTO buildPackageSummary(ClientPackageAssignment a, int sessionNumber) {
+    private PackageSummaryDTO buildPackageSummary(BookingPackageLink link) {
+        ClientPackageAssignment a = link.getAssignment();
         ServiceItem pkgSvc = a.getService() != null
                 ? a.getService()
                 : (a.getServiceOption() != null ? a.getServiceOption().getService() : null);
@@ -2086,18 +2130,35 @@ public class BookingService {
         } else {
             pkgName = "Trattamento";
         }
-        BigDecimal sessionPrice = a.isPaidUpfront()
+        boolean paidLocked = a.isPaidUpfront();
+        boolean paid = paidLocked || link.isPaid();
+        BigDecimal sessionPrice = paidLocked
                 ? BigDecimal.ZERO
                 : clientPackageService.computeSessionPrice(a);
         return new PackageSummaryDTO(
                 a.getId(),
                 pkgName,
-                sessionNumber,
+                link.getSessionNumber(),
                 a.getTotalSessions(),
                 a.getSessionsRemaining(),
                 sessionPrice,
                 a.isPaidUpfront(),
-                clientPackageService.mapItemsToSummary(a));
+                clientPackageService.mapItemsToSummary(a),
+                paid,
+                paidLocked,
+                a.getNotes());
+    }
+
+    /**
+     * V62: resolves the paid flag for a per-session BookingPackageLink from the
+     * admin payload's packageSessionPaid map. Locked packages (paidUpfront) are
+     * always treated as settled — the map value is ignored to keep the upfront
+     * flag authoritative.
+     */
+    private boolean resolveLinkPaid(java.util.Map<UUID, Boolean> map, ClientPackageAssignment a) {
+        if (a.isPaidUpfront()) return true;
+        if (map == null) return false;
+        return Boolean.TRUE.equals(map.get(a.getId()));
     }
 
     private boolean isAdmin(User user) {
@@ -2113,8 +2174,12 @@ public class BookingService {
     }
 
     private BookingResponseDTO convertToDTO(Booking booking) {
+        // ServiceSummaryDTO here is built from the JPA-managed list, which is empty on
+        // the entries path (booking_services is populated by native INSERT). Per-line
+        // paid is therefore not surfaced through this response — the agenda fetches
+        // toAdminCard separately and that path reads bs.paid from the join table.
         List<ServiceSummaryDTO> services = booking.getServices().stream()
-                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice(), null, null, null, null))
+                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice(), null, null, null, null, false))
                 .toList();
 
         // Fallback service title for backward compat
@@ -2126,7 +2191,7 @@ public class BookingService {
         try {
             linkedPackage = bookingPackageLinkRepository
                     .findByBookingBookingIdWithAssignment(booking.getBookingId())
-                    .map(link -> buildPackageSummary(link.getAssignment(), link.getSessionNumber()))
+                    .map(this::buildPackageSummary)
                     .orElse(null);
         } catch (Exception e) {
             log.warn("Could not resolve package summary for booking {}: {}", booking.getBookingId(), e.getMessage());

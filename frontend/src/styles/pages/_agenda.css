@@ -1063,6 +1063,39 @@ body.modal-open {
   border: 1px solid rgba(168, 85, 247, 0.25);
   font-weight: 600;
 }
+/* V62: per-line payment status pills. "Paid" is positive (gold); "unpaid" is
+   muted (not alarming red — it's a normal state for an upcoming appointment). */
+.ag-pill--paid {
+  background: rgba(184, 151, 106, 0.18);
+  color: var(--card-gold-deep, #8c6d3f);
+  border: 1px solid rgba(184, 151, 106, 0.35);
+  font-weight: 600;
+}
+.ag-pill--unpaid {
+  background: rgba(140, 109, 63, 0.06);
+  color: #8a7a64;
+  border: 1px dashed rgba(140, 109, 63, 0.28);
+  font-weight: 500;
+}
+/* Toggle variants are clickable buttons rendered with .ag-pill — neutralise
+   default button chrome so they read as pills. */
+button.ag-pill,
+.ag-pill--toggle {
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+button.ag-pill:hover,
+.ag-pill--toggle:hover {
+  filter: brightness(0.97);
+}
+
+/* Bulk paid action in the selected-services panel */
+.ag-selected-services__bulk {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
 
 /* Modal */
 .ag-modal-dialog {

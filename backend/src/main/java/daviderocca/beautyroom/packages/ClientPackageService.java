@@ -469,7 +469,12 @@ public class ClientPackageService {
             } else {
                 name = a.getClientName();
             }
-            BigDecimal sessionPrice = computeSessionPrice(a);
+            // V62: settled = upfront-paid OR per-link paid. Locked = upfront only.
+            // Mirror BookingService.buildPackageSummary so this alternate entry point
+            // surfaces identical state (drawer + agenda + any future consumer).
+            boolean paidLocked = a.isPaidUpfront();
+            boolean paid = paidLocked || link.isPaid();
+            BigDecimal sessionPrice = paidLocked ? BigDecimal.ZERO : computeSessionPrice(a);
             return new PackageSummaryDTO(
                     a.getId(),
                     name,
@@ -478,7 +483,10 @@ public class ClientPackageService {
                     a.getSessionsRemaining(),
                     sessionPrice,
                     a.isPaidUpfront(),
-                    mapItemsToSummary(a));
+                    mapItemsToSummary(a),
+                    paid,
+                    paidLocked,
+                    a.getNotes());
         });
     }
 

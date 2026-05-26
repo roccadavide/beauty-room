@@ -53,6 +53,12 @@ public class BookingPackageLink {
     @Column(name = "session_tracked_at_creation", nullable = false)
     private boolean sessionTrackedAtCreation = false;
 
+    // V62: per-session payment status. Only meaningful when the parent
+    // ClientPackageAssignment.paidUpfront is FALSE — when paidUpfront is TRUE
+    // the whole package is settled and this flag is ignored by the UI.
+    @Column(name = "paid", nullable = false)
+    private boolean paid = false;
+
     @PrePersist
     void onCreate() {
         linkedAt = LocalDateTime.now();

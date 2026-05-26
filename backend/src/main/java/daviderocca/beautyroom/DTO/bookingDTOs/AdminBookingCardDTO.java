@@ -52,6 +52,9 @@ public record AdminBookingCardDTO(
         // Empty when the booking is not linked to any in-person package.
         List<PackageSummaryDTO> linkedPackages,
         boolean paidInStore,
+        // V62: per-line paid flag for the custom (free-form) service line.
+        // Only meaningful when isCustomService == true.
+        boolean customServicePaid,
         // Payment / refund
         LocalDateTime paidAt,
         boolean paidOnline,

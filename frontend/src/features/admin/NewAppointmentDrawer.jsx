@@ -203,6 +203,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           title: optName ? `${baseTitle} · ${optName}` : baseTitle,
           defaultDurationMin: resolveDuration(s, optId),
           overrideDurationMin: s.overrideDurationMin ?? null,
+          // V62: hydrate per-line paid from DTO so reopening a paid appointment
+          // does NOT silently reset its flags. paidOnline overrides at the UI
+          // layer (everything is settled and read-only).
+          paid: s.paid === true,
         };
       });
     }
@@ -228,6 +232,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           title: optionName ? `${baseTitle} · ${optionName}` : baseTitle,
           defaultDurationMin: editBooking.optionDuration ?? match?.durationMin ?? 30,
           overrideDurationMin: null,
+          paid: false,
         },
       ];
     }
@@ -284,8 +289,27 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   // ── Notes ─────────────────────────────────────────────────────────────────
   const [notes, setNotes] = useState(() => (hasBookingData ? editBooking.notes || "" : ""));
 
-  // ── Paid in store ─────────────────────────────────────────────────────────
-  const [paidInStore, setPaidInStore] = useState(() => (isEditMode ? (editBooking.paidInStore ?? false) : false));
+  // ── Per-line payment status (V62) ─────────────────────────────────────────
+  // Replaces the legacy single paidInStore toggle. State lives on:
+  //   • selectedServices[i].paid           — catalog rows (hydrated above)
+  //   • packageSessionPaid: Map<pkgId, bool> — in-person package sessions
+  //   • customServicePaid: bool             — shared by all serviceItems rows
+  //     (the backend folds them into one custom-service line, so they share
+  //     a single settled flag)
+  // booking.paidOnline (Stripe) forces every line to render as settled and
+  // read-only — see isLocked() below.
+  const [packageSessionPaid, setPackageSessionPaid] = useState(() => {
+    const m = new Map();
+    if (!isEditMode || !editBooking) return m;
+    const pkgs = Array.isArray(editBooking.linkedPackages) ? editBooking.linkedPackages : [];
+    pkgs.forEach(p => {
+      if (p?.packageAssignmentId && !p.paidUpfront) m.set(p.packageAssignmentId, p.paid === true);
+    });
+    return m;
+  });
+  const [customServicePaid, setCustomServicePaid] = useState(() => (isEditMode ? editBooking?.customServicePaid === true : false));
+  // paidOnline → every line is settled and locked. Read at render time.
+  const isPaidOnline = !!editBooking?.paidOnline;
 
   // ── Customer inline edit ───────────────────────────────────────────────────
   const [activePackages, setActivePackages] = useState([]);
@@ -931,6 +955,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           optionId: ss.optionId ?? null,
           overrideDurationMin: ss.overrideDurationMin ?? null,
           prezzoOverride: ss.prezzoOverride ?? null,
+          // V62: per-line paid round-trip.
+          paid: ss.paid === true,
         })),
         customTotalDurationMin:
           totalDurationOverride ??
@@ -946,7 +972,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         packageAssignmentId: null,
         packageCreditId: selectedPackageCreditId ?? null,
         serviceOptionId: selectedServices[0]?.optionId ?? null, // backward compat; serviceEntries takes precedence
-        paidInStore,
+        // V62: per-line paid fields. paidInStore is intentionally NOT sent —
+        // the legacy booking-level flag is being retired (V50 → V62) and the
+        // backend no longer derives anything from drawer payloads on this field.
+        customServicePaid: customItems.length > 0 ? customServicePaid : false,
+        packageSessionPaid: Object.fromEntries(packageSessionPaid),
       };
 
       if (isEditMode) {
@@ -1392,6 +1422,41 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
             <div className="ag-selected-services__label">
               Servizi selezionati ({selectedPackageIds.size + selectedServices.length + serviceItems.length})
             </div>
+            {/* V62: bulk paid toggle. Counts editable lines (catalog rows +
+                non-paidUpfront packages + custom-service line if present); a
+                line is considered settled if its underlying state is true.
+                Skips locked lines (paidUpfront, paidOnline). */}
+            {(() => {
+              if (isPaidOnline) return null;
+              const editablePkgIds = Array.from(selectedPackageIds).filter(id => {
+                const p = activePackages.find(pp => pp.id === id);
+                return p && !p.paidUpfront;
+              });
+              const hasCustomLine = serviceItems.length > 0;
+              const editableCount = selectedServices.length + editablePkgIds.length + (hasCustomLine ? 1 : 0);
+              if (editableCount === 0) return null;
+              const allSettled =
+                selectedServices.every(ss => ss.paid === true) &&
+                editablePkgIds.every(id => packageSessionPaid.get(id) === true) &&
+                (!hasCustomLine || customServicePaid);
+              const flip = () => {
+                const next = !allSettled;
+                setSelectedServices(prev => prev.map(s => ({ ...s, paid: next })));
+                setPackageSessionPaid(prev => {
+                  const m = new Map(prev);
+                  editablePkgIds.forEach(id => m.set(id, next));
+                  return m;
+                });
+                if (hasCustomLine) setCustomServicePaid(next);
+              };
+              return (
+                <div className="ag-selected-services__bulk">
+                  <button type="button" className="nad-chip" onClick={flip}>
+                    {allSettled ? "↺ Segna tutto da pagare" : "✓ Tutto già pagato"}
+                  </button>
+                </div>
+              );
+            })()}
             {/* Phase 6a fix: in edit mode the per-link session number is FROZEN on
                 the BookingPackageLink at create time — read it from
                 editBooking.linkedPackages[] keyed by packageAssignmentId, NOT the
@@ -1480,6 +1545,41 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       </button>
                     </>
                   )}
+                  {/* V62: package session paid status. Locked when paidUpfront
+                      (the whole package is prepaid — ADMIN with paid_upfront=TRUE
+                      OR ONLINE/PackageCredit-backed; same predicate as edit mode)
+                      or when the booking is paidOnline (Stripe-settled). The
+                      paidUpfront flag is now exposed on UnifiedActivePackageDTO
+                      so the lock fires identically in create and edit mode. */}
+                  {(() => {
+                    const locked = pkg.paidUpfront || isPaidOnline;
+                    const settled = locked || packageSessionPaid.get(pkgId) === true;
+                    if (locked) {
+                      return (
+                        <span
+                          className="ag-pill ag-pill--paid"
+                          title={pkg.paidUpfront ? "Pacchetto pagato in anticipo" : "Pagato online"}
+                          aria-disabled="true"
+                        >
+                          🔒 Già pagato
+                        </span>
+                      );
+                    }
+                    return (
+                      <button
+                        type="button"
+                        className={`ag-pill ag-pill--toggle ${settled ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                        title={settled ? "Segna questa seduta come da pagare" : "Segna questa seduta come pagata"}
+                        onClick={() => setPackageSessionPaid(prev => {
+                          const m = new Map(prev);
+                          m.set(pkgId, !settled);
+                          return m;
+                        })}
+                      >
+                        {settled ? "✓ Pagato" : "⏳ Da pagare"}
+                      </button>
+                    );
+                  })()}
                   {!isEditMode && (
                     <button
                       type="button"
@@ -1516,6 +1616,23 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                     €{Number(ss.prezzoOverride).toFixed(0)} <span className="ag-selected-service-row__price-tag">modificato</span>
                   </span>
                 )}
+                {/* V62: per-line paid toggle (catalog row). Locked when paidOnline. */}
+                {(() => {
+                  const settled = isPaidOnline || ss.paid === true;
+                  if (isPaidOnline) {
+                    return <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>;
+                  }
+                  return (
+                    <button
+                      type="button"
+                      className={`ag-pill ag-pill--toggle ${settled ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                      title={settled ? "Segna come da pagare" : "Segna come pagato"}
+                      onClick={() => setSelectedServices(prev => prev.map(s => (s.uid === ss.uid ? { ...s, paid: !settled } : s)))}
+                    >
+                      {settled ? "✓ Pagato" : "⏳ Da pagare"}
+                    </button>
+                  );
+                })()}
                 <button
                   type="button"
                   className="ag-selected-service-row__edit"
@@ -1548,6 +1665,26 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       <span className="ag-selected-service-row__price-tag">personalizzato</span>
                     </span>
                   )}
+                  {/* V62: custom-service paid toggle. All custom rows share a
+                      single backend line (the drawer joins them into one
+                      custom_service_name), so all toggles bind to the same
+                      customServicePaid state. */}
+                  {(() => {
+                    const settled = isPaidOnline || customServicePaid;
+                    if (isPaidOnline) {
+                      return <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>;
+                    }
+                    return (
+                      <button
+                        type="button"
+                        className={`ag-pill ag-pill--toggle ${settled ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                        title={settled ? "Segna come da pagare" : "Segna come pagato"}
+                        onClick={() => setCustomServicePaid(!settled)}
+                      >
+                        {settled ? "✓ Pagato" : "⏳ Da pagare"}
+                      </button>
+                    );
+                  })()}
                   <button
                     type="button"
                     className="ag-selected-service-row__edit"
@@ -1746,15 +1883,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       </div>
 
       {/* ── Section 5: Note ────────────────────────────────────────────────── */}
+      {/* V62: the booking-level "già pagato" toggle moved into the per-line
+          panel above (catalog rows, package sessions, custom service). */}
       <div className="nad-section">
         <div className="nad-section__title">Note</div>
-        <div className="ag-paid-row">
-          <label className="ag-paid-toggle">
-            <input type="checkbox" checked={paidInStore} onChange={e => setPaidInStore(e.target.checked)} />
-            <span className="ag-paid-toggle__label">💵 Già pagato in negozio</span>
-          </label>
-          {paidInStore && <div className="nad-help">Non conteggiato nell&apos;incasso stimato — incluso nel report mensile.</div>}
-        </div>
         <textarea
           className="nad-form__textarea"
           value={notes}

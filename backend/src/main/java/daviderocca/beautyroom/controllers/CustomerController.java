@@ -85,11 +85,12 @@ public class CustomerController {
                 a.customPackageName(),
                 a.pricePaid(),
                 a.notes(),
-                a.linkedUserId()
+                a.linkedUserId(),
+                a.paidUpfront()
             ))
         );
 
-        // ONLINE packages (Stripe-purchased PackageCredit)
+        // ONLINE packages (Stripe-purchased PackageCredit) — always paid upfront.
         if (email != null && !email.isBlank()) {
             for (PackageCredit pc : packageCreditService.findActiveByEmail(email)) {
                 String displayName = pc.getServiceOption() != null
@@ -106,7 +107,8 @@ public class CustomerController {
                     null,
                     pc.getStatus().name(),
                     "ONLINE",
-                    null, null, null, null, null
+                    null, null, null, null, null,
+                    true
                 ));
             }
         }

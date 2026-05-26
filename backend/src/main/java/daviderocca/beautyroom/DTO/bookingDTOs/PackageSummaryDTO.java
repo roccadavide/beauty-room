@@ -36,5 +36,15 @@ public record PackageSummaryDTO(
         int sessionsRemaining,
         BigDecimal sessionPrice,
         boolean paidUpfront,
-        List<PackageItemSummaryDTO> items
+        List<PackageItemSummaryDTO> items,
+        // V62: effective settled state for THIS session.
+        // paid = link.paid OR assignment.paidUpfront.
+        boolean paid,
+        // True when settlement is not editable in the drawer
+        // (paidUpfront — the whole package is prepaid).
+        boolean paidLocked,
+        // V62 / Problem 6: dynamic reference to the package's notes.
+        // Read live from ClientPackageAssignment.notes — editing the package
+        // note propagates to every linked session on next render.
+        String notes
 ) {}

@@ -20,5 +20,11 @@ public record UnifiedActivePackageDTO(
         String customPackageName,
         BigDecimal pricePaid,
         String notes,
-        UUID linkedUserId
+        UUID linkedUserId,
+        // V62 Fix 1: drives the "Già pagato" lock in the drawer at SELECTION time.
+        //   • ADMIN source → assignment.paidUpfront verbatim
+        //   • ONLINE source → always TRUE (PackageCredit is paid up front via Stripe)
+        // Same predicate the drawer already used; we were just missing the data on
+        // this DTO in create mode (ClientPackageAssignmentDTO carries it for edit).
+        boolean paidUpfront
 ) {}

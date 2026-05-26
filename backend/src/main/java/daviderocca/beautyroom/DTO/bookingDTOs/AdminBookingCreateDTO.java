@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -83,5 +84,16 @@ public record AdminBookingCreateDTO(
 
         // Per-service option mapping — replaces the flat serviceOptionId for multi-service bookings.
         // When present and non-empty, takes precedence over serviceIds + serviceOptionId.
-        List<ServiceEntryDTO> serviceEntries
+        List<ServiceEntryDTO> serviceEntries,
+
+        // V62: per-line paid flag for the custom (free-form) service line.
+        // Null is treated as FALSE.
+        Boolean customServicePaid,
+
+        // V62: per-package paid map — keyed by ClientPackageAssignment.id.
+        // For each linked in-person package, the boolean tells whether THIS session
+        // is settled. Locked packages (assignment.paidUpfront = TRUE) are ignored:
+        // the UI cannot edit them and the backend treats the upfront flag as
+        // authoritative regardless of any value passed here.
+        Map<UUID, Boolean> packageSessionPaid
 ) {}

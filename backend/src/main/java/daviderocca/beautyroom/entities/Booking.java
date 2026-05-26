@@ -122,6 +122,12 @@ public class Booking {
     @Column(name = "paid_in_store", nullable = false)
     private boolean paidInStore = false;
 
+    // V62: per-line "paid" status for the custom (free-form) service line.
+    // The catalog and package counterparts live on booking_services.paid and
+    // booking_package_link.paid respectively.
+    @Column(name = "custom_service_paid", nullable = false)
+    private boolean customServicePaid = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id")
     private ServiceItem service;

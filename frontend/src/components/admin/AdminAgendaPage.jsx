@@ -99,6 +99,40 @@ function shortCustomerName(name) {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
+// ── V62: single source of truth for "settled" ────────────────────────────────
+// A line is settled when:
+//   • its own paid flag is true (catalog / package / custom)
+//   • OR the booking is paidOnline (Stripe) — everything is treated as settled
+//   • PackageSummaryDTO.paid already folds in paidUpfront (backend), so checking
+//     pkg.paid is enough — no need to look at paidUpfront separately here.
+// PackageCredit-backed bookings (online-bought packages consumed offline) carry
+// packageCreditId and never appear in linkedPackages; treat them as settled too.
+function isBookingPackageCreditBacked(b) {
+  return b?.packageCreditId != null;
+}
+function isLineSettled(line, booking) {
+  if (booking?.paidOnline || isBookingPackageCreditBacked(booking)) return true;
+  return line?.paid === true;
+}
+function isCustomSettled(booking) {
+  if (booking?.paidOnline || isBookingPackageCreditBacked(booking)) return true;
+  return booking?.customServicePaid === true;
+}
+function isAppointmentFullySettled(booking) {
+  if (!booking) return false;
+  if (booking.paidOnline || isBookingPackageCreditBacked(booking)) return true;
+  const pkgs = booking.linkedPackages?.length
+    ? booking.linkedPackages
+    : booking.linkedPackage ? [booking.linkedPackage] : [];
+  const svcs = Array.isArray(booking.services) ? booking.services : [];
+  const hasCustom = !!(booking.isCustomService && booking.customServiceName);
+  // Need at least one priced line to be meaningful; otherwise leave it unmarked.
+  if (pkgs.length === 0 && svcs.length === 0 && !hasCustom) return false;
+  return svcs.every(s => s.paid === true)
+    && pkgs.every(p => p.paid === true)
+    && (!hasCustom || booking.customServicePaid === true);
+}
+
 // ── EstimatoModal helpers ────────────────────────────────────────────────────
 
 function buildBreakdownItems(booking, priceMap) {
@@ -129,7 +163,7 @@ function buildBreakdownItems(booking, priceMap) {
       const p = priceMap.get(String(booking.serviceId));
       if (p != null) price = p;
     }
-    items.push({ label, price, kind: "package" });
+    items.push({ label, price, kind: "package", paid: isLineSettled(pkg, booking) });
   });
 
   // b. Extras from booking.services
@@ -146,7 +180,7 @@ function buildBreakdownItems(booking, priceMap) {
         const p = priceMap.get(String(s.id ?? s.serviceId));
         price = p != null ? p : null;
       }
-      items.push({ label, price, kind: "extra" });
+      items.push({ label, price, kind: "extra", paid: isLineSettled(s, booking) });
     });
   }
 
@@ -156,6 +190,7 @@ function buildBreakdownItems(booking, priceMap) {
       label: booking.customServiceName || "Servizio personalizzato",
       price: booking.customServicePrice != null ? Number(booking.customServicePrice) : null,
       kind: "custom",
+      paid: isCustomSettled(booking),
     });
   }
 
@@ -165,14 +200,21 @@ function buildBreakdownItems(booking, priceMap) {
       label: (booking.serviceTitle ?? "—") + (booking.optionName ? ` · ${booking.optionName}` : ""),
       price: booking.optionPrice != null ? booking.optionPrice : (priceMap.get(String(booking.serviceId)) ?? null),
       kind: "legacy",
+      // No per-line flag exists for the legacy single-service shape: fall back to
+      // booking-level paidOnline / packageCredit only.
+      paid: booking.paidOnline || isBookingPackageCreditBacked(booking),
     });
   }
 
   return items;
 }
 
+// V62: column-level booking status. New bookings no longer write paid_in_store;
+// the "In negozio" label is kept only as a fallback for legacy rows that still
+// carry the dormant flag set to TRUE.
 function getPaymentLabel(booking) {
   if (booking.paidOnline) return { icon: "💳", text: "Online", css: "ag-pay--online" };
+  if (isAppointmentFullySettled(booking)) return { icon: "✓", text: "Saldato", css: "ag-pay--instore" };
   if (booking.paidInStore) return { icon: "💵", text: "In negozio", css: "ag-pay--instore" };
   return { icon: "⏳", text: "Da pagare", css: "ag-pay--pending" };
 }
@@ -183,28 +225,26 @@ function EstimatoModal({ bookings, services, onClose }) {
 
   const active = useMemo(() => (bookings || []).filter(b => b.status !== "CANCELLED"), [bookings]);
 
+  // V62: per-row "total" is the sum of NON-settled lines (incasso ancora da incassare).
+  // Settled lines stay visible in the breakdown but greyed and tagged "Pagato"
+  // — they just don't contribute to the row total (or the bottom total).
   const rows = useMemo(
     () =>
       active.map(b => {
         const items = buildBreakdownItems(b, priceMap);
-        const total = items.reduce((acc, it) => acc + (Number.isFinite(it.price) ? it.price : 0), 0);
+        const total = items.reduce(
+          (acc, it) => acc + (it.paid || !Number.isFinite(it.price) ? 0 : it.price),
+          0,
+        );
         return { booking: b, pay: getPaymentLabel(b), items, total };
       }),
     [active, priceMap],
   );
 
-  const totals = useMemo(() => {
-    let online = 0,
-      inStore = 0,
-      pending = 0;
-    rows.forEach(({ booking, total }) => {
-      const p = Number.isFinite(total) ? total : 0;
-      if (booking.paidOnline) online += p;
-      else if (booking.paidInStore) inStore += p;
-      else pending += p;
-    });
-    return { online, inStore, pending, total: online + inStore + pending };
-  }, [rows]);
+  const totals = useMemo(
+    () => ({ total: rows.reduce((acc, r) => acc + (Number.isFinite(r.total) ? r.total : 0), 0) }),
+    [rows],
+  );
 
   useEffect(() => {
     const onKey = e => {
@@ -239,11 +279,20 @@ function EstimatoModal({ bookings, services, onClose }) {
               {rows.flatMap(({ booking: b, pay, items, total }) =>
                 items
                   .map((it, idx) => (
-                    <tr key={`${b.bookingId}-${idx}`} className={idx > 0 ? "ag-estimato-row--sub" : ""}>
+                    <tr
+                      key={`${b.bookingId}-${idx}`}
+                      className={`${idx > 0 ? "ag-estimato-row--sub" : ""}${it.paid ? " ag-estimato-row--paid" : ""}`.trim()}
+                    >
                       <td>{idx === 0 ? fmtTime(b.startTime) : ""}</td>
                       <td>{idx === 0 ? b.customerName || "—" : ""}</td>
-                      <td>{it.label}</td>
-                      <td className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}>
+                      <td>
+                        <span style={it.paid ? { textDecoration: "line-through", opacity: 0.55 } : undefined}>{it.label}</span>
+                        {it.paid && <span className="ag-pill ag-pill--paid" style={{ marginLeft: 8 }}>✓ Pagato</span>}
+                      </td>
+                      <td
+                        className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}
+                        style={it.paid ? { textDecoration: "line-through", opacity: 0.55 } : undefined}
+                      >
                         {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
                       </td>
                       <td>
@@ -285,12 +334,7 @@ function EstimatoModal({ bookings, services, onClose }) {
         </div>
 
         <div className="ag-estimato-footer">
-          <div className="ag-estimato-subtotals">
-            <span>💳 Online: €{totals.online.toFixed(0)}</span>
-            <span>💵 In negozio: €{totals.inStore.toFixed(0)}</span>
-            <span>⏳ Da pagare: €{totals.pending.toFixed(0)}</span>
-          </div>
-          <div className="ag-estimato-total">Totale stimato: €{totals.total.toFixed(0)}</div>
+          <div className="ag-estimato-total">Totale stimato (da incassare): €{totals.total.toFixed(0)}</div>
         </div>
       </div>
     </div>,
@@ -937,13 +981,13 @@ export default function AdminAgendaPage() {
     const openMin = (timeline?.openRanges || []).reduce((sum, r) => sum + Math.max(0, minutes(r.end) - minutes(r.start)), 0);
     const occ = openMin > 0 ? Math.round((bookedMin / openMin) * 100) : 0;
     const priceMap = new Map(services.map(s => [String(s.serviceId), Number(s.price)]));
-    // Priorità per servizio: optionPrice (se option su quell'entry) → price catalog
-    // Per multi-servizio: somma tutte le entry; per singolo: fallback a optionPrice booking-level
+    // V62: "incasso stimato" = revenue STILL TO COLLECT. Per-line semantics:
+    // a line counts only if it is NOT settled. A line is settled when its own
+    // paid flag is true (catalog: s.paid, package: pkg.paid — already folds in
+    // paidUpfront on the backend, custom: b.customServicePaid) OR when the
+    // booking is paidOnline / PackageCredit-backed. paidInStore is ignored.
     const effectivePrice = b => {
-      // Phase 6: sum EVERY linked package's sessionPrice — previously only the first
-      // counted, which under-reported revenue for multi-package bookings.
-      // The Phase 5a backend already zeroes sessionPrice for paidUpfront packages,
-      // so summing here automatically excludes prepaid sessions from the KPI.
+      if (b.paidOnline || isBookingPackageCreditBacked(b)) return 0;
       const pkgs = b.linkedPackages?.length
         ? b.linkedPackages
         : b.linkedPackage
@@ -951,11 +995,10 @@ export default function AdminAgendaPage() {
           : [];
       const isLegacySingle = !b.linkedPackages?.length && !!b.linkedPackage;
 
-      // 1) Package contribution: sum each package's sessionPrice. Fall backs
-      //    (b.optionPrice → priceMap[serviceId]) only apply on the legacy
-      //    single-package path — they describe ONE package, not N.
+      // 1) Package contribution: sum each package's sessionPrice. Skip settled.
       let pkgPrice = 0;
       for (const pkg of pkgs) {
+        if (pkg.paid === true) continue;
         if (pkg.sessionPrice != null) {
           pkgPrice += Number(pkg.sessionPrice);
         } else if (isLegacySingle && b.optionPrice != null) {
@@ -965,15 +1008,14 @@ export default function AdminAgendaPage() {
         }
       }
 
-      // 2) Catalog extras. When any package is linked, b.services contains ONLY
-      //    extras — so we must NOT use the legacy "first service gets b.optionPrice"
-      //    shortcut (it would re-apply a package's option price to the first extra row).
+      // 2) Catalog extras — skip settled lines.
       let extrasSum = 0;
       if (Array.isArray(b.services) && b.services.length > 0) {
         extrasSum = b.services.reduce((acc, s, i) => {
+          if (s.paid === true) return acc;
           const unitPrice =
             pkgs.length === 0 && i === 0 && b.optionPrice != null && !s.optionId
-              ? Number(b.optionPrice) // legacy: booking-level option on first service (non-package only)
+              ? Number(b.optionPrice)
               : s.optionId && s.price != null
                 ? Number(s.price)
                 : s.price != null
@@ -983,28 +1025,23 @@ export default function AdminAgendaPage() {
         }, 0);
       }
 
-      // 3) Custom (free-form) service contribution
-      const customPrice = b.customServicePrice != null ? Number(b.customServicePrice) : 0;
+      // 3) Custom — skip if customServicePaid.
+      const customPrice = (!b.customServicePaid && b.customServicePrice != null) ? Number(b.customServicePrice) : 0;
 
-      // 4) If any explicit contribution is present, sum them; otherwise fall back to
-      //    the legacy single-service path.
       if (pkgs.length > 0 || (Array.isArray(b.services) && b.services.length > 0) || b.customServicePrice != null) {
         return pkgPrice + extrasSum + customPrice;
       }
 
-      // 5) Legacy fallback: no package, no extras, no custom — single-service booking
+      // 5) Legacy fallback (single-service booking with no per-line data).
       if (b.optionPrice != null) return Number(b.optionPrice);
       return priceMap.get(String(b.serviceId)) ?? 0;
     };
     const revenueKnown = active.some(b => Number.isFinite(effectivePrice(b)));
-    const calcRevenue = list =>
-      list.reduce((sum, b) => {
-        const p = effectivePrice(b);
-        return sum + (Number.isFinite(p) ? p : 0);
-      }, 0);
-    const onlineRevenue = calcRevenue(active.filter(b => !b.paidInStore));
-    const inStoreRevenue = calcRevenue(active.filter(b => b.paidInStore));
-    return { count, bookedMin, openMin, occ, onlineRevenue, inStoreRevenue, revenueKnown };
+    const incassoStimato = active.reduce((sum, b) => {
+      const p = effectivePrice(b);
+      return sum + (Number.isFinite(p) ? p : 0);
+    }, 0);
+    return { count, bookedMin, openMin, occ, incassoStimato, revenueKnown };
   }, [bookings, timeline, services]);
 
   // FIX B2: azzerare nextSlotResult solo se il cambio data è stato manuale,
@@ -1358,7 +1395,7 @@ export default function AdminAgendaPage() {
               onClick={() => kpi.revenueKnown && setShowEstimatoModal(true)}
               title={kpi.revenueKnown ? "Dettaglio incasso" : undefined}
             >
-              <span className="ag-compact-kpi__value">{kpi.revenueKnown ? `€${kpi.onlineRevenue.toFixed(0)}` : "—"}</span>
+              <span className="ag-compact-kpi__value">{kpi.revenueKnown ? `€${kpi.incassoStimato.toFixed(0)}` : "—"}</span>
               <span className="ag-compact-kpi__label">incasso</span>
             </span>
             {kpi.openMin > 0 && (
@@ -1587,14 +1624,8 @@ export default function AdminAgendaPage() {
                   title={kpi.revenueKnown ? "Clicca per vedere il dettaglio" : undefined}
                 >
                   <div className="ag-kpi__label">Incasso stimato</div>
-                  <div className="ag-kpi__value">{kpi.revenueKnown ? `€${kpi.onlineRevenue.toFixed(0)}` : "—"}</div>
+                  <div className="ag-kpi__value">{kpi.revenueKnown ? `€${kpi.incassoStimato.toFixed(0)}` : "—"}</div>
                 </div>
-                {kpi.inStoreRevenue > 0 && (
-                  <div className="ag-kpi__item">
-                    <div className="ag-kpi__label">In negozio</div>
-                    <div className="ag-kpi__value">€{kpi.inStoreRevenue.toFixed(0)}</div>
-                  </div>
-                )}
                 <div className="ag-kpi__item">
                   <div className="ag-kpi__label">Giornata</div>
                   <div className="ag-kpi__value">
@@ -1772,6 +1803,9 @@ export default function AdminAgendaPage() {
                                   const hasCustom = !!(b.isCustomService && b.customServiceName);
 
                                   if (itemPkgs.length > 0 || services.length > 0 || hasCustom) {
+                                    // V62 Fix 2: per-line paid pills are ALWAYS visible —
+                                    // no special-case branch when the appointment is fully
+                                    // settled. Consistency beats the at-a-glance summary.
                                     // Filter out catalog services whose name duplicates a package
                                     // label (legacy collision avoidance — pre-Phase-4 bookings
                                     // sometimes carry the package's own service as a "duplicate"
@@ -1784,9 +1818,12 @@ export default function AdminAgendaPage() {
                                     const extras = services
                                       .map(s => {
                                         const svcLabel = s.name || s.title || s.serviceName || "?";
-                                        return s.optionName ? `${svcLabel} · ${s.optionName}` : svcLabel;
+                                        return {
+                                          label: s.optionName ? `${svcLabel} · ${s.optionName}` : svcLabel,
+                                          paid: isLineSettled(s, b),
+                                        };
                                       })
-                                      .filter(label => !pkgLabelsNorm.has(label.trim().toLowerCase()));
+                                      .filter(x => !pkgLabelsNorm.has(x.label.trim().toLowerCase()));
 
                                     return (
                                       <div className="ag-svc-entries">
@@ -1831,11 +1868,15 @@ export default function AdminAgendaPage() {
                                                   ⚠ Ultima
                                                 </span>
                                               )}
-                                              {pkg.paidUpfront && (
-                                                <span className="ag-paid-badge" title="Pacchetto pagato in anticipo">
-                                                  ✓ Pagato
-                                                </span>
-                                              )}
+                                              {/* V62 Fix 2: per-session paid pill, always shown.
+                                                  pkg.paid already folds in paidUpfront on the
+                                                  backend. */}
+                                              <span
+                                                className={`ag-pill ${pkg.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                                                title={pkg.paidUpfront ? "Pacchetto pagato in anticipo" : (pkg.paid ? "Sessione pagata" : "Sessione da pagare")}
+                                              >
+                                                {pkg.paid ? "✓ Pagato" : "⏳ Da pagare"}
+                                              </span>
                                               {hasMultipleItems && (
                                                 <button
                                                   type="button"
@@ -1863,9 +1904,12 @@ export default function AdminAgendaPage() {
                                             </div>
                                           );
                                         })}
-                                        {extras.map((label, i) => (
+                                        {extras.map((x, i) => (
                                           <div className="ag-svc-entries__row" key={`extra-${i}`}>
-                                            <span className="ag-svc-entries__name">{label}</span>
+                                            <span className="ag-svc-entries__name">{x.label}</span>
+                                            <span className={`ag-pill ${x.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}>
+                                              {x.paid ? "✓ Pagato" : "⏳ Da pagare"}
+                                            </span>
                                           </div>
                                         ))}
                                         {/* Phase 6e Bug 2: custom service as a normal entry —
@@ -1876,6 +1920,9 @@ export default function AdminAgendaPage() {
                                           <div className="ag-svc-entries__row" key="custom">
                                             <span className="ag-svc-entries__name">
                                               <em>{b.customServiceName}</em>
+                                            </span>
+                                            <span className={`ag-pill ${isCustomSettled(b) ? "ag-pill--paid" : "ag-pill--unpaid"}`}>
+                                              {isCustomSettled(b) ? "✓ Pagato" : "⏳ Da pagare"}
                                             </span>
                                           </div>
                                         )}
@@ -1930,9 +1977,12 @@ export default function AdminAgendaPage() {
                             <div className="ag-item__timecol">
                               <div className="ag-item__pills">
                                 <StatusPill status={b.status} />
-                                {b.paidInStore && <span className="ag-paid-badge">💵 Pagato</span>}
-                                {b.paidOnline && b.status !== "REFUNDED" && <span className="ag-paid-badge ag-paid-badge--online">💳 Pagato online</span>}
-                                {b.paidOnline && b.status === "REFUNDED" && <span className="ag-paid-badge ag-paid-badge--refunded">✓ Rimborsato</span>}
+                                {/* V62 Fix 2: top-right "Pagato" pill removed in favour of
+                                    always-visible per-line pills below. Refund keeps its
+                                    own dedicated state because it's not a line concept. */}
+                                {b.paidOnline && b.status === "REFUNDED" && (
+                                  <span className="ag-pill ag-pill--cancelled">✓ Rimborsato</span>
+                                )}
                               </div>
                               <div className="ag-item__timeMain">
                                 {fmtTime(b.startTime)} – {fmtTime(b.endTime)}

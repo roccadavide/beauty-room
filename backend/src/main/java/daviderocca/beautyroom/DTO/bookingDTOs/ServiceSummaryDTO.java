@@ -11,5 +11,7 @@ public record ServiceSummaryDTO(
         UUID optionId,
         String optionName,
         Integer overrideDurationMin,
-        BigDecimal priceOverride
+        BigDecimal priceOverride,
+        // V62: per-line settled flag (from booking_services.paid).
+        boolean paid
 ) {}

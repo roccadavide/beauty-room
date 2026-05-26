@@ -13,5 +13,7 @@ public record ServiceEntryDTO(
         UUID serviceId,
         UUID optionId,
         Integer overrideDurationMin,
-        BigDecimal prezzoOverride
+        BigDecimal prezzoOverride,
+        // V62: per-line paid flag. Null is treated as FALSE.
+        Boolean paid
 ) {}
