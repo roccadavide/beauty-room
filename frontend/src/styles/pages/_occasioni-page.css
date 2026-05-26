@@ -669,12 +669,14 @@
 @media (max-width: 767px) {
   .pd-drawer {
     top: auto;
-    bottom: 0;
+    bottom: env(safe-area-inset-bottom, 0);
     left: 0;
     right: 0;
     width: 100%;
     height: auto;
-    max-height: 92dvh;
+    /* svh: stable small viewport — avoids the Chrome Android gap when the
+       bottom bar retracts (same rationale as .ud-panel--sheet). */
+    max-height: 92svh;
     border-radius: 20px 20px 0 0;
     transform: translateY(100%);
     box-shadow: 0 -8px 32px rgba(46, 33, 24, 0.12);

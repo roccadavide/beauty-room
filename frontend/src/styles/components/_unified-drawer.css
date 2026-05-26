@@ -67,15 +67,17 @@
 }
 
 /* Bottom sheet (mobile <768px) */
-/* Height uses min(dvh, --app-dvh) so iOS Safari, which sometimes fails
-   to recompute dvh after a body scroll-lock, falls back to the JS-driven
-   --app-dvh published by useLenis. */
+/* Height uses svh (small viewport, stable across browser-bar toggles) capped
+   by --app-dvh, so the drawer never overflows the visible area on iPad Safari
+   under body scroll-lock nor leaves a gap on Chrome Android when the bottom
+   bar retracts (bottom: 0 anchors to layout viewport there, so we offset by
+   safe-area-inset-bottom and let svh keep the height "always fits"). */
 .ud-panel--sheet {
-  bottom: 0;
+  bottom: env(safe-area-inset-bottom, 0);
   left: 0;
   right: 0;
-  height: min(92dvh, calc(var(--app-dvh, 100vh) * 0.92));
-  max-height: min(92dvh, calc(var(--app-dvh, 100vh) * 0.92));
+  height: min(92svh, calc(var(--app-dvh, 100vh) * 0.92));
+  max-height: min(92svh, calc(var(--app-dvh, 100vh) * 0.92));
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 40px rgba(46, 33, 24, 0.18);
   transform: translateY(100%);

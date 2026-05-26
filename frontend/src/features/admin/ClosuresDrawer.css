@@ -52,9 +52,10 @@
     right: 0;
     bottom: 0;
     width: 100%;
-    /* min(dvh, --app-dvh): same iOS/iPad Safari fallback used by .ud-panel
-       and .nad-drawer (see useLenis.js for --app-dvh publisher). */
-    max-height: min(92dvh, calc(var(--app-dvh, 100vh) * 0.92));
+    /* svh: small viewport, stable across browser-bar toggles — same rationale
+       as .ud-panel and .nad-drawer. --app-dvh is the JS cap for iPad Safari
+       under body scroll-lock. */
+    max-height: min(92svh, calc(var(--app-dvh, 100vh) * 0.92));
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -4px 32px rgba(90, 60, 20, 0.18);
     transform: translateY(100%);
