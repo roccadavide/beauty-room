@@ -37,11 +37,33 @@ function norm(s) {
   return String(s || "").toLowerCase().trim();
 }
 
-/** Raccoglie ogni stringa "nome servizio" collegata a una prenotazione. */
+/**
+ * Raccoglie ogni stringa "nome servizio" collegata a una prenotazione.
+ * Scansiona top-level, services[], linkedPackage (legacy singolare), e
+ * — Phase B — linkedPackages[] con le righe di composizione pkg.items[].
+ * Nessun campo "category id/slug" stabile è oggi esposto dal backend per
+ * services o per package items (PackageItemSummaryDTO copre solo
+ * serviceTitle/serviceOptionName/customName), quindi il match resta sulla
+ * sottostringa "epilazione laser". Quando il backend esporrà un id/slug
+ * stabile della categoria, va preferito a quel match.
+ */
 function collectServiceNames(booking) {
   if (!booking) return [];
   const out = [];
   const push = v => { if (v) out.push(v); };
+  const pushPackage = pkg => {
+    if (!pkg) return;
+    push(pkg.serviceTitle);
+    push(pkg.serviceName);
+    push(pkg.packageName);
+    if (Array.isArray(pkg.items)) {
+      pkg.items.forEach(it => {
+        push(it.serviceTitle);
+        push(it.serviceOptionName);
+        push(it.customName);
+      });
+    }
+  };
   push(booking.serviceTitle);
   push(booking.optionName);
   push(booking.customServiceName);
@@ -53,11 +75,14 @@ function collectServiceNames(booking) {
       push(s.optionName); push(s.categoryName); push(s.category);
     });
   }
-  if (booking.linkedPackage) {
-    push(booking.linkedPackage.serviceTitle);
-    push(booking.linkedPackage.serviceName);
-    push(booking.linkedPackage.packageName);
+  // Phase 5a: N in-person package links per booking. The legacy singular
+  // linkedPackage is the FIRST link for back-compat — when both exist
+  // linkedPackages[] is the source of truth, but scanning both is harmless
+  // (dedup happens implicitly via the substring check).
+  if (Array.isArray(booking.linkedPackages)) {
+    booking.linkedPackages.forEach(pushPackage);
   }
+  pushPackage(booking.linkedPackage);
   return out;
 }
 

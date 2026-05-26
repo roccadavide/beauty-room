@@ -254,6 +254,9 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   }, []);
 
   // ── Catalog mode pick (single-pick prefill, unchanged from Phase 4) ────────
+  // Pick a visible name even when the catalog row's optionName is null —
+  // otherwise the input stays empty and submit drops customPackageName, which
+  // the backend renders as "Pacchetto senza nome".
   const handleCatalogPick = useCallback(
     opt => {
       const svc = services.find(s => String(s.serviceId) === String(opt.serviceId));
@@ -263,12 +266,13 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         const match = allOpts.find(o => String(o.optionId ?? o.id) === String(opt.optionId));
         optDuration = match?.durationMin ?? null;
       }
-      setName(opt.optionName ?? "");
+      const pickedName = opt.optionName ?? opt.serviceName ?? opt.name ?? svc?.title ?? "";
+      setName(pickedName);
       setComposition([
         newServiceRow({
           serviceId: opt.serviceId,
           serviceOptionId: opt.optionId,
-          customName: opt.optionName ?? "",
+          customName: pickedName,
         }),
       ]);
       setTotalSessions(opt.sessions != null ? String(opt.sessions) : "1");
@@ -336,10 +340,13 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   }, [composition, services]);
 
   // ── Price calc ──────────────────────────────────────────────────────────────
+  // fullPriceData.total is the FULL package list price (sum of composition rows
+  // × number of sessions). Pre-V62 fix this was just the per-session sum, which
+  // caused the -5%/-10% chips to discount one session instead of the package.
   const fullPriceData = useMemo(() => {
     const serviceRows = composition.filter(r => r.kind === "service");
     if (serviceRows.length === 0) return null;
-    let total = 0;
+    let sumPerSession = 0;
     let allKnown = true;
     for (const row of serviceRows) {
       const svc = services.find(s => String(s.serviceId) === String(row.serviceId));
@@ -356,9 +363,12 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         p = svc.price ?? null;
       }
       if (p == null) allKnown = false;
-      else total += Number(p);
+      else sumPerSession += Number(p);
     }
-    return allKnown && total > 0 ? { total, perSession: total / Math.max(1, Number(totalSessions) || 1) } : null;
+    if (!allKnown || sumPerSession <= 0) return null;
+    const sessions = Math.max(1, Number(totalSessions) || 1);
+    const total = sumPerSession * sessions;
+    return { total, perSession: sumPerSession };
   }, [composition, services, totalSessions]);
 
   const priceCalc = useMemo(() => {
@@ -414,10 +424,16 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     const tn = parseInt(totalSessions, 10);
     const sn = parseInt(startSession, 10);
     const sessionsRemaining = isEdit ? Math.max(0, tn - completedOriginal) : Math.max(0, tn - (sn - 1));
+    // Fall back to derivedName so single-row packages picked via the service
+    // picker (which doesn't auto-fill `name`) get a sensible label instead of
+    // "Pacchetto senza nome". Multi-row packages still require an explicit
+    // name via validation, so derivedName is null there and the fallback is
+    // a no-op.
+    const resolvedName = name.trim() || (derivedName ? derivedName.trim() : "");
     return {
       clientName: customer.fullName.trim(),
       linkedUserId: null,
-      customPackageName: name.trim() || null,
+      customPackageName: resolvedName || null,
       serviceOptionId: null,
       totalSessions: tn,
       startSession: sn,
@@ -433,7 +449,7 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         position: i,
       })),
     };
-  }, [composition, customer, isEdit, completedOriginal, name, notes, paidUpfront, pricePaid, sessionDurationMin, startSession, totalSessions]);
+  }, [composition, customer, isEdit, completedOriginal, name, derivedName, notes, paidUpfront, pricePaid, sessionDurationMin, startSession, totalSessions]);
 
   const handleSubmit = async e => {
     e.preventDefault();

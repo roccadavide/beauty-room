@@ -2211,7 +2211,22 @@ export default function NewAppointmentDrawer({
     if (isOpen) setCustomer(deriveCustomer(editBooking));
   }, [isOpen, editBooking]);
 
-  const handlePackageCreated = useCallback(() => setActiveTab("appointment"), []);
+  // Problem 4: after "Crea pacchetto" the appointment tab stays mid-list because
+  // scrollTop on .nad-content carries over from the Pacchetti tab. Reset it AFTER
+  // the appointment tabpanel is mounted (post-tab-switch) — a ref-flag + effect
+  // keyed on activeTab is the simplest "wait for mount" without RAF gymnastics.
+  const nadContentRef = useRef(null);
+  const justCreatedPackageRef = useRef(false);
+  const handlePackageCreated = useCallback(() => {
+    justCreatedPackageRef.current = true;
+    setActiveTab("appointment");
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "appointment" || !justCreatedPackageRef.current) return;
+    justCreatedPackageRef.current = false;
+    nadContentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activeTab]);
 
   // Switch to the right tab when opening
   useEffect(() => {
@@ -2303,7 +2318,7 @@ export default function NewAppointmentDrawer({
         </div>
 
         {/* Content */}
-        <div className="nad-content" role="tabpanel" onWheel={e => e.stopPropagation()}>
+        <div ref={nadContentRef} className="nad-content" role="tabpanel" onWheel={e => e.stopPropagation()}>
           {activeTab === "appointment" && (
             <AppointmentForm
               key={isOpen ? `open-${editBooking?._duplicate ? `dup-${editBooking?.bookingId}` : (editBooking?.bookingId ?? "new")}` : "closed"}

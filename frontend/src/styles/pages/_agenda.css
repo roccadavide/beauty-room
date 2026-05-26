@@ -879,6 +879,45 @@ body.modal-open {
   color: rgba(35, 26, 20, 0.6);
 }
 
+/* Problem 6: labelled note blocks on .ag-item card. Package note (gold accent)
+   is the dynamic reference to ClientPackageAssignment.notes — visually
+   distinct from the per-appointment note so the owner can tell them apart. */
+.ag-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(111, 74, 47, 0.12);
+  background: rgba(255, 253, 248, 0.7);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  width: 100%;
+}
+.ag-note--package {
+  border-left: 3px solid var(--card-gold, #b8976a);
+  background: rgba(184, 151, 106, 0.08);
+}
+.ag-note--appointment {
+  border-left: 3px solid rgba(140, 109, 63, 0.25);
+}
+.ag-note__label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+.ag-note--appointment .ag-note__label {
+  color: rgba(35, 26, 20, 0.55);
+}
+.ag-note__text {
+  color: rgba(35, 26, 20, 0.78);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .ag-item__actions {
   display: flex;
   flex-wrap: wrap;

@@ -1949,7 +1949,35 @@ export default function AdminAgendaPage() {
                                 {!(b.linkedPackages?.length || b.linkedPackage) && b.sessionsRemaining === 1 && (
                                   <span className="ag-session-pill ag-session-pill--last">⚠ Ultima seduta</span>
                                 )}
-                                {b.notes && <span className="ag-notes">{b.notes}</span>}
+                                {/* Problem 6: dedupe package notes — same assignment can be
+                                    linked twice through legacy linkedPackage + linkedPackages[]. */}
+                                {(() => {
+                                  const allPkgs = b.linkedPackages?.length
+                                    ? b.linkedPackages
+                                    : b.linkedPackage ? [b.linkedPackage] : [];
+                                  const seen = new Set();
+                                  const noteRows = [];
+                                  allPkgs.forEach(p => {
+                                    const note = (p?.notes ?? "").trim();
+                                    if (!note) return;
+                                    const key = p?.packageAssignmentId ?? note;
+                                    if (seen.has(key)) return;
+                                    seen.add(key);
+                                    noteRows.push({ key, note });
+                                  });
+                                  return noteRows.map(({ key, note }) => (
+                                    <div key={`pkg-note-${key}`} className="ag-note ag-note--package">
+                                      <span className="ag-note__label">Nota pacchetto</span>
+                                      <span className="ag-note__text">{note}</span>
+                                    </div>
+                                  ));
+                                })()}
+                                {b.notes && (
+                                  <div className="ag-note ag-note--appointment">
+                                    <span className="ag-note__label">Nota appuntamento</span>
+                                    <span className="ag-note__text">{b.notes}</span>
+                                  </div>
+                                )}
                               </div>
                               <div className="ag-item__contacts">
                                 <span className="ag-item__contact-item">
