@@ -33,6 +33,12 @@ public class RefreshTokenService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    // Grace window: if a refresh token marked "used" arrives again within this delta
+    // AND its replacement child is still valid, we re-issue a new access token without
+    // rotating the cookie. Prevents false-positive reuse-detection on legitimate races
+    // (multi-tab, HTTP retry, request retransmit). See rotate() below.
+    private static final long REFRESH_GRACE_WINDOW_MS = 30_000L;
+
     // -------------------- CREATE --------------------
 
     @Transactional
@@ -51,17 +57,39 @@ public class RefreshTokenService {
     // -------------------- ROTATE --------------------
 
     @Transactional
-    public RawAndEntity rotate(String incomingRawToken, String userAgent, String ip) {
+    public RotateResult rotate(String incomingRawToken, String userAgent, String ip) {
         String incomingHash = hash(incomingRawToken);
         RefreshToken existing = repo.findByTokenHash(incomingHash)
                 .orElseThrow(() -> new UnauthorizedException("Refresh token non valido."));
 
-        if (existing.isRevoked() || existing.isExpired()) {
+        if (existing.isRevoked() && !existing.isUsed()) {
+            // Explicitly revoked (not just marked "used" as part of rotation)
+            throw new UnauthorizedException("Refresh token scaduto o revocato.");
+        }
+        if (existing.isExpired()) {
             throw new UnauthorizedException("Refresh token scaduto o revocato.");
         }
 
-        // REUSE DETECTION: token already used (rotated), but someone is presenting it again
+        // REUSE DETECTION with grace window.
+        // When rotate() marks a token "used", it sets both replacedByHash and revokedAt to the
+        // rotation instant — so revokedAt doubles as the "usedAt" timestamp here.
+        // Grace-period contract: if the same token is replayed within REFRESH_GRACE_WINDOW_MS
+        // AND its replacement child is still fully valid, we treat the replay as a benign
+        // race (multi-tab, retry, retransmit) and return a fresh access token without rotating
+        // the refresh cookie. The caller (AuthController) must skip Set-Cookie when graceHit
+        // is true so the client keeps using its already-issued child cookie.
         if (existing.isUsed()) {
+            Instant usedAt = existing.getRevokedAt();
+            long deltaMs = usedAt == null ? Long.MAX_VALUE : (Instant.now().toEpochMilli() - usedAt.toEpochMilli());
+
+            if (deltaMs < REFRESH_GRACE_WINDOW_MS) {
+                RefreshToken child = repo.findByTokenHash(existing.getReplacedByHash()).orElse(null);
+                if (child != null && !child.isRevoked() && !child.isExpired() && !child.isUsed()) {
+                    log.info("refresh-grace-hit user={} delta={}ms", existing.getUser().getEmail(), deltaMs);
+                    return new RotateResult(null, child, existing.getUser(), true);
+                }
+            }
+
             log.warn("REUSE DETECTED for user={} tokenId={} — revoking all tokens", existing.getUser().getEmail(), existing.getId());
             revokeAllForUser(existing.getUser().getUserId());
             throw new UnauthorizedException("Rilevato riutilizzo token. Effettua nuovamente il login.");
@@ -81,7 +109,7 @@ public class RefreshTokenService {
         repo.save(newEntity);
 
         log.info("Refresh token rotated for user={}", existing.getUser().getEmail());
-        return new RawAndEntity(newRaw, newEntity);
+        return new RotateResult(newRaw, newEntity, existing.getUser(), false);
     }
 
     // -------------------- REVOKE --------------------
@@ -145,4 +173,8 @@ public class RefreshTokenService {
     // -------------------- DTO --------------------
 
     public record RawAndEntity(String rawToken, RefreshToken entity) {}
+
+    // Result of rotate(): when graceHit is true, rawToken is null and AuthController must
+    // skip Set-Cookie (the client keeps using the child cookie issued by the prior rotation).
+    public record RotateResult(String rawToken, RefreshToken entity, User user, boolean graceHit) {}
 }

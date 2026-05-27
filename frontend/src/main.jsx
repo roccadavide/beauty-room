@@ -8,33 +8,28 @@ import { PersistGate } from "redux-persist/integration/react";
 import store, { persistor } from "./app/store.js";
 import ErrorBoundary, { RouteErrorBoundary } from "./components/common/ErrorBoundary.jsx";
 import Loading from "./components/common/Loading.jsx";
-import { setAccessToken, clearAccessToken } from "./utils/token.js";
+import { clearAccessToken } from "./utils/token.js";
 import { fetchCurrentUser } from "./api/modules/users.api.js";
 import { authInitialized, loginSuccess, logout } from "./features/auth/slices/auth.slice.js";
 import { HelmetProvider } from "react-helmet-async";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import axios from "axios";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+import { refreshAccessToken } from "./api/httpClient.js";
 
 const initApp = async () => {
   let initialized = false;
   try {
-    const res = await axios.post(`${API_BASE}/auth/refresh`, null, {
-      withCredentials: true,
-      timeout: 10000,
-    });
-    const newToken = res.data?.accessToken;
-    if (newToken) {
-      setAccessToken(newToken);
-      const user = await fetchCurrentUser();
-      store.dispatch(loginSuccess({ user, accessToken: newToken }));
-      initialized = true;
-      return;
-    }
+    // Single-flight refresh shared with the axios interceptor: prevents a boot refresh
+    // and a 401-triggered refresh from firing two parallel /auth/refresh calls against
+    // the same rotating cookie (which would otherwise look like a reuse attack).
+    const newToken = await refreshAccessToken();
+    const user = await fetchCurrentUser();
+    store.dispatch(loginSuccess({ user, accessToken: newToken }));
+    initialized = true;
+    return;
   } catch {
-    // ignore, user stays logged out
+    // Refresh failed (auth or network) — fall through to logged-out boot.
+    // On a transient/network failure the next user action will retry via the interceptor.
   }
 
   clearAccessToken();
