@@ -10,6 +10,7 @@ import {
   previewClosureConflicts,
   updateClosure,
 } from "../../api/modules/adminAgenda.api";
+import useKeyboardAwarePanel from "../../hooks/useKeyboardAwarePanel";
 import "./ClosuresDrawer.css";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -91,6 +92,10 @@ export default function ClosuresDrawer({
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const formAnchorRef = useRef(null);
+  const panelRef = useRef(null);
+
+  // Lift the panel above the iOS virtual keyboard while a text input inside is focused.
+  useKeyboardAwarePanel(panelRef, isOpen);
 
   // ── Reset form when drawer opens ──────────────────────────────────────────
   useEffect(() => {
@@ -316,6 +321,7 @@ export default function ClosuresDrawer({
       <div className={`cld-backdrop${isOpen ? " is-open" : ""}`} onClick={onClose} aria-hidden="true" />
 
       <div
+        ref={panelRef}
         className={`cld-drawer${isOpen ? " is-open" : ""}`}
         role="dialog"
         aria-modal="true"

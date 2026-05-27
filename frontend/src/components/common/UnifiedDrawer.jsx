@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
+import useKeyboardAwarePanel from "../../hooks/useKeyboardAwarePanel";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -78,28 +79,11 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // VisualViewport: shift bottom-sheet above keyboard (mobile).
-  // Threshold distinguishes a real virtual keyboard from the browser's
-  // address-bar/toolbar (which can also reduce visualViewport.height by
-  // 40–160 px and previously caused the drawer to lift, leaving a gap
-  // at the bottom).
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport || isDesktop) return;
-    const vv = window.visualViewport;
-    const KEYBOARD_THRESHOLD_PX = 180;
-    const adjust = () => {
-      if (!panelRef.current) return;
-      const offsetBottom = window.innerHeight - (vv.offsetTop + vv.height);
-      panelRef.current.style.bottom = offsetBottom >= KEYBOARD_THRESHOLD_PX ? `${offsetBottom}px` : "";
-    };
-    vv.addEventListener("resize", adjust);
-    vv.addEventListener("scroll", adjust);
-    return () => {
-      vv.removeEventListener("resize", adjust);
-      vv.removeEventListener("scroll", adjust);
-      if (panelRef.current) panelRef.current.style.bottom = "";
-    };
-  }, [isDesktop]);
+  // VisualViewport compensation: focus-aware via useKeyboardAwarePanel. Replaces
+  // the previous 180px-threshold effect, whose binary cut-off left a residual
+  // gap below the keyboard on iOS Safari (and could leave the panel's inline
+  // `bottom` stuck after the keyboard had already closed).
+  useKeyboardAwarePanel(panelRef, panelVisible);
 
   useEffect(() => {
     if (!panelVisible || !panelRef.current) return;

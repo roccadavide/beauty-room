@@ -116,9 +116,21 @@ function App() {
     return () => window.removeEventListener("auth:unauthorized", onUnauthorized);
   }, [dispatch, nav, location.pathname, location.search]);
 
+  // Global toast bus: httpClient.js emits `app:toast` for soft errors (403, network)
+  // that should NOT log the user out. See FINDING C-03 / H-01.
+  useEffect(() => {
+    const onToast = e => {
+      const { variant = "warning", text = "" } = e.detail || {};
+      if (!text) return;
+      setToast({ show: true, variant, text });
+    };
+    window.addEventListener("app:toast", onToast);
+    return () => window.removeEventListener("app:toast", onToast);
+  }, []);
+
   // Keep-alive Railway backend (evita cold start)
   useEffect(() => {
-    const BACKEND_URL = import.meta.env.VITE_API_URL || "";
+    const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
     const ping = () => fetch(`${BACKEND_URL}/health`, { method: "GET" }).catch(() => {});
     ping(); // ping immediato al mount
     const id = setInterval(ping, 14 * 60 * 1000); // ogni 14 minuti

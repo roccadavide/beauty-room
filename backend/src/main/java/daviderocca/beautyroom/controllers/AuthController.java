@@ -97,15 +97,20 @@ public class AuthController {
             throw new UnauthorizedException("Refresh token mancante.");
         }
 
-        RefreshTokenService.RawAndEntity rotated = refreshTokenService.rotate(
+        RefreshTokenService.RotateResult rotated = refreshTokenService.rotate(
                 rawToken, request.getHeader("User-Agent"), request.getRemoteAddr()
         );
 
-        User user = rotated.entity().getUser();
+        User user = rotated.user();
         String accessToken = jwtTools.createTokenUser(user);
-        addRefreshCookie(response, rotated.rawToken());
 
-        log.info("Token refreshed for user={}", user.getEmail());
+        // On grace-hit, the client already holds the child refresh cookie from the prior
+        // rotation — re-setting it would be redundant and rawToken is null anyway.
+        if (!rotated.graceHit()) {
+            addRefreshCookie(response, rotated.rawToken());
+        }
+
+        log.info("Token refreshed for user={} graceHit={}", user.getEmail(), rotated.graceHit());
         return ResponseEntity.ok(new LoginUserRespDTO(accessToken));
     }
 
