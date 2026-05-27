@@ -52,10 +52,10 @@
     right: 0;
     bottom: 0;
     width: 100%;
-    /* svh: small viewport, stable across browser-bar toggles — same rationale
-       as .ud-panel and .nad-drawer. --app-dvh is the JS cap for iPad Safari
-       under body scroll-lock. */
-    max-height: min(92svh, calc(var(--app-dvh, 100vh) * 0.92));
+    /* svh: small viewport, keyboard-immune and stable under body scroll-lock.
+       The vh line is the pre-2022 fallback. */
+    max-height: 92vh;
+    max-height: 92svh;
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -4px 32px rgba(90, 60, 20, 0.18);
     transform: translateY(100%);

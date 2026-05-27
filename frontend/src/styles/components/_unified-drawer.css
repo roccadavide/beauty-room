@@ -67,17 +67,17 @@
 }
 
 /* Bottom sheet (mobile <768px) */
-/* Height uses svh (small viewport, stable across browser-bar toggles) capped
-   by --app-dvh, so the drawer never overflows the visible area on iPad Safari
-   under body scroll-lock nor leaves a gap on Chrome Android when the bottom
-   bar retracts (bottom: 0 anchors to layout viewport there, so we offset by
-   safe-area-inset-bottom and let svh keep the height "always fits"). */
+/* svh: small viewport, keyboard-immune and stable under body scroll-lock. The
+   safe-area-inset-bottom offset handles the Chrome Android retracting-toolbar
+   gap. The vh lines are the pre-2022 fallback. */
 .ud-panel--sheet {
   bottom: env(safe-area-inset-bottom, 0);
   left: 0;
   right: 0;
-  height: min(92svh, calc(var(--app-dvh, 100vh) * 0.92));
-  max-height: min(92svh, calc(var(--app-dvh, 100vh) * 0.92));
+  height: 92vh;
+  height: 92svh;
+  max-height: 92vh;
+  max-height: 92svh;
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 40px rgba(46, 33, 24, 0.18);
   transform: translateY(100%);

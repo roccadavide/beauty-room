@@ -55,27 +55,10 @@ export default function useLenis() {
     document.fonts?.ready?.then?.(refresh);
     window.addEventListener("load", refresh);
 
-    // Publish --app-dvh = visualViewport.height in px.
-    // Workaround for an iOS/iPad Safari bug where dvh doesn't recompute
-    // after a body scroll-lock; CSS uses this as a fallback inside min().
-    const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    const updateAppDvh = () => {
-      const h = vv?.height ?? window.innerHeight;
-      document.documentElement.style.setProperty("--app-dvh", `${h}px`);
-    };
-    updateAppDvh();
-    vv?.addEventListener("resize", updateAppDvh);
-    vv?.addEventListener("scroll", updateAppDvh);
-    window.addEventListener("orientationchange", updateAppDvh);
-
     return () => {
       window.removeEventListener("wheel", stopIfInsidePrevent, true);
       window.removeEventListener("touchmove", stopIfInsidePrevent, true);
       window.removeEventListener("load", refresh);
-      vv?.removeEventListener("resize", updateAppDvh);
-      vv?.removeEventListener("scroll", updateAppDvh);
-      window.removeEventListener("orientationchange", updateAppDvh);
-      document.documentElement.style.removeProperty("--app-dvh");
       gsap.ticker.remove(tick);
       ro.disconnect();
       lenis.destroy();

@@ -64,10 +64,10 @@
     right: 0;
     bottom: 0;
     width: 100%;
-    /* svh is the small viewport, stable across browser-bar toggles — never
-       stale under body scroll-lock on iPad Safari. --app-dvh remains the JS
-       fallback from useLenis (visualViewport.height) for the min() cap. */
-    max-height: min(92svh, calc(var(--app-dvh, 100vh) * 0.92));
+    /* svh: small viewport, keyboard-immune and stable under body scroll-lock
+       on iPad Safari. The vh line is the pre-2022 fallback. */
+    max-height: 92vh;
+    max-height: 92svh;
     border-radius: 20px 20px 0 0; /* rounded top corners, flush bottom */
     box-shadow: 0 -4px 32px rgba(90, 60, 20, 0.18);
     transform: translateY(100%); /* hidden: off-screen below viewport */
