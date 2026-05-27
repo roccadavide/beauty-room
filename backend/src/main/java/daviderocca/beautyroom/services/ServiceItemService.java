@@ -69,7 +69,8 @@ public class ServiceItemService {
                             so.getOptionGroup(),
                             so.getGender(),
                             so.isActive(),
-                            BadgesUtil.fromJson(so.getBadges())
+                            BadgesUtil.fromJson(so.getBadges()),
+                            so.getDurationMin()
                     );
                 })
                 .toList();
@@ -96,7 +97,8 @@ public class ServiceItemService {
                             so.getOptionGroup(),
                             so.getGender(),
                             so.isActive(),
-                            BadgesUtil.fromJson(so.getBadges())
+                            BadgesUtil.fromJson(so.getBadges()),
+                            so.getDurationMin()
                     );
                 })
                 .toList();
@@ -118,6 +120,7 @@ public class ServiceItemService {
         opt.setDurationMin(dto.durationMin());
         opt.setService(si);
         opt.setBadges(BadgesUtil.toJson(BadgesUtil.validate(dto.badges())));
+        opt.setPackage(dto.isPackage() != null && dto.isPackage());
         return toOptionDTO(serviceOptionRepository.save(opt));
     }
 
@@ -148,7 +151,8 @@ public class ServiceItemService {
         return new ServiceOptionResponseDTO(
                 o.getOptionId(), o.getName(), o.getPrice(),
                 o.getSessions(), o.getDurationMin(), o.getGender(), o.isActive(), o.getOptionGroup(),
-                BadgesUtil.fromJson(o.getBadges())
+                BadgesUtil.fromJson(o.getBadges()),
+                o.isPackage()
         );
     }
 

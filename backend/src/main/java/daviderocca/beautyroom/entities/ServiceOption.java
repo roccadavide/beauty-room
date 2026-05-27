@@ -43,6 +43,12 @@ public class ServiceOption {
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
+    // Discriminator: true for multi-session packages (Occasioni page),
+    // false for regular service options. Only set on create; never touched
+    // by the option-update path, so an edit cannot reclassify a package.
+    @Column(name = "is_package", nullable = false)
+    private boolean isPackage = false;
+
     // FIX-2: raggruppa opzioni per zona/variante (es. "Gambe", "Ascelle", "Viso")
     @Column(name = "option_group", length = 80)
     private String optionGroup;

@@ -15,5 +15,7 @@ public record PackageResponseDTO(
         String optionGroup,
         String gender,
         boolean active,
-        List<String> badges
+        List<String> badges,
+        /** Per-session duration in minutes; nullable when the package inherits the service default. */
+        Integer durationMin
 ) {}

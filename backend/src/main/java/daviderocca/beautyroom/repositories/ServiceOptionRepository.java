@@ -13,7 +13,7 @@ public interface ServiceOptionRepository extends JpaRepository<ServiceOption, UU
     @Query("""
             SELECT so FROM ServiceOption so
             JOIN FETCH so.service si
-            WHERE so.sessions > 1
+            WHERE so.isPackage = true
             AND so.active = true
             AND si.active = true
             ORDER BY si.title ASC, so.sessions ASC
@@ -23,7 +23,7 @@ public interface ServiceOptionRepository extends JpaRepository<ServiceOption, UU
     @Query("""
             SELECT so FROM ServiceOption so
             JOIN FETCH so.service si
-            WHERE so.sessions > 1
+            WHERE so.isPackage = true
             ORDER BY si.active DESC, si.title ASC, so.active DESC, so.sessions ASC
             """)
     List<ServiceOption> findAllPackages();

@@ -17,5 +17,7 @@ public record ServiceOptionRequestDTO(
         String gender,
         boolean active,
         /** Badge attivi, es. ["new","sale"]. Valori ammessi: new, sale, promo, limited, bestseller, coming_soon */
-        List<String> badges
+        List<String> badges,
+        /** Nullable: true => create as a package (Occasioni). Read only on create; ignored on update. */
+        Boolean isPackage
 ) {}

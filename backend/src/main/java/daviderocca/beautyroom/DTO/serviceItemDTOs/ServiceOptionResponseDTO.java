@@ -14,5 +14,6 @@ public record ServiceOptionResponseDTO(
         boolean active,
         // FIX-2: gruppo/zona per raggruppare visivamente le opzioni (es. "Gambe", "Ascelle")
         String optionGroup,
-        List<String> badges
+        List<String> badges,
+        boolean isPackage
 ) {}

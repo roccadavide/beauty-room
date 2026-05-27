@@ -32,7 +32,21 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
   const [optionsToAdd, setOptionsToAdd] = useState([]);
   const [optionsToUpdate, setOptionsToUpdate] = useState([]);
 
-  const EMPTY_DRAFT = { name: "", optionGroup: "", price: "", durationMin: "", gender: "" };
+  // Hidden draft fields (sessions/active/badges/isPackage) round-trip the original
+  // values for fields the form does not expose, so an edit cannot silently reset them.
+  // New options created here are regular service options: sessions=1, active=true,
+  // no badges, isPackage=false. Packages are created from PackageDrawer.
+  const EMPTY_DRAFT = {
+    name: "",
+    optionGroup: "",
+    price: "",
+    durationMin: "",
+    gender: "",
+    sessions: 1,
+    active: true,
+    badges: [],
+    isPackage: false,
+  };
   const [optionDraft, setOptionDraft] = useState(EMPTY_DRAFT);
   const [editingOptionId, setEditingOptionId] = useState(null);
   const [optionDraftError, setOptionDraftError] = useState("");
@@ -57,7 +71,7 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     setOptionsToDelete([]);
     setOptionsToAdd([]);
     setOptionsToUpdate([]);
-    setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+    setOptionDraft(EMPTY_DRAFT);
     setEditingOptionId(null);
     setOptionDraftError("");
   };
@@ -78,8 +92,11 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         resetForm();
       }
       if (isEdit && service.options && service.options.length > 0) {
-        setHasOptions(true);
-        setExistingOptions(service.options);
+        // Packages are managed exclusively from the Occasioni drawer. The
+        // treatment options editor must neither display nor mutate them.
+        const regularOptions = service.options.filter(o => !o.isPackage);
+        setHasOptions(regularOptions.length > 0);
+        setExistingOptions(regularOptions);
       } else {
         setHasOptions(false);
         setExistingOptions([]);
@@ -87,7 +104,7 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
       setOptionsToDelete([]);
       setOptionsToAdd([]);
       setOptionsToUpdate([]);
-      setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+      setOptionDraft(EMPTY_DRAFT);
       setEditingOptionId(null);
       setOptionDraftError("");
       setNewFiles([]);
@@ -184,19 +201,26 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
       ]);
     }
 
-    setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+    setOptionDraft(EMPTY_DRAFT);
     setEditingOptionId(null);
     setOptionDraftError("");
   };
 
   const startEditOption = (opt, isExisting) => {
     setEditingOptionId(isExisting ? opt.optionId : opt._tempId);
+    // Seed every field of the original option into the draft — including those
+    // the form does not expose (sessions, active, badges, isPackage) — so the
+    // submit can round-trip them unchanged.
     setOptionDraft({
       name: opt.name ?? "",
       optionGroup: opt.optionGroup ?? "",
       price: String(opt.price ?? ""),
       durationMin: opt.durationMin != null ? String(opt.durationMin) : "",
       gender: opt.gender ?? "",
+      sessions: opt.sessions ?? 1,
+      active: opt.active ?? true,
+      badges: opt.badges ?? [],
+      isPackage: opt.isPackage ?? false,
     });
     setOptionDraftError("");
   };
@@ -236,15 +260,19 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
       if (optionsToUpdate.length > 0) {
         await Promise.all(
           optionsToUpdate.map(opt =>
+            // Round-trip the original sessions/active/badges/isPackage from the
+            // draft — they were seeded by startEditOption and never overwritten
+            // by the visible inputs. This guarantees an option edit cannot
+            // silently reset a package to sessions=1 (the original bug).
             updateServiceOption(opt.optionId, {
               name: opt.name,
               optionGroup: opt.optionGroup || null,
               price: opt.price,
-              sessions: 1,
+              sessions: opt.sessions ?? 1,
               durationMin: opt.durationMin ?? null,
               gender: opt.gender || null,
-              active: true,
-              badges: [],
+              active: opt.active ?? true,
+              badges: opt.badges ?? [],
             })
           )
         );
@@ -253,15 +281,19 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
       if (optionsToAdd.length > 0) {
         await Promise.all(
           optionsToAdd.map(opt =>
+            // New options created from the treatment editor are always regular
+            // service options, never packages. Packages are created exclusively
+            // from PackageDrawer (Occasioni).
             createServiceOption(serviceId, {
               name: opt.name,
               optionGroup: opt.optionGroup || null,
               price: opt.price,
-              sessions: 1,
+              sessions: opt.sessions ?? 1,
               durationMin: opt.durationMin ?? null,
               gender: opt.gender || null,
-              active: true,
-              badges: [],
+              active: opt.active ?? true,
+              badges: opt.badges ?? [],
+              isPackage: false,
             })
           ),
         );
@@ -402,7 +434,7 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
                           setExistingOptions(prev => prev.filter(o => o.optionId !== opt.optionId));
                           if (editingOptionId === opt.optionId) {
                             setEditingOptionId(null);
-                            setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+                            setOptionDraft(EMPTY_DRAFT);
                           }
                         }}
                         title="Elimina"
@@ -441,7 +473,7 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
                           setOptionsToAdd(prev => prev.filter(o => o._tempId !== item._tempId));
                           if (editingOptionId === item._tempId) {
                             setEditingOptionId(null);
-                            setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" });
+                            setOptionDraft(EMPTY_DRAFT);
                           }
                         }}
                       >🗑️</button>
@@ -508,7 +540,7 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
                   <button
                     type="button"
                     className="bm-btn bm-btn--ghost"
-                    onClick={() => { setEditingOptionId(null); setOptionDraft({ name: "", optionGroup: "", price: "", durationMin: "", gender: "" }); setOptionDraftError(""); }}
+                    onClick={() => { setEditingOptionId(null); setOptionDraft(EMPTY_DRAFT); setOptionDraftError(""); }}
                   >
                     Annulla
                   </button>

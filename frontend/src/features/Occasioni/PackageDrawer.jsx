@@ -21,6 +21,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
   const [name, setName] = useState("");
   const [sessions, setSessions] = useState(2);
   const [price, setPrice] = useState("");
+  const [durationMin, setDurationMin] = useState("");
   const [group, setGroup] = useState("");
   const [gender, setGender] = useState("");
   const [active, setActive] = useState(true);
@@ -38,6 +39,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
         setName(pkg.optionName ?? pkg.name ?? "");
         setSessions(pkg.sessions ?? 2);
         setPrice(pkg.price != null ? String(pkg.price) : "");
+        setDurationMin(pkg.durationMin != null ? String(pkg.durationMin) : "");
         setGroup(pkg.optionGroup ?? "");
         setGender(pkg.gender ?? "");
         setActive(pkg.active ?? true);
@@ -47,6 +49,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
         setName("");
         setSessions(2);
         setPrice("");
+        setDurationMin("");
         setGroup("");
         setGender("");
         setActive(true);
@@ -65,6 +68,9 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
     if (!name.trim()) errs.name = "Il nome è obbligatorio.";
     if (!sessions || Number(sessions) < 2) errs.sessions = "Minimo 2 sedute.";
     if (!price || Number(price) <= 0) errs.price = "Il prezzo deve essere maggiore di zero.";
+    if (durationMin !== "" && (isNaN(Number(durationMin)) || Number(durationMin) <= 0)) {
+      errs.durationMin = "La durata deve essere un numero positivo.";
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -73,10 +79,14 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
     if (!validate()) return;
     setLoading(true);
     setErrorMsg("");
+    // durationMin and sessions are independent fields: sessions = how many
+    // visits the package contains, durationMin = minutes blocked per visit
+    // in the booking agenda. Each round-trips independently on save.
     const dto = {
       name: name.trim(),
       price: parseFloat(price),
       sessions: parseInt(sessions, 10),
+      durationMin: durationMin === "" ? null : parseInt(durationMin, 10),
       optionGroup: group.trim() || null,
       gender: gender || null,
       active,
@@ -87,7 +97,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
         const saved = await updatePackage(pkg.optionId, dto, accessToken);
         onSaved({ ...pkg, ...saved });
       } else {
-        const saved = await createPackage(selectedServiceId, dto, accessToken);
+        const saved = await createPackage(selectedServiceId, { ...dto, isPackage: true }, accessToken);
         const svc = services.find(s => s.serviceId === selectedServiceId);
         onSaved({ ...saved, serviceName: svc?.title ?? "" });
       }
@@ -205,7 +215,7 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
             </Form.Group>
           </Col>
 
-          <Col md={6}>
+          <Col md={4}>
             <Form.Group>
               <Form.Label>Numero di sedute *</Form.Label>
               <Form.Control type="number" min={2} value={sessions} onChange={e => setSessions(e.target.value)} isInvalid={!!errors.sessions} />
@@ -214,7 +224,23 @@ const PackageDrawer = ({ show, onHide, onSaved, onDeleted, services, pkg }) => {
             </Form.Group>
           </Col>
 
-          <Col md={6}>
+          <Col md={4}>
+            <Form.Group>
+              <Form.Label>Durata per seduta (min)</Form.Label>
+              <Form.Control
+                type="number"
+                min={1}
+                value={durationMin}
+                onChange={e => setDurationMin(e.target.value)}
+                isInvalid={!!errors.durationMin}
+                placeholder="Eredita dal trattamento"
+              />
+              <Form.Text className="text-muted">Minuti bloccati in agenda per ogni singola seduta. Lascia vuoto per usare la durata del trattamento.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.durationMin}</Form.Control.Feedback>
+            </Form.Group>
+          </Col>
+
+          <Col md={4}>
             <Form.Group>
               <Form.Label>Prezzo del pacchetto *</Form.Label>
               <Form.Control type="number" step="0.01" min={0} value={price} onChange={e => setPrice(e.target.value)} isInvalid={!!errors.price} />
