@@ -2261,7 +2261,10 @@ export default function NewAppointmentDrawer({
     };
   }, [isOpen]);
 
-  return (
+  // Portale su document.body: position:fixed dev'essere ancorato al viewport,
+  // non al containing block creato da PageTransition (will-change/filter sulla
+  // motion.div). Stesso pattern di PromoDetailDrawer.
+  return ReactDOM.createPortal(
     <>
       {/* Backdrop */}
       <div className={`nad-backdrop${isOpen ? " is-open" : ""}`} onClick={onClose} aria-hidden="true" />
@@ -2342,6 +2345,7 @@ export default function NewAppointmentDrawer({
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

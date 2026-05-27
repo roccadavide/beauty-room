@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import DateTimeField from "../../components/common/DateTimeField";
 import RangeCalendar from "../../components/common/RangeCalendar";
 import TimePicker from "../../components/common/TimePicker";
@@ -307,7 +308,10 @@ export default function ClosuresDrawer({
         || (isHHMMValid(startTime) && isHHMMValid(endTime) && startTime < endTime));
 
   // ── Render ────────────────────────────────────────────────────────────────
-  return (
+  // Portale su document.body: position:fixed dev'essere ancorato al viewport,
+  // non al containing block creato da PageTransition (will-change/filter sulla
+  // motion.div). Stesso pattern di PromoDetailDrawer.
+  return createPortal(
     <>
       <div className={`cld-backdrop${isOpen ? " is-open" : ""}`} onClick={onClose} aria-hidden="true" />
 
@@ -527,7 +531,8 @@ export default function ClosuresDrawer({
           </section>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
