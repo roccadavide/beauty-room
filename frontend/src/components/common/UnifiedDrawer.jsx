@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
-import useKeyboardAwarePanel from "../../hooks/useKeyboardAwarePanel";
+import useIosKeyboardRecomposite from "../../hooks/useIosKeyboardRecomposite";
 import { getLenis } from "../../hooks/useLenis";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -41,6 +41,7 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelActive, setPanelActive] = useState(false);
   const panelRef = useRef(null);
+  const bodyRef = useRef(null);
   const swipeStartY = useRef(null);
 
   useLenisModalLock(show);
@@ -52,9 +53,9 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
     return releaseBodyLock;
   }, [show]);
 
-  // Chrome-iOS keyboard "white band" on the side-panel branch (Problem A).
-  // No-op on Safari/desktop/Android and on the bottom-sheet branch below.
-  useKeyboardAwarePanel(panelRef, panelVisible, "(min-width: 768px)");
+  // Chrome-iOS keyboard "white band" (Problem A): no-geometry recomposite kick.
+  // No-op on Safari/desktop/Android. Never resizes the panel.
+  useIosKeyboardRecomposite(bodyRef, panelVisible);
 
   // Open/close animation
   useEffect(() => {
@@ -204,7 +205,7 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
 
         {topSlot && <div className="ud-top-slot">{topSlot}</div>}
 
-        <div className="ud-body" data-lenis-prevent>
+        <div ref={bodyRef} className="ud-body" data-lenis-prevent>
           {children}
         </div>
 

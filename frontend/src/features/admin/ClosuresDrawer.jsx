@@ -10,7 +10,7 @@ import {
   previewClosureConflicts,
   updateClosure,
 } from "../../api/modules/adminAgenda.api";
-import useKeyboardAwarePanel from "../../hooks/useKeyboardAwarePanel";
+import useIosKeyboardRecomposite from "../../hooks/useIosKeyboardRecomposite";
 import "./ClosuresDrawer.css";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -92,11 +92,11 @@ export default function ClosuresDrawer({
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const formAnchorRef = useRef(null);
-  const panelRef = useRef(null);
+  const cldContentRef = useRef(null);
 
-  // Chrome-iOS keyboard "white band" on the side-panel branch (Problem A).
-  // No-op on Safari/desktop/Android and on the bottom-sheet branch.
-  useKeyboardAwarePanel(panelRef, isOpen, "(min-width: 769px)");
+  // Chrome-iOS keyboard "white band" (Problem A): no-geometry recomposite kick.
+  // No-op on Safari/desktop/Android. Never resizes the panel.
+  useIosKeyboardRecomposite(cldContentRef, isOpen);
 
   // ── Reset form when drawer opens ──────────────────────────────────────────
   useEffect(() => {
@@ -322,7 +322,6 @@ export default function ClosuresDrawer({
       <div className={`cld-backdrop${isOpen ? " is-open" : ""}`} onClick={onClose} aria-hidden="true" />
 
       <div
-        ref={panelRef}
         className={`cld-drawer${isOpen ? " is-open" : ""}`}
         role="dialog"
         aria-modal="true"
@@ -334,7 +333,7 @@ export default function ClosuresDrawer({
           <button type="button" className="cld-close" onClick={onClose} aria-label="Chiudi">✕</button>
         </header>
 
-        <div className="cld-content" onWheel={e => e.stopPropagation()}>
+        <div ref={cldContentRef} className="cld-content" onWheel={e => e.stopPropagation()}>
           <section className="cld-form" ref={formAnchorRef}>
             <div className="cld-form-title">
               {editingId ? "✏️ Modifica chiusura" : "➕ Nuova chiusura"}

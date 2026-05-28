@@ -21,7 +21,7 @@ import { getActivePackages, updateCustomer, deleteCustomer } from "../../api/mod
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import EditPackageModal from "../../components/common/EditPackageModal";
 import PackagesTab from "../../components/admin/PackagesTab";
-import useKeyboardAwarePanel from "../../hooks/useKeyboardAwarePanel";
+import useIosKeyboardRecomposite from "../../hooks/useIosKeyboardRecomposite";
 import "./NewAppointmentDrawer.css";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -2217,12 +2217,11 @@ export default function NewAppointmentDrawer({
   // the appointment tabpanel is mounted (post-tab-switch) — a ref-flag + effect
   // keyed on activeTab is the simplest "wait for mount" without RAF gymnastics.
   const nadContentRef = useRef(null);
-  const panelRef = useRef(null);
   const justCreatedPackageRef = useRef(false);
 
-  // Chrome-iOS keyboard "white band" on the side-panel branch (Problem A).
-  // No-op on Safari/desktop/Android and on the bottom-sheet branch.
-  useKeyboardAwarePanel(panelRef, isOpen, "(min-width: 769px)");
+  // Chrome-iOS keyboard "white band" (Problem A): no-geometry recomposite kick.
+  // No-op on Safari/desktop/Android. Never resizes the panel.
+  useIosKeyboardRecomposite(nadContentRef, isOpen);
 
   const handlePackageCreated = useCallback(() => {
     justCreatedPackageRef.current = true;
@@ -2278,7 +2277,6 @@ export default function NewAppointmentDrawer({
 
       {/* Drawer */}
       <div
-        ref={panelRef}
         className={`nad-drawer${isOpen ? " is-open" : ""}`}
         role="dialog"
         aria-modal="true"
