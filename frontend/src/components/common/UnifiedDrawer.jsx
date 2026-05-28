@@ -2,8 +2,39 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
+import useKeyboardAwarePanel from "../../hooks/useKeyboardAwarePanel";
+import { getLenis } from "../../hooks/useLenis";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// Body scroll-lock with a ref-count so stacked drawers don't unlock the page
+// while an outer drawer is still open. lenis.stop() alone does not stop native
+// iOS touch scrolling of the page behind the drawer (the side-panel covers only
+// part of the screen, so touches on the backdrop scroll the page) — pinning the
+// body does. Mirrors the admin drawers (NewAppointmentDrawer/ClosuresDrawer).
+let bodyLockCount = 0;
+let bodyLockScrollY = 0;
+const acquireBodyLock = () => {
+  if (bodyLockCount === 0) {
+    bodyLockScrollY = window.scrollY;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${bodyLockScrollY}px`;
+    document.body.style.width = "100%";
+  }
+  bodyLockCount += 1;
+};
+const releaseBodyLock = () => {
+  bodyLockCount = Math.max(0, bodyLockCount - 1);
+  if (bodyLockCount > 0) return;
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.width = "";
+  // Restore scroll via Lenis (project rule: don't drive scroll past Lenis).
+  // window.scrollTo is the fallback only when Lenis is absent (reduced-motion).
+  const lenis = getLenis();
+  if (lenis) lenis.scrollTo(bodyLockScrollY, { immediate: true });
+  else window.scrollTo(0, bodyLockScrollY);
+};
 
 const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, children, footer }) => {
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 768);
@@ -13,6 +44,17 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
   const swipeStartY = useRef(null);
 
   useLenisModalLock(show);
+
+  // Lock the page behind the drawer (Problem B: page-behind scroll-leak on iPad).
+  useEffect(() => {
+    if (!show) return;
+    acquireBodyLock();
+    return releaseBodyLock;
+  }, [show]);
+
+  // Chrome-iOS keyboard "white band" on the side-panel branch (Problem A).
+  // No-op on Safari/desktop/Android and on the bottom-sheet branch below.
+  useKeyboardAwarePanel(panelRef, panelVisible, "(min-width: 768px)");
 
   // Open/close animation
   useEffect(() => {

@@ -10,6 +10,7 @@ import {
   previewClosureConflicts,
   updateClosure,
 } from "../../api/modules/adminAgenda.api";
+import useKeyboardAwarePanel from "../../hooks/useKeyboardAwarePanel";
 import "./ClosuresDrawer.css";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -91,6 +92,11 @@ export default function ClosuresDrawer({
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const formAnchorRef = useRef(null);
+  const panelRef = useRef(null);
+
+  // Chrome-iOS keyboard "white band" on the side-panel branch (Problem A).
+  // No-op on Safari/desktop/Android and on the bottom-sheet branch.
+  useKeyboardAwarePanel(panelRef, isOpen, "(min-width: 769px)");
 
   // ── Reset form when drawer opens ──────────────────────────────────────────
   useEffect(() => {
@@ -316,6 +322,7 @@ export default function ClosuresDrawer({
       <div className={`cld-backdrop${isOpen ? " is-open" : ""}`} onClick={onClose} aria-hidden="true" />
 
       <div
+        ref={panelRef}
         className={`cld-drawer${isOpen ? " is-open" : ""}`}
         role="dialog"
         aria-modal="true"
