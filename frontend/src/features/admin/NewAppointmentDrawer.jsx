@@ -21,7 +21,6 @@ import { getActivePackages, updateCustomer, deleteCustomer } from "../../api/mod
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import EditPackageModal from "../../components/common/EditPackageModal";
 import PackagesTab from "../../components/admin/PackagesTab";
-import useKeyboardAwarePanel from "../../hooks/useKeyboardAwarePanel";
 import "./NewAppointmentDrawer.css";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -2217,11 +2216,7 @@ export default function NewAppointmentDrawer({
   // the appointment tabpanel is mounted (post-tab-switch) — a ref-flag + effect
   // keyed on activeTab is the simplest "wait for mount" without RAF gymnastics.
   const nadContentRef = useRef(null);
-  const panelRef = useRef(null);
   const justCreatedPackageRef = useRef(false);
-
-  // Lift the panel above the iOS virtual keyboard while a text input inside is focused.
-  useKeyboardAwarePanel(panelRef, isOpen);
   const handlePackageCreated = useCallback(() => {
     justCreatedPackageRef.current = true;
     setActiveTab("appointment");
@@ -2276,7 +2271,6 @@ export default function NewAppointmentDrawer({
 
       {/* Drawer */}
       <div
-        ref={panelRef}
         className={`nad-drawer${isOpen ? " is-open" : ""}`}
         role="dialog"
         aria-modal="true"
