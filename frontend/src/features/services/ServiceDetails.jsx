@@ -7,6 +7,8 @@ import ServiceDetailSkeleton from "./ServiceDetailSkeleton";
 import { fetchServices, fetchServiceById } from "../../api/modules/services.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import BookingModal from "../bookings/BookingModal";
+import openBookingSurface from "../bookings/openBookingSurface";
+import useIsDesktop from "../../hooks/useIsDesktop";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
 import ImageGallery from "../../components/common/ImageGallery";
 import SEO from "../../components/common/SEO";
@@ -63,6 +65,24 @@ const ServiceDetail = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const cartItems = useSelector(state => state.cart?.items ?? []);
+  const isDesktop = useIsDesktop();
+
+  // Physical-pointer → side-drawer (unchanged). Virtual-keyboard device → push the
+  // booking surface as a route (no position:fixed, keyboard-safe).
+  const openBooking = () => {
+    if (isDesktop) {
+      setOpen(true);
+      return;
+    }
+    navigate(
+      ...openBookingSurface({
+        type: "service",
+        service,
+        initialOptionId: selectedOption?.optionId ?? null,
+        initialOption: selectedOption,
+      }),
+    );
+  };
 
   useEffect(() => {
     if (!wasCancelled) return;
@@ -74,12 +94,27 @@ const ServiceDetail = () => {
     return () => clearTimeout(t);
   }, [wasCancelled, searchParams, setSearchParams]);
 
+  // Deep-link (e.g. from the waitlist): open booking prefilled. Desktop opens the
+  // drawer as before; touch routes to /prenota once the service has loaded, with
+  // `replace` so backing out of the booking doesn't re-trigger this and re-open it.
   useEffect(() => {
-    if (location.state?.openBooking && location.state?.prefill) {
+    if (!location.state?.openBooking || !location.state?.prefill) return;
+    if (isDesktop) {
       setPrefill(location.state.prefill);
       setOpen(true);
+      return;
     }
-  }, [location.state]);
+    if (!service) return;
+    const [to, opts] = openBookingSurface({
+      type: "service",
+      service,
+      initialOptionId: selectedOption?.optionId ?? null,
+      initialOption: selectedOption,
+      prefill: location.state.prefill,
+    });
+    navigate(to, { ...opts, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, isDesktop, service]);
 
   useEffect(() => {
     const loadServices = async () => {
@@ -453,7 +488,7 @@ const ServiceDetail = () => {
             <div className="sd-cta-stack">
               <WishlistHeart itemType="SERVICE" itemId={service.serviceId} variant="detail" />
               <div className="pd-cta-row">
-                <button className="detail-pay-btn" onClick={() => setOpen(true)} disabled={needsZoneSelection}>
+                <button className="detail-pay-btn" onClick={openBooking} disabled={needsZoneSelection}>
                   {needsZoneSelection
                     ? "Scegli una zona"
                     : selectedOption?.sessions > 1

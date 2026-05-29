@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Col, Container, Row } from "react-bootstrap";
 import OccasioniPageSkeleton from "./OccasioniPageSkeleton";
 import { useSelector } from "react-redux";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { EditButton } from "../../components/common/AdminActionButtons";
 import AdminAddButton from "../../components/common/AdminAddButton";
 import AdminToggle from "../../components/common/AdminToggle";
@@ -12,6 +12,8 @@ import BookingModal from "../bookings/BookingModal";
 import DeletePromotionModal from "../promotions/DeletePromotionModal";
 import PromoCard from "./PromoCard";
 import PromoDetailDrawer from "./PromoDetailDrawer";
+import openBookingSurface from "../bookings/openBookingSurface";
+import useIsDesktop from "../../hooks/useIsDesktop";
 import { BadgeFlags } from "../../components/common/BadgeFlag";
 import { fetchPackages } from "../../api/modules/packages.api";
 import { fetchPromotions, deletePromotion } from "../../api/modules/promotions.api";
@@ -66,6 +68,18 @@ function OccasioniPage() {
   const [openBooking, setOpenBooking] = useState(false);
   const [bookingInitialOption, setBookingInitialOption] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
+
+  // Physical-pointer → drawer (unchanged). Virtual-keyboard device → push the promo
+  // as a route; its "Prenota" then routes on to the booking surface.
+  const openPromoSurface = promo => {
+    if (isDesktop) {
+      setDrawerPromo(promo);
+      return;
+    }
+    navigate(...openBookingSurface({ type: "promo", promo, products, services }));
+  };
   const wasCancelled = searchParams.get("cancel") === "1";
   const cancelPromoId = searchParams.get("promo");
   const cancelTab = searchParams.get("tab");
@@ -171,8 +185,15 @@ function OccasioniPage() {
     if (!cancelPromoId || allPromos.length === 0) return;
     if (cancelTab) setActiveTab(cancelTab);
     const promo = allPromos.find(p => String(p.promotionId) === cancelPromoId);
-    if (promo) setDrawerPromo(promo);
-  }, [cancelPromoId, cancelTab, allPromos]);
+    if (!promo) return;
+    if (isDesktop) {
+      setDrawerPromo(promo);
+      return;
+    }
+    const [to, opts] = openBookingSurface({ type: "promo", promo, products, services, showCancelBanner: true });
+    navigate(to, { ...opts, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cancelPromoId, cancelTab, allPromos, isDesktop]);
 
   useEffect(() => {
     if (!wasCancelled) return;
@@ -348,6 +369,17 @@ function OccasioniPage() {
                         gender: pkg.gender,
                         optionGroup: pkg.optionGroup,
                       };
+                      if (!isDesktop) {
+                        navigate(
+                          ...openBookingSurface({
+                            type: "service",
+                            service: foundService ?? null,
+                            initialOption: option,
+                            initialOptionId: option.optionId,
+                          }),
+                        );
+                        return;
+                      }
                       setBookingService(foundService ?? null);
                       setBookingInitialOption(option);
                       setBookingPromoPrice(null);
@@ -451,7 +483,7 @@ function OccasioniPage() {
                       setSelectedPromotion(promo);
                       setDeleteModal(true);
                     }}
-                    onClick={promo => setDrawerPromo(promo)}
+                    onClick={openPromoSurface}
                     onToggle={(id, newVal) => setAllPromos(prev => prev.map(pr => (pr.promotionId === id ? { ...pr, active: newVal } : pr)))}
                   />
                 </div>

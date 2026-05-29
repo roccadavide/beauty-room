@@ -7,6 +7,8 @@ import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/mod
 import { removeFromCart, updateCartQuantity } from "./slices/cart.slice";
 import SEO from "../../components/common/SEO";
 import MultiServiceBookingModal from "../bookings/MultiServiceBookingModal";
+import openBookingSurface from "../bookings/openBookingSurface";
+import useIsDesktop from "../../hooks/useIsDesktop";
 
 const CartPage = () => {
   const items = useSelector(state => state.cart?.items ?? []);
@@ -17,6 +19,7 @@ const CartPage = () => {
   const [note, setNote] = useState("");
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
 
   const serviceItems = items.filter(i => i.type === "service");
   const productItems = items.filter(i => i.type === "product");
@@ -56,9 +59,29 @@ const CartPage = () => {
     }
   };
 
-  const handleProceedProducts = () => {
-    if (accessToken) handleStripeCheckoutAuth();
-    else setShowCheckout(true);
+  // Physical-pointer → side-drawer (unchanged). Virtual-keyboard device → push the
+  // booking/checkout surface as a route. The authenticated direct-Stripe path is
+  // unchanged on every device (no drawer, no route).
+  const handleCheckout = () => {
+    if (hasServices) {
+      if (isDesktop) setShowMultiBooking(true);
+      else navigate(...openBookingSurface({ type: "multi", services: serviceItems, products: productItems }));
+      return;
+    }
+    if (accessToken) {
+      handleStripeCheckoutAuth();
+      return;
+    }
+    if (isDesktop) setShowCheckout(true);
+    else
+      navigate(
+        ...openBookingSurface({
+          type: "cart",
+          cartItems: productItems,
+          totalPrice: productItems.reduce((s, i) => s + i.price * i.quantity, 0),
+          note,
+        }),
+      );
   };
 
   if (items.length === 0) {
@@ -222,7 +245,7 @@ const CartPage = () => {
 
               <button
                 className="cart-checkout-btn"
-                onClick={hasServices ? () => setShowMultiBooking(true) : handleProceedProducts}
+                onClick={handleCheckout}
                 disabled={loading}
               >
                 {loading
