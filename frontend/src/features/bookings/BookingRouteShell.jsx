@@ -10,7 +10,7 @@ import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
 // slide-down on exit. `bare` skips the text header for content that brings its
 // own chrome (the promo banner header). Same chrome-prop contract as
 // UnifiedDrawer, minus `show`.
-export default function BookingRouteShell({ title, subtitle, topSlot, footer, size = "sm", onHide, bare = false, children }) {
+export default function BookingRouteShell({ title, subtitle, eyebrow, topSlot, footer, size = "sm", onHide, bare = false, children }) {
   // Stop Lenis while mounted, restart on unmount (ref-counted — never unbalances
   // across a promo→booking sequence). React guarantees this cleanup runs on ANY
   // unmount: close, browser back, error boundary, abrupt navigation.
@@ -34,6 +34,7 @@ export default function BookingRouteShell({ title, subtitle, topSlot, footer, si
             {title != null && (
               <header className="br-header">
                 <div className="ud-header__info">
+                  {eyebrow && <p className="bm-eyebrow">{eyebrow}</p>}
                   <h2 className="ud-title">{title}</h2>
                   {subtitle && <div className="ud-subtitle">{subtitle}</div>}
                 </div>

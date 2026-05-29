@@ -29,13 +29,13 @@ body:has(main.is-booking-route) {
 .br-panel {
   position: relative;
   min-height: 100svh;
-  margin-top: 10px; /* reveals the rounded top against .br-root */
   background: #fffdf8;
   color: #2e2118;
   display: flex;
   flex-direction: column;
-  border-radius: 20px 20px 0 0;
-  box-shadow: 0 -8px 40px rgba(46, 33, 24, 0.18);
+  /* Framed as a real page, not a drawer: flush top, no rounded corners and no
+     heavy top shadow (the vestigial drawer look is calmed on the route). The
+     slide-up mount animation lives on .br-panel in BookingRouteShell.jsx. */
 }
 
 /* Bare mode (promo): content brings its own full-bleed banner header → flush top. */
@@ -47,14 +47,33 @@ body:has(main.is-booking-route) {
    Sticks BELOW the fixed site navbar (var(--nav-current)) so the booking title +
    close stay visible on scroll instead of disappearing behind the navbar. */
 .br-stickytop {
-  position: sticky;
-  top: var(--nav-current);
-  z-index: 5;
   background: #fffdf8;
-  border-radius: 20px 20px 0 0;
   flex-shrink: 0;
 }
 
+/* Editorial eyebrow above the route title (real element from BookingRouteShell;
+   booking flows only — product/cart/promo pass no `eyebrow`). Mirrors the home
+   page's .section-eyebrow. */
+.bm-eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #b8976a;
+  font-family: "Montserrat", sans-serif;
+}
+
+/* Route title — larger than the narrow desktop drawer (more room here). */
+.br-header .ud-title {
+  font-size: clamp(1.4rem, 2.2vw + 1rem, 2.1rem);
+}
+
+/* Touch route is always a virtual-keyboard device → 16px inputs prevent the
+   iOS focus-zoom jump (desktop drawer keeps its smaller .bm-input size). */
+.br-panel .bm-input {
+  font-size: 16px !important;
+}
 /* Mirrors .ud-header. */
 .br-header {
   display: flex;
@@ -93,5 +112,35 @@ body:has(main.is-booking-route) {
     max-width: 760px;
     margin-left: auto;
     margin-right: auto;
+  }
+}
+
+/* Tighten side padding on small phones so the inline calendar has room for
+   ≥44px day cells without horizontal overflow. */
+@media (max-width: 430px) {
+  .br-body {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Wide touch screens (iPad landscape ≈1024+): step 1 puts the NextSlotBanner and
+   the calendar SIDE BY SIDE (uses the side space; the calendar no longer stretches),
+   and the time slots get a 4th column. Scoped to .br-panel so the narrow desktop
+   side-drawer (.ud-panel) never goes two-column. */
+@media (min-width: 1024px) {
+  .br-panel .bm-step1-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 1.5rem;
+  }
+  /* The "oppure scegli una data" divider is redundant once the columns separate
+     the two paths visually → hidden (and removed from grid flow). */
+  .br-panel .bm-step1-grid .bm-or-divider {
+    display: none;
+  }
+  .br-panel .bm-slots {
+    grid-template-columns: repeat(4, 1fr);
   }
 }

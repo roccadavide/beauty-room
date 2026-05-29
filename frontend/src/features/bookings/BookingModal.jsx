@@ -318,7 +318,7 @@ export const BookingFlow = ({
 
   return (
     <>
-      <Shell show={show} layout="side" onHide={handleClose} title={service?.title} subtitle={metaSubtitle} topSlot={stepsSlot} size="sm">
+      <Shell show={show} layout="side" onHide={handleClose} eyebrow="PRENOTAZIONE ✦" title={service?.title} subtitle={metaSubtitle} topSlot={stepsSlot} size="sm">
         {mode === "route" && waitlistSlot ? (
           <div className="br-waitlist">
             <div className="br-waitlist__bar">
@@ -334,40 +334,42 @@ export const BookingFlow = ({
 
         {step === 1 && (
           <div className="bm-step-content">
-            <NextSlotBanner
-              slot={nextSlot}
-              loading={nextLoading}
-              notFound={nextNotFound}
-              onFind={findNext}
-              onNext={findNextAgain}
-              onSelect={bannerSlot => {
-                const d = new Date(bannerSlot.date + "T12:00:00");
-                if (!Number.isNaN(d.getTime())) {
-                  setDate(d);
-                  pendingSlotStartRef.current = bannerSlot.startTime;
-                  setStep(2);
-                }
-              }}
-            />
-            <div className="bm-or-divider">
-              <span>oppure scegli una data</span>
+            <div className="bm-step1-grid">
+              <NextSlotBanner
+                slot={nextSlot}
+                loading={nextLoading}
+                notFound={nextNotFound}
+                onFind={findNext}
+                onNext={findNextAgain}
+                onSelect={bannerSlot => {
+                  const d = new Date(bannerSlot.date + "T12:00:00");
+                  if (!Number.isNaN(d.getTime())) {
+                    setDate(d);
+                    pendingSlotStartRef.current = bannerSlot.startTime;
+                    setStep(2);
+                  }
+                }}
+              />
+              <div className="bm-or-divider">
+                <span>oppure scegli una data</span>
+              </div>
+              <DateTimeField
+                variant="inline"
+                mode="date"
+                value={toISODateLocal(date)}
+                onChange={iso => {
+                  const d = new Date(`${iso}T12:00:00`);
+                  if (!Number.isNaN(d.getTime())) {
+                    setDate(d);
+                    setSlot(null);
+                  }
+                }}
+                minDate={new Date()}
+                maxDate={maxBookingDate}
+                disabledDates={disabledDates}
+                placeholder="Scegli un giorno"
+              />
             </div>
-            <DateTimeField
-              variant="inline"
-              mode="date"
-              value={toISODateLocal(date)}
-              onChange={iso => {
-                const d = new Date(`${iso}T12:00:00`);
-                if (!Number.isNaN(d.getTime())) {
-                  setDate(d);
-                  setSlot(null);
-                }
-              }}
-              minDate={new Date()}
-              maxDate={maxBookingDate}
-              disabledDates={disabledDates}
-              placeholder="Scegli un giorno"
-            />
             <div className="bm-nav">
               <span />
               <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(2)}>
