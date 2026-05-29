@@ -13,7 +13,6 @@ import ResultsPreview from "./features/results/ResultPreview";
 import NavBar from "./components/layout/NavBar";
 import PrivateRoute from "./components/common/PrivateRoute";
 import useLenis from "./hooks/useLenis";
-import useChromeIosKeyboardResnap from "./hooks/useChromeIosKeyboardResnap";
 import { useSplashScreen } from "./hooks/useSplashScreen";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
@@ -75,7 +74,6 @@ function App() {
 
   useSplashScreen();
   useLenis();
-  useChromeIosKeyboardResnap();
 
   useEffect(() => {
     history.scrollRestoration = "manual";
@@ -141,8 +139,11 @@ function App() {
   }, []);
 
   const isHeroPage = location.pathname === "/";
-  // Booking/purchase route: full-screen "drawer" surface on touch devices —
-  // hide NavBar/Footer and drop the navbar padding so it takes over the viewport.
+  // Booking/purchase route (touch / virtual-keyboard devices). It renders the SAME
+  // site NavBar + Footer as every other page, in normal document flow, so the
+  // page is naturally taller than the viewport: the Chrome-iOS keyboard white
+  // strip falls BELOW the footer, out of the booking flow. The `is-booking-route`
+  // class only scopes the cream page background (see _booking-route.css).
   const isBookingRoute = location.pathname === "/prenota";
 
   const splashDone = useSplashScreen();
@@ -170,7 +171,7 @@ function App() {
         onClose={() => setToast(t => ({ ...t, show: false }))}
       />
 
-      {!isBookingRoute && <NavBar />}
+      <NavBar />
 
       <main className={`${isHeroPage ? "has-hero" : ""}${isBookingRoute ? " is-booking-route" : ""}`}>
         <Suspense fallback={<div style={{ minHeight: "100dvh" }} />}>
@@ -471,7 +472,7 @@ function App() {
           </AnimatePresence>
         </Suspense>
       </main>
-      {!isBookingRoute && <Footer />}
+      <Footer />
     </>
   );
 }

@@ -6,20 +6,29 @@
    BookingRouteShell.jsx. Inner step/form content keeps its existing
    .bm-* / .pnm-* / .pd-* / .wl-* classes unchanged. */
 
-/* Full-screen takeover: drop the navbar padding-top reserved by `main`. */
-main.is-booking-route {
-  padding-top: 0;
+/* The route renders the site NavBar + Footer in normal flow (App.jsx), so it
+   keeps the standard `main { padding-top: var(--nav-current) }` — the booking
+   content sits below the fixed navbar exactly like every other page. */
+
+/* Cream page background, scoped to the route via the .is-booking-route hook on
+   `main`. The site body is off-white (#fffdf8); we only tint the page on /prenota
+   so the Chrome-iOS keyboard strip below the footer reads cream (#F3E7DC, the
+   footer's own colour), never white. svh/svh only — never vh/dvh, which Chrome iOS
+   mis-measures when the keyboard toggles. */
+html:has(main.is-booking-route),
+body:has(main.is-booking-route) {
+  background-color: #f3e7dc;
 }
 
 .br-root {
-  min-height: 100dvh;
+  min-height: 100svh;
   width: 100%;
   background: #efe6d8; /* warm backdrop revealed at the rounded top + during slide-up */
 }
 
 .br-panel {
   position: relative;
-  min-height: 100dvh;
+  min-height: 100svh;
   margin-top: 10px; /* reveals the rounded top against .br-root */
   background: #fffdf8;
   color: #2e2118;
@@ -34,10 +43,12 @@ main.is-booking-route {
   margin-top: 0;
 }
 
-/* Header + step indicator pinned together (sticky, NOT fixed → keyboard-safe). */
+/* Header + step indicator pinned together (sticky, NOT fixed → keyboard-safe).
+   Sticks BELOW the fixed site navbar (var(--nav-current)) so the booking title +
+   close stay visible on scroll instead of disappearing behind the navbar. */
 .br-stickytop {
   position: sticky;
-  top: 0;
+  top: var(--nav-current);
   z-index: 5;
   background: #fffdf8;
   border-radius: 20px 20px 0 0;
@@ -58,9 +69,14 @@ main.is-booking-route {
   padding: 1.5rem 1.75rem max(2rem, env(safe-area-inset-bottom));
 }
 
-/* Mirrors .ud-footer but sits in normal flow (NOT bottom-anchored). */
-.br-footer {
-  /* .ud-footer already supplies padding/border/background; nothing pinned here. */
+/* The shell's CTA bar carries BOTH classes (`ud-footer br-footer`); the site
+   <Footer> now mounted on this route carries only `br-footer`. `.ud-footer` and
+   `.br-footer` (in _footer.css) set conflicting backgrounds at equal specificity,
+   so today the CTA bar's #fffdf8 wins only by import order — fragile. This
+   two-class selector (0,0,2,0) pins the CTA bar to #fffdf8 regardless of order,
+   without touching the site footer (which lacks `ud-footer`). */
+.ud-footer.br-footer {
+  background: #fffdf8;
 }
 
 /* Route-mode waitlist sub-view (occupied slot). In-flow, no position:fixed →
