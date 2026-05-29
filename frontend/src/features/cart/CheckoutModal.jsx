@@ -2,9 +2,10 @@
 import { useState } from "react";
 import { Form, Row, Col, Spinner } from "react-bootstrap";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
-import useLenisModalLock from "../../hooks/useLenisModalLock";
 
-const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) => {
+// CheckoutFlow = the SAME guest-checkout flow rendered in both modes; chrome
+// injected via `Shell` (UnifiedDrawer desktop / BookingRouteShell route).
+export const CheckoutFlow = ({ Shell, onClose, show = true, cartItems = [], totalPrice, onConfirm }) => {
   const [form, setForm] = useState({
     name: "",
     surname: "",
@@ -37,8 +38,6 @@ const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) 
     }
     return null;
   };
-
-  useLenisModalLock(show);
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -84,7 +83,7 @@ const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) 
 
     try {
       await onConfirm(orderData);
-      onHide();
+      onClose();
     } catch (err) {
       // FIX-16: evita leak di oggetti di errore raw nella console
       console.error("Errore pagamento:", err.message || err);
@@ -96,15 +95,16 @@ const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) 
 
   // ---------- UI ----------
   return (
-    <UnifiedDrawer
+    <Shell
       show={show}
-      onHide={onHide}
+      layout="side"
+      onHide={onClose}
       title="Completa i tuoi dati"
       subtitle={`Totale ordine: € ${totalPrice?.toFixed(2) ?? "0.00"}`}
       size="lg"
       footer={
         <div className="d-flex justify-content-between align-items-center w-100">
-          <button type="button" className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>
+          <button type="button" className="bm-btn bm-btn--ghost" onClick={onClose} disabled={loading}>
             Annulla
           </button>
           <button type="button" className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
@@ -176,8 +176,11 @@ const CheckoutModal = ({ show, onHide, cartItems = [], totalPrice, onConfirm }) 
           </Col>
         </Row>
       </Form>
-    </UnifiedDrawer>
+    </Shell>
   );
 };
 
-export default CheckoutModal;
+// Desktop wrapper — public API unchanged.
+export default function CheckoutModal({ show, onHide, ...props }) {
+  return <CheckoutFlow Shell={UnifiedDrawer} show={show} onClose={onHide} {...props} />;
+}

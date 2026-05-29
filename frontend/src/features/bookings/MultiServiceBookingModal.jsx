@@ -36,7 +36,9 @@ const addMinutes = (timeStr, mins) => {
   return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 };
 
-const MultiServiceBookingModal = ({ show, onHide, services, products = [] }) => {
+// MultiServiceBookingFlow = the SAME multi-service flow rendered in both modes;
+// chrome injected via `Shell` (UnifiedDrawer desktop / BookingRouteShell route).
+export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services, products = [] }) => {
   const { accessToken, user } = useSelector(state => state.auth);
   const { closedDates, closedWeekdays, isClosed } = useClosedDays();
   const [emptySlotDates, setEmptySlotDates] = useState([]);
@@ -247,9 +249,10 @@ const MultiServiceBookingModal = ({ show, onHide, services, products = [] }) => 
   );
 
   return (
-    <UnifiedDrawer
+    <Shell
       show={show}
-      onHide={onHide}
+      layout="side"
+      onHide={onClose}
       title={`${services.length} trattament${services.length === 1 ? "o" : "i"} · unica seduta`}
       subtitle={null}
       topSlot={topSlot}
@@ -547,8 +550,11 @@ const MultiServiceBookingModal = ({ show, onHide, services, products = [] }) => 
           </div>
         </div>
       )}
-    </UnifiedDrawer>
+    </Shell>
   );
 };
 
-export default MultiServiceBookingModal;
+// Desktop wrapper — public API unchanged.
+export default function MultiServiceBookingModal({ show, onHide, ...props }) {
+  return <MultiServiceBookingFlow Shell={UnifiedDrawer} show={show} onClose={onHide} {...props} />;
+}
