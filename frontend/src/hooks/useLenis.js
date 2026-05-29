@@ -8,6 +8,20 @@ gsap.registerPlugin(ScrollTrigger);
 let lenisInstance = null;
 export const getLenis = () => lenisInstance;
 
+// Ref-counted lock for full-page surfaces (e.g. the booking route) that scroll
+// natively and must NOT fight Lenis. Lenis is stopped while ≥1 surface is mounted
+// and started again only when the LAST one unmounts — so a promo→booking sequence
+// (one unmounts as the next mounts) can never leave Lenis stopped, under any ordering.
+let lenisLockCount = 0;
+export function pushLenisLock() {
+  if (lenisLockCount === 0) getLenis()?.stop();
+  lenisLockCount++;
+}
+export function popLenisLock() {
+  lenisLockCount = Math.max(0, lenisLockCount - 1);
+  if (lenisLockCount === 0) getLenis()?.start();
+}
+
 export default function useLenis() {
   useEffect(() => {
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;

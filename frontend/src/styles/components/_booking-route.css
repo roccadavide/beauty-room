@@ -1,0 +1,81 @@
+/* ===== BOOKING ROUTE =====
+   Full-page "drawer" surface for virtual-keyboard devices. Mirrors the
+   .ud-* drawer chrome visually, but in normal document flow (the WINDOW
+   scrolls) with NO position:fixed and NO bottom-anchored footer — so the
+   iOS/Chrome-iOS virtual-keyboard layout bug cannot occur here. See
+   BookingRouteShell.jsx. Inner step/form content keeps its existing
+   .bm-* / .pnm-* / .pd-* / .wl-* classes unchanged. */
+
+/* Full-screen takeover: drop the navbar padding-top reserved by `main`. */
+main.is-booking-route {
+  padding-top: 0;
+}
+
+.br-root {
+  min-height: 100dvh;
+  width: 100%;
+  background: #efe6d8; /* warm backdrop revealed at the rounded top + during slide-up */
+}
+
+.br-panel {
+  position: relative;
+  min-height: 100dvh;
+  margin-top: 10px; /* reveals the rounded top against .br-root */
+  background: #fffdf8;
+  color: #2e2118;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(46, 33, 24, 0.18);
+}
+
+/* Bare mode (promo): content brings its own full-bleed banner header → flush top. */
+.br-panel--bare {
+  margin-top: 0;
+}
+
+/* Header + step indicator pinned together (sticky, NOT fixed → keyboard-safe). */
+.br-stickytop {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fffdf8;
+  border-radius: 20px 20px 0 0;
+  flex-shrink: 0;
+}
+
+/* Mirrors .ud-header. */
+.br-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(180, 148, 106, 0.15);
+}
+
+/* Body in normal flow — same padding as .ud-body, but no flex/overflow scroller. */
+.br-body {
+  padding: 1.5rem 1.75rem max(2rem, env(safe-area-inset-bottom));
+}
+
+/* Mirrors .ud-footer but sits in normal flow (NOT bottom-anchored). */
+.br-footer {
+  /* .ud-footer already supplies padding/border/background; nothing pinned here. */
+}
+
+/* Route-mode waitlist sub-view (occupied slot). In-flow, no position:fixed →
+   keyboard-safe; booking state stays mounted behind it. */
+.br-waitlist__bar {
+  margin-bottom: 0.75rem;
+}
+
+/* Width parity with the drawer's size variants is irrelevant full-bleed, but
+   constrain on very wide touch screens (large tablets in landscape) so the
+   content column doesn't stretch awkwardly. */
+@media (min-width: 700px) {
+  .br-panel {
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
