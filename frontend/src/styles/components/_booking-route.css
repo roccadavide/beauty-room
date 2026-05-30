@@ -1,0 +1,199 @@
+/* ===== BOOKING ROUTE =====
+   Full-page "drawer" surface for virtual-keyboard devices. Mirrors the
+   .ud-* drawer chrome visually, but in normal document flow (the WINDOW
+   scrolls) with NO position:fixed and NO bottom-anchored footer — so the
+   iOS/Chrome-iOS virtual-keyboard layout bug cannot occur here. See
+   BookingRouteShell.jsx. Inner step/form content keeps its existing
+   .bm-* / .pnm-* / .pd-* / .wl-* classes unchanged. */
+
+/* The route renders the site NavBar + Footer in normal flow (App.jsx), so it
+   keeps the standard `main { padding-top: var(--nav-current) }` — the booking
+   content sits below the fixed navbar exactly like every other page. */
+
+/* Cream page background, scoped to the route via the .is-booking-route hook on
+   `main`. The site body is off-white (#fffdf8); we only tint the page on /prenota
+   so the Chrome-iOS keyboard strip below the footer reads cream (#F3E7DC, the
+   footer's own colour), never white. svh/svh only — never vh/dvh, which Chrome iOS
+   mis-measures when the keyboard toggles. */
+html:has(main.is-booking-route),
+body:has(main.is-booking-route) {
+  background-color: #f3e7dc;
+}
+
+.br-root {
+  min-height: 100svh;
+  width: 100%;
+  background: #efe6d8; /* warm backdrop revealed at the rounded top + during slide-up */
+}
+
+.br-panel {
+  position: relative;
+  min-height: 100svh;
+  background: #fffdf8;
+  color: #2e2118;
+  display: flex;
+  flex-direction: column;
+  /* Framed as a real page, not a drawer: flush top, no rounded corners and no
+     heavy top shadow (the vestigial drawer look is calmed on the route). The
+     slide-up mount animation lives on .br-panel in BookingRouteShell.jsx. */
+}
+
+/* Bare mode (promo): content brings its own full-bleed banner header → flush top. */
+.br-panel--bare {
+  margin-top: 0;
+}
+
+/* Header + step indicator pinned together (sticky, NOT fixed → keyboard-safe).
+   Sticks BELOW the fixed site navbar (var(--nav-current)) so the booking title +
+   close stay visible on scroll instead of disappearing behind the navbar. */
+.br-stickytop {
+  background: #fffdf8;
+  flex-shrink: 0;
+}
+
+/* Editorial eyebrow above the route title (real element from BookingRouteShell;
+   booking flows only — product/cart/promo pass no `eyebrow`). Mirrors the home
+   page's .section-eyebrow. */
+.bm-eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #b8976a;
+  font-family: "Montserrat", sans-serif;
+}
+
+/* Route title — larger than the narrow desktop drawer (more room here). */
+.br-header .ud-title {
+  font-size: clamp(1.4rem, 2.2vw + 1rem, 2.1rem);
+}
+
+/* Touch route is always a virtual-keyboard device → 16px inputs prevent the
+   iOS focus-zoom jump (desktop drawer keeps its smaller .bm-input size). */
+.br-panel .bm-input {
+  font-size: 16px !important;
+}
+/* Mirrors .ud-header. */
+.br-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(180, 148, 106, 0.15);
+}
+
+/* Page back affordance (route only) — replaces the drawer × (which the desktop
+   UnifiedDrawer still uses). Top-left, labelled, ≥44px tap target. */
+.br-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 12px 0 0 14px;
+  padding: 8px 6px;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #b8976a;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.br-back:hover {
+  color: #2e2118;
+}
+.br-back__icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+/* Body in normal flow — same padding as .ud-body, but no flex/overflow scroller. */
+.br-body {
+  padding: 1.5rem 1.75rem max(2rem, env(safe-area-inset-bottom));
+}
+
+/* The shell's CTA bar carries BOTH classes (`ud-footer br-footer`); the site
+   <Footer> now mounted on this route carries only `br-footer`. `.ud-footer` and
+   `.br-footer` (in _footer.css) set conflicting backgrounds at equal specificity,
+   so today the CTA bar's #fffdf8 wins only by import order — fragile. This
+   two-class selector (0,0,2,0) pins the CTA bar to #fffdf8 regardless of order,
+   without touching the site footer (which lacks `ud-footer`). */
+.ud-footer.br-footer {
+  background: #fffdf8;
+}
+
+/* Route-mode waitlist sub-view (occupied slot). In-flow, no position:fixed →
+   keyboard-safe; booking state stays mounted behind it. */
+.br-waitlist__bar {
+  margin-bottom: 0.75rem;
+}
+
+/* HARD no-clip guarantee for the inline calendar: 7 equal columns that shrink to
+   fit their container (incl. the wide-screen banner|calendar split), so all 7 days
+   always show at every breakpoint and the Sunday column can never be cut off.
+   minmax(0,1fr) + min-width:0 override the bare 36px / ≥768 44px cell floors that
+   otherwise overflow a narrow column; min-height:44px (set in _booking-modal.css)
+   keeps a comfortable tap height. Scoped to .br-panel .bm-step-content → the narrow
+   desktop drawer calendar and the admin RangeCalendar (bare .dtf-*) are untouched. */
+.br-panel .bm-step-content .dtf-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.br-panel .bm-step-content .dtf-day {
+  min-width: 0;
+}
+
+/* Page model, not a drawer: from tablet up the panel is an intentional detached
+   card — centred, rounded on all corners, with a subtle warm shadow, floating on
+   the warm .br-root field. Phone (≤767) stays full-bleed (base rule). `overflow`
+   clips the children to the radius — SAFE because .br-stickytop is NOT
+   position:sticky (it only sets flex-shrink). svh only, never vh/dvh. */
+@media (min-width: 768px) {
+  .br-panel {
+    max-width: 700px;
+    margin: 1.5rem auto 2rem;
+    border-radius: 22px;
+    box-shadow: 0 12px 40px -16px rgba(120, 85, 45, 0.22);
+    overflow: hidden;
+  }
+}
+
+/* Tighten side padding on small phones so the inline calendar has room for
+   ≥44px day cells without horizontal overflow. */
+@media (max-width: 430px) {
+  .br-body {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Wide touch screens (iPad landscape ≈1024+): step 1 puts the NextSlotBanner and
+   the calendar SIDE BY SIDE (uses the side space; the calendar no longer stretches),
+   and the time slots get a 4th column. Scoped to .br-panel so the narrow desktop
+   side-drawer (.ud-panel) never goes two-column. */
+@media (min-width: 1024px) {
+  /* Widen the card so the step-1 two-column layout (banner | calendar) has real
+     room and the calendar never has to clip. Keeps the detached rounded-card
+     treatment inherited from the ≥768 rule. */
+  .br-panel {
+    max-width: min(94vw, 1040px);
+  }
+  /* minmax(0,1fr) so a wide NextSlotBanner can't squeeze the calendar column past
+     its content and push the Sunday column out of view. */
+  .br-panel .bm-step1-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 1.5rem;
+  }
+  /* The "oppure scegli una data" divider is redundant once the columns separate
+     the two paths visually → hidden (and removed from grid flow). */
+  .br-panel .bm-step1-grid .bm-or-divider {
+    display: none;
+  }
+  .br-panel .bm-slots {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

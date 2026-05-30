@@ -27,27 +27,28 @@ function formatDate(isoDate) {
 export default function NextSlotBanner({ slot, loading, notFound, onFind, onNext, onSelect }) {
   if (loading) {
     return (
-      <div className="nsb nsb--skeleton">
-        <div className="nsb__top">
+      <div className="nsb nsb--skeleton" aria-busy="true">
+        <div className="nsb__head">
           <CalIcon />
-          <div className="nsb__body">
-            <div className="nsb-skel nsb-skel--label" />
-            <div className="nsb-skel nsb-skel--date" />
-            <div className="nsb-skel nsb-skel--time" />
-          </div>
-          <div className="nsb-skel nsb-skel--btn" />
+          <span className="nsb__label">Prossimo disponibile</span>
         </div>
+        <p className="nsb__loading-text">Cerco il prossimo orario disponibile…</p>
+        <div className="nsb-skel nsb-skel--date" />
+        <div className="nsb-skel nsb-skel--btn" />
       </div>
     );
   }
 
   if (notFound) {
     return (
-      <div className="nsb">
-        <div className="nsb__top">
+      <div className="nsb nsb--empty">
+        <div className="nsb__head">
           <CalIcon />
-          <p className="nsb__empty">Nessun orario disponibile nei prossimi 60 giorni.</p>
+          <span className="nsb__label">Prossimo disponibile</span>
         </div>
+        <p className="nsb__empty">
+          Nessun orario libero nei prossimi 60 giorni. Scegli una data qui sotto.
+        </p>
       </div>
     );
   }
@@ -56,22 +57,24 @@ export default function NextSlotBanner({ slot, loading, notFound, onFind, onNext
 
   return (
     <div className="nsb">
-      <div className="nsb__top">
+      <div className="nsb__head">
         <CalIcon />
-        <div className="nsb__body">
-          <span className="nsb__label">Prossimo disponibile</span>
-          <span className="nsb__date">{formatDate(slot.date)}</span>
-          <span className="nsb__time">
-            ore {slot.startTime} – {slot.endTime}
-          </span>
-        </div>
+        <span className="nsb__label">Prossimo disponibile</span>
+      </div>
+      <div className="nsb__when">
+        <span className="nsb__date">{formatDate(slot.date)}</span>
+        <span className="nsb__time">
+          ore {slot.startTime} – {slot.endTime}
+        </span>
+      </div>
+      <div className="nsb__actions">
         <button className="nsb__cta" type="button" onClick={() => onSelect(slot)}>
-          Prenota questo
+          Prenota questo orario →
+        </button>
+        <button className="nsb__next" type="button" onClick={onNext}>
+          Cerca un altro orario
         </button>
       </div>
-      <button className="nsb__next" type="button" onClick={onNext}>
-        Cerca un altro orario →
-      </button>
     </div>
   );
 }

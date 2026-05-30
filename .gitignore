@@ -22,4 +22,6 @@ Thumbs.db
 .vscode/
 *.iml
 
-audit/
+audit
+
+.claude/

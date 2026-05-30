@@ -5,8 +5,14 @@ import useLenisModalLock from "../../hooks/useLenisModalLock";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, children, footer }) => {
+// `layout` (optional) overrides the responsive breakpoint: "side" forces the
+// side-panel, "sheet" forces the bottom-sheet. Default (undefined) keeps the
+// (min-width:768px) responsive behavior — admin drawers pass nothing, unchanged.
+// Customer desktop wrappers pass layout="side" so a physical-pointer device
+// always gets the side-panel regardless of width.
+const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, children, footer, layout }) => {
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 768);
+  const sidePanel = layout === "side" ? true : layout === "sheet" ? false : isDesktop;
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelActive, setPanelActive] = useState(false);
   const panelRef = useRef(null);
@@ -84,7 +90,7 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
   // 40–160 px and previously caused the drawer to lift, leaving a gap
   // at the bottom).
   useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport || isDesktop) return;
+    if (typeof window === "undefined" || !window.visualViewport || sidePanel) return;
     const vv = window.visualViewport;
     const KEYBOARD_THRESHOLD_PX = 180;
     const adjust = () => {
@@ -99,7 +105,7 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
       vv.removeEventListener("scroll", adjust);
       if (panelRef.current) panelRef.current.style.bottom = "";
     };
-  }, [isDesktop]);
+  }, [sidePanel]);
 
   useEffect(() => {
     if (!panelVisible || !panelRef.current) return;
@@ -142,13 +148,13 @@ const UnifiedDrawer = ({ show, onHide, title, subtitle, size = "md", topSlot, ch
       <div className="ud-backdrop" onClick={onHide} />
       <div
         ref={panelRef}
-        className={`ud-panel ${isDesktop ? "ud-panel--side" : "ud-panel--sheet"} ud-size--${size} ${panelActive ? "open" : ""}`}
+        className={`ud-panel ${sidePanel ? "ud-panel--side" : "ud-panel--sheet"} ud-size--${size} ${panelActive ? "open" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={e => e.stopPropagation()}
       >
-        {!isDesktop && <div className="ud-handle" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} />}
+        {!sidePanel && <div className="ud-handle" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} />}
 
         <header className="ud-header">
           <div className="ud-header__info">

@@ -34,19 +34,14 @@ const getDiscountedPrice = (original, discountType, discountValue) => {
   return original;
 };
 
-export default function PromoDetailDrawer({
-  show,
-  onHide,
-  promo,
-  products,
-  services,
-  onBooking,
-  showCancelBanner = false,
-}) {
-  const navigate = useNavigate();
-  // Lock Lenis while the drawer is open: previously the page kept scrolling
-  // underneath because this drawer never registered a lock.
-  useLenisModalLock(show);
+// PromoDetailFlow = the SAME promo content rendered in both modes. Desktop keeps
+// the custom .pd-drawer portal (below) wrapping this — zero visual change. The
+// touch route renders this inside BookingRouteShell (bare). The content brings
+// its own banner header + ✕, so callbacks are injected:
+//   onClose       — dismiss the surface
+//   onBook(service, promoPrice, promotionId, promoProducts) — same args as the old onBooking
+//   onGoProducts  — navigate to the products page
+export function PromoDetailFlow({ promo, products, services, showCancelBanner = false, onClose, onBook, onGoProducts }) {
   const isExpired = promo?.endDate && new Date(promo.endDate) < new Date();
   const discount = getDiscountLabel(promo);
 
@@ -79,12 +74,9 @@ export default function PromoDetailDrawer({
     return totalDiscounted * (serviceTotal / grandTotal);
   })();
 
-  // BUG #1 fix: portale su document.body — position:fixed è sempre relativo al viewport
-  return createPortal(
+  return (
     <>
-      {show && <div className="pd-backdrop" onClick={onHide} />}
-      <div className={`pd-drawer ${show ? "pd-drawer--open" : ""}`}>
-        <div className="pd-header-img">
+      <div className="pd-header-img">
           <img
             src={
               promo?.bannerImageUrl ||
@@ -94,7 +86,7 @@ export default function PromoDetailDrawer({
             alt={promo?.title}
           />
           <div className="pd-header-gradient" />
-          <button className="pd-close-btn" onClick={onHide}>✕</button>
+          <button className="pd-close-btn" onClick={onClose}>✕</button>
           {discount && <span className="pcn-badge-discount">{discount}</span>}
         </div>
 
@@ -165,7 +157,7 @@ export default function PromoDetailDrawer({
           {hasServices && (
             <button
               className="pd-cta-primary"
-              onClick={() => onBooking(includedServices[0], totalDiscounted, promo.promotionId, includedProducts)}
+              onClick={() => onBook(includedServices[0], totalDiscounted, promo.promotionId, includedProducts)}
             >
               Prenota ora →
             </button>
@@ -173,13 +165,13 @@ export default function PromoDetailDrawer({
           {hasProducts && (
             <button
               className="pd-cta-secondary"
-              onClick={() => { onHide(); navigate("/prodotti"); }}
+              onClick={onGoProducts}
             >
               Vai ai prodotti
             </button>
           )}
           {!hasServices && !hasProducts && (
-            <button className="pd-cta-primary" onClick={onHide}>
+            <button className="pd-cta-primary" onClick={onClose}>
               Scopri di più →
             </button>
           )}
@@ -189,6 +181,29 @@ export default function PromoDetailDrawer({
             </p>
           )}
         </div>
+    </>
+  );
+}
+
+// Desktop wrapper — custom side-drawer portal, visuals unchanged. The touch
+// route renders <PromoDetailFlow/> inside BookingRouteShell (bare) instead.
+export default function PromoDetailDrawer({ show, onHide, promo, products, services, onBooking, showCancelBanner = false }) {
+  const navigate = useNavigate();
+  // Lock Lenis while the drawer is open.
+  useLenisModalLock(show);
+  return createPortal(
+    <>
+      {show && <div className="pd-backdrop" onClick={onHide} />}
+      <div className={`pd-drawer ${show ? "pd-drawer--open" : ""}`}>
+        <PromoDetailFlow
+          promo={promo}
+          products={products}
+          services={services}
+          showCancelBanner={showCancelBanner}
+          onClose={onHide}
+          onBook={onBooking}
+          onGoProducts={() => { onHide(); navigate("/prodotti"); }}
+        />
       </div>
     </>,
     document.body,

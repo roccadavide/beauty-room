@@ -1,0 +1,60 @@
+import { useEffect } from "react";
+import { motion } from "framer-motion";
+import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
+
+// Full-page "drawer" surface for virtual-keyboard devices. Renders in NORMAL
+// document flow — NO position:fixed, and NO keyboard/viewport-resize listeners —
+// so the iOS/Chrome-iOS keyboard strip+jump bug (fixed top+bottom elements not
+// shrinking with the keyboard) structurally cannot occur. Slides up on mount
+// (transform only); the app-level AnimatePresence (keyed by pathname) plays the
+// slide-down on exit. `bare` skips the text header for content that brings its
+// own chrome (the promo banner header). Same chrome-prop contract as
+// UnifiedDrawer, minus `show`.
+export default function BookingRouteShell({ title, subtitle, eyebrow, topSlot, footer, size = "sm", onHide, bare = false, children }) {
+  // Stop Lenis while mounted, restart on unmount (ref-counted — never unbalances
+  // across a promo→booking sequence). React guarantees this cleanup runs on ANY
+  // unmount: close, browser back, error boundary, abrupt navigation.
+  useEffect(() => {
+    pushLenisLock();
+    return () => popLenisLock();
+  }, []);
+
+  return (
+    <div className="br-root" data-lenis-prevent>
+      <motion.div
+        className={`br-panel br-size--${size}${bare ? " br-panel--bare" : ""}`}
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ duration: 0.34, ease: [0.4, 0, 0.2, 1] }}
+        style={{ willChange: "transform" }}
+      >
+        {!bare && (title || topSlot) && (
+          <div className="br-stickytop">
+            {/* Page back affordance (route only) — replaces the drawer × and reuses
+                the SAME onHide handler (→ navigate back). The desktop UnifiedDrawer
+                keeps its × since it IS a drawer. */}
+            <button className="br-back" onClick={onHide} aria-label="Torna indietro" type="button">
+              <span className="br-back__icon" aria-hidden="true">←</span>
+              Indietro
+            </button>
+            {title != null && (
+              <header className="br-header">
+                <div className="ud-header__info">
+                  {eyebrow && <p className="bm-eyebrow">{eyebrow}</p>}
+                  <h2 className="ud-title">{title}</h2>
+                  {subtitle && <div className="ud-subtitle">{subtitle}</div>}
+                </div>
+              </header>
+            )}
+            {topSlot && <div className="ud-top-slot br-top-slot">{topSlot}</div>}
+          </div>
+        )}
+
+        {bare ? children : <div className="br-body">{children}</div>}
+
+        {footer && <footer className="ud-footer br-footer">{footer}</footer>}
+      </motion.div>
+    </div>
+  );
+}

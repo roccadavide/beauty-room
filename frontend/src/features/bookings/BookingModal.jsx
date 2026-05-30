@@ -8,7 +8,7 @@ import { BOOKING_MAX_ADVANCE_DAYS, BRAND_WHATSAPP } from "../../utils/constants"
 import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
 import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
-import WaitlistModal from "../../components/common/WaitlistModal";
+import WaitlistModal, { WaitlistContent } from "../../components/common/WaitlistModal";
 import { useClosedDays } from "../../hooks/useClosedDays";
 import { useNextSlot } from "../../hooks/useNextSlot";
 
@@ -21,9 +21,17 @@ const needsLaserConsent = title => LASER_KEYWORDS.some(k => title?.toLowerCase()
 const needsPmuConsent = title => PMU_KEYWORDS.some(k => title?.toLowerCase().includes(k));
 
 // FIX-2: initialOptionId viene passato da ServiceDetails quando il servizio ha opzioni
-const BookingModal = ({
-  show,
-  onHide,
+//
+// BookingFlow = the SAME inner booking flow rendered in both modes. The chrome
+// is injected via `Shell` (UnifiedDrawer on desktop, BookingRouteShell on the
+// touch route). `mode` only switches how the nested waitlist renders (a nested
+// drawer on desktop vs an in-flow sub-view on the route — keyboard-safe, no
+// position:fixed). All booking state/validation/payload/Stripe logic is 1:1.
+export const BookingFlow = ({
+  Shell,
+  onClose,
+  mode = "drawer",
+  show = true,
   service,
   initialOptionId = null,
   initialOption = null,
@@ -227,7 +235,7 @@ const BookingModal = ({
       // NIENTE token param: ci pensa httpClient/interceptor
       const res = accessToken ? await createBookingCheckoutSessionAuth(payload) : await createBookingCheckoutSessionGuest(payload);
 
-      onHide();
+      onClose();
       reset();
       window.location.href = res.url;
     } catch (err) {
@@ -249,7 +257,7 @@ const BookingModal = ({
       const day = date.toLocaleDateString("sv-SE");
       const payload = buildPayload(day);
       await createBookingPayInStore(payload);
-      onHide();
+      onClose();
       reset();
       window.location.href = "/prenotazione-confermata?payInStore=1";
     } catch (err) {
@@ -273,7 +281,7 @@ const BookingModal = ({
   }, [show, step, accessToken, user]);
 
   const handleClose = () => {
-    onHide();
+    onClose();
     reset();
   };
 
@@ -310,45 +318,58 @@ const BookingModal = ({
 
   return (
     <>
-      <UnifiedDrawer show={show} onHide={handleClose} title={service?.title} subtitle={metaSubtitle} topSlot={stepsSlot} size="sm">
+      <Shell show={show} layout="side" onHide={handleClose} eyebrow="PRENOTAZIONE ✦" title={service?.title} subtitle={metaSubtitle} topSlot={stepsSlot} size="sm">
+        {mode === "route" && waitlistSlot ? (
+          <div className="br-waitlist">
+            <div className="br-waitlist__bar">
+              <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setWaitlistSlot(null)}>
+                ← Indietro
+              </button>
+            </div>
+            <WaitlistContent service={service} date={date} slot={waitlistSlot} onClose={() => setWaitlistSlot(null)} />
+          </div>
+        ) : (
+        <>
         {error && <div className="bm-alert">{error}</div>}
 
         {step === 1 && (
           <div className="bm-step-content">
-            <NextSlotBanner
-              slot={nextSlot}
-              loading={nextLoading}
-              notFound={nextNotFound}
-              onFind={findNext}
-              onNext={findNextAgain}
-              onSelect={bannerSlot => {
-                const d = new Date(bannerSlot.date + "T12:00:00");
-                if (!Number.isNaN(d.getTime())) {
-                  setDate(d);
-                  pendingSlotStartRef.current = bannerSlot.startTime;
-                  setStep(2);
-                }
-              }}
-            />
-            <div className="bm-or-divider">
-              <span>oppure scegli una data</span>
+            <div className="bm-step1-grid">
+              <NextSlotBanner
+                slot={nextSlot}
+                loading={nextLoading}
+                notFound={nextNotFound}
+                onFind={findNext}
+                onNext={findNextAgain}
+                onSelect={bannerSlot => {
+                  const d = new Date(bannerSlot.date + "T12:00:00");
+                  if (!Number.isNaN(d.getTime())) {
+                    setDate(d);
+                    pendingSlotStartRef.current = bannerSlot.startTime;
+                    setStep(2);
+                  }
+                }}
+              />
+              <div className="bm-or-divider">
+                <span>oppure scegli una data</span>
+              </div>
+              <DateTimeField
+                variant="inline"
+                mode="date"
+                value={toISODateLocal(date)}
+                onChange={iso => {
+                  const d = new Date(`${iso}T12:00:00`);
+                  if (!Number.isNaN(d.getTime())) {
+                    setDate(d);
+                    setSlot(null);
+                  }
+                }}
+                minDate={new Date()}
+                maxDate={maxBookingDate}
+                disabledDates={disabledDates}
+                placeholder="Scegli un giorno"
+              />
             </div>
-            <DateTimeField
-              variant="inline"
-              mode="date"
-              value={toISODateLocal(date)}
-              onChange={iso => {
-                const d = new Date(`${iso}T12:00:00`);
-                if (!Number.isNaN(d.getTime())) {
-                  setDate(d);
-                  setSlot(null);
-                }
-              }}
-              minDate={new Date()}
-              maxDate={maxBookingDate}
-              disabledDates={disabledDates}
-              placeholder="Scegli un giorno"
-            />
             <div className="bm-nav">
               <span />
               <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(2)}>
@@ -697,11 +718,19 @@ const BookingModal = ({
             </div>
           </div>
         )}
-      </UnifiedDrawer>
+        </>
+        )}
+      </Shell>
 
-      <WaitlistModal show={!!waitlistSlot} onHide={() => setWaitlistSlot(null)} service={service} date={date} slot={waitlistSlot} />
+      {mode !== "route" && (
+        <WaitlistModal show={!!waitlistSlot} onHide={() => setWaitlistSlot(null)} service={service} date={date} slot={waitlistSlot} />
+      )}
     </>
   );
 };
 
-export default BookingModal;
+// Desktop wrapper — public API unchanged. Renders the SAME BookingFlow inside the
+// side-drawer; the touch route renders BookingFlow inside BookingRouteShell.
+export default function BookingModal({ show, onHide, ...props }) {
+  return <BookingFlow Shell={UnifiedDrawer} mode="drawer" show={show} onClose={onHide} {...props} />;
+}

@@ -53,6 +53,7 @@ const PrivacyPolicy = lazy(() => import("./components/legal/PrivacyPolicy"));
 const CookiePolicy = lazy(() => import("./components/legal/CookiePolicy"));
 const TermsAndConditions = lazy(() => import("./components/legal/TermsAndConditions"));
 const WishlistPageComp = lazy(() => import("./features/wishlist/WishlistPage"));
+const BookingRoutePage = lazy(() => import("./pages/BookingRoutePage"));
 
 // Chiavi sessionStorage usate da useScrollRestore — aggiorna se aggiungi pagine con restore
 const RESTORE_KEYS = {
@@ -138,6 +139,12 @@ function App() {
   }, []);
 
   const isHeroPage = location.pathname === "/";
+  // Booking/purchase route (touch / virtual-keyboard devices). It renders the SAME
+  // site NavBar + Footer as every other page, in normal document flow, so the
+  // page is naturally taller than the viewport: the Chrome-iOS keyboard white
+  // strip falls BELOW the footer, out of the booking flow. The `is-booking-route`
+  // class only scopes the cream page background (see _booking-route.css).
+  const isBookingRoute = location.pathname === "/prenota";
 
   const splashDone = useSplashScreen();
 
@@ -166,7 +173,7 @@ function App() {
 
       <NavBar />
 
-      <main className={isHeroPage ? "has-hero" : ""}>
+      <main className={`${isHeroPage ? "has-hero" : ""}${isBookingRoute ? " is-booking-route" : ""}`}>
         <Suspense fallback={<div style={{ minHeight: "100dvh" }} />}>
           <AnimatePresence mode="wait" initial={false} onExitComplete={handleExitComplete}>
             <Routes location={location} key={location.pathname}>
@@ -287,6 +294,10 @@ function App() {
                   </PageTransition>
                 }
               />
+              {/* Booking/purchase surface as a real route (touch / virtual-keyboard
+                  devices). NO PageTransition — BookingRouteShell does its own
+                  slide-up; the app-level AnimatePresence plays the slide-down on exit. */}
+              <Route path="/prenota" element={<BookingRoutePage />} />
               <Route
                 path="/ordine-confermato"
                 element={
@@ -461,7 +472,7 @@ function App() {
           </AnimatePresence>
         </Suspense>
       </main>
-      <Footer />
+      <Footer lenisPrevent={isBookingRoute} />
     </>
   );
 }

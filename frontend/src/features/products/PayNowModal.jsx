@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Spinner } from "react-bootstrap";
 import DateTimeField from "../../components/common/DateTimeField";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
-import useLenisModalLock from "../../hooks/useLenisModalLock";
 import { useClosedDays } from "../../hooks/useClosedDays";
 import { fetchMyBookings } from "../../api/modules/bookings.api";
 
@@ -31,8 +30,10 @@ const fmtTime = iso => {
  *   onCheckoutAuth: (orderData) => Promise<void>
  *   onCheckoutGuest: (orderData) => Promise<void>
  */
-export default function PayNowModal({
-  show, onHide, product, qty, user, accessToken,
+// PayNowFlow = the SAME purchase flow rendered in both modes; chrome injected
+// via `Shell` (UnifiedDrawer desktop / BookingRouteShell route).
+export function PayNowFlow({
+  Shell, onClose, show = true, product, qty, user, accessToken,
   onCheckoutAuth, onCheckoutGuest, onCheckoutPayInStore
 }) {
   const [form, setForm] = useState({
@@ -51,8 +52,6 @@ export default function PayNowModal({
   const [pickupDate, setPickupDate] = useState("");
   const [pickupTime, setPickupTime] = useState("");
   const [pickupSpecific, setPickupSpecific] = useState("");
-
-  useLenisModalLock(show);
 
   const { closedDates, closedWeekdays, isClosed } = useClosedDays();
   const disabledDates = useMemo(() => {
@@ -201,16 +200,17 @@ export default function PayNowModal({
   const totalStr = (product?.price * qty).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
 
   return (
-    <UnifiedDrawer
+    <Shell
       show={show}
-      onHide={onHide}
+      layout="side"
+      onHide={onClose}
       title="Completa l'acquisto"
       subtitle={`${product?.name} · ${qty > 1 ? `${qty} pz · ` : ""}${totalStr}`}
       size="md"
       footer={
         <div className="d-flex flex-column w-100 gap-2">
           <div className="d-flex justify-content-between align-items-center w-100">
-            <button className="bm-btn bm-btn--ghost" onClick={onHide} disabled={loading}>Annulla</button>
+            <button className="bm-btn bm-btn--ghost" onClick={onClose} disabled={loading}>Annulla</button>
             <button className="bm-btn bm-btn--primary" onClick={handleSubmit} disabled={loading}>
               {loading ? <Spinner animation="border" size="sm" /> : "💳 Procedi al pagamento →"}
             </button>
@@ -408,6 +408,11 @@ export default function PayNowModal({
         <span>{product?.name} × {qty}</span>
         <span className="pnm-summary-total">{totalStr}</span>
       </div>
-    </UnifiedDrawer>
+    </Shell>
   );
+}
+
+// Desktop wrapper — public API unchanged.
+export default function PayNowModal({ show, onHide, ...props }) {
+  return <PayNowFlow Shell={UnifiedDrawer} show={show} onClose={onHide} {...props} />;
 }

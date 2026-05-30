@@ -8,6 +8,8 @@ import { fetchProducts } from "../../api/modules/products.api";
 import { fetchCategories } from "../../api/modules/categories.api";
 import { createCheckoutSession, createCheckoutSessionGuest } from "../../api/modules/stripe.api";
 import { createOrderPayInStore } from "../../api/modules/orders.api";
+import openBookingSurface from "../bookings/openBookingSurface";
+import useIsDesktop from "../../hooks/useIsDesktop";
 import { subscribeStockAlert } from "../../api/modules/products.api";
 import { addToCart } from "../cart/slices/cart.slice";
 import RelatedCarousel from "../../components/common/RelatedCarousel";
@@ -58,6 +60,7 @@ const ProductDetail = () => {
   const [addedFeedback, setAddedFeedback] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
   const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
   const dispatch = useDispatch();
   const { user, accessToken } = useSelector(s => s.auth);
 
@@ -148,7 +151,11 @@ const ProductDetail = () => {
   };
 
   const handlePayNow = () => {
-    setShowPayNow(true);
+    if (isDesktop) {
+      setShowPayNow(true);
+      return;
+    }
+    navigate(...openBookingSurface({ type: "product", product, qty }));
   };
 
   const handleCheckoutAuth = async orderData => {
