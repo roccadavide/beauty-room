@@ -1,11 +1,15 @@
 import { Container, Row, Col } from "react-bootstrap";
 import { Facebook, Instagram, Whatsapp, GeoAlt, Envelope, Telephone } from "react-bootstrap-icons";
 
-const Footer = () => {
+const Footer = ({ lenisPrevent = false }) => {
   const year = new Date().getFullYear();
 
+  // On the /prenota route Lenis is stopped, so its global listeners preventDefault
+  // any wheel/touchmove that reaches them — which would freeze the footer (it sits
+  // outside the booking surface's [data-lenis-prevent]). Opting the footer out here,
+  // only on that route, lets it scroll natively again. Absent everywhere else.
   return (
-    <footer className="br-footer" aria-label="Footer">
+    <footer className="br-footer" aria-label="Footer" data-lenis-prevent={lenisPrevent ? "" : undefined}>
       <Container className="br-footer__container">
         <Row className="gy-4 text-center text-md-start align-items-start">
           {/* Colonna 1 — Info studio */}

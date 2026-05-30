@@ -472,7 +472,7 @@ function App() {
           </AnimatePresence>
         </Suspense>
       </main>
-      <Footer />
+      <Footer lenisPrevent={isBookingRoute} />
     </>
   );
 }

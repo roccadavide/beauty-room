@@ -83,6 +83,33 @@ body:has(main.is-booking-route) {
   border-bottom: 1px solid rgba(180, 148, 106, 0.15);
 }
 
+/* Page back affordance (route only) — replaces the drawer × (which the desktop
+   UnifiedDrawer still uses). Top-left, labelled, ≥44px tap target. */
+.br-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 12px 0 0 14px;
+  padding: 8px 6px;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #b8976a;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.br-back:hover {
+  color: #2e2118;
+}
+.br-back__icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
 /* Body in normal flow — same padding as .ud-body, but no flex/overflow scroller. */
 .br-body {
   padding: 1.5rem 1.75rem max(2rem, env(safe-area-inset-bottom));
@@ -104,14 +131,32 @@ body:has(main.is-booking-route) {
   margin-bottom: 0.75rem;
 }
 
-/* Width parity with the drawer's size variants is irrelevant full-bleed, but
-   constrain on very wide touch screens (large tablets in landscape) so the
-   content column doesn't stretch awkwardly. */
-@media (min-width: 700px) {
+/* HARD no-clip guarantee for the inline calendar: 7 equal columns that shrink to
+   fit their container (incl. the wide-screen banner|calendar split), so all 7 days
+   always show at every breakpoint and the Sunday column can never be cut off.
+   minmax(0,1fr) + min-width:0 override the bare 36px / ≥768 44px cell floors that
+   otherwise overflow a narrow column; min-height:44px (set in _booking-modal.css)
+   keeps a comfortable tap height. Scoped to .br-panel .bm-step-content → the narrow
+   desktop drawer calendar and the admin RangeCalendar (bare .dtf-*) are untouched. */
+.br-panel .bm-step-content .dtf-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.br-panel .bm-step-content .dtf-day {
+  min-width: 0;
+}
+
+/* Page model, not a drawer: from tablet up the panel is an intentional detached
+   card — centred, rounded on all corners, with a subtle warm shadow, floating on
+   the warm .br-root field. Phone (≤767) stays full-bleed (base rule). `overflow`
+   clips the children to the radius — SAFE because .br-stickytop is NOT
+   position:sticky (it only sets flex-shrink). svh only, never vh/dvh. */
+@media (min-width: 768px) {
   .br-panel {
-    max-width: 760px;
-    margin-left: auto;
-    margin-right: auto;
+    max-width: 700px;
+    margin: 1.5rem auto 2rem;
+    border-radius: 22px;
+    box-shadow: 0 12px 40px -16px rgba(120, 85, 45, 0.22);
+    overflow: hidden;
   }
 }
 
@@ -129,9 +174,17 @@ body:has(main.is-booking-route) {
    and the time slots get a 4th column. Scoped to .br-panel so the narrow desktop
    side-drawer (.ud-panel) never goes two-column. */
 @media (min-width: 1024px) {
+  /* Widen the card so the step-1 two-column layout (banner | calendar) has real
+     room and the calendar never has to clip. Keeps the detached rounded-card
+     treatment inherited from the ≥768 rule. */
+  .br-panel {
+    max-width: min(94vw, 1040px);
+  }
+  /* minmax(0,1fr) so a wide NextSlotBanner can't squeeze the calendar column past
+     its content and push the Sunday column out of view. */
   .br-panel .bm-step1-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
     gap: 1.5rem;
   }

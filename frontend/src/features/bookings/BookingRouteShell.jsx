@@ -31,6 +31,13 @@ export default function BookingRouteShell({ title, subtitle, eyebrow, topSlot, f
       >
         {!bare && (title || topSlot) && (
           <div className="br-stickytop">
+            {/* Page back affordance (route only) — replaces the drawer × and reuses
+                the SAME onHide handler (→ navigate back). The desktop UnifiedDrawer
+                keeps its × since it IS a drawer. */}
+            <button className="br-back" onClick={onHide} aria-label="Torna indietro" type="button">
+              <span className="br-back__icon" aria-hidden="true">←</span>
+              Indietro
+            </button>
             {title != null && (
               <header className="br-header">
                 <div className="ud-header__info">
@@ -38,9 +45,6 @@ export default function BookingRouteShell({ title, subtitle, eyebrow, topSlot, f
                   <h2 className="ud-title">{title}</h2>
                   {subtitle && <div className="ud-subtitle">{subtitle}</div>}
                 </div>
-                <button className="ud-close" onClick={onHide} aria-label="Chiudi" type="button">
-                  ×
-                </button>
               </header>
             )}
             {topSlot && <div className="ud-top-slot br-top-slot">{topSlot}</div>}
