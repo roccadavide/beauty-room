@@ -339,3 +339,34 @@ export const updatePackageAssignment = async (assignmentId, payload) => {
     throw new Error(message);
   }
 };
+
+/* ================= RECURRING PACKAGE TEMPLATES ================= */
+export const fetchRecurringTemplates = async () => {
+  try {
+    const { data } = await http.get("/admin/recurring-package-templates");
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Impossibile caricare i template ricorrenti.";
+    throw new Error(message);
+  }
+};
+
+export const createRecurringTemplate = async payload => {
+  try {
+    const { data } = await http.post("/admin/recurring-package-templates", payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante il salvataggio del template ricorrente.";
+    throw new Error(message);
+  }
+};
+
+export const archiveRecurringTemplate = async id => {
+  try {
+    await http.delete(`/admin/recurring-package-templates/${id}`);
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'archiviazione del template ricorrente.";
+    throw new Error(message);
+  }
+};

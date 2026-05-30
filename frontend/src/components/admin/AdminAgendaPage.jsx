@@ -232,17 +232,25 @@ function EstimatoModal({ bookings, services, onClose }) {
     () =>
       active.map(b => {
         const items = buildBreakdownItems(b, priceMap);
-        const total = items.reduce(
+        // Sum of NON-settled lines (the per-line "incasso ancora da incassare").
+        const unpaidSum = items.reduce(
           (acc, it) => acc + (it.paid || !Number.isFinite(it.price) ? 0 : it.price),
           0,
         );
-        return { booking: b, pay: getPaymentLabel(b), items, total };
+        // V64 M2b: bundle appointment (custom_total_price set) = one atomic price.
+        // Lines stay visible/informational; the bundle price is the single source
+        // for both the displayed total and the "da incassare" (all-or-nothing).
+        const isBundle = b.customTotalPrice != null;
+        const anyUnpaid = items.some(it => !it.paid);
+        const amountDue = isBundle ? (anyUnpaid ? Number(b.customTotalPrice) : 0) : unpaidSum;
+        const total = isBundle ? Number(b.customTotalPrice) : unpaidSum;
+        return { booking: b, pay: getPaymentLabel(b), items, total, amountDue, isBundle, anyUnpaid };
       }),
     [active, priceMap],
   );
 
   const totals = useMemo(
-    () => ({ total: rows.reduce((acc, r) => acc + (Number.isFinite(r.total) ? r.total : 0), 0) }),
+    () => ({ total: rows.reduce((acc, r) => acc + (Number.isFinite(r.amountDue) ? r.amountDue : 0), 0) }),
     [rows],
   );
 
@@ -276,7 +284,7 @@ function EstimatoModal({ bookings, services, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {rows.flatMap(({ booking: b, pay, items, total }) =>
+              {rows.flatMap(({ booking: b, pay, items, total, isBundle }) =>
                 items
                   .map((it, idx) => (
                     <tr
@@ -296,12 +304,20 @@ function EstimatoModal({ bookings, services, onClose }) {
                         {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
                       </td>
                       <td>
-                        {idx === 0 ? (
-                          <span className={`ag-pay-badge ${pay.css}`}>
-                            {pay.icon} {pay.text}
-                          </span>
+                        {isBundle ? (
+                          // Bundle = one atomic payment unit → a single booking-level badge on row 0.
+                          idx === 0 ? (
+                            <span className={`ag-pay-badge ${pay.css}`}>
+                              {pay.icon} {pay.text}
+                            </span>
+                          ) : (
+                            ""
+                          )
                         ) : (
-                          ""
+                          // V64 M2b: per-row payment status (was only on idx === 0).
+                          <span className={`ag-pill ${it.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}>
+                            {it.paid ? "✓ Pagato" : "⏳ Da pagare"}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -312,7 +328,7 @@ function EstimatoModal({ bookings, services, onClose }) {
                           <tr key={`${b.bookingId}-total`} className="ag-estimato-row--total">
                             <td></td>
                             <td></td>
-                            <td style={{ fontWeight: 500, fontStyle: "italic", color: "#888" }}>Totale</td>
+                            <td style={{ fontWeight: 500, fontStyle: "italic", color: "#888" }}>{isBundle ? "Totale (prezzo bundle)" : "Totale"}</td>
                             <td className="ag-estimato-price" style={{ fontWeight: 600, borderTop: "1px solid #ddd" }}>
                               €{total.toFixed(0)}
                             </td>
