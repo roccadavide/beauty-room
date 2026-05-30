@@ -39,6 +39,27 @@ public class AdminNotificationService {
         log.info("Admin notification created: type={} title={}", type, title);
     }
 
+    /**
+     * Creates a notification only if no notification of the same type for the same
+     * entity exists since {@code since} (anti-duplication). REQUIRES_NEW like
+     * {@link #create}: a failure never rolls back the caller's transaction.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createIfNotRecent(NotificationType type, String title, String body,
+                                  UUID entityId, String entityType, LocalDateTime since) {
+        if (entityId != null && repo.existsRecentForEntity(type, entityId, since)) {
+            return;
+        }
+        AdminNotification n = new AdminNotification();
+        n.setType(type);
+        n.setTitle(title);
+        n.setBody(body);
+        n.setEntityId(entityId);
+        n.setEntityType(entityType);
+        repo.save(n);
+        log.info("Admin notification created (deduped): type={} title={}", type, title);
+    }
+
     @Transactional(readOnly = true)
     public long countUnread() {
         return repo.countByReadAtIsNull();

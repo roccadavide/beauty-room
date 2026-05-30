@@ -8,6 +8,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NextAvailableSlotDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ReminderStatusDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ReminderUpdateDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.services.AvailabilityService;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.User;
@@ -123,6 +124,18 @@ public class AdminBookingController {
     ) {
         log.info("ADMIN | update status bookingId={} -> {}", id, status);
         return ResponseEntity.ok(bookingService.updateBookingStatus(id, status, currentUser));
+    }
+
+    // PATCH SETTLE — completion drawer: register per-line payment, optionally complete.
+    // The agenda "Completa" button uses this exclusively; PATCH /status stays for back-compat.
+    @PatchMapping("/{id}/settle")
+    public ResponseEntity<BookingResponseDTO> settle(
+            @PathVariable UUID id,
+            @RequestBody SettlementRequestDTO payload,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        log.info("ADMIN | settle bookingId={} alsoComplete={}", id, payload != null && payload.alsoComplete());
+        return ResponseEntity.ok(bookingService.settleBookingLines(id, payload, currentUser));
     }
 
     @PatchMapping("/{id}/padding")

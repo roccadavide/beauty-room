@@ -82,6 +82,10 @@ public record AdminBookingCreateDTO(
         // Multi-service overrides (new — backwards compatible)
         Integer customTotalDurationMin,
 
+        // V64: custom total price for the whole appointment (bundle override).
+        // Null = no override (per-line prices win). Purely manual — no auto-compute.
+        BigDecimal customTotalPrice,
+
         // Per-service option mapping — replaces the flat serviceOptionId for multi-service bookings.
         // When present and non-empty, takes precedence over serviceIds + serviceOptionId.
         List<ServiceEntryDTO> serviceEntries,

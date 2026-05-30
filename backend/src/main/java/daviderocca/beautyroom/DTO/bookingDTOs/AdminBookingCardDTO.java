@@ -39,6 +39,8 @@ public record AdminBookingCardDTO(
         String customServiceName,
         Integer customServiceDurationMinutes,
         BigDecimal customServicePrice,
+        // V64: whole-appointment custom total price override (null = none).
+        BigDecimal customTotalPrice,
         Integer currentSession,
         Integer totalSessions,
         // Account linking

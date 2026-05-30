@@ -15,6 +15,7 @@ import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WorkingHours;
 import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceEntryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
@@ -590,6 +591,8 @@ public class BookingService {
         }
 
         booking.setDurationMinutes(totalDuration);
+        // V64: whole-appointment custom total price override (null = none).
+        booking.setCustomTotalPrice(dto.customTotalPrice());
         booking.setCurrentSession(dto.currentSession());
         booking.setTotalSessions(dto.totalSessions());
         booking.setConsentLaser(dto.consentLaser());
@@ -619,6 +622,12 @@ public class BookingService {
         } catch (Exception e) {
             log.warn("Customer upsert failed for multi-service booking: {}", e.getMessage());
         }
+
+        // V64: arretrati return-notification. If this returning customer still has
+        // unpaid lines on past COMPLETED bookings, alert the admin. Best-effort
+        // (the new booking is CONFIRMED, never counted by the query); anti-dup is
+        // keyed on the customer (24h) so multiple same-day bookings notify once.
+        notifyOutstandingPaymentsForCustomer(booking.getCustomer(), booking.getCustomerName());
 
         Booking saved = bookingRepository.save(booking);
         log.info("Multi-service booking created: id={} duration={}min services={} custom={} pkg={}",
@@ -1524,6 +1533,9 @@ public class BookingService {
             found.setCustomServicePaid(false);
         }
 
+        // V64: whole-appointment custom total price override (null = none).
+        found.setCustomTotalPrice(dto.customTotalPrice());
+
         found.setNotes(dto.notes());
         found.setCustomerName(safeTrim(dto.customerName(), "Nome cliente obbligatorio"));
         if (dto.customerEmail() != null && !dto.customerEmail().isBlank()) {
@@ -1745,6 +1757,157 @@ public class BookingService {
         }
 
         return convertToDTO(updated);
+    }
+
+    // ============================ SETTLE (completion drawer) ============================
+
+    /**
+     * Registers per-line payment for an appointment (the completion drawer's
+     * "what was paid" action), optionally completing it in the same call.
+     *
+     * DEFENSIVE LOCKSTEP — domain invariant: when the booking carries a
+     * {@code customTotalPrice} it is ONE atomic payment unit ("bundle"). In that
+     * case the per-line maps in the payload are IGNORED and every line is flipped
+     * to the SAME value (markAllPaid, else the first toggle found, else false).
+     * We never trust the client to keep a bundle's lines coherent.
+     *
+     * Non-bundle bookings honour the per-line maps (or markAllPaid for bulk).
+     *
+     * {@code alsoComplete} transitions to COMPLETED and is IDEMPOTENT: if the
+     * booking is already COMPLETED nothing happens (no re-consume of package
+     * sessions, completedAt preserved, no exception). The appointment's date does
+     * NOT affect this logic — only its status and paid flags do (a CONFIRMED
+     * booking in the past completes normally).
+     *
+     * booking_services has no JPA entity, so its {@code paid} flag is driven via
+     * native UPDATE (mirrors the native INSERT in the create/update paths).
+     */
+    @Transactional
+    public BookingResponseDTO settleBookingLines(UUID bookingId, SettlementRequestDTO req, User currentUser) {
+        if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può registrare i pagamenti.");
+        if (req == null) throw new BadRequestException("Payload di pagamento mancante.");
+
+        Booking found = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(bookingId));
+        if (found.getBookingStatus() == BookingStatus.CANCELLED) {
+            throw new BadRequestException("Prenotazione CANCELLED: non registrabile.");
+        }
+
+        boolean bundle = found.getCustomTotalPrice() != null;
+
+        if (bundle) {
+            // Lockstep: ignore the per-line payload, flip everything together.
+            boolean value = resolveBundleSettleValue(req);
+            setAllServiceLinesPaid(bookingId, value);
+            setAllPackageLinksPaid(bookingId, value);
+            if (found.isCustomService()) found.setCustomServicePaid(value);
+        } else if (req.markAllPaid() != null) {
+            // Bulk for a normal appointment.
+            boolean value = req.markAllPaid();
+            setAllServiceLinesPaid(bookingId, value);
+            setAllPackageLinksPaid(bookingId, value);
+            if (found.isCustomService()) found.setCustomServicePaid(value);
+        } else {
+            // Per-line settle.
+            if (req.servicePaid() != null) {
+                req.servicePaid().forEach((serviceId, paid) ->
+                        setServiceLinePaid(bookingId, serviceId, Boolean.TRUE.equals(paid)));
+            }
+            if (req.packageSessionPaid() != null && !req.packageSessionPaid().isEmpty()) {
+                for (BookingPackageLink lnk : bookingPackageLinkRepository
+                        .findAllByBookingBookingIdWithAssignment(bookingId)) {
+                    ClientPackageAssignment a = lnk.getAssignment();
+                    if (a == null || a.isPaidUpfront()) continue; // locked — upfront flag is authoritative
+                    Boolean v = req.packageSessionPaid().get(a.getId());
+                    if (v != null) {
+                        lnk.setPaid(v);
+                        bookingPackageLinkRepository.save(lnk);
+                    }
+                }
+            }
+            if (req.customServicePaid() != null && found.isCustomService()) {
+                found.setCustomServicePaid(req.customServicePaid());
+            }
+        }
+
+        bookingRepository.save(found);
+
+        // alsoComplete — idempotent transition to COMPLETED.
+        if (req.alsoComplete() && found.getBookingStatus() != BookingStatus.COMPLETED) {
+            found.setCompletedAt(LocalDateTime.now());
+            packageCreditService.consumeSessionForBooking(found);
+            found.setBookingStatus(BookingStatus.COMPLETED);
+            bookingRepository.save(found);
+            maybeRecalculatePackage(bookingId);
+            log.info("settleBookingLines: booking {} completed via settle", bookingId);
+        }
+        // Already COMPLETED → completion is a no-op (idempotent): no re-consume,
+        // completedAt untouched, no waitlist (that is a cancellation side-effect).
+
+        return convertToDTO(found);
+    }
+
+    /** Bundle value precedence: markAllPaid → custom → first service → first package → false. */
+    private boolean resolveBundleSettleValue(SettlementRequestDTO req) {
+        if (req.markAllPaid() != null) return req.markAllPaid();
+        if (req.customServicePaid() != null) return req.customServicePaid();
+        if (req.servicePaid() != null) {
+            for (Boolean v : req.servicePaid().values()) if (v != null) return v;
+        }
+        if (req.packageSessionPaid() != null) {
+            for (Boolean v : req.packageSessionPaid().values()) if (v != null) return v;
+        }
+        return false;
+    }
+
+    private void setAllServiceLinesPaid(UUID bookingId, boolean value) {
+        entityManager.createNativeQuery(
+                        "UPDATE booking_services SET paid = :paid WHERE booking_id = :bid")
+                .setParameter("paid", value)
+                .setParameter("bid", bookingId)
+                .executeUpdate();
+    }
+
+    private void setServiceLinePaid(UUID bookingId, UUID serviceId, boolean value) {
+        entityManager.createNativeQuery(
+                        "UPDATE booking_services SET paid = :paid WHERE booking_id = :bid AND service_id = :sid")
+                .setParameter("paid", value)
+                .setParameter("bid", bookingId)
+                .setParameter("sid", serviceId)
+                .executeUpdate();
+    }
+
+    /** Flips every editable (non-upfront) package session link of a booking. */
+    private void setAllPackageLinksPaid(UUID bookingId, boolean value) {
+        for (BookingPackageLink lnk : bookingPackageLinkRepository
+                .findAllByBookingBookingIdWithAssignment(bookingId)) {
+            if (lnk.getAssignment() != null && lnk.getAssignment().isPaidUpfront()) continue; // locked
+            lnk.setPaid(value);
+            bookingPackageLinkRepository.save(lnk);
+        }
+    }
+
+    /**
+     * V64: alerts the admin when a returning customer still has unpaid lines on
+     * past COMPLETED bookings. Best-effort + anti-dup (24h, keyed on the customer).
+     */
+    private void notifyOutstandingPaymentsForCustomer(Customer customer, String customerName) {
+        try {
+            if (customer == null) return;
+            String email = customer.getEmail();
+            if (email == null || email.isBlank()) return;
+            if (!bookingRepository.existsUnsettledCompletedLinesForCustomer(email)) return;
+            notificationService.createIfNotRecent(
+                    NotificationType.OUTSTANDING_PAYMENT,
+                    "Pagamenti in sospeso 💰",
+                    customerName + " ha pagamenti arretrati da saldare.",
+                    customer.getCustomerId(),
+                    "CUSTOMER",
+                    LocalDateTime.now().minusHours(24)
+            );
+        } catch (Exception e) {
+            log.warn("Outstanding-payment notification skipped: {}", e.getMessage());
+        }
     }
 
     // ============================ CANCEL (SOFT) ============================
@@ -2012,6 +2175,7 @@ public class BookingService {
                 b.getCustomServiceName(),
                 customServiceDurationMinutes,
                 b.getCustomServicePrice(),
+                b.getCustomTotalPrice(),
                 linkSessionNumber != null ? linkSessionNumber : b.getCurrentSession(),
                 linkTotalSessions != null ? linkTotalSessions : b.getTotalSessions(),
                 b.getLinkedUser() != null ? b.getLinkedUser().getUserId() : null,
@@ -2215,6 +2379,7 @@ public class BookingService {
                 booking.isCustomService(),
                 booking.getCustomServiceName(),
                 booking.getCustomServicePrice(),
+                booking.getCustomTotalPrice(),
                 booking.getDurationMinutes(),
                 booking.getCurrentSession(),
                 booking.getTotalSessions(),

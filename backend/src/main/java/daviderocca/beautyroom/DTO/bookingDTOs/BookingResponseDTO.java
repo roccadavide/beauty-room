@@ -27,6 +27,8 @@ public record BookingResponseDTO(
         Boolean isCustomService,
         String customServiceName,
         BigDecimal customServicePrice,
+        // V64: whole-appointment custom total price override (null = none).
+        BigDecimal customTotalPrice,
         Integer durationMinutes,
         Integer currentSession,
         Integer totalSessions,

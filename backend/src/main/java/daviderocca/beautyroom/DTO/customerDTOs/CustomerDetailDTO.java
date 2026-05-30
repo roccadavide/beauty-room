@@ -14,7 +14,9 @@ public record CustomerDetailDTO(
         int completedBookings,
         int cancelledBookings,
         List<ActivePackageDTO> packages,
-        List<RecentBookingDTO> bookings
+        List<RecentBookingDTO> bookings,
+        // V64: derived unsettled lines on past COMPLETED bookings (no table).
+        List<ArretratoLineDTO> arretrati
 ) {
 
     /** One active PackageCredit the customer currently holds. */

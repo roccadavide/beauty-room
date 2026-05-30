@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.services;
 
+import daviderocca.beautyroom.DTO.customerDTOs.ArretratoLineDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
@@ -23,6 +24,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -189,6 +192,18 @@ public class CustomerService {
                 .filter(b -> "CANCELLED".equals(b.bookingStatus()) || "NO_SHOW".equals(b.bookingStatus()))
                 .count();
 
+        // ── Arretrati: derived unpaid lines on past COMPLETED bookings (no table) ──
+        List<ArretratoLineDTO> arretrati = (email == null || email.contains(WALKIN_MARKER))
+            ? List.of()
+            : bookingRepository.findArretratiForCustomer(email).stream()
+                .map(r -> new ArretratoLineDTO(
+                    asUuid(r[0]),
+                    asDateTime(r[1]),
+                    (String) r[2],
+                    asBigDecimal(r[3])
+                ))
+                .toList();
+
         return new CustomerDetailDTO(
                 customer.getCustomerId(),
                 customer.getFullName(),
@@ -199,8 +214,31 @@ public class CustomerService {
                 completed,
                 cancelled,
                 packages,
-                bookings
+                bookings,
+                arretrati
         );
+    }
+
+    // ── Native-row coercion helpers (BookingRepository.findArretratiForCustomer) ──
+    private static UUID asUuid(Object o) {
+        if (o == null) return null;
+        if (o instanceof UUID u) return u;
+        return UUID.fromString(o.toString());
+    }
+
+    private static LocalDateTime asDateTime(Object o) {
+        if (o == null) return null;
+        if (o instanceof java.sql.Timestamp t) return t.toLocalDateTime();
+        if (o instanceof LocalDateTime ldt) return ldt;
+        if (o instanceof java.time.Instant inst) return LocalDateTime.ofInstant(inst, java.time.ZoneId.systemDefault());
+        return null;
+    }
+
+    private static BigDecimal asBigDecimal(Object o) {
+        if (o == null) return null;
+        if (o instanceof BigDecimal bd) return bd;
+        if (o instanceof Number n) return BigDecimal.valueOf(n.doubleValue());
+        return new BigDecimal(o.toString());
     }
 
     @Transactional(readOnly = true)
