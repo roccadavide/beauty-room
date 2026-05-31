@@ -209,6 +209,20 @@ function buildBreakdownItems(booking, priceMap) {
   return items;
 }
 
+// V64: single source of truth for a booking's "da incassare" (still-to-collect).
+// Bundle appointments (customTotalPrice set) are one atomic price; otherwise it is
+// the sum of unpaid lines. paidOnline / PackageCredit exclusions are already folded
+// into it.paid via isLineSettled (inside buildBreakdownItems), so the caller just
+// passes the items it already built. Used by BOTH the EstimatoModal and the agenda
+// "incasso stimato" KPI to keep the two figures consistent.
+function computeBookingAmountDue(booking, items) {
+  const isBundle = booking.customTotalPrice != null;
+  const anyUnpaid = items.some(it => !it.paid);
+  return isBundle
+    ? (anyUnpaid ? Number(booking.customTotalPrice) : 0)
+    : items.filter(it => !it.paid).reduce((acc, it) => acc + Number(it.price ?? 0), 0);
+}
+
 // V62: column-level booking status. New bookings no longer write paid_in_store;
 // the "In negozio" label is kept only as a fallback for legacy rows that still
 // carry the dormant flag set to TRUE.
@@ -231,20 +245,14 @@ function EstimatoModal({ bookings, services, onClose }) {
   const rows = useMemo(
     () =>
       active.map(b => {
+        // One buildBreakdownItems call per booking — reused for the row display AND
+        // the amountDue calc (single source of truth via computeBookingAmountDue).
         const items = buildBreakdownItems(b, priceMap);
-        // Sum of NON-settled lines (the per-line "incasso ancora da incassare").
-        const unpaidSum = items.reduce(
-          (acc, it) => acc + (it.paid || !Number.isFinite(it.price) ? 0 : it.price),
-          0,
-        );
-        // V64 M2b: bundle appointment (custom_total_price set) = one atomic price.
-        // Lines stay visible/informational; the bundle price is the single source
-        // for both the displayed total and the "da incassare" (all-or-nothing).
         const isBundle = b.customTotalPrice != null;
-        const anyUnpaid = items.some(it => !it.paid);
-        const amountDue = isBundle ? (anyUnpaid ? Number(b.customTotalPrice) : 0) : unpaidSum;
-        const total = isBundle ? Number(b.customTotalPrice) : unpaidSum;
-        return { booking: b, pay: getPaymentLabel(b), items, total, amountDue, isBundle, anyUnpaid };
+        const amountDue = computeBookingAmountDue(b, items);
+        // Display "Totale" row: bundle → gross bundle price; otherwise = da-incassare.
+        const total = isBundle ? Number(b.customTotalPrice) : amountDue;
+        return { booking: b, pay: getPaymentLabel(b), items, total, amountDue, isBundle };
       }),
     [active, priceMap],
   );
@@ -997,64 +1005,13 @@ export default function AdminAgendaPage() {
     const openMin = (timeline?.openRanges || []).reduce((sum, r) => sum + Math.max(0, minutes(r.end) - minutes(r.start)), 0);
     const occ = openMin > 0 ? Math.round((bookedMin / openMin) * 100) : 0;
     const priceMap = new Map(services.map(s => [String(s.serviceId), Number(s.price)]));
-    // V62: "incasso stimato" = revenue STILL TO COLLECT. Per-line semantics:
-    // a line counts only if it is NOT settled. A line is settled when its own
-    // paid flag is true (catalog: s.paid, package: pkg.paid — already folds in
-    // paidUpfront on the backend, custom: b.customServicePaid) OR when the
-    // booking is paidOnline / PackageCredit-backed. paidInStore is ignored.
-    const effectivePrice = b => {
-      if (b.paidOnline || isBookingPackageCreditBacked(b)) return 0;
-      const pkgs = b.linkedPackages?.length
-        ? b.linkedPackages
-        : b.linkedPackage
-          ? [b.linkedPackage]
-          : [];
-      const isLegacySingle = !b.linkedPackages?.length && !!b.linkedPackage;
-
-      // 1) Package contribution: sum each package's sessionPrice. Skip settled.
-      let pkgPrice = 0;
-      for (const pkg of pkgs) {
-        if (pkg.paid === true) continue;
-        if (pkg.sessionPrice != null) {
-          pkgPrice += Number(pkg.sessionPrice);
-        } else if (isLegacySingle && b.optionPrice != null) {
-          pkgPrice += Number(b.optionPrice);
-        } else if (isLegacySingle && b.serviceId) {
-          pkgPrice += priceMap.get(String(b.serviceId)) ?? 0;
-        }
-      }
-
-      // 2) Catalog extras — skip settled lines.
-      let extrasSum = 0;
-      if (Array.isArray(b.services) && b.services.length > 0) {
-        extrasSum = b.services.reduce((acc, s, i) => {
-          if (s.paid === true) return acc;
-          const unitPrice =
-            pkgs.length === 0 && i === 0 && b.optionPrice != null && !s.optionId
-              ? Number(b.optionPrice)
-              : s.optionId && s.price != null
-                ? Number(s.price)
-                : s.price != null
-                  ? Number(s.price)
-                  : (priceMap.get(String(s.id ?? s.serviceId)) ?? 0);
-          return acc + unitPrice;
-        }, 0);
-      }
-
-      // 3) Custom — skip if customServicePaid.
-      const customPrice = (!b.customServicePaid && b.customServicePrice != null) ? Number(b.customServicePrice) : 0;
-
-      if (pkgs.length > 0 || (Array.isArray(b.services) && b.services.length > 0) || b.customServicePrice != null) {
-        return pkgPrice + extrasSum + customPrice;
-      }
-
-      // 5) Legacy fallback (single-service booking with no per-line data).
-      if (b.optionPrice != null) return Number(b.optionPrice);
-      return priceMap.get(String(b.serviceId)) ?? 0;
-    };
-    const revenueKnown = active.some(b => Number.isFinite(effectivePrice(b)));
+    // V64: per-booking "da incassare" — single source of truth (computeBookingAmountDue),
+    // identical to the EstimatoModal. Respects bundle customTotalPrice; paidOnline /
+    // PackageCredit and per-line paid flags are folded into it.paid via isLineSettled.
+    const dueOf = b => computeBookingAmountDue(b, buildBreakdownItems(b, priceMap));
+    const revenueKnown = active.some(b => Number.isFinite(dueOf(b)));
     const incassoStimato = active.reduce((sum, b) => {
-      const p = effectivePrice(b);
+      const p = dueOf(b);
       return sum + (Number.isFinite(p) ? p : 0);
     }, 0);
     return { count, bookedMin, openMin, occ, incassoStimato, revenueKnown };
