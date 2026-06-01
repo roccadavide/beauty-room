@@ -5,6 +5,7 @@ import {
   getTimelineDay,
   getBookingsDay,
   patchBookingStatus,
+  settleBookingLines,
   deleteBooking,
   updateBooking,
   getNextAvailableSlot,
@@ -18,6 +19,7 @@ import {
 import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../utils/reminders";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
+import CompletionDrawer from "./CompletionDrawer";
 import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
 import ClosuresDrawer from "../../features/admin/ClosuresDrawer";
 import ConfirmDialog from "../common/ConfirmDialog";
@@ -163,7 +165,12 @@ function buildBreakdownItems(booking, priceMap) {
       const p = priceMap.get(String(booking.serviceId));
       if (p != null) price = p;
     }
-    items.push({ label, price, kind: "package", paid: isLineSettled(pkg, booking) });
+    // refKind/refId/locked: drive the CompletionDrawer settle payload (packageSessionPaid
+    // keyed by ClientPackageAssignment id). paidUpfront packages are not editable.
+    items.push({
+      label, price, kind: "package", paid: isLineSettled(pkg, booking),
+      refKind: "package", refId: pkg.packageAssignmentId, locked: pkg.paidLocked === true,
+    });
   });
 
   // b. Extras from booking.services
@@ -180,7 +187,11 @@ function buildBreakdownItems(booking, priceMap) {
         const p = priceMap.get(String(s.id ?? s.serviceId));
         price = p != null ? p : null;
       }
-      items.push({ label, price, kind: "extra", paid: isLineSettled(s, booking) });
+      // refId = catalog service_id (servicePaid map key in the settle payload).
+      items.push({
+        label, price, kind: "extra", paid: isLineSettled(s, booking),
+        refKind: "service", refId: s.id,
+      });
     });
   }
 
@@ -191,6 +202,7 @@ function buildBreakdownItems(booking, priceMap) {
       price: booking.customServicePrice != null ? Number(booking.customServicePrice) : null,
       kind: "custom",
       paid: isCustomSettled(booking),
+      refKind: "custom",
     });
   }
 
@@ -203,6 +215,7 @@ function buildBreakdownItems(booking, priceMap) {
       // No per-line flag exists for the legacy single-service shape: fall back to
       // booking-level paidOnline / packageCredit only.
       paid: booking.paidOnline || isBookingPackageCreditBacked(booking),
+      refKind: "legacy", refId: booking.serviceId,
     });
   }
 
@@ -784,6 +797,7 @@ export default function AdminAgendaPage() {
   const [refundConfirmBooking, setRefundConfirmBooking] = useState(null);
   const [consentConfirmBooking, setConsentConfirmBooking] = useState(null);
   const [showEstimatoModal, setShowEstimatoModal] = useState(false);
+  const [completionDrawer, setCompletionDrawer] = useState(null); // { booking, items } | null
 
   // ── WhatsApp reminders ───────────────────────────────────────────────
   // Stato "inviato" = booking.reminderSentAt dal backend.
@@ -1017,6 +1031,11 @@ export default function AdminAgendaPage() {
     return { count, bookedMin, openMin, occ, incassoStimato, revenueKnown };
   }, [bookings, timeline, services]);
 
+  // Catalog price map (serviceId → price), shared by the "Completa" smart-skip and
+  // the CompletionDrawer. Only affects displayed prices: the settle payload and the
+  // paid/branch logic are price-independent (it.paid comes from isLineSettled).
+  const priceMap = useMemo(() => new Map(services.map(s => [String(s.serviceId), Number(s.price)])), [services]);
+
   // FIX B2: azzerare nextSlotResult solo se il cambio data è stato manuale,
   // NON se è stato causato da searchNextSlot (altrimenti "Ancora →" si rompe)
   useEffect(() => {
@@ -1047,6 +1066,47 @@ export default function AdminAgendaPage() {
     setErrDetails(null);
     try {
       await patchBookingStatus(id, status);
+      await refresh();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  // ── "Completa" → smart-skip a 4 rami, single code-path su /settle ───────────
+  // La DATA non influenza la logica: un CONFIRMED nel passato (Michela completa in
+  // ritardo) apre il drawer normalmente. Conta solo lo stato + i flag paid.
+  // Rami diretti (1 paidOnline, 2 tutte già pagate): mappe vuote → il backend non
+  // flippa alcun flag, esegue solo la transizione a COMPLETED.
+  const settleAndComplete = async b => {
+    const prev = b.status;
+    setErr("");
+    setErrDetails(null);
+    try {
+      await settleBookingLines(b.bookingId, { servicePaid: {}, packageSessionPaid: {}, alsoComplete: true });
+      setCompletedUndo(u => ({ ...u, [b.bookingId]: prev }));
+      await refresh();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  const handleCompleteClick = b => {
+    if (b.paidOnline) return settleAndComplete(b);                                    // 1
+    const items = buildBreakdownItems(b, priceMap);
+    if (b.customTotalPrice != null) return setCompletionDrawer({ booking: b, items }); // 3 (bundle prima di "tutte pagate")
+    if (items.every(it => it.paid)) return settleAndComplete(b);                       // 2
+    setCompletionDrawer({ booking: b, items });                                        // 4
+  };
+
+  const handleDrawerConfirm = async payload => {
+    if (!completionDrawer) return;
+    const b = completionDrawer.booking;
+    setErr("");
+    setErrDetails(null);
+    try {
+      await settleBookingLines(b.bookingId, payload);
+      setCompletedUndo(u => ({ ...u, [b.bookingId]: b.status }));
+      setCompletionDrawer(null);
       await refresh();
     } catch (e) {
       setErr(e.message);
@@ -2155,11 +2215,7 @@ export default function AdminAgendaPage() {
                                 <Button
                                   className="ag-btn ag-btn--ok"
                                   size="sm"
-                                  onClick={async () => {
-                                    const prev = b.status;
-                                    await changeStatus(b.bookingId, "COMPLETED");
-                                    setCompletedUndo(u => ({ ...u, [b.bookingId]: prev }));
-                                  }}
+                                  onClick={() => handleCompleteClick(b)}
                                 >
                                   Completa
                                 </Button>
@@ -2486,6 +2542,15 @@ export default function AdminAgendaPage() {
       />
 
       {showEstimatoModal && <EstimatoModal bookings={bookings} services={services} onClose={() => setShowEstimatoModal(false)} />}
+
+      {completionDrawer && (
+        <CompletionDrawer
+          booking={completionDrawer.booking}
+          items={completionDrawer.items}
+          onClose={() => setCompletionDrawer(null)}
+          onConfirm={handleDrawerConfirm}
+        />
+      )}
 
       {/* ── Floating action buttons (compact only — hidden on desktop by CSS) ── */}
       {isCompact && (

@@ -43,6 +43,18 @@ export const patchBookingStatus = async (id, status) => {
   }
 };
 
+// PATCH settle — registra il pagamento per-riga (completion drawer), opzionalmente
+// completando l'appuntamento (alsoComplete). Backend: PATCH /admin/bookings/{id}/settle
+export const settleBookingLines = async (id, payload) => {
+  try {
+    const { data } = await http.patch(AGENDA_ENDPOINTS.BOOKING_SETTLE(id), payload);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore registrazione pagamento.";
+    throw new Error(message);
+  }
+};
+
 export const updateBooking = async (id, payload) => {
   try {
     const { data } = await http.put(AGENDA_ENDPOINTS.BOOKING_BY_ID(id), payload);

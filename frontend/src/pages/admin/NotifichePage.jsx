@@ -25,6 +25,7 @@ const TYPE_CONFIG = {
   ORDER_CANCELLED: { icon: "📦", label: "Ordine cancellato", color: "#c0392b", link: "/profilo/admin/prodotti" },
   CLOSURE_REMINDER: { icon: "🔒", label: "Chiusura programmata", color: "#946a3a", link: "/profilo/admin/agenda" },
   BOOKING_CLOSURE_CONFLICT: { icon: "⚠️", label: "Prenotazione in conflitto", color: "#c0392b", link: "/profilo/admin/agenda" },
+  OUTSTANDING_PAYMENT: { icon: "💰", label: "Pagamento in sospeso", color: "#b8860b", link: "/admin/clienti" },
 };
 
 // ─── Utilities ───────────────────────────────────────────────────────────────

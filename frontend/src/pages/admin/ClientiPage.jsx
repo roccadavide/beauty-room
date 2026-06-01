@@ -423,6 +423,30 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
         {saveError && <div className="cli-notes-error">{saveError}</div>}
       </div>
 
+      {/* Arretrati / Da saldare — righe non saldate su appuntamenti COMPLETED passati.
+          Dato 100% da backend (customer.arretrati): nessun ricalcolo/totale lato FE.
+          Render solo se presenti (niente riquadro vuoto). */}
+      {customer.arretrati?.length > 0 && (
+        <div className="cli-card">
+          <div className="cli-section-title">Arretrati / Da saldare</div>
+          <div className="cli-history-wrapper">
+            <div className="cli-history-list">
+              {customer.arretrati.map((a, idx) => (
+                <div key={`${a.bookingId}-${idx}`} className="cli-history-item">
+                  <div className="cli-history-main">
+                    <div className="cli-history-title">{a.label}</div>
+                    <div className="cli-history-meta">{formatDateTimeIT(a.occurredAt)}</div>
+                  </div>
+                  <div className="cli-history-status">
+                    {a.price == null ? "—" : `€${Number(a.price).toFixed(0)}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="cli-card">
         <div className="cli-section-title">Storico prenotazioni</div>
         <div className="cli-history-wrapper">

@@ -151,6 +151,7 @@ export const AGENDA_ENDPOINTS = {
   BOOKINGS_BASE: "/admin/bookings",
   BOOKING_BY_ID: id => `/admin/bookings/${id}`,
   BOOKING_STATUS: id => `/admin/bookings/${id}/status`,
+  BOOKING_SETTLE: id => `/admin/bookings/${id}/settle`,
   NEXT_AVAILABLE: "/admin/bookings/next-available",
 };
 
