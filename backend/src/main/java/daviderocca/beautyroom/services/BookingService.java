@@ -59,8 +59,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -2067,8 +2069,10 @@ public class BookingService {
         if (date == null) throw new BadRequestException("Data non valida.");
         LocalDateTime from = date.atStartOfDay();
         LocalDateTime to   = date.plusDays(1).atStartOfDay();
-        return bookingRepository.findAgendaRangeWithDetails(from, to).stream()
-                .map(this::toAdminCard)
+        List<Booking> bookings = bookingRepository.findAgendaRangeWithDetails(from, to);
+        Set<String> outstanding = resolveOutstandingPhones(bookings);
+        return bookings.stream()
+                .map(b -> toAdminCard(b, outstanding.contains(digitsOnly(b.getCustomerPhone()))))
                 .toList();
     }
 
@@ -2078,12 +2082,37 @@ public class BookingService {
         if (!fromDate.isBefore(toDateExclusive)) throw new BadRequestException("Range non valido (from < to).");
         LocalDateTime from = fromDate.atStartOfDay();
         LocalDateTime to   = toDateExclusive.atStartOfDay();
-        return bookingRepository.findAgendaRangeWithDetails(from, to).stream()
-                .map(this::toAdminCard)
+        List<Booking> bookings = bookingRepository.findAgendaRangeWithDetails(from, to);
+        Set<String> outstanding = resolveOutstandingPhones(bookings);
+        return bookings.stream()
+                .map(b -> toAdminCard(b, outstanding.contains(digitsOnly(b.getCustomerPhone()))))
                 .toList();
     }
 
+    // V64 (Fase 2): ONE batch query for the whole agenda range — given the bookings in
+    // view, return the set of normalized phones that have >=1 unsettled line on a past
+    // COMPLETED booking. NEVER called per-card (that would re-introduce an N+1). The guard
+    // returns Set.of() BEFORE hitting the repository so IN (:phones) is never IN ().
+    private Set<String> resolveOutstandingPhones(List<Booking> bookings) {
+        Set<String> phones = bookings.stream()
+                .map(b -> digitsOnly(b.getCustomerPhone()))
+                .filter(p -> !p.isEmpty())
+                .collect(Collectors.toSet());
+        if (phones.isEmpty()) return Set.of();
+        return new HashSet<>(bookingRepository.findPhonesWithOutstanding(phones));
+    }
+
+    /** Digits-only phone (empty when null/no digits). Mirrors the SQL regexp_replace([^0-9]). */
+    private static String digitsOnly(String phone) {
+        return phone == null ? "" : phone.replaceAll("[^0-9]", "");
+    }
+
+    /** Non-agenda callers (findPmuUnsigned, signConsent): no arretrati badge. */
     private AdminBookingCardDTO toAdminCard(Booking b) {
+        return toAdminCard(b, false);
+    }
+
+    private AdminBookingCardDTO toAdminCard(Booking b, boolean hasOutstanding) {
         var pkg = b.getPackageCredit();
 
         // Resolve display service title: primary FK takes precedence, fall back to first in list
@@ -2232,7 +2261,8 @@ public class BookingService {
                 b.getPaidAt(),
                 paidOnline,
                 refundable,
-                b.getReminderSentAt()
+                b.getReminderSentAt(),
+                hasOutstanding
         );
     }
 

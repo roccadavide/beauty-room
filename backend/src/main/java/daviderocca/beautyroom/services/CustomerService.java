@@ -203,14 +203,7 @@ public class CustomerService {
         List<ArretratoLineDTO> arretrati = !hasPhone
             ? List.of()
             : bookingRepository.findArretratiForCustomer(customer.getPhone()).stream()
-                .map(r -> new ArretratoLineDTO(
-                    asUuid(r[0]),
-                    asDateTime(r[1]),
-                    (String) r[2],
-                    asBigDecimal(r[3]),
-                    (String) r[4],
-                    asUuid(r[5])
-                ))
+                .map(this::toArretrato)
                 .toList();
 
         return new CustomerDetailDTO(
@@ -226,6 +219,34 @@ public class CustomerService {
                 bookings,
                 arretrati
         );
+    }
+
+    /**
+     * Arretrati for the customer of a given booking (resolved by the booking's phone) —
+     * lazy-load for the agenda dropdown (GET /admin/bookings/{id}/arretrati). Reuses the
+     * SAME enriched query and the SAME row mapper as getSummary, so the lines match exactly.
+     */
+    @Transactional(readOnly = true)
+    public List<ArretratoLineDTO> getArretratiForBooking(UUID bookingId) {
+        Booking b = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(bookingId));
+        if (digitsOnly(b.getCustomerPhone()).isEmpty()) return List.of();
+        return bookingRepository.findArretratiForCustomer(b.getCustomerPhone()).stream()
+                .map(this::toArretrato)
+                .toList();
+    }
+
+    /** Maps one native row from findArretratiForCustomer to an ArretratoLineDTO. SINGLE
+     *  source of truth for the row shape — used by getSummary AND getArretratiForBooking,
+     *  so the two never drift in column order/coercion. */
+    private ArretratoLineDTO toArretrato(Object[] r) {
+        return new ArretratoLineDTO(
+                asUuid(r[0]),
+                asDateTime(r[1]),
+                (String) r[2],
+                asBigDecimal(r[3]),
+                (String) r[4],
+                asUuid(r[5]));
     }
 
     /** Digits-only phone (empty when null/blank/no digits). Mirrors the SQL

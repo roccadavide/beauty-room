@@ -15,6 +15,7 @@ import {
   patchBookingConsent,
   getPersonalAppointmentsDay,
   getClosuresRange,
+  fetchArretratiForBooking,
 } from "../../api/modules/adminAgenda.api";
 import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../utils/reminders";
 import BookingModal from "./BookingModal";
@@ -31,8 +32,13 @@ import DateTimeField from "../common/DateTimeField";
 import SEO from "../common/SEO";
 import formatDuration from "../../utils/formatDuration";
 import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
+import { buildArretratoSettlePayload } from "./settlePayload";
 // pkgi-* classes for the collapsible package items toggle
 import "./PackageForm.css";
+
+// Digits-only phone (mirror of the backend digitsOnly / SQL regexp_replace) — used to
+// clear the agenda arretrati badge across all cards of the same customer after settling.
+const digitsOnly = s => (s ? String(s).replace(/[^0-9]/g, "") : "");
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -811,6 +817,54 @@ export default function AdminAgendaPage() {
       return next;
     });
   }, []);
+
+  // ── Arretrati in agenda (Fase 2): reuse the SAME expand mechanism as packages
+  // (expandedAgendaPkgs + agendaPkgKey + toggleAgendaPkg) with the sentinel key
+  // agendaPkgKey(bookingId, "arretrati"). The list is lazy-loaded on open via the GET. ──
+  const [arretratiData, setArretratiData] = useState({}); // bookingId -> { loading, error, items }
+  const [arretratoSettling, setArretratoSettling] = useState(null); // row key in-flight (double-click guard)
+  const [arretratoError, setArretratoError] = useState(null);       // row key whose settle failed
+  const [confirmArretrato, setConfirmArretrato] = useState(null);   // { card, a } awaiting confirm
+
+  const arretratoRowKey = a => `${a.bookingId}-${a.kind}-${a.refId ?? "x"}`;
+
+  const loadArretrati = useCallback(async bookingId => {
+    setArretratiData(prev => ({ ...prev, [bookingId]: { loading: true, error: null, items: prev[bookingId]?.items ?? [] } }));
+    try {
+      const items = await fetchArretratiForBooking(bookingId);
+      setArretratiData(prev => ({ ...prev, [bookingId]: { loading: false, error: null, items } }));
+      return items;
+    } catch (e) {
+      setArretratiData(prev => ({ ...prev, [bookingId]: { loading: false, error: e.message || "Errore caricamento arretrati.", items: [] } }));
+      return null;
+    }
+  }, []);
+
+  // Settle ONE arretrato row from the dropdown. Reuses settleBookingLines +
+  // buildArretratoSettlePayload (alsoComplete:false) exactly like ClientiPage (Fase 1).
+  // On success: re-fetch the dropdown; if the customer has NO more arretrati, drop the
+  // badge on EVERY card of the same customer (matched by normalized phone). On error:
+  // keep the row ("Riprova"), badge unchanged.
+  const settleArretrato = useCallback(async (card, a) => {
+    const rowKey = arretratoRowKey(a);
+    if (arretratoSettling) return; // a settle is already in flight — ignore (double-click guard)
+    setArretratoError(null);
+    setArretratoSettling(rowKey);
+    try {
+      await settleBookingLines(a.bookingId, buildArretratoSettlePayload(a));
+      const items = await loadArretrati(card.bookingId);
+      if (items && items.length === 0) {
+        setBookings(prev => prev.map(bk =>
+          digitsOnly(bk.customerPhone) === digitsOnly(card.customerPhone)
+            ? { ...bk, hasOutstanding: false }
+            : bk));
+      }
+    } catch {
+      setArretratoError(rowKey); // network/settle error → keep the row, surface "Riprova"
+    } finally {
+      setArretratoSettling(null);
+    }
+  }, [arretratoSettling, loadArretrati]);
 
   const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
@@ -1859,6 +1913,20 @@ export default function AdminAgendaPage() {
                         if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
                         return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
                       })();
+                      const arretratiKey = agendaPkgKey(b.bookingId, "arretrati");
+                      const arretratiOpen = expandedAgendaPkgs.has(arretratiKey);
+                      const arretratiState = arretratiData[b.bookingId];
+                      // Same stopPropagation contract as the package chevron — the badge
+                      // toggle must NOT bubble to any card-level click (edit drawer).
+                      const onArretratiToggle = e => {
+                        e.stopPropagation();
+                        const willOpen = !arretratiOpen;
+                        toggleAgendaPkg(b.bookingId, "arretrati");
+                        if (willOpen) loadArretrati(b.bookingId); // lazy-load on open
+                      };
+                      const onArretratiKeyDown = e => {
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onArretratiToggle(e); }
+                      };
                       return (
                         <div
                           key={b.bookingId}
@@ -1874,7 +1942,22 @@ export default function AdminAgendaPage() {
                             </div>
 
                             <div className="ag-item__main">
-                              <div className="ag-item__name">{b.customerName}</div>
+                              <div className="ag-item__name">
+                                {b.customerName}
+                                {b.hasOutstanding && (
+                                  <button
+                                    type="button"
+                                    className="ag-pill ag-pill--unpaid"
+                                    style={{ marginLeft: 6 }}
+                                    aria-expanded={arretratiOpen}
+                                    title="Pagamenti arretrati da saldare"
+                                    onClick={onArretratiToggle}
+                                    onKeyDown={onArretratiKeyDown}
+                                  >
+                                    ⚠️ Arretrati
+                                  </button>
+                                )}
+                              </div>
                               <div className="ag-item__service">
                                 {(() => {
                                   // Phase 6b: ONE unified list of entries — every linked package
@@ -2319,6 +2402,46 @@ export default function AdminAgendaPage() {
                             </Button>
                           </div>
 
+                          {/* Arretrati dropdown — expands the item below the actions (NOT the
+                              absolute timeline). Lazy-loaded on open; rows reuse settle from Fase 1. */}
+                          {arretratiOpen && (
+                            <div
+                              style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(140,109,63,0.18)", display: "flex", flexDirection: "column", gap: 6 }}
+                            >
+                              {arretratiState?.loading && <span className="ag-muted">Caricamento arretrati…</span>}
+                              {arretratiState?.error && <span className="ag-pill ag-pill--unpaid">{arretratiState.error}</span>}
+                              {!arretratiState?.loading && !arretratiState?.error && (arretratiState?.items ?? []).length === 0 && (
+                                <span className="ag-muted">Nessun arretrato — tutto saldato ✓</span>
+                              )}
+                              {(arretratiState?.items ?? []).map((a, idx) => {
+                                const rowKey = arretratoRowKey(a);
+                                const busy = arretratoSettling === rowKey;
+                                const errored = arretratoError === rowKey;
+                                return (
+                                  <div key={`${rowKey}-${idx}`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div className="ag-item__service">{a.label}</div>
+                                      <div className="ag-muted" style={{ fontSize: "0.78rem" }}>
+                                        {new Date(a.occurredAt).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
+                                      </div>
+                                    </div>
+                                    <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                                      {a.price == null ? "—" : `€${Number(a.price).toFixed(0)}`}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="ag-pill ag-pill--toggle"
+                                      disabled={arretratoSettling !== null}
+                                      onClick={() => setConfirmArretrato({ card: b, a })}
+                                    >
+                                      {busy ? "…" : errored ? "Riprova" : "Salda"}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
                           {b.status !== "CANCELLED" &&
                             b.status !== "COMPLETED" &&
                             (() => {
@@ -2568,6 +2691,24 @@ export default function AdminAgendaPage() {
           refresh();
           if (viewMode === "week") setWeekRefreshKey(k => k + 1);
         }}
+      />
+
+      <ConfirmDialog
+        show={!!confirmArretrato}
+        onHide={() => setConfirmArretrato(null)}
+        onConfirm={() => {
+          const ctx = confirmArretrato;
+          setConfirmArretrato(null);
+          if (ctx) settleArretrato(ctx.card, ctx.a);
+        }}
+        title="Salda arretrato"
+        message={
+          confirmArretrato
+            ? `Confermi di saldare questo arretrato? ${confirmArretrato.a.label} del ${new Date(confirmArretrato.a.occurredAt).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })} — ${confirmArretrato.a.price == null ? "—" : `€${Number(confirmArretrato.a.price).toFixed(0)}`}`
+            : ""
+        }
+        confirmLabel="Salda"
+        confirmVariant="primary"
       />
 
       <ConfirmDialog

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -215,7 +216,17 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     // fine at current volumes (hundreds of bookings). If volumes grow, add a computed
     // phone_normalized column + index (out of scope today).
 
-    /** True if the customer (matched by normalized phone) has any unsettled line on a past COMPLETED booking. */
+    /**
+     * True if the customer (matched by normalized phone) has any unsettled line on a past
+     * COMPLETED booking.
+     *
+     * ⚠ DUPLICATED PREDICATE — the four OR branches below define "what counts as an
+     * arretrato". They are copied VERBATIM into {@link #findPhonesWithOutstanding(Collection)},
+     * the batch variant the agenda uses. There is no shared SQL fragment (a DB view would be
+     * a schema refactor, out of scope). If you change the definition of an unsettled line,
+     * edit it in BOTH methods — otherwise this per-customer check and the agenda badge
+     * DIVERGE SILENTLY: a line counts as arretrato in one place but not the other.
+     */
     @Query(value = """
         SELECT EXISTS (
             SELECT 1
@@ -239,6 +250,42 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         )
         """, nativeQuery = true)
     boolean existsUnsettledCompletedLinesForCustomer(@Param("phone") String phone);
+
+    /**
+     * Batch variant for the admin agenda. Given the already-normalized (digits-only) phones
+     * of the bookings currently in view, returns the SUBSET that has ≥1 unsettled line on a
+     * past COMPLETED booking. ONE query for the whole agenda range — NEVER call this per-card
+     * (that re-introduces an N+1). Each card then sets hasOutstanding =
+     * result.contains(digitsOnly(phone)). The returned phones are already normalized, matching
+     * the caller's digitsOnly() keys. Callers MUST pass a non-empty collection (guarded
+     * upstream) so IN (:phones) never degenerates to IN ().
+     *
+     * ⚠ DUPLICATED PREDICATE — the four OR branches are copied VERBATIM from
+     * {@link #existsUnsettledCompletedLinesForCustomer(String)}; only the phone match
+     * (= → IN) and the projection (EXISTS → SELECT DISTINCT) differ. If you change what
+     * counts as an unsettled line, edit it in BOTH methods or they diverge silently.
+     */
+    @Query(value = """
+        SELECT DISTINCT regexp_replace(b.customer_phone, '[^0-9]', '', 'g')
+        FROM bookings b
+        WHERE b.booking_status = 'COMPLETED'
+          AND b.paid_at IS NULL
+          AND b.package_credit_id IS NULL
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') IN (:phones)
+          AND (
+                EXISTS (SELECT 1 FROM booking_services bs
+                         WHERE bs.booking_id = b.booking_id AND bs.paid = false)
+             OR EXISTS (SELECT 1 FROM booking_package_link bpl
+                          JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
+                         WHERE bpl.booking_id = b.booking_id AND bpl.paid = false
+                           AND cpa.paid_upfront = false)
+             OR (b.is_custom_service = true AND b.custom_service_paid = false)
+             OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
+                   AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
+          )
+        """, nativeQuery = true)
+    List<String> findPhonesWithOutstanding(@Param("phones") Collection<String> phones);
 
     /**
      * Itemised unsettled lines for a customer's COMPLETED bookings.

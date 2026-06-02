@@ -9,11 +9,13 @@ import daviderocca.beautyroom.DTO.bookingDTOs.NextAvailableSlotDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ReminderStatusDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ReminderUpdateDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
+import daviderocca.beautyroom.DTO.customerDTOs.ArretratoLineDTO;
 import daviderocca.beautyroom.services.AvailabilityService;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.services.BookingService;
+import daviderocca.beautyroom.services.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +41,7 @@ public class AdminBookingController {
 
     private final BookingService bookingService;
     private final AvailabilityService availabilityService;
+    private final CustomerService customerService;
 
     // LIST PAGINATA
     @GetMapping
@@ -136,6 +139,14 @@ public class AdminBookingController {
     ) {
         log.info("ADMIN | settle bookingId={} alsoComplete={}", id, payload != null && payload.alsoComplete());
         return ResponseEntity.ok(bookingService.settleBookingLines(id, payload, currentUser));
+    }
+
+    // GET arretrati of the booking's customer — lazy-load for the agenda dropdown (Fase 2).
+    // Resolves the booking's phone -> findArretratiForCustomer -> enriched ArretratoLineDTO list.
+    @GetMapping("/{id}/arretrati")
+    public ResponseEntity<List<ArretratoLineDTO>> arretrati(@PathVariable UUID id) {
+        log.info("ADMIN | arretrati for bookingId={}", id);
+        return ResponseEntity.ok(customerService.getArretratiForBooking(id));
     }
 
     @PatchMapping("/{id}/padding")

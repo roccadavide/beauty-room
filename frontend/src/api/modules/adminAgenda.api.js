@@ -55,6 +55,18 @@ export const settleBookingLines = async (id, payload) => {
   }
 };
 
+// GET arretrati del cliente di un booking (lazy-load per il dropdown agenda).
+// Backend: GET /admin/bookings/{id}/arretrati -> List<ArretratoLineDTO> (kind/refId arricchiti).
+export const fetchArretratiForBooking = async id => {
+  try {
+    const { data } = await http.get(AGENDA_ENDPOINTS.BOOKING_ARRETRATI(id));
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore caricamento arretrati.";
+    throw new Error(message);
+  }
+};
+
 export const updateBooking = async (id, payload) => {
   try {
     const { data } = await http.put(AGENDA_ENDPOINTS.BOOKING_BY_ID(id), payload);
