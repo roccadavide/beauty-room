@@ -619,9 +619,11 @@ public class BookingService {
             }
         }
 
-        // Customer registry (best-effort)
+        // Customer registry (best-effort). Prefer the explicit customerId sent by
+        // the drawer (inline "Salva cliente"); null falls back to find-or-create.
         try {
-            Customer customer = customerService.findOrCreate(
+            Customer customer = customerService.resolveForBooking(
+                    dto.customerId(),
                     booking.getCustomerName(), booking.getCustomerPhone(),
                     booking.getCustomerEmail(), dto.notes());
             booking.setCustomer(customer);

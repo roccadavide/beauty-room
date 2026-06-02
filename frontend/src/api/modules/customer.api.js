@@ -14,6 +14,18 @@ export const searchCustomers = async q => {
 };
 
 /**
+ * POST /admin/customers
+ * Inline customer creation (find-or-create by phone on the backend).
+ *
+ * @param {{fullName: string, phone: string, email?: string}} payload
+ * @returns {Promise<{customerId: string, fullName: string, phone?: string, email?: string}>}
+ */
+export const createCustomer = async payload => {
+  const { data } = await http.post(CUSTOMER_ENDPOINTS.CREATE, payload);
+  return data;
+};
+
+/**
  * GET /admin/customers/{id}/summary
  *
  * @param {string} customerId - UUID string

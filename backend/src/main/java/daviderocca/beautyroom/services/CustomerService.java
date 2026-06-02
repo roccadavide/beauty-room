@@ -1,6 +1,7 @@
 package daviderocca.beautyroom.services;
 
 import daviderocca.beautyroom.DTO.customerDTOs.ArretratoLineDTO;
+import daviderocca.beautyroom.DTO.customerDTOs.CreateCustomerDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
@@ -119,6 +120,42 @@ public class CustomerService {
             // If we still can't find it, re-throw so the caller is aware.
             throw new RuntimeException("Customer upsert failed after race-condition retry.", ex);
         }
+    }
+
+    /**
+     * Inline customer creation for the Admin Agenda drawer.
+     *
+     * Delegates to {@link #findOrCreate} on purpose: this is the SAME
+     * deduplication path the booking-create flow uses, so a customer created
+     * here and a booking submitted afterwards resolve to one record (keyed on
+     * the unique phone). If the typed phone already belongs to an existing
+     * customer, that record is returned idempotently rather than raising the
+     * {@code ux_customer_phone} constraint — never a 500 on duplicate phone.
+     */
+    @Transactional
+    public CustomerSummaryDTO create(CreateCustomerDTO payload) {
+        Customer c = findOrCreate(payload.fullName(), payload.phone(), payload.email(), null);
+        return new CustomerSummaryDTO(c.getCustomerId(), c.getFullName(), c.getPhone(), c.getEmail());
+    }
+
+    /**
+     * Resolve the customer for a booking, preferring an explicit pre-resolved id.
+     *
+     * The admin multi-service create path sends {@code customerId} when the
+     * drawer already created/selected the customer; we attach to that exact
+     * record, skipping find-or-create and eliminating the phone-edit duplicate
+     * edge. A null id — or a stale/unknown one — falls back to
+     * {@link #findOrCreate} (phone/email keyed), which keeps the endpoint
+     * working when the frontend doesn't send an id yet (deploy-order safe).
+     */
+    @Transactional
+    public Customer resolveForBooking(UUID customerId, String fullName, String phone, String email, String notes) {
+        if (customerId != null) {
+            Optional<Customer> byId = customerRepository.findById(customerId);
+            if (byId.isPresent()) return byId.get();
+            log.warn("Booking referenced unknown customerId {} — falling back to find-or-create.", customerId);
+        }
+        return findOrCreate(fullName, phone, email, notes);
     }
 
     // ══════════════════════════════════════════════════════════════════════

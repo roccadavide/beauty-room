@@ -161,6 +161,7 @@ export const AVAIL_ENDPOINTS = {
 };
 
 export const CUSTOMER_ENDPOINTS = {
+  CREATE: "/admin/customers",
   SEARCH: "/admin/customers/search",
   SUMMARY: id => `/admin/customers/${id}/summary`,
   NOTES: id => `/admin/customers/${id}/notes`,
