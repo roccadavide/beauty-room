@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.controllers;
 
+import daviderocca.beautyroom.DTO.customerDTOs.CreateCustomerDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
@@ -9,6 +10,7 @@ import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.packages.ClientPackageService;
 import daviderocca.beautyroom.services.CustomerService;
 import daviderocca.beautyroom.services.PackageCreditService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,6 +35,20 @@ public class CustomerController {
         @RequestParam(defaultValue = "") String q
     ) {
         return ResponseEntity.ok(customerService.search(q));
+    }
+
+    /**
+     * POST /admin/customers
+     * Inline customer creation from the Admin Agenda drawer. Find-or-create
+     * keyed on phone (see CustomerService#create), so it is idempotent for an
+     * already-known phone and never conflicts with the booking-create path.
+     */
+    @PostMapping
+    public ResponseEntity<CustomerSummaryDTO> create(@Valid @RequestBody CreateCustomerDTO payload) {
+        CustomerSummaryDTO created = customerService.create(payload);
+        return ResponseEntity
+                .created(java.net.URI.create("/admin/customers/" + created.customerId()))
+                .body(created);
     }
 
     @GetMapping("/{id}/summary")

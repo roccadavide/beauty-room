@@ -1,6 +1,7 @@
 package daviderocca.beautyroom.services;
 
 import daviderocca.beautyroom.DTO.customerDTOs.ArretratoLineDTO;
+import daviderocca.beautyroom.DTO.customerDTOs.CreateCustomerDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
@@ -119,6 +120,22 @@ public class CustomerService {
             // If we still can't find it, re-throw so the caller is aware.
             throw new RuntimeException("Customer upsert failed after race-condition retry.", ex);
         }
+    }
+
+    /**
+     * Inline customer creation for the Admin Agenda drawer.
+     *
+     * Delegates to {@link #findOrCreate} on purpose: this is the SAME
+     * deduplication path the booking-create flow uses, so a customer created
+     * here and a booking submitted afterwards resolve to one record (keyed on
+     * the unique phone). If the typed phone already belongs to an existing
+     * customer, that record is returned idempotently rather than raising the
+     * {@code ux_customer_phone} constraint — never a 500 on duplicate phone.
+     */
+    @Transactional
+    public CustomerSummaryDTO create(CreateCustomerDTO payload) {
+        Customer c = findOrCreate(payload.fullName(), payload.phone(), payload.email(), null);
+        return new CustomerSummaryDTO(c.getCustomerId(), c.getFullName(), c.getPhone(), c.getEmail());
     }
 
     // ══════════════════════════════════════════════════════════════════════
