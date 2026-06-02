@@ -138,6 +138,26 @@ public class CustomerService {
         return new CustomerSummaryDTO(c.getCustomerId(), c.getFullName(), c.getPhone(), c.getEmail());
     }
 
+    /**
+     * Resolve the customer for a booking, preferring an explicit pre-resolved id.
+     *
+     * The admin multi-service create path sends {@code customerId} when the
+     * drawer already created/selected the customer; we attach to that exact
+     * record, skipping find-or-create and eliminating the phone-edit duplicate
+     * edge. A null id — or a stale/unknown one — falls back to
+     * {@link #findOrCreate} (phone/email keyed), which keeps the endpoint
+     * working when the frontend doesn't send an id yet (deploy-order safe).
+     */
+    @Transactional
+    public Customer resolveForBooking(UUID customerId, String fullName, String phone, String email, String notes) {
+        if (customerId != null) {
+            Optional<Customer> byId = customerRepository.findById(customerId);
+            if (byId.isPresent()) return byId.get();
+            log.warn("Booking referenced unknown customerId {} — falling back to find-or-create.", customerId);
+        }
+        return findOrCreate(fullName, phone, email, notes);
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // AUTOCOMPLETE SEARCH
     // ══════════════════════════════════════════════════════════════════════

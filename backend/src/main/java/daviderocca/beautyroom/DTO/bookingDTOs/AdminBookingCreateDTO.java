@@ -38,6 +38,13 @@ public record AdminBookingCreateDTO(
         @Size(max = 100)
         String customerEmail,
 
+        // Optional pre-resolved customer (inline "Salva cliente" in the drawer).
+        // When present, the booking attaches to THIS customer and find-or-create
+        // is skipped — closing the edge where the phone is edited after create.
+        // Null → fall back to phone/email find-or-create, so an older frontend
+        // that doesn't send it still works (deploy-order independent).
+        UUID customerId,
+
         // Catalog services — zero or more
         List<UUID> serviceIds,
 
