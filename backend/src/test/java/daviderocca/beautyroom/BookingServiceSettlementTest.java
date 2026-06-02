@@ -3,6 +3,7 @@ package daviderocca.beautyroom;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.Role;
@@ -172,6 +173,37 @@ class BookingServiceSettlementTest {
 
         verify(packageCreditService, times(1)).consumeSessionForBooking(any());
         verify(packageCreditService, never()).restoreSessionForBooking(any());
+    }
+
+    // =========================================================================
+    // (d) Bug3 — legacy principal: a single-service booking whose principal is only
+    // on bookings.service_id (NO booking_services row, count == 0) routes the per-line
+    // toggle to bookings.paid_in_store instead of a no-op UPDATE.
+    // =========================================================================
+    @Test
+    @DisplayName("settleBookingLines — (d) legacy principal (no booking_services row) settles paid_in_store")
+    void settle_legacyPrincipal_setsPaidInStore() {
+        UUID id = UUID.randomUUID();
+        UUID principalSvcId = UUID.randomUUID();
+        Booking booking = newBooking(id, BookingStatus.CONFIRMED); // customTotalPrice = null, not custom
+        ServiceItem principal = new ServiceItem();
+        setFieldReflectively(principal, "serviceId", principalSvcId);
+        booking.setService(principal);
+        assertThat(booking.isPaidInStore()).isFalse();
+
+        when(bookingRepository.findByIdForUpdate(id)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        Query q = stubNativeQuery();
+        when(q.getSingleResult()).thenReturn(0L); // count(booking_services) == 0 → legacy principal
+
+        Map<UUID, Boolean> servicePaid = new LinkedHashMap<>();
+        servicePaid.put(principalSvcId, true); // frontend legacy fallback keys by booking.serviceId
+        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false);
+
+        bookingService.settleBookingLines(id, req, admin());
+
+        // The no-op booking_services UPDATE is replaced by routing the flag to paid_in_store.
+        assertThat(booking.isPaidInStore()).isTrue();
     }
 
     // Reflective setter for private ids (mirrors BookingServiceTest).

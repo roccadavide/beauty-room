@@ -153,6 +153,12 @@ public class CustomerService {
             .orElseThrow(() -> new ResourceNotFoundException(customerId));
 
         String email = customer.getEmail();
+        // History + arretrati key on the NORMALIZED phone (digits-only): the salon is
+        // walk-in-heavy, so email rarely identifies a returning client but the phone
+        // does. Short-circuit when the phone has no digits — otherwise a phone-less
+        // customer would match every other phone-less booking (the email-bug mirror).
+        String phoneDigits = digitsOnly(customer.getPhone());
+        boolean hasPhone = !phoneDigits.isEmpty();
 
         // ── Active packages ──
         List<CustomerDetailDTO.ActivePackageDTO> packages = (email == null || email.contains(WALKIN_MARKER))
@@ -169,11 +175,11 @@ public class CustomerService {
                 ))
                 .toList();
 
-        // ── Bookings: full history (order desc by startTime) ──
-        List<CustomerDetailDTO.RecentBookingDTO> bookings = (email == null)
+        // ── Bookings: full history (order desc by startTime), keyed by phone ──
+        List<CustomerDetailDTO.RecentBookingDTO> bookings = !hasPhone
             ? List.of()
             : bookingRepository
-                .findByCustomerEmailOrderByStartTimeDesc(email)
+                .findByCustomerPhoneNormalizedOrderByStartTimeDesc(customer.getPhone())
                 .stream()
                 .map(b -> new CustomerDetailDTO.RecentBookingDTO(
                     b.getBookingId(),
@@ -193,9 +199,10 @@ public class CustomerService {
                 .count();
 
         // ── Arretrati: derived unpaid lines on past COMPLETED bookings (no table) ──
-        List<ArretratoLineDTO> arretrati = (email == null || email.contains(WALKIN_MARKER))
+        // Keyed by phone (digits-only); walk-ins have a phone but no real email.
+        List<ArretratoLineDTO> arretrati = !hasPhone
             ? List.of()
-            : bookingRepository.findArretratiForCustomer(email).stream()
+            : bookingRepository.findArretratiForCustomer(customer.getPhone()).stream()
                 .map(r -> new ArretratoLineDTO(
                     asUuid(r[0]),
                     asDateTime(r[1]),
@@ -217,6 +224,12 @@ public class CustomerService {
                 bookings,
                 arretrati
         );
+    }
+
+    /** Digits-only phone (empty when null/blank/no digits). Mirrors the SQL
+     *  regexp_replace([^0-9]) used by the phone-keyed history/arretrati queries. */
+    private static String digitsOnly(String phone) {
+        return phone == null ? "" : phone.replaceAll("[^0-9]", "");
     }
 
     // ── Native-row coercion helpers (BookingRepository.findArretratiForCustomer) ──

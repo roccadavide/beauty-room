@@ -1795,18 +1795,29 @@ public class BookingService {
 
         boolean bundle = found.getCustomTotalPrice() != null;
 
+        // Bug3: a single-service "principal" persisted only on bookings.service_id
+        // (customer/manual single-service paths) has NO booking_services row, so its
+        // paid state cannot live there — it lives on bookings.paid_in_store. Detect it
+        // so the drawer toggle settles paid_in_store instead of issuing a no-op UPDATE
+        // against a non-existent line. Multi-service bookings always have rows
+        // (count > 0) → legacyPrincipal = false (no false positives).
+        boolean legacyPrincipal = found.getService() != null && countBookingServiceRows(bookingId) == 0;
+
         if (bundle) {
             // Lockstep: ignore the per-line payload, flip everything together.
             boolean value = resolveBundleSettleValue(req);
             setAllServiceLinesPaid(bookingId, value);
             setAllPackageLinksPaid(bookingId, value);
             if (found.isCustomService()) found.setCustomServicePaid(value);
+            // Lockstep: the legacy principal moves with the single bundle value.
+            if (legacyPrincipal) found.setPaidInStore(value);
         } else if (req.markAllPaid() != null) {
             // Bulk for a normal appointment.
             boolean value = req.markAllPaid();
             setAllServiceLinesPaid(bookingId, value);
             setAllPackageLinksPaid(bookingId, value);
             if (found.isCustomService()) found.setCustomServicePaid(value);
+            if (legacyPrincipal) found.setPaidInStore(value);
         } else {
             // Per-line settle.
             if (req.servicePaid() != null) {
@@ -1827,6 +1838,12 @@ public class BookingService {
             }
             if (req.customServicePaid() != null && found.isCustomService()) {
                 found.setCustomServicePaid(req.customServicePaid());
+            }
+            // The legacy principal arrives in servicePaid keyed by its catalog service_id;
+            // the UPDATE above is a no-op (no row) so route the flag to paid_in_store.
+            if (legacyPrincipal && req.servicePaid() != null) {
+                Boolean v = req.servicePaid().get(found.getService().getServiceId());
+                if (v != null) found.setPaidInStore(v);
             }
         }
 
@@ -1868,6 +1885,17 @@ public class BookingService {
                 .executeUpdate();
     }
 
+    /** Count of catalog lines for a booking. 0 → the principal is legacy (only on
+     *  bookings.service_id, no booking_services row). Drives the paid_in_store routing
+     *  in settleBookingLines. */
+    private long countBookingServiceRows(UUID bookingId) {
+        Object n = entityManager.createNativeQuery(
+                        "SELECT count(*) FROM booking_services WHERE booking_id = :bid")
+                .setParameter("bid", bookingId)
+                .getSingleResult();
+        return n == null ? 0L : ((Number) n).longValue();
+    }
+
     private void setServiceLinePaid(UUID bookingId, UUID serviceId, boolean value) {
         entityManager.createNativeQuery(
                         "UPDATE booking_services SET paid = :paid WHERE booking_id = :bid AND service_id = :sid")
@@ -1894,9 +1922,12 @@ public class BookingService {
     private void notifyOutstandingPaymentsForCustomer(Customer customer, String customerName) {
         try {
             if (customer == null) return;
-            String email = customer.getEmail();
-            if (email == null || email.isBlank()) return;
-            if (!bookingRepository.existsUnsettledCompletedLinesForCustomer(email)) return;
+            // Keyed by phone (digits-only), the salon's stable id — walk-ins have a
+            // phone but a generated email. Skip when no digits (would match every
+            // phone-less booking). Anti-dup stays on customerId (most stable).
+            String phone = customer.getPhone();
+            if (phone == null || phone.replaceAll("[^0-9]", "").isEmpty()) return;
+            if (!bookingRepository.existsUnsettledCompletedLinesForCustomer(phone)) return;
             notificationService.createIfNotRecent(
                     NotificationType.OUTSTANDING_PAYMENT,
                     "Pagamenti in sospeso 💰",

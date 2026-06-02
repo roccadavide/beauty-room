@@ -135,6 +135,20 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     List<Booking> findByCustomerEmailOrderByStartTimeDesc(String customerEmail);
 
+    /**
+     * History matched by NORMALIZED phone (digits-only), the stable identifier for the
+     * walk-in-heavy salon. Mirrors the arretrati keying so a walk-in with arretrati
+     * never shows an empty history. Empty-guard (<> '') excludes phone-less rows.
+     * PERF: per-row normalization blocks index use — fine at current volumes.
+     */
+    @Query(value = """
+        SELECT * FROM bookings b
+        WHERE regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
+        ORDER BY b.start_time DESC
+        """, nativeQuery = true)
+    List<Booking> findByCustomerPhoneNormalizedOrderByStartTimeDesc(@Param("phone") String phone);
+
     // ===== Lock singolo booking per update di stato =====
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Booking b WHERE b.bookingId = :id")
@@ -181,8 +195,27 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     // excluded — they are always considered settled (mirrors isLineSettled on
     // the frontend). Backed by the partial indexes idx_bs_unpaid_completed /
     // idx_bpl_unpaid (V64).
+    //
+    // Bug3: the single-service "principal" (only on bookings.service_id, NO
+    // booking_services row — customer/manual single-service paths) is also covered,
+    // via bookings.paid_in_store (settled by the completion drawer). See the
+    // "legacy principal" branch below.
+    //
+    // KNOWN LIMIT (out of scope): package_credit_id IS NULL excludes a credit-backed
+    // booking ENTIRELY. Unpaid EXTRA lines on a fully credit-backed booking are not
+    // surfaced as arretrati — the covered session is not row-identifiable, and the
+    // whole-booking exclusion stays consistent with frontend isLineSettled.
+    //
+    // KEYED BY PHONE (not email): the salon is walk-in-heavy — most bookings carry a
+    // generated walkin+…@beautyroom.local email but a REAL phone, so email never
+    // matches a returning walk-in. Both sides are normalized to digits-only
+    // (regexp_replace [^0-9]) so "+39 333…" / "333 333…" collapse to the same key.
+    // The empty-guard (<> '') prevents phone-less rows from all matching each other.
+    // PERF: normalizing customer_phone per row blocks index use on the comparison —
+    // fine at current volumes (hundreds of bookings). If volumes grow, add a computed
+    // phone_normalized column + index (out of scope today).
 
-    /** True if the customer has any unsettled line on a past COMPLETED booking. */
+    /** True if the customer (matched by normalized phone) has any unsettled line on a past COMPLETED booking. */
     @Query(value = """
         SELECT EXISTS (
             SELECT 1
@@ -190,19 +223,22 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             WHERE b.booking_status = 'COMPLETED'
               AND b.paid_at IS NULL
               AND b.package_credit_id IS NULL
-              AND LOWER(b.customer_email) = LOWER(:email)
+              AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+              AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
               AND (
                     EXISTS (SELECT 1 FROM booking_services bs
                              WHERE bs.booking_id = b.booking_id AND bs.paid = false)
                  OR EXISTS (SELECT 1 FROM booking_package_link bpl
-                              JOIN client_package_assignments cpa ON cpa.id = bpl.assignment_id
+                              JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
                              WHERE bpl.booking_id = b.booking_id AND bpl.paid = false
                                AND cpa.paid_upfront = false)
                  OR (b.is_custom_service = true AND b.custom_service_paid = false)
+                 OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
+                       AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
               )
         )
         """, nativeQuery = true)
-    boolean existsUnsettledCompletedLinesForCustomer(@Param("email") String email);
+    boolean existsUnsettledCompletedLinesForCustomer(@Param("phone") String phone);
 
     /**
      * Itemised unsettled lines for a customer's COMPLETED bookings.
@@ -222,7 +258,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         LEFT JOIN service_options so ON so.option_id = bs.option_id
         WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
           AND b.custom_total_price IS NULL
-          AND LOWER(b.customer_email) = LOWER(:email)
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
           AND bs.paid = false
 
         UNION ALL
@@ -232,7 +269,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         FROM bookings b
         WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
           AND b.custom_total_price IS NULL
-          AND LOWER(b.customer_email) = LOWER(:email)
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
           AND b.is_custom_service = true AND b.custom_service_paid = false
 
         UNION ALL
@@ -241,13 +279,30 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                CASE WHEN cpa.total_sessions > 0 THEN cpa.price_paid / cpa.total_sessions ELSE cpa.price_paid END
         FROM booking_package_link bpl
         JOIN bookings b ON b.booking_id = bpl.booking_id
-        JOIN client_package_assignments cpa ON cpa.id = bpl.assignment_id
+        JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
         LEFT JOIN service_options so2 ON so2.option_id = cpa.service_option_id
         LEFT JOIN services s2        ON s2.service_id = cpa.service_id
         WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
           AND b.custom_total_price IS NULL
-          AND LOWER(b.customer_email) = LOWER(:email)
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
           AND bpl.paid = false AND cpa.paid_upfront = false
+
+        UNION ALL
+        -- Legacy principal: single-service booking whose only service is on
+        -- bookings.service_id (no booking_services row); paid state on paid_in_store.
+        SELECT b.booking_id, b.start_time,
+               COALESCE(so.name, s.title, 'Servizio'),
+               COALESCE(so.price, s.price)
+        FROM bookings b
+        LEFT JOIN services s         ON s.service_id = b.service_id
+        LEFT JOIN service_options so ON so.option_id = b.service_option_id
+        WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
+          AND b.custom_total_price IS NULL
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
+          AND b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
+          AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id)
 
         UNION ALL
         SELECT b.booking_id, b.start_time,
@@ -256,18 +311,21 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         FROM bookings b
         WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
           AND b.custom_total_price IS NOT NULL
-          AND LOWER(b.customer_email) = LOWER(:email)
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
           AND (
                 EXISTS (SELECT 1 FROM booking_services bs
                          WHERE bs.booking_id = b.booking_id AND bs.paid = false)
              OR EXISTS (SELECT 1 FROM booking_package_link bpl
-                          JOIN client_package_assignments cpa ON cpa.id = bpl.assignment_id
+                          JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
                          WHERE bpl.booking_id = b.booking_id AND bpl.paid = false
                            AND cpa.paid_upfront = false)
              OR (b.is_custom_service = true AND b.custom_service_paid = false)
+             OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
+                   AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
           )
 
         ORDER BY occurred_at DESC
         """, nativeQuery = true)
-    List<Object[]> findArretratiForCustomer(@Param("email") String email);
+    List<Object[]> findArretratiForCustomer(@Param("phone") String phone);
 }
