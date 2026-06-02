@@ -4,7 +4,7 @@ import { searchCustomers } from "../../api/modules/customer.api";
 const toTitleCase = str =>
   str ? str.replace(/\b\w/g, c => c.toUpperCase()) : str;
 
-export default function CustomerAutocomplete({ value, onChange, onSelect, isInvalid = false, placeholder = "Cerca o inserisci nome cliente…" }) {
+export default function CustomerAutocomplete({ value, onChange, onSelect, onNoMatch, isInvalid = false, placeholder = "Cerca o inserisci nome cliente…" }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -12,6 +12,15 @@ export default function CustomerAutocomplete({ value, onChange, onSelect, isInva
 
   const containerRef = useRef(null);
   const debounceRef = useRef(null);
+
+  // onNoMatch is optional and surfaces "the current query matched no DB customer"
+  // (fail-closed: only true after a completed search returns zero results). Held
+  // in a ref so doSearch/handlers stay stable and the parent need not memoize it.
+  const onNoMatchRef = useRef(onNoMatch);
+  useEffect(() => {
+    onNoMatchRef.current = onNoMatch;
+  }, [onNoMatch]);
+  const emitNoMatch = useCallback(v => onNoMatchRef.current?.(v), []);
 
   // ── Click outside → close ──────────────────────────────────────────────
   useEffect(() => {
@@ -32,6 +41,7 @@ export default function CustomerAutocomplete({ value, onChange, onSelect, isInva
     if (q.length < 2) {
       setSuggestions([]);
       setShowDropdown(false);
+      emitNoMatch(false);
       return;
     }
     setIsLoading(true);
@@ -40,14 +50,18 @@ export default function CustomerAutocomplete({ value, onChange, onSelect, isInva
       setSuggestions(results);
       setShowDropdown(true);
       setActiveIndex(-1);
+      emitNoMatch(results.length === 0);
     } catch {
-      // Network errors: fail silently — user can still type freely
+      // Network errors: fail silently — user can still type freely.
+      // Fail-closed on the no-match signal: we can't assert "no DB match"
+      // when the lookup itself failed, so never offer to create from here.
       setSuggestions([]);
       setShowDropdown(false);
+      emitNoMatch(false);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [emitNoMatch]);
 
   // ── Text change handler ────────────────────────────────────────────────
   const handleChange = e => {
@@ -59,8 +73,13 @@ export default function CustomerAutocomplete({ value, onChange, onSelect, isInva
     if (v.length < 2) {
       setSuggestions([]);
       setShowDropdown(false);
+      emitNoMatch(false);
       return;
     }
+    // Fail-closed while a new query is pending: clear the no-match signal until
+    // the debounced search confirms it, so the parent never offers "create"
+    // against an unchecked name.
+    emitNoMatch(false);
     debounceRef.current = setTimeout(() => doSearch(v), 300);
   };
 
@@ -71,8 +90,9 @@ export default function CustomerAutocomplete({ value, onChange, onSelect, isInva
       setSuggestions([]);
       setShowDropdown(false);
       setActiveIndex(-1);
+      emitNoMatch(false);
     },
-    [onSelect],
+    [onSelect, emitNoMatch],
   );
 
   // ── Keyboard navigation ────────────────────────────────────────────────
