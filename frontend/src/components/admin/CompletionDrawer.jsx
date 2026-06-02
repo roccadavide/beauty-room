@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
+import { applySettleLine } from "./settlePayload";
 
 /**
  * Completion drawer for the agenda "Completa" button (per-line settle path).
@@ -54,22 +55,16 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
   const markAll = () => setRowsPaid(items.map(() => true));
 
   const buildNormalPayload = () => {
-    const servicePaid = {};
-    const packageSessionPaid = {};
-    let customServicePaid;
+    // servicePaid/packageSessionPaid pre-initialised so a bundle-less appointment
+    // always sends the (possibly empty) maps, exactly as before. The per-line
+    // kind→key mapping lives in the shared applySettleLine (also used by the
+    // ClientiPage arretrati panel) — customServicePaid is only added when a custom
+    // line is present, matching the previous behavior.
+    const payload = { servicePaid: {}, packageSessionPaid: {}, alsoComplete: true };
     items.forEach((it, idx) => {
       if (it.locked) return; // upfront-paid package etc.: backend ignores it
-      const paid = rowsPaid[idx];
-      if (it.refKind === "service" || it.refKind === "legacy") {
-        if (it.refId != null) servicePaid[String(it.refId)] = paid;
-      } else if (it.refKind === "package") {
-        if (it.refId != null) packageSessionPaid[String(it.refId)] = paid;
-      } else if (it.refKind === "custom") {
-        customServicePaid = paid;
-      }
+      applySettleLine(payload, it.refKind, it.refId, rowsPaid[idx]);
     });
-    const payload = { servicePaid, packageSessionPaid, alsoComplete: true };
-    if (customServicePaid !== undefined) payload.customServicePaid = customServicePaid;
     return payload;
   };
 

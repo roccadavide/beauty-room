@@ -116,7 +116,14 @@ function NotifCard({ notif, onRead, onDelete }) {
 
   const handleClick = async () => {
     if (!notif.read) await onRead(notif.id);
-    if (cfg.link !== "#") navigate(cfg.link);
+    if (cfg.link === "#") return;
+    // OUTSTANDING_PAYMENT carries the customerId in entityId → deep-link to that
+    // customer's card; fall back to the static link when entityId is missing.
+    const target =
+      notif.type === "OUTSTANDING_PAYMENT" && notif.entityId
+        ? `/admin/clienti?customerId=${notif.entityId}`
+        : cfg.link;
+    navigate(target);
   };
 
   const handleDelete = async e => {

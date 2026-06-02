@@ -207,7 +207,9 @@ public class CustomerService {
                     asUuid(r[0]),
                     asDateTime(r[1]),
                     (String) r[2],
-                    asBigDecimal(r[3])
+                    asBigDecimal(r[3]),
+                    (String) r[4],
+                    asUuid(r[5])
                 ))
                 .toList();
 

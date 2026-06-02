@@ -242,7 +242,13 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     /**
      * Itemised unsettled lines for a customer's COMPLETED bookings.
-     * Columns: [booking_id (uuid), occurred_at (timestamp), label (text), price (numeric)].
+     * Columns: [booking_id (uuid), occurred_at (timestamp), label (text), price (numeric),
+     *           kind (text), ref_id (uuid)].
+     * kind ∈ service|custom|package|legacy|bundle; ref_id is the settle key for that kind
+     * (service/legacy → catalog service_id; package → ClientPackageAssignment id; custom/
+     * bundle → NULL). Drives the per-row "Salda" payload (mirrors CompletionDrawer refKind).
+     * Every UNION branch projects kind as ::text and ref_id as uuid (NULL::uuid where absent)
+     * so the column types align across all five SELECTs.
      * Bundle bookings (custom_total_price set) collapse to ONE line at the bundle
      * price when any line is unpaid (lockstep, decision #2); non-bundle bookings
      * expand per line.
@@ -250,8 +256,12 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     @Query(value = """
         SELECT b.booking_id AS booking_id,
                b.start_time AS occurred_at,
-               COALESCE(so.name, s.title, 'Servizio') AS label,
-               COALESCE(bs.price_override, so.price, s.price) AS price
+               CASE WHEN so.name IS NOT NULL
+                    THEN COALESCE(s.title, 'Servizio') || ' · ' || so.name
+                    ELSE COALESCE(s.title, 'Servizio') END AS label,
+               COALESCE(bs.price_override, so.price, s.price) AS price,
+               'service'::text AS kind,
+               bs.service_id   AS ref_id
         FROM booking_services bs
         JOIN bookings b ON b.booking_id = bs.booking_id
         LEFT JOIN services s         ON s.service_id = bs.service_id
@@ -265,7 +275,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         UNION ALL
         SELECT b.booking_id, b.start_time,
                COALESCE(NULLIF(TRIM(b.custom_service_name), ''), 'Servizio personalizzato'),
-               b.custom_service_price
+               b.custom_service_price,
+               'custom'::text, NULL::uuid
         FROM bookings b
         WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
           AND b.custom_total_price IS NULL
@@ -276,7 +287,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         UNION ALL
         SELECT b.booking_id, b.start_time,
                COALESCE(NULLIF(TRIM(cpa.custom_package_name), ''), so2.name, s2.title, 'Pacchetto'),
-               CASE WHEN cpa.total_sessions > 0 THEN cpa.price_paid / cpa.total_sessions ELSE cpa.price_paid END
+               CASE WHEN cpa.total_sessions > 0 THEN cpa.price_paid / cpa.total_sessions ELSE cpa.price_paid END,
+               'package'::text, cpa.id
         FROM booking_package_link bpl
         JOIN bookings b ON b.booking_id = bpl.booking_id
         JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
@@ -293,7 +305,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         -- bookings.service_id (no booking_services row); paid state on paid_in_store.
         SELECT b.booking_id, b.start_time,
                COALESCE(so.name, s.title, 'Servizio'),
-               COALESCE(so.price, s.price)
+               COALESCE(so.price, s.price),
+               'legacy'::text, b.service_id
         FROM bookings b
         LEFT JOIN services s         ON s.service_id = b.service_id
         LEFT JOIN service_options so ON so.option_id = b.service_option_id
@@ -307,7 +320,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         UNION ALL
         SELECT b.booking_id, b.start_time,
                'Appuntamento (prezzo bundle)',
-               b.custom_total_price
+               b.custom_total_price,
+               'bundle'::text, NULL::uuid
         FROM bookings b
         WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
           AND b.custom_total_price IS NOT NULL

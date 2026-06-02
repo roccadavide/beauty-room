@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Container, Spinner } from "react-bootstrap";
 import CustomerAutocomplete from "../../components/admin/CustomerAutocomplete";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { getCustomerSummary, updateCustomerNotes, getActivePackages } from "../../api/modules/customer.api";
-import { cancelPackageAssignment, updatePackageAssignment } from "../../api/modules/adminAgenda.api";
+import { cancelPackageAssignment, updatePackageAssignment, settleBookingLines } from "../../api/modules/adminAgenda.api";
 import { fetchActivePackages, fetchPackageKpis } from "../../api/modules/packages.api";
 import { fetchAllUsers, patchUserVerified } from "../../api/modules/users.api";
 import { markLatestNoShowForUser } from "../../api/modules/bookings.api";
 import SEO from "../../components/common/SEO";
+import { buildArretratoSettlePayload } from "../../components/admin/settlePayload";
 
 const STATUS_META = {
   PENDING: { label: "In attesa", tone: "pending" },
@@ -164,7 +166,7 @@ function EditPackageModal({ pkg, onClose, onSave }) {
   );
 }
 
-function ClientSummary({ customer, loading, error, onNotesChange }) {
+function ClientSummary({ customer, loading, error, onNotesChange, onSettle }) {
   const [notes, setNotes] = useState(customer?.notes || "");
   const [originalNotes, setOriginalNotes] = useState(customer?.notes || "");
   const [saving, setSaving] = useState(false);
@@ -177,6 +179,39 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
   const [pkgError, setPkgError] = useState("");
   const [editPkg, setEditPkg] = useState(null);
   const [deletePkgId, setDeletePkgId] = useState(null);
+
+  // ── Arretrati per-row settle ──
+  const [settlingKey, setSettlingKey] = useState(null); // row in flight → blocks double-click
+  const [flashKey, setFlashKey]       = useState(null); // optimistic "Saldato ✓" before refetch
+  const [errorKey, setErrorKey]       = useState(null); // last row whose settle failed
+  const [confirmArretrato, setConfirmArretrato] = useState(null); // row awaiting confirm
+
+  // The panel is reused (not remounted) across customers → clear per-row state on switch.
+  useEffect(() => {
+    setSettlingKey(null);
+    setFlashKey(null);
+    setErrorKey(null);
+    setConfirmArretrato(null);
+  }, [customer?.customerId]);
+
+  const arretratoKey = a => `${a.bookingId}-${a.kind}-${a.refId ?? "x"}`;
+
+  const handleSettleRow = async a => {
+    if (settlingKey) return; // a settle is already in flight — ignore (double-click guard)
+    const key = arretratoKey(a);
+    setErrorKey(null);
+    setSettlingKey(key);
+    setFlashKey(key); // optimistic ✓ until the parent refetch drops the settled row
+    try {
+      await onSettle(a); // settleBookingLines + reload (parent)
+      setFlashKey(null); // row already gone after reload
+    } catch {
+      setFlashKey(null); // network/settle error → revert the optimistic flash…
+      setErrorKey(key);  // …keep the row "da saldare" and surface the error
+    } finally {
+      setSettlingKey(null);
+    }
+  };
 
   useEffect(() => {
     setNotes(customer?.notes || "");
@@ -431,21 +466,68 @@ function ClientSummary({ customer, loading, error, onNotesChange }) {
           <div className="cli-section-title">Arretrati / Da saldare</div>
           <div className="cli-history-wrapper">
             <div className="cli-history-list">
-              {customer.arretrati.map((a, idx) => (
-                <div key={`${a.bookingId}-${idx}`} className="cli-history-item">
-                  <div className="cli-history-main">
-                    <div className="cli-history-title">{a.label}</div>
-                    <div className="cli-history-meta">{formatDateTimeIT(a.occurredAt)}</div>
+              {customer.arretrati.map((a, idx) => {
+                const key = arretratoKey(a);
+                const flashed = flashKey === key;
+                const errored = errorKey === key;
+                const busy = settlingKey === key;
+                return (
+                  <div key={`${key}-${idx}`}>
+                    <div className="cli-history-item">
+                      <div className="cli-history-main">
+                        <div className="cli-history-title">{a.label}</div>
+                        <div className="cli-history-meta">{formatDateTimeIT(a.occurredAt)}</div>
+                      </div>
+                      {/* price + action inline — reuses cli-* classes; the small flex
+                          gap is an inline style matching the admin components' idiom. */}
+                      <div className="cli-history-status" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {flashed ? (
+                          <span className="cli-save-ok">Saldato ✓</span>
+                        ) : (
+                          <>
+                            <span>{a.price == null ? "—" : `€${Number(a.price).toFixed(0)}`}</span>
+                            <button
+                              type="button"
+                              className="cli-btn cli-btn--sm"
+                              disabled={settlingKey !== null}
+                              onClick={() => setConfirmArretrato(a)}
+                            >
+                              {busy ? "…" : errored ? "Riprova" : "Salda"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {errored && (
+                      <div className="cli-notes-error">Errore nel salvataggio. La riga resta da saldare.</div>
+                    )}
                   </div>
-                  <div className="cli-history-status">
-                    {a.price == null ? "—" : `€${Number(a.price).toFixed(0)}`}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
       )}
+
+      {/* Confirm before settling — guards against saldare the wrong arretrato.
+          Reuses ConfirmDialog (portal, cd-* classes) — no new CSS. */}
+      <ConfirmDialog
+        show={!!confirmArretrato}
+        onHide={() => setConfirmArretrato(null)}
+        onConfirm={() => {
+          const a = confirmArretrato;
+          setConfirmArretrato(null);
+          if (a) handleSettleRow(a);
+        }}
+        title="Salda arretrato"
+        message={
+          confirmArretrato
+            ? `Confermi di saldare questo arretrato? ${confirmArretrato.label} del ${formatDateTimeIT(confirmArretrato.occurredAt)} — ${confirmArretrato.price == null ? "—" : `€${Number(confirmArretrato.price).toFixed(0)}`}`
+            : ""
+        }
+        confirmLabel="Salda"
+        confirmVariant="primary"
+      />
 
       <div className="cli-card">
         <div className="cli-section-title">Storico prenotazioni</div>
@@ -520,6 +602,48 @@ export default function ClientiPage() {
     await updateCustomerNotes(customerId, notes);
     setDetail(prev => (prev ? { ...prev, notes } : prev));
   }, []);
+
+  // Refetch the open customer so a settled arretrato drops out of the panel.
+  const reloadDetail = useCallback(async () => {
+    const id = detail?.customerId;
+    if (!id) return;
+    const data = await getCustomerSummary(id);
+    setDetail(data);
+  }, [detail?.customerId]);
+
+  // Settle ONE arretrato line. The booking is already COMPLETED → alsoComplete:false
+  // (never re-completes). Reuses the shared kind→payload builder (CompletionDrawer
+  // vocabulary). settleBookingLines may throw → the row handler keeps the row and
+  // shows the error; a post-settle reload failure is swallowed (settle succeeded).
+  const handleSettleArretrato = useCallback(async a => {
+    await settleBookingLines(a.bookingId, buildArretratoSettlePayload(a));
+    try { await reloadDetail(); } catch { /* settle ok; next open refreshes */ }
+  }, [reloadDetail]);
+
+  // Deep-link from the OUTSTANDING_PAYMENT notification: /admin/clienti?customerId=…
+  // auto-selects that customer and loads the card. A stale/unknown id is swallowed
+  // (no selection, no crash, no console noise).
+  const [searchParams] = useSearchParams();
+  const deepLinkCustomerId = searchParams.get("customerId");
+  useEffect(() => {
+    if (!deepLinkCustomerId) return;
+    let cancelled = false;
+    (async () => {
+      setError("");
+      setLoading(true);
+      try {
+        const data = await getCustomerSummary(deepLinkCustomerId);
+        if (cancelled) return;
+        setSelected({ customerId: deepLinkCustomerId, fullName: data.fullName });
+        setDetail(data);
+      } catch {
+        if (!cancelled) { setSelected(null); setDetail(null); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [deepLinkCustomerId]);
 
   const loadPackages = useCallback(async () => {
     if (packages.length > 0) return;
@@ -645,6 +769,7 @@ export default function ClientiPage() {
                 loading={loading}
                 error={summaryError}
                 onNotesChange={handleNotesChange}
+                onSettle={handleSettleArretrato}
               />
             </div>
           </>
