@@ -168,7 +168,7 @@ function EditServizioModal({ servizio, catalogServices, onSave, onClose }) {
 // In edit/duplicate mode both props are absent, so the snapshot is never read or
 // written — those flows rebuild purely from `editBooking`.
 // ══════════════════════════════════════════════════════════════════════════════
-function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking = null, customer, onSelectCustomer, onPatchCustomer, initialDraft = null, onDraftChange }) {
+function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking = null, customer, onSelectCustomer, onPatchCustomer, initialDraft = null, onDraftChange, onReset }) {
   const isDuplicate = editBooking?._duplicate === true;
   const isEditMode = editBooking != null && !isDuplicate;
   // true for both edit and duplicate — used to pre-fill customer/service data
@@ -2099,6 +2099,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       )}
 
       <div className="nad-form__actions">
+        {/* New appointment only (onReset is undefined in edit/duplicate): wipe the
+            whole draft and start clean via a remount. */}
+        {onReset && (
+          <button type="button" className="nad-btn" onClick={onReset} disabled={submitting}>
+            ↺ Nuovo appuntamento
+          </button>
+        )}
         <button type="submit" className="nad-btn nad-btn--primary" disabled={submitting}>
           {submitting ? "Salvataggio…" : isEditMode ? "Salva modifiche" : "Crea appuntamento"}
         </button>
@@ -2420,6 +2427,19 @@ export default function NewAppointmentDrawer({
     draftRef.current = { ...(draftRef.current || {}), form };
   }, []);
 
+  // ── Reset / Nuovo appuntamento (Feature 1) ───────────────────────────────
+  // Wipe the draft and start a clean new appointment. Bumping resetNonce changes
+  // the new-appointment key, remounting AppointmentForm so EVERY useState
+  // initializer re-runs to its blank default — no satellite collection can be
+  // missed. Nulling draftRef first makes the remount read initialDraft=null; the
+  // fresh form's first onDraftChange then re-seeds the snapshot as blank.
+  const [resetNonce, setResetNonce] = useState(0);
+  const handleResetDraft = useCallback(() => {
+    draftRef.current = null;
+    setCustomer(deriveCustomer(null));
+    setResetNonce(n => n + 1);
+  }, []);
+
   // (Re)open: edit/duplicate rebuild from editBooking; a new appointment restores
   // the customer from the snapshot. Also clears the post-submit suppress flag.
   useEffect(() => {
@@ -2552,17 +2572,20 @@ export default function NewAppointmentDrawer({
         <div ref={nadContentRef} className="nad-content" role="tabpanel" onWheel={e => e.stopPropagation()}>
           {activeTab === "appointment" && (
             <AppointmentForm
-              key={isOpen ? `open-${editBooking?._duplicate ? `dup-${editBooking?.bookingId}` : (editBooking?.bookingId ?? "new")}` : "closed"}
+              // resetNonce only affects the NEW-appointment key, so Reset remounts a
+              // blank form without touching the edit/duplicate keys.
+              key={isOpen ? `open-${editBooking?._duplicate ? `dup-${editBooking?.bookingId}` : (editBooking?.bookingId ?? `new-${resetNonce}`)}` : "closed"}
               services={services}
               selectedDate={selectedDate}
               editBooking={editBooking}
               customer={customer}
               onSelectCustomer={handleSelectCustomer}
               onPatchCustomer={patchCustomer}
-              // New appointment only: rehydrate from / report to the shell snapshot.
-              // Both undefined in edit/duplicate, so those flows never touch it.
+              // New appointment only: rehydrate from / report to the shell snapshot,
+              // and expose Reset. All three are absent in edit/duplicate.
               initialDraft={editBooking ? null : (draftRef.current?.form ?? null)}
               onDraftChange={editBooking ? undefined : captureFormDraft}
+              onReset={editBooking ? undefined : handleResetDraft}
               onSuccess={msg => {
                 // A new appointment was persisted — drop the draft and suppress the
                 // close-time captures that would otherwise repopulate it.
