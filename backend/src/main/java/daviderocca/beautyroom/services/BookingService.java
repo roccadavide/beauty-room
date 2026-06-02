@@ -382,6 +382,10 @@ public class BookingService {
             log.warn("Could not upsert customer for booking, proceeding without link: {}", e.getMessage());
         }
 
+        // V64 (Fase 1.5): same arretrati return-notification as createMultiServiceBooking.
+        // Best-effort + anti-dup 24h on the customer; no-op when customer is null.
+        notifyOutstandingPaymentsForCustomer(booking.getCustomer(), booking.getCustomerName());
+
         Booking saved = bookingRepository.save(booking);
         log.info("Manual booking created by admin: id={} start={} end={} padding={}min packageCredit={}",
                 saved.getBookingId(), saved.getStartTime(), saved.getEndTime(),
@@ -1374,6 +1378,11 @@ public class BookingService {
         maybeRecalculatePackage(bookingId);
         emailOutboxService.enqueueBookingConfirmed(updated);
         log.info("Booking updated: id={} status={} padding={}min", updated.getBookingId(), updated.getBookingStatus(), updated.getPaddingMinutes());
+
+        // V64 (Fase 1.5): arretrati return-notification on edit (same hook/anti-dup as create).
+        // Uses the existing customer link as-is (no re-resolve); no-op when customer is null.
+        notifyOutstandingPaymentsForCustomer(found.getCustomer(), found.getCustomerName());
+
         return convertToDTO(updated);
     }
 
@@ -1688,6 +1697,11 @@ public class BookingService {
                 updated.getBookingId(), start, totalDuration, hasCustom,
                 existingAssignmentIdSet.size(), requestedAssignmentIdSet.size(),
                 idsToAdd.size(), idsToRemove.size());
+
+        // V64 (Fase 1.5): arretrati return-notification on edit (same hook/anti-dup as create).
+        // Uses the existing customer link as-is (no re-resolve); no-op when customer is null.
+        notifyOutstandingPaymentsForCustomer(found.getCustomer(), found.getCustomerName());
+
         return convertToDTO(updated);
     }
 
