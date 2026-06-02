@@ -27,7 +27,7 @@ http.interceptors.request.use(
 
     return config;
   },
-  error => Promise.reject(error)
+  error => Promise.reject(error),
 );
 
 /* ---------- SINGLE-FLIGHT REFRESH ---------- */
@@ -156,7 +156,7 @@ http.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default http;
