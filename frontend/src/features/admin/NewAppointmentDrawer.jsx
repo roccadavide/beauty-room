@@ -162,9 +162,13 @@ function EditServizioModal({ servizio, catalogServices, onSave, onClose }) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // AppointmentForm — rendered when activeTab === "appointment"
-// Unmounts on tab switch → always starts fresh.
+// Unmounts on tab switch / close → state is rebuilt from props on remount.
+// For a NEW appointment the persistable subset is rehydrated from `initialDraft`
+// (an in-memory snapshot held by the shell) and reported back via `onDraftChange`.
+// In edit/duplicate mode both props are absent, so the snapshot is never read or
+// written — those flows rebuild purely from `editBooking`.
 // ══════════════════════════════════════════════════════════════════════════════
-function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking = null, customer, onSelectCustomer, onPatchCustomer }) {
+function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking = null, customer, onSelectCustomer, onPatchCustomer, initialDraft = null, onDraftChange }) {
   const isDuplicate = editBooking?._duplicate === true;
   const isEditMode = editBooking != null && !isDuplicate;
   // true for both edit and duplicate — used to pre-fill customer/service data
@@ -175,7 +179,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
   // ── Catalog multi-select ──────────────────────────────────────────────────
   const [selectedServices, setSelectedServices] = useState(() => {
-    if (!hasBookingData) return [];
+    if (!hasBookingData) return initialDraft?.selectedServices ?? [];
     // Case 1: new multi-service array
     // ServiceSummaryDTO now carries per-entry optionId/optionName from booking_services.
     // Fall back to booking-level optionName for legacy single-service bookings (pre-V54).
@@ -238,17 +242,19 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
     return [];
   });
-  const [totalDurationOverride, setTotalDurationOverride] = useState(null);
+  const [totalDurationOverride, setTotalDurationOverride] = useState(() => initialDraft?.totalDurationOverride ?? null);
   // Phase 5b: per-package duration overrides + per-package "editing duration" toggles,
   // keyed by package id. Replaces the singular `packageDurationOverride` /
   // `editingPackageDuration` that assumed a single selected package.
-  const [packageDurationOverrides, setPackageDurationOverrides] = useState(() => new Map());
+  // (Restore: entries[] → Map. editingDurationPkgIds is transient UI, not persisted.)
+  const [packageDurationOverrides, setPackageDurationOverrides] = useState(() => new Map(initialDraft?.packageDurationOverrides ?? []));
   const [editingDurationPkgIds, setEditingDurationPkgIds] = useState(() => new Set());
   const [editingTotalDuration, setEditingTotalDuration] = useState(false);
   // V64 M2a: whole-appointment custom total price override. null = no override
-  // (per-line sum wins in the estimato). Prefilled from the booking on edit.
+  // (per-line sum wins in the estimato). Prefilled from the booking on edit,
+  // or rehydrated from the in-progress draft for a new appointment.
   const [totalPriceOverride, setTotalPriceOverride] = useState(() =>
-    editBooking?.customTotalPrice != null ? Number(editBooking.customTotalPrice) : null,
+    editBooking?.customTotalPrice != null ? Number(editBooking.customTotalPrice) : (initialDraft?.totalPriceOverride ?? null),
   );
   const [editingTotalPrice, setEditingTotalPrice] = useState(false);
   const [priceDraft, setPriceDraft] = useState(""); // typing buffer (avoids the "80.5" decimal-loss bug)
@@ -259,7 +265,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
   // ── Custom service items ──────────────────────────────────────────────────
   const [serviceItems, setServiceItems] = useState(() => {
-    if (!hasBookingData) return [];
+    if (!hasBookingData) return initialDraft?.serviceItems ?? [];
     if (editBooking.isCustomService && editBooking.customServiceName) {
       // customServiceDurationMinutes was added to AdminBookingCardDTO; fall back to
       // durationMinutes (total booking duration) for bookings created before that fix.
@@ -278,12 +284,21 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [itemErrors, setItemErrors] = useState({});
 
   // ── Date / slots ──────────────────────────────────────────────────────────
-  const [appointmentDate, setAppointmentDate] = useState(() => (isEditMode && editBooking.startTime ? editBooking.startTime.slice(0, 10) : selectedDate || ""));
-  const [selectedSlot, setSelectedSlot] = useState(() => (isEditMode && editBooking.startTime ? editBooking.startTime.slice(11, 16) : ""));
+  // New appointment: restore the drafted date/time if present, else fall back to
+  // the page's selectedDate. Duplicate intentionally starts with a fresh date/time
+  // (initialDraft is null in edit/duplicate, so those paths are unchanged).
+  const [appointmentDate, setAppointmentDate] = useState(() =>
+    isEditMode && editBooking.startTime ? editBooking.startTime.slice(0, 10) : (initialDraft?.appointmentDate ?? selectedDate ?? ""),
+  );
+  const [selectedSlot, setSelectedSlot] = useState(() =>
+    isEditMode && editBooking.startTime ? editBooking.startTime.slice(11, 16) : (initialDraft?.selectedSlot ?? ""),
+  );
   const [slots, setSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
-  const [customTime, setCustomTime] = useState(() => (isEditMode && editBooking?.startTime ? editBooking.startTime.slice(11, 16) : ""));
+  const [customTime, setCustomTime] = useState(() =>
+    isEditMode && editBooking?.startTime ? editBooking.startTime.slice(11, 16) : (initialDraft?.customTime ?? ""),
+  );
 
   // ── "Prossimo disponibile" state ──────────────────────────────────────────
   const [nextSlotResult, setNextSlotResult] = useState(null); // { dateStr, timeStr } | { notFound } | { error }
@@ -291,10 +306,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const lastSuggestedSlotRef = useRef(null); // ISO datetime "YYYY-MM-DDTHH:mm:ss" for cycling
 
   // ── Buffer ────────────────────────────────────────────────────────────────
-  const [paddingMinutes, setPaddingMinutes] = useState(() => (isEditMode ? (editBooking.paddingMinutes ?? 0) : 0));
+  const [paddingMinutes, setPaddingMinutes] = useState(() => (isEditMode ? (editBooking.paddingMinutes ?? 0) : (initialDraft?.paddingMinutes ?? 0)));
 
   // ── Notes ─────────────────────────────────────────────────────────────────
-  const [notes, setNotes] = useState(() => (hasBookingData ? editBooking.notes || "" : ""));
+  const [notes, setNotes] = useState(() => (hasBookingData ? editBooking.notes || "" : (initialDraft?.notes ?? "")));
 
   // ── Per-line payment status (V62) ─────────────────────────────────────────
   // Replaces the legacy single paidInStore toggle. State lives on:
@@ -307,14 +322,14 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   // read-only — see isLocked() below.
   const [packageSessionPaid, setPackageSessionPaid] = useState(() => {
     const m = new Map();
-    if (!isEditMode || !editBooking) return m;
+    if (!isEditMode || !editBooking) return new Map(initialDraft?.packageSessionPaid ?? []);
     const pkgs = Array.isArray(editBooking.linkedPackages) ? editBooking.linkedPackages : [];
     pkgs.forEach(p => {
       if (p?.packageAssignmentId && !p.paidUpfront) m.set(p.packageAssignmentId, p.paid === true);
     });
     return m;
   });
-  const [customServicePaid, setCustomServicePaid] = useState(() => (isEditMode ? editBooking?.customServicePaid === true : false));
+  const [customServicePaid, setCustomServicePaid] = useState(() => (isEditMode ? editBooking?.customServicePaid === true : (initialDraft?.customServicePaid ?? false)));
   // paidOnline → every line is settled and locked. Read at render time.
   const isPaidOnline = !!editBooking?.paidOnline;
 
@@ -324,7 +339,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   // Edit-mode seeds from the new editBooking.linkedPackages[]; falls back to the
   // legacy singular linkedPackage for one release so older backend responses still hydrate.
   const [selectedPackageIds, setSelectedPackageIds] = useState(() => {
-    if (!isEditMode || !editBooking) return new Set();
+    if (!isEditMode || !editBooking) return new Set(initialDraft?.selectedPackageIds ?? []);
     if (Array.isArray(editBooking.linkedPackages) && editBooking.linkedPackages.length > 0) {
       return new Set(editBooking.linkedPackages.map(p => p.packageAssignmentId).filter(Boolean));
     }
@@ -332,7 +347,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     return legacyId ? new Set([legacyId]) : new Set();
   });
   const [selectedPackageCreditId, setSelectedPackageCreditId] = useState(() => {
-    if (!isEditMode || !editBooking) return null;
+    if (!isEditMode || !editBooking) return initialDraft?.selectedPackageCreditId ?? null;
     // packageCreditId lives at the top level of AdminBookingCardDTO (for online packages)
     return editBooking.packageCreditId ?? null;
   });
@@ -982,6 +997,41 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     isEditMode,
     editBooking,
   ]);
+
+  // ── Draft persistence (Feature 1) ─────────────────────────────────────────
+  // Serialize ONLY the persistable subset (Set/Map → arrays/entries). Transient
+  // UI — search/filter/expansion toggles, inline-edit toggles, slot results,
+  // validation errors — is intentionally excluded and rebuilt fresh on remount.
+  // A half-typed custom-service row (customForm, not yet committed to
+  // serviceItems) is deliberately NOT persisted.
+  const formDraft = useMemo(
+    () => ({
+      selectedServices,
+      serviceItems,
+      selectedPackageIds: Array.from(selectedPackageIds),
+      packageDurationOverrides: Array.from(packageDurationOverrides.entries()),
+      selectedPackageCreditId,
+      packageSessionPaid: Array.from(packageSessionPaid.entries()),
+      customServicePaid,
+      totalDurationOverride,
+      totalPriceOverride,
+      appointmentDate,
+      selectedSlot,
+      customTime,
+      paddingMinutes,
+      notes,
+    }),
+    [selectedServices, serviceItems, selectedPackageIds, packageDurationOverrides, selectedPackageCreditId, packageSessionPaid, customServicePaid, totalDurationOverride, totalPriceOverride, appointmentDate, selectedSlot, customTime, paddingMinutes, notes],
+  );
+  // Latest snapshot in a ref so the unmount flush captures the final edit even if
+  // a passive effect hasn't run yet (fast tab-switch). onDraftChange is undefined
+  // in edit/duplicate, so both effects no-op there — the snapshot stays untouched.
+  const formDraftRef = useRef(formDraft);
+  formDraftRef.current = formDraft;
+  useEffect(() => {
+    onDraftChange?.(formDraft);
+  }, [formDraft, onDraftChange]);
+  useEffect(() => () => onDraftChange?.(formDraftRef.current), [onDraftChange]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async e => {
@@ -2351,9 +2401,42 @@ export default function NewAppointmentDrawer({
     });
   }, []);
 
-  // Sync customer with editBooking on (re)open — separate from the activeTab effect on purpose
+  // ── In-memory draft snapshot (Feature 1) ─────────────────────────────────
+  // The shell is permanently mounted (the page renders it unconditionally), so a
+  // ref here survives the drawer's close/reopen. The snapshot holds the
+  // NEW-appointment draft only: { form, customer }. Edit/duplicate never read or
+  // write it (onDraftChange/initialDraft are gated on editBooking == null).
+  const draftRef = useRef(null);
+  // Set right before a successful new-appt create, so the close that follows
+  // doesn't repopulate the just-cleared snapshot via the unmount/close captures.
+  const suppressCaptureRef = useRef(false);
+  // Live mirror of customer, read by the close-time capture without stale closures.
+  const customerRef = useRef(customer);
+  customerRef.current = customer;
+  // Live form capture from AppointmentForm (form part only; customer is captured
+  // separately on close to avoid the open-transition stale-read race).
+  const captureFormDraft = useCallback(form => {
+    if (suppressCaptureRef.current) return;
+    draftRef.current = { ...(draftRef.current || {}), form };
+  }, []);
+
+  // (Re)open: edit/duplicate rebuild from editBooking; a new appointment restores
+  // the customer from the snapshot. Also clears the post-submit suppress flag.
   useEffect(() => {
-    if (isOpen) setCustomer(deriveCustomer(editBooking));
+    if (!isOpen) return;
+    suppressCaptureRef.current = false;
+    if (editBooking) setCustomer(deriveCustomer(editBooking));
+    else setCustomer(draftRef.current?.customer ?? deriveCustomer(null));
+  }, [isOpen, editBooking]);
+
+  // Capture the customer into the new-appt draft when the drawer closes (cleanup
+  // fires on isOpen→false). Guarded so edit/duplicate and post-submit don't write.
+  useEffect(() => {
+    if (!isOpen) return;
+    return () => {
+      if (suppressCaptureRef.current || editBooking) return;
+      draftRef.current = { ...(draftRef.current || {}), customer: customerRef.current };
+    };
   }, [isOpen, editBooking]);
 
   // Problem 4: after "Crea pacchetto" the appointment tab stays mid-list because
@@ -2476,7 +2559,17 @@ export default function NewAppointmentDrawer({
               customer={customer}
               onSelectCustomer={handleSelectCustomer}
               onPatchCustomer={patchCustomer}
+              // New appointment only: rehydrate from / report to the shell snapshot.
+              // Both undefined in edit/duplicate, so those flows never touch it.
+              initialDraft={editBooking ? null : (draftRef.current?.form ?? null)}
+              onDraftChange={editBooking ? undefined : captureFormDraft}
               onSuccess={msg => {
+                // A new appointment was persisted — drop the draft and suppress the
+                // close-time captures that would otherwise repopulate it.
+                if (!editBooking) {
+                  draftRef.current = null;
+                  suppressCaptureRef.current = true;
+                }
                 onAppointmentSaved?.(msg);
                 onClose();
               }}
