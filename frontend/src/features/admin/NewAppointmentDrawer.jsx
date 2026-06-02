@@ -17,7 +17,7 @@ import {
   updateBooking,
   updatePersonalAppointment,
 } from "../../api/modules/adminAgenda.api";
-import { getActivePackages, updateCustomer, deleteCustomer } from "../../api/modules/customer.api";
+import { createCustomer, getActivePackages, updateCustomer, deleteCustomer } from "../../api/modules/customer.api";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import EditPackageModal from "../../components/common/EditPackageModal";
 import PackagesTab from "../../components/admin/PackagesTab";
@@ -341,6 +341,14 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
   const [customerEditMsg, setCustomerEditMsg] = useState("");
 
+  // ── Inline "Salva cliente" (Feature 2) ────────────────────────────────────
+  // noCustomerMatch is driven by CustomerAutocomplete's onNoMatch (fail-closed:
+  // only true after a search confirms zero DB matches for the typed name).
+  // Transient UI — intentionally NOT part of the persisted draft.
+  const [noCustomerMatch, setNoCustomerMatch] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [saveCustomerError, setSaveCustomerError] = useState("");
+
   // ── Confirmation dialogs ──────────────────────────────────────────────────
   const [deleteCustomerConfirm, setDeleteCustomerConfirm] = useState(false);
   const [deleteCustomerLoading, setDeleteCustomerLoading] = useState(false);
@@ -538,6 +546,51 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     const stamp = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}${pad2(d.getHours())}${pad2(d.getMinutes())}`;
     return `walkin+${stamp}${WALKIN_MARKER}`;
   }, []);
+
+  // Resolve the email to persist for THIS customer. Walk-ins reuse an already
+  // generated technical address when present (so inline-create and the booking
+  // submit agree on ONE address — never two records with different emails),
+  // otherwise generate one once.
+  const resolveCustomerEmail = () => {
+    if (!walkIn) return customerEmail.trim();
+    if (customerEmail && customerEmail.includes(WALKIN_MARKER)) return customerEmail;
+    return ensureWalkInEmail();
+  };
+
+  // Feature 2: persist a brand-new customer to the DB now, so the Pacchetti tab
+  // and the appointment's customerId-gated "Pacchetti attivi" selector can
+  // attach/show a package immediately. Reuses the existing lifted-customer path.
+  const handleSaveCustomer = async () => {
+    setSavingCustomer(true);
+    setSaveCustomerError("");
+    try {
+      const email = resolveCustomerEmail();
+      const created = await createCustomer({
+        fullName: customerName.trim(),
+        phone: customerPhone.trim(),
+        email,
+      });
+      onSelectCustomer({
+        customerId: created.customerId,
+        fullName: created.fullName,
+        phone: created.phone ?? customerPhone.trim(),
+        email: created.email ?? email,
+      });
+      // onSelectCustomer skips walk-in emails (keeps walkIn=true); persist it
+      // here so the booking submit reuses this exact address.
+      if (walkIn) onPatchCustomer({ email });
+      setNoCustomerMatch(false);
+    } catch (err) {
+      const status = err?.response?.status ?? err?.status;
+      setSaveCustomerError(
+        status === 409
+          ? "Telefono o email già associati a un'altra cliente."
+          : err.message || "Errore durante il salvataggio della cliente.",
+      );
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
 
   const handleDeleteCustomer = async () => {
     if (!customerId) return;
@@ -949,7 +1002,12 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       const payload = {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
-        customerEmail: walkIn ? ensureWalkInEmail() : customerEmail.trim(),
+        // Reuse the inline-created walk-in address when present (resolveCustomerEmail),
+        // so create-time and submit-time emails match.
+        customerEmail: resolveCustomerEmail(),
+        // Step 7: when the customer was created/selected inline, attach the booking
+        // to that exact record (backend prefers customerId over find-or-create).
+        customerId: customerId ?? null,
         date: appointmentDate,
         startTime: effectiveTime,
         notes: notes.trim() || null,
@@ -1021,6 +1079,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               value={customerName}
               onChange={handleCustomerNameChange}
               onSelect={handleCustomerSelect}
+              onNoMatch={setNoCustomerMatch}
               isInvalid={submitted && !!errors.customerName}
               placeholder="Cerca o inserisci nome…"
             />
@@ -1061,6 +1120,18 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           {submitted && errors.customerEmail && <div className="nad-field-error">{errors.customerEmail}</div>}
           {walkIn && <div className="nad-help">Per i walk-in viene generata una email tecnica automaticamente.</div>}
         </div>
+
+        {/* Feature 2: appears only for an unsaved customer with no DB match and the
+            minimum data present (name + phone, + email when not walk-in). */}
+        {!customerId && noCustomerMatch && customerName.trim() && customerPhone.trim() && (walkIn || customerEmail.trim()) && (
+          <div className="ag-customer-action-row">
+            <button type="button" className="nad-btn nad-btn--primary" onClick={handleSaveCustomer} disabled={savingCustomer}>
+              {savingCustomer ? "Salvataggio…" : "💾 Salva cliente"}
+            </button>
+            <span className="nad-help">Crea la cliente ora per poterle assegnare un pacchetto.</span>
+          </div>
+        )}
+        {saveCustomerError && <div className="nad-form__error">{saveCustomerError}</div>}
 
         {customerId && !editingCustomer && (
           <div className="ag-customer-action-row">
