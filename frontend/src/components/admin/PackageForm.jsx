@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DurationField from "../common/DurationField";
-import { createPackageAssignment, fetchCatalogPackages, updatePackageAssignment } from "../../api/modules/adminAgenda.api";
+import { createPackageAssignment, createRecurringTemplate, fetchCatalogPackages, fetchRecurringTemplates, updatePackageAssignment } from "../../api/modules/adminAgenda.api";
 import "./PackageForm.css";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -27,6 +27,16 @@ const DISCOUNT_CHIPS = [0.05, 0.1, 0.15, 0.2];
 
 // Stable key for picker selection lookup. Plain service → "<id>::"; with option → "<id>::<optionId>".
 const serviceKey = (serviceId, optionId) => `${serviceId}::${optionId ?? ""}`;
+
+// V64 M1: signature of the editable fields a template seeds. The "modello" hint
+// shows only while the current form still matches the seed (hides on first edit).
+const seedSignature = (name, composition, pricePaid, sessionDurationMin) =>
+  JSON.stringify({
+    n: name,
+    p: pricePaid,
+    d: sessionDurationMin,
+    c: composition.map(r => [r.kind, r.serviceId, r.serviceOptionId, r.customName]),
+  });
 
 // ── ServicePicker ─────────────────────────────────────────────────────────────
 // Full catalog list mirroring AppointmentForm's .ag-service-list pattern.
@@ -181,6 +191,13 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   const [catalogPackages, setCatalogPackages] = useState([]);
   const [catalogSearch, setCatalogSearch] = useState("");
 
+  // V64 M1: recurring package templates (reusable admin-only recipes).
+  const [recurringTemplates, setRecurringTemplates] = useState([]);
+  const [saveAsRecurring, setSaveAsRecurring] = useState(false);
+  // Snapshot of the seed applied by handleRecurringPick; the "modello" hint shows
+  // only while name/composition/price/duration still match it (hides on first edit).
+  const seedSigRef = useRef(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
@@ -191,6 +208,13 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     fetchCatalogPackages()
       .then(opts => setCatalogPackages(opts || []))
       .catch(() => setCatalogPackages([]));
+  }, []);
+
+  // ── Recurring templates fetch (once) ────────────────────────────────────────
+  useEffect(() => {
+    fetchRecurringTemplates()
+      .then(t => setRecurringTemplates(t || []))
+      .catch(() => setRecurringTemplates([]));
   }, []);
 
   // ── Prefill from editingPackage (or reset to defaults) ──────────────────────
@@ -239,6 +263,8 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     setSubmitted(false);
     setErrors({});
     setSubmitError("");
+    setSaveAsRecurring(false);
+    seedSigRef.current = null; // not seeded from a template
   }, [editingPackage, isEdit]);
 
   // Mode switch (create only) resets composition + derived defaults
@@ -251,6 +277,8 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     setSessionDurationMin(null);
     setPricePaid("");
     setCatalogSearch("");
+    setSaveAsRecurring(false);
+    seedSigRef.current = null;
   }, []);
 
   // ── Catalog mode pick (single-pick prefill, unchanged from Phase 4) ────────
@@ -282,6 +310,36 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     },
     [services],
   );
+
+  // ── Recurring template pick: seed the manual "service" form, fully editable ──
+  // Sessions are NOT stored on a template (schema has no field) → totalSessions is
+  // left untouched and set by the admin. SET-NULL items (service hard-deleted)
+  // degrade to a custom row showing customName or "Servizio rimosso".
+  const handleRecurringPick = useCallback(t => {
+    const nextName = t.name ?? "";
+    const nextComposition = (Array.isArray(t.items) ? [...t.items].sort((a, b) => a.position - b.position) : []).map(it => {
+      if (it.serviceId || it.serviceOptionId) {
+        const fullTitle = it.serviceOptionName
+          ? `${it.serviceTitle ?? ""}${it.serviceTitle && it.serviceOptionName ? " · " : ""}${it.serviceOptionName ?? ""}`.trim()
+          : (it.serviceTitle ?? it.customName ?? "");
+        return newServiceRow({
+          serviceId: it.serviceId ?? "",
+          serviceOptionId: it.serviceOptionId ?? null,
+          customName: fullTitle,
+        });
+      }
+      return newCustomRow({ customName: it.customName ?? "Servizio rimosso" });
+    });
+    const nextDuration = t.defaultDurationMin ?? null;
+    const nextPrice = t.defaultPrice != null ? String(t.defaultPrice) : "";
+
+    setName(nextName);
+    setComposition(nextComposition);
+    setSessionDurationMin(nextDuration);
+    setPricePaid(nextPrice);
+    seedSigRef.current = seedSignature(nextName, nextComposition, nextPrice, nextDuration);
+    setMode("service");
+  }, []);
 
   // ── Service mode: toggle catalog row in composition ────────────────────────
   const toggleServiceRow = useCallback((svc, opt) => {
@@ -338,6 +396,14 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     }
     return svc.title;
   }, [composition, services]);
+
+  // V64 M1: the "modello — modifica liberamente" hint shows only while the form
+  // still matches the seeded template snapshot (hides on the first manual edit).
+  const currentSig = useMemo(
+    () => seedSignature(name, composition, pricePaid, sessionDurationMin),
+    [name, composition, pricePaid, sessionDurationMin],
+  );
+  const showTemplateHint = seedSigRef.current != null && seedSigRef.current === currentSig;
 
   // ── Price calc ──────────────────────────────────────────────────────────────
   // fullPriceData.total is the FULL package list price (sum of composition rows
@@ -460,6 +526,23 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     try {
       const payload = buildPayload();
       const saved = isEdit ? await updatePackageAssignment(editingPackage.id, payload) : await createPackageAssignment(payload);
+      // V64 M1: optionally persist the same composition as a reusable recurring template.
+      if (!isEdit && saveAsRecurring) {
+        try {
+          await createRecurringTemplate({
+            name: payload.customPackageName || "Pacchetto",
+            defaultPrice: payload.pricePaid,
+            defaultDurationMin: payload.sessionDurationMin,
+            notes: payload.notes,
+            items: payload.items,
+          });
+          // Refresh the in-memory list so the new template is immediately pickable.
+          await fetchRecurringTemplates().then(setRecurringTemplates);
+        } catch {
+          // Best-effort: a template failure must not block the saved assignment.
+        }
+      }
+      seedSigRef.current = null;
       onSaved?.(saved);
     } catch (err) {
       setSubmitError(err.message || "Errore durante il salvataggio.");
@@ -476,6 +559,12 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     );
   }, [catalogPackages, catalogSearch]);
 
+  const filteredTemplates = useMemo(() => {
+    const needle = catalogSearch.trim().toLowerCase();
+    if (!needle) return recurringTemplates;
+    return recurringTemplates.filter(t => (t.name || "").toLowerCase().includes(needle));
+  }, [recurringTemplates, catalogSearch]);
+
   // ── Render ──────────────────────────────────────────────────────────────────
   // The "Nuovo / Modifica pacchetto" page-level heading lives in PackagesTab —
   // intentionally NOT repeated here.
@@ -489,6 +578,9 @@ export default function PackageForm({ customer, services = [], editingPackage = 
           </button>
           <button type="button" className={`nad-pkg-mode-pill${mode === "service" ? " is-active" : ""}`} onClick={() => switchMode("service")}>
             Da servizio
+          </button>
+          <button type="button" className={`nad-pkg-mode-pill${mode === "recurring" ? " is-active" : ""}`} onClick={() => switchMode("recurring")}>
+            Ricorrenti
           </button>
         </div>
       )}
@@ -523,6 +615,28 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         </div>
       )}
 
+      {/* Recurring templates picker (single-pick → seeds the editable service form) */}
+      {!isEdit && mode === "recurring" && (
+        <div className="pkgf-section">
+          <input
+            type="text"
+            className="nad-form__input"
+            placeholder="Cerca template…"
+            value={catalogSearch}
+            onChange={e => setCatalogSearch(e.target.value)}
+          />
+          <div className="nad-pkg-list">
+            {filteredTemplates.length === 0 && <div className="nad-help">Nessun template ricorrente salvato.</div>}
+            {filteredTemplates.map(t => (
+              <button key={t.id} type="button" className="nad-pkg-item" onClick={() => handleRecurringPick(t)}>
+                <span className="nad-pkg-item__name">{t.name}</span>
+                {Array.isArray(t.items) && t.items.length > 0 && <span className="nad-pkg-item__sessions">{t.items.length} voci</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Service mode (and edit mode): full catalog multi-select + custom-row affordance */}
       {(isEdit || mode === "service") && (
         <div className="pkgf-section">
@@ -537,6 +651,7 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       {composition.length > 0 && (
         <div className="pkgf-section">
           <div className="pkgf-section__title">Composizione</div>
+          {showTemplateHint && <div className="nad-help">Modello — modifica liberamente.</div>}
           {composition.map((row, idx) => (
             <div key={row.uid} className={`pkgf-row${submitted && errors[row.uid] ? " has-error" : ""}`}>
               <span className="pkgf-row__index">{idx + 1}</span>
@@ -680,6 +795,12 @@ export default function PackageForm({ customer, services = [], editingPackage = 
           <input type="checkbox" checked={paidUpfront} onChange={e => setPaidUpfront(e.target.checked)} />
           <span>💵 Pagato in anticipo</span>
         </label>
+        {!isEdit && mode === "service" && (
+          <label className="pkgf-paid">
+            <input type="checkbox" checked={saveAsRecurring} onChange={e => setSaveAsRecurring(e.target.checked)} />
+            <span>♻️ Salva anche come pacchetto ricorrente</span>
+          </label>
+        )}
       </div>
 
       {/* Notes */}

@@ -245,6 +245,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [packageDurationOverrides, setPackageDurationOverrides] = useState(() => new Map());
   const [editingDurationPkgIds, setEditingDurationPkgIds] = useState(() => new Set());
   const [editingTotalDuration, setEditingTotalDuration] = useState(false);
+  // V64 M2a: whole-appointment custom total price override. null = no override
+  // (per-line sum wins in the estimato). Prefilled from the booking on edit.
+  const [totalPriceOverride, setTotalPriceOverride] = useState(() =>
+    editBooking?.customTotalPrice != null ? Number(editBooking.customTotalPrice) : null,
+  );
+  const [editingTotalPrice, setEditingTotalPrice] = useState(false);
+  const [priceDraft, setPriceDraft] = useState(""); // typing buffer (avoids the "80.5" decimal-loss bug)
   const [editingServizio, setEditingServizio] = useState(null);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogCatFilter, setCatalogCatFilter] = useState("all");
@@ -961,6 +968,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         customTotalDurationMin:
           totalDurationOverride ??
           (selectedPackageIds.size > 0 || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null) ? totalDuration : null),
+        // V64 M2a: whole-appointment custom total price (null = no override, per-line sum wins).
+        customTotalPrice: totalPriceOverride ?? null,
         hasCustomService: customItems.length > 0,
         customServiceName: customItems.length > 0 ? customItems.map(i => i.customName.trim()).join(", ") : null,
         customServiceDurationMinutes: customItems.length > 0 ? customItems.reduce((s, i) => s + (parseInt(i.customDuration, 10) || 0), 0) : null,
@@ -1745,6 +1754,71 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       className="ag-selected-service-row__edit"
                       style={{ fontSize: ".72rem" }}
                       onClick={() => setTotalDurationOverride(null)}
+                    >
+                      reset
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+            {/* V64 M2a: whole-appointment custom total price override (override-only, no baseline). */}
+            {(() => {
+              const commit = () => {
+                const v = priceDraft.trim();
+                setTotalPriceOverride(v === "" ? null : (parseFloat(v) >= 0 ? parseFloat(v) : null));
+                setEditingTotalPrice(false);
+              };
+              return (
+                <div className="ag-selected-services__total">
+                  <span>
+                    Prezzo totale: <b>{totalPriceOverride !== null ? `€${Number(totalPriceOverride).toFixed(2)}` : "—"}</b>
+                  </span>
+                  {totalPriceOverride !== null && <span className="ag-selected-services__manual-note"> · impostato manualmente</span>}
+                  {!editingTotalPrice ? (
+                    <button
+                      type="button"
+                      className="ag-selected-service-row__edit"
+                      title="Imposta un prezzo totale unico per l'appuntamento (es. due servizi venduti insieme)"
+                      onClick={() => {
+                        setPriceDraft(totalPriceOverride != null ? String(totalPriceOverride) : "");
+                        setEditingTotalPrice(true);
+                      }}
+                    >
+                      ✏
+                    </button>
+                  ) : (
+                    <>
+                      <input
+                        type="number"
+                        className="ag-edit-svc-input"
+                        min={0}
+                        step={0.5}
+                        value={priceDraft}
+                        placeholder="€ totale"
+                        autoFocus
+                        onChange={e => setPriceDraft(e.target.value)}
+                        onBlur={commit}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            commit();
+                          }
+                        }}
+                      />
+                      <button type="button" className="ag-selected-service-row__edit" title="Conferma prezzo" onClick={commit}>
+                        ✓
+                      </button>
+                    </>
+                  )}
+                  {totalPriceOverride !== null && (
+                    <button
+                      type="button"
+                      className="ag-selected-service-row__edit"
+                      style={{ fontSize: ".72rem" }}
+                      onClick={() => {
+                        setTotalPriceOverride(null);
+                        setEditingTotalPrice(false);
+                      }}
                     >
                       reset
                     </button>

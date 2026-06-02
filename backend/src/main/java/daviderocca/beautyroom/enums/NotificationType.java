@@ -8,5 +8,7 @@ public enum NotificationType {
     ORDER_CANCELLED,
     PMU_CONSENT,
     CLOSURE_REMINDER,
-    BOOKING_CLOSURE_CONFLICT
+    BOOKING_CLOSURE_CONFLICT,
+    // V64: a returning customer still has unpaid lines on past COMPLETED bookings.
+    OUTSTANDING_PAYMENT
 }

@@ -5,6 +5,7 @@ import {
   getTimelineDay,
   getBookingsDay,
   patchBookingStatus,
+  settleBookingLines,
   deleteBooking,
   updateBooking,
   getNextAvailableSlot,
@@ -14,10 +15,13 @@ import {
   patchBookingConsent,
   getPersonalAppointmentsDay,
   getClosuresRange,
+  fetchArretratiForBooking,
 } from "../../api/modules/adminAgenda.api";
 import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../utils/reminders";
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
+import CompletionDrawer from "./CompletionDrawer";
+import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
 import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
 import ClosuresDrawer from "../../features/admin/ClosuresDrawer";
 import ConfirmDialog from "../common/ConfirmDialog";
@@ -28,8 +32,13 @@ import DateTimeField from "../common/DateTimeField";
 import SEO from "../common/SEO";
 import formatDuration from "../../utils/formatDuration";
 import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
+import { buildArretratoSettlePayload } from "./settlePayload";
 // pkgi-* classes for the collapsible package items toggle
 import "./PackageForm.css";
+
+// Digits-only phone (mirror of the backend digitsOnly / SQL regexp_replace) — used to
+// clear the agenda arretrati badge across all cards of the same customer after settling.
+const digitsOnly = s => (s ? String(s).replace(/[^0-9]/g, "") : "");
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -163,7 +172,12 @@ function buildBreakdownItems(booking, priceMap) {
       const p = priceMap.get(String(booking.serviceId));
       if (p != null) price = p;
     }
-    items.push({ label, price, kind: "package", paid: isLineSettled(pkg, booking) });
+    // refKind/refId/locked: drive the CompletionDrawer settle payload (packageSessionPaid
+    // keyed by ClientPackageAssignment id). paidUpfront packages are not editable.
+    items.push({
+      label, price, kind: "package", paid: isLineSettled(pkg, booking),
+      refKind: "package", refId: pkg.packageAssignmentId, locked: pkg.paidLocked === true,
+    });
   });
 
   // b. Extras from booking.services
@@ -180,7 +194,11 @@ function buildBreakdownItems(booking, priceMap) {
         const p = priceMap.get(String(s.id ?? s.serviceId));
         price = p != null ? p : null;
       }
-      items.push({ label, price, kind: "extra", paid: isLineSettled(s, booking) });
+      // refId = catalog service_id (servicePaid map key in the settle payload).
+      items.push({
+        label, price, kind: "extra", paid: isLineSettled(s, booking),
+        refKind: "service", refId: s.id,
+      });
     });
   }
 
@@ -191,6 +209,7 @@ function buildBreakdownItems(booking, priceMap) {
       price: booking.customServicePrice != null ? Number(booking.customServicePrice) : null,
       kind: "custom",
       paid: isCustomSettled(booking),
+      refKind: "custom",
     });
   }
 
@@ -203,10 +222,52 @@ function buildBreakdownItems(booking, priceMap) {
       // No per-line flag exists for the legacy single-service shape: fall back to
       // booking-level paidOnline / packageCredit only.
       paid: booking.paidOnline || isBookingPackageCreditBacked(booking),
+      refKind: "legacy", refId: booking.serviceId,
     });
   }
 
   return items;
+}
+
+// V64: single source of truth for a booking's "da incassare" (still-to-collect).
+// Bundle appointments (customTotalPrice set) are one atomic price; otherwise it is
+// the sum of unpaid lines. paidOnline / PackageCredit exclusions are already folded
+// into it.paid via isLineSettled (inside buildBreakdownItems), so the caller just
+// passes the items it already built. Used by BOTH the EstimatoModal and the agenda
+// "incasso stimato" KPI to keep the two figures consistent.
+function computeBookingAmountDue(booking, items) {
+  const isBundle = booking.customTotalPrice != null;
+  const anyUnpaid = items.some(it => !it.paid);
+  return isBundle
+    ? (anyUnpaid ? Number(booking.customTotalPrice) : 0)
+    : items.filter(it => !it.paid).reduce((acc, it) => acc + Number(it.price ?? 0), 0);
+}
+
+// Snapshot of the CURRENT (pre-completion) paid flags as a /settle-style payload.
+// Stored in completedUndo so "Annulla completamento" can restore the exact flags
+// (symmetric undo). Bundle → single lockstep value; non-bundle → per-line maps.
+// Locked lines are skipped (backend ignores them either way). alsoComplete is added
+// by the caller (false on restore).
+function buildSnapshotPayload(booking, items) {
+  if (booking.customTotalPrice != null) {
+    return { markAllPaid: items.length > 0 && items.every(it => it.paid) };
+  }
+  const servicePaid = {};
+  const packageSessionPaid = {};
+  let customServicePaid;
+  items.forEach(it => {
+    if (it.locked) return;
+    if (it.refKind === "service" || it.refKind === "legacy") {
+      if (it.refId != null) servicePaid[String(it.refId)] = it.paid === true;
+    } else if (it.refKind === "package") {
+      if (it.refId != null) packageSessionPaid[String(it.refId)] = it.paid === true;
+    } else if (it.refKind === "custom") {
+      customServicePaid = it.paid === true;
+    }
+  });
+  const snap = { servicePaid, packageSessionPaid };
+  if (customServicePaid !== undefined) snap.customServicePaid = customServicePaid;
+  return snap;
 }
 
 // V62: column-level booking status. New bookings no longer write paid_in_store;
@@ -231,18 +292,20 @@ function EstimatoModal({ bookings, services, onClose }) {
   const rows = useMemo(
     () =>
       active.map(b => {
+        // One buildBreakdownItems call per booking — reused for the row display AND
+        // the amountDue calc (single source of truth via computeBookingAmountDue).
         const items = buildBreakdownItems(b, priceMap);
-        const total = items.reduce(
-          (acc, it) => acc + (it.paid || !Number.isFinite(it.price) ? 0 : it.price),
-          0,
-        );
-        return { booking: b, pay: getPaymentLabel(b), items, total };
+        const isBundle = b.customTotalPrice != null;
+        const amountDue = computeBookingAmountDue(b, items);
+        // Display "Totale" row: bundle → gross bundle price; otherwise = da-incassare.
+        const total = isBundle ? Number(b.customTotalPrice) : amountDue;
+        return { booking: b, pay: getPaymentLabel(b), items, total, amountDue, isBundle };
       }),
     [active, priceMap],
   );
 
   const totals = useMemo(
-    () => ({ total: rows.reduce((acc, r) => acc + (Number.isFinite(r.total) ? r.total : 0), 0) }),
+    () => ({ total: rows.reduce((acc, r) => acc + (Number.isFinite(r.amountDue) ? r.amountDue : 0), 0) }),
     [rows],
   );
 
@@ -254,6 +317,12 @@ function EstimatoModal({ bookings, services, onClose }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Stop background (Lenis) scroll while open; ref-counted, balanced on abrupt unmount.
+  useEffect(() => {
+    pushLenisLock();
+    return () => popLenisLock();
+  }, []);
+
   return ReactDOM.createPortal(
     <div className="ag-estimato-backdrop" onClick={onClose}>
       <div className="ag-estimato-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Dettaglio Incasso">
@@ -264,7 +333,7 @@ function EstimatoModal({ bookings, services, onClose }) {
           </button>
         </div>
 
-        <div className="ag-estimato-body">
+        <div className="ag-estimato-body" data-lenis-prevent>
           <table className="ag-estimato-table">
             <thead>
               <tr>
@@ -276,7 +345,7 @@ function EstimatoModal({ bookings, services, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {rows.flatMap(({ booking: b, pay, items, total }) =>
+              {rows.flatMap(({ booking: b, pay, items, total, isBundle }) =>
                 items
                   .map((it, idx) => (
                     <tr
@@ -296,12 +365,20 @@ function EstimatoModal({ bookings, services, onClose }) {
                         {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
                       </td>
                       <td>
-                        {idx === 0 ? (
-                          <span className={`ag-pay-badge ${pay.css}`}>
-                            {pay.icon} {pay.text}
-                          </span>
+                        {isBundle ? (
+                          // Bundle = one atomic payment unit → a single booking-level badge on row 0.
+                          idx === 0 ? (
+                            <span className={`ag-pay-badge ${pay.css}`}>
+                              {pay.icon} {pay.text}
+                            </span>
+                          ) : (
+                            ""
+                          )
                         ) : (
-                          ""
+                          // V64 M2b: per-row payment status (was only on idx === 0).
+                          <span className={`ag-pill ${it.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}>
+                            {it.paid ? "✓ Pagato" : "⏳ Da pagare"}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -312,7 +389,7 @@ function EstimatoModal({ bookings, services, onClose }) {
                           <tr key={`${b.bookingId}-total`} className="ag-estimato-row--total">
                             <td></td>
                             <td></td>
-                            <td style={{ fontWeight: 500, fontStyle: "italic", color: "#888" }}>Totale</td>
+                            <td style={{ fontWeight: 500, fontStyle: "italic", color: "#888" }}>{isBundle ? "Totale (prezzo bundle)" : "Totale"}</td>
                             <td className="ag-estimato-price" style={{ fontWeight: 600, borderTop: "1px solid #ddd" }}>
                               €{total.toFixed(0)}
                             </td>
@@ -741,6 +818,54 @@ export default function AdminAgendaPage() {
     });
   }, []);
 
+  // ── Arretrati in agenda (Fase 2): reuse the SAME expand mechanism as packages
+  // (expandedAgendaPkgs + agendaPkgKey + toggleAgendaPkg) with the sentinel key
+  // agendaPkgKey(bookingId, "arretrati"). The list is lazy-loaded on open via the GET. ──
+  const [arretratiData, setArretratiData] = useState({}); // bookingId -> { loading, error, items }
+  const [arretratoSettling, setArretratoSettling] = useState(null); // row key in-flight (double-click guard)
+  const [arretratoError, setArretratoError] = useState(null);       // row key whose settle failed
+  const [confirmArretrato, setConfirmArretrato] = useState(null);   // { card, a } awaiting confirm
+
+  const arretratoRowKey = a => `${a.bookingId}-${a.kind}-${a.refId ?? "x"}`;
+
+  const loadArretrati = useCallback(async bookingId => {
+    setArretratiData(prev => ({ ...prev, [bookingId]: { loading: true, error: null, items: prev[bookingId]?.items ?? [] } }));
+    try {
+      const items = await fetchArretratiForBooking(bookingId);
+      setArretratiData(prev => ({ ...prev, [bookingId]: { loading: false, error: null, items } }));
+      return items;
+    } catch (e) {
+      setArretratiData(prev => ({ ...prev, [bookingId]: { loading: false, error: e.message || "Errore caricamento arretrati.", items: [] } }));
+      return null;
+    }
+  }, []);
+
+  // Settle ONE arretrato row from the dropdown. Reuses settleBookingLines +
+  // buildArretratoSettlePayload (alsoComplete:false) exactly like ClientiPage (Fase 1).
+  // On success: re-fetch the dropdown; if the customer has NO more arretrati, drop the
+  // badge on EVERY card of the same customer (matched by normalized phone). On error:
+  // keep the row ("Riprova"), badge unchanged.
+  const settleArretrato = useCallback(async (card, a) => {
+    const rowKey = arretratoRowKey(a);
+    if (arretratoSettling) return; // a settle is already in flight — ignore (double-click guard)
+    setArretratoError(null);
+    setArretratoSettling(rowKey);
+    try {
+      await settleBookingLines(a.bookingId, buildArretratoSettlePayload(a));
+      const items = await loadArretrati(card.bookingId);
+      if (items && items.length === 0) {
+        setBookings(prev => prev.map(bk =>
+          digitsOnly(bk.customerPhone) === digitsOnly(card.customerPhone)
+            ? { ...bk, hasOutstanding: false }
+            : bk));
+      }
+    } catch {
+      setArretratoError(rowKey); // network/settle error → keep the row, surface "Riprova"
+    } finally {
+      setArretratoSettling(null);
+    }
+  }, [arretratoSettling, loadArretrati]);
+
   const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
   const [confirmModal, setConfirmModal] = useState(null);
@@ -760,6 +885,7 @@ export default function AdminAgendaPage() {
   const [refundConfirmBooking, setRefundConfirmBooking] = useState(null);
   const [consentConfirmBooking, setConsentConfirmBooking] = useState(null);
   const [showEstimatoModal, setShowEstimatoModal] = useState(false);
+  const [completionDrawer, setCompletionDrawer] = useState(null); // { booking, items } | null
 
   // ── WhatsApp reminders ───────────────────────────────────────────────
   // Stato "inviato" = booking.reminderSentAt dal backend.
@@ -981,68 +1107,22 @@ export default function AdminAgendaPage() {
     const openMin = (timeline?.openRanges || []).reduce((sum, r) => sum + Math.max(0, minutes(r.end) - minutes(r.start)), 0);
     const occ = openMin > 0 ? Math.round((bookedMin / openMin) * 100) : 0;
     const priceMap = new Map(services.map(s => [String(s.serviceId), Number(s.price)]));
-    // V62: "incasso stimato" = revenue STILL TO COLLECT. Per-line semantics:
-    // a line counts only if it is NOT settled. A line is settled when its own
-    // paid flag is true (catalog: s.paid, package: pkg.paid — already folds in
-    // paidUpfront on the backend, custom: b.customServicePaid) OR when the
-    // booking is paidOnline / PackageCredit-backed. paidInStore is ignored.
-    const effectivePrice = b => {
-      if (b.paidOnline || isBookingPackageCreditBacked(b)) return 0;
-      const pkgs = b.linkedPackages?.length
-        ? b.linkedPackages
-        : b.linkedPackage
-          ? [b.linkedPackage]
-          : [];
-      const isLegacySingle = !b.linkedPackages?.length && !!b.linkedPackage;
-
-      // 1) Package contribution: sum each package's sessionPrice. Skip settled.
-      let pkgPrice = 0;
-      for (const pkg of pkgs) {
-        if (pkg.paid === true) continue;
-        if (pkg.sessionPrice != null) {
-          pkgPrice += Number(pkg.sessionPrice);
-        } else if (isLegacySingle && b.optionPrice != null) {
-          pkgPrice += Number(b.optionPrice);
-        } else if (isLegacySingle && b.serviceId) {
-          pkgPrice += priceMap.get(String(b.serviceId)) ?? 0;
-        }
-      }
-
-      // 2) Catalog extras — skip settled lines.
-      let extrasSum = 0;
-      if (Array.isArray(b.services) && b.services.length > 0) {
-        extrasSum = b.services.reduce((acc, s, i) => {
-          if (s.paid === true) return acc;
-          const unitPrice =
-            pkgs.length === 0 && i === 0 && b.optionPrice != null && !s.optionId
-              ? Number(b.optionPrice)
-              : s.optionId && s.price != null
-                ? Number(s.price)
-                : s.price != null
-                  ? Number(s.price)
-                  : (priceMap.get(String(s.id ?? s.serviceId)) ?? 0);
-          return acc + unitPrice;
-        }, 0);
-      }
-
-      // 3) Custom — skip if customServicePaid.
-      const customPrice = (!b.customServicePaid && b.customServicePrice != null) ? Number(b.customServicePrice) : 0;
-
-      if (pkgs.length > 0 || (Array.isArray(b.services) && b.services.length > 0) || b.customServicePrice != null) {
-        return pkgPrice + extrasSum + customPrice;
-      }
-
-      // 5) Legacy fallback (single-service booking with no per-line data).
-      if (b.optionPrice != null) return Number(b.optionPrice);
-      return priceMap.get(String(b.serviceId)) ?? 0;
-    };
-    const revenueKnown = active.some(b => Number.isFinite(effectivePrice(b)));
+    // V64: per-booking "da incassare" — single source of truth (computeBookingAmountDue),
+    // identical to the EstimatoModal. Respects bundle customTotalPrice; paidOnline /
+    // PackageCredit and per-line paid flags are folded into it.paid via isLineSettled.
+    const dueOf = b => computeBookingAmountDue(b, buildBreakdownItems(b, priceMap));
+    const revenueKnown = active.some(b => Number.isFinite(dueOf(b)));
     const incassoStimato = active.reduce((sum, b) => {
-      const p = effectivePrice(b);
+      const p = dueOf(b);
       return sum + (Number.isFinite(p) ? p : 0);
     }, 0);
     return { count, bookedMin, openMin, occ, incassoStimato, revenueKnown };
   }, [bookings, timeline, services]);
+
+  // Catalog price map (serviceId → price), shared by the "Completa" smart-skip and
+  // the CompletionDrawer. Only affects displayed prices: the settle payload and the
+  // paid/branch logic are price-independent (it.paid comes from isLineSettled).
+  const priceMap = useMemo(() => new Map(services.map(s => [String(s.serviceId), Number(s.price)])), [services]);
 
   // FIX B2: azzerare nextSlotResult solo se il cambio data è stato manuale,
   // NON se è stato causato da searchNextSlot (altrimenti "Ancora →" si rompe)
@@ -1074,6 +1154,74 @@ export default function AdminAgendaPage() {
     setErrDetails(null);
     try {
       await patchBookingStatus(id, status);
+      await refresh();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  // ── "Completa" → smart-skip a 4 rami, single code-path su /settle ───────────
+  // La DATA non influenza la logica: un CONFIRMED nel passato (Michela completa in
+  // ritardo) apre il drawer normalmente. Conta solo lo stato + i flag paid.
+  // Rami diretti (1 paidOnline, 2 tutte già pagate): mappe vuote → il backend non
+  // flippa alcun flag, esegue solo la transizione a COMPLETED.
+  // completedUndo[bookingId] = { prevStatus, paidSnapshot } → snapshot dei flag paid
+  // PRE-completamento, per l'undo simmetrico (vedi bottone "Annulla completamento").
+  const settleAndComplete = async (b, items) => {
+    const undo = { prevStatus: b.status, paidSnapshot: buildSnapshotPayload(b, items) };
+    setErr("");
+    setErrDetails(null);
+    try {
+      await settleBookingLines(b.bookingId, { servicePaid: {}, packageSessionPaid: {}, alsoComplete: true });
+      setCompletedUndo(u => ({ ...u, [b.bookingId]: undo }));
+      await refresh();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  const handleCompleteClick = b => {
+    const items = buildBreakdownItems(b, priceMap);
+    if (b.paidOnline) return settleAndComplete(b, items);                              // 1
+    if (b.customTotalPrice != null) return setCompletionDrawer({ booking: b, items }); // 3 (bundle prima di "tutte pagate")
+    if (items.every(it => it.paid)) return settleAndComplete(b, items);                // 2
+    setCompletionDrawer({ booking: b, items });                                        // 4
+  };
+
+  const handleDrawerConfirm = async payload => {
+    if (!completionDrawer) return;
+    const b = completionDrawer.booking;
+    const undo = { prevStatus: b.status, paidSnapshot: buildSnapshotPayload(b, completionDrawer.items) };
+    setErr("");
+    setErrDetails(null);
+    try {
+      await settleBookingLines(b.bookingId, payload);
+      setCompletedUndo(u => ({ ...u, [b.bookingId]: undo }));
+      setCompletionDrawer(null);
+      await refresh();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  // Undo simmetrico: ripristina PRIMA i flag paid pre-completamento (settle senza
+  // completare), POI lo stato a CONFIRMED (+ ripristino seduta via /status). Se la
+  // prima fallisce, lo stato resta COMPLETED e l'entry undo è conservata (retry).
+  const undoCompletion = async b => {
+    const undo = completedUndo[b.bookingId];
+    if (!undo) return;
+    setErr("");
+    setErrDetails(null);
+    try {
+      if (undo.paidSnapshot) {
+        await settleBookingLines(b.bookingId, { ...undo.paidSnapshot, alsoComplete: false });
+      }
+      await patchBookingStatus(b.bookingId, undo.prevStatus || "CONFIRMED");
+      setCompletedUndo(u => {
+        const n = { ...u };
+        delete n[b.bookingId];
+        return n;
+      });
       await refresh();
     } catch (e) {
       setErr(e.message);
@@ -1765,6 +1913,20 @@ export default function AdminAgendaPage() {
                         if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
                         return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
                       })();
+                      const arretratiKey = agendaPkgKey(b.bookingId, "arretrati");
+                      const arretratiOpen = expandedAgendaPkgs.has(arretratiKey);
+                      const arretratiState = arretratiData[b.bookingId];
+                      // Same stopPropagation contract as the package chevron — the badge
+                      // toggle must NOT bubble to any card-level click (edit drawer).
+                      const onArretratiToggle = e => {
+                        e.stopPropagation();
+                        const willOpen = !arretratiOpen;
+                        toggleAgendaPkg(b.bookingId, "arretrati");
+                        if (willOpen) loadArretrati(b.bookingId); // lazy-load on open
+                      };
+                      const onArretratiKeyDown = e => {
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onArretratiToggle(e); }
+                      };
                       return (
                         <div
                           key={b.bookingId}
@@ -1780,7 +1942,22 @@ export default function AdminAgendaPage() {
                             </div>
 
                             <div className="ag-item__main">
-                              <div className="ag-item__name">{b.customerName}</div>
+                              <div className="ag-item__name">
+                                {b.customerName}
+                                {b.hasOutstanding && (
+                                  <button
+                                    type="button"
+                                    className="ag-pill ag-pill--unpaid"
+                                    style={{ marginLeft: 6 }}
+                                    aria-expanded={arretratiOpen}
+                                    title="Pagamenti arretrati da saldare"
+                                    onClick={onArretratiToggle}
+                                    onKeyDown={onArretratiKeyDown}
+                                  >
+                                    ⚠️ Arretrati
+                                  </button>
+                                )}
+                              </div>
                               <div className="ag-item__service">
                                 {(() => {
                                   // Phase 6b: ONE unified list of entries — every linked package
@@ -2182,11 +2359,7 @@ export default function AdminAgendaPage() {
                                 <Button
                                   className="ag-btn ag-btn--ok"
                                   size="sm"
-                                  onClick={async () => {
-                                    const prev = b.status;
-                                    await changeStatus(b.bookingId, "COMPLETED");
-                                    setCompletedUndo(u => ({ ...u, [b.bookingId]: prev }));
-                                  }}
+                                  onClick={() => handleCompleteClick(b)}
                                 >
                                   Completa
                                 </Button>
@@ -2202,15 +2375,7 @@ export default function AdminAgendaPage() {
                             {b.status === "COMPLETED" && completedUndo[b.bookingId] && (
                               <Button
                                 className="ag-btn ag-btn-undo"
-                                onClick={async () => {
-                                  const prev = completedUndo[b.bookingId];
-                                  await changeStatus(b.bookingId, prev);
-                                  setCompletedUndo(u => {
-                                    const n = { ...u };
-                                    delete n[b.bookingId];
-                                    return n;
-                                  });
-                                }}
+                                onClick={() => undoCompletion(b)}
                               >
                                 ↩ Annulla completamento
                               </Button>
@@ -2236,6 +2401,46 @@ export default function AdminAgendaPage() {
                               🛍️ Prodotto
                             </Button>
                           </div>
+
+                          {/* Arretrati dropdown — expands the item below the actions (NOT the
+                              absolute timeline). Lazy-loaded on open; rows reuse settle from Fase 1. */}
+                          {arretratiOpen && (
+                            <div
+                              style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(140,109,63,0.18)", display: "flex", flexDirection: "column", gap: 6 }}
+                            >
+                              {arretratiState?.loading && <span className="ag-muted">Caricamento arretrati…</span>}
+                              {arretratiState?.error && <span className="ag-pill ag-pill--unpaid">{arretratiState.error}</span>}
+                              {!arretratiState?.loading && !arretratiState?.error && (arretratiState?.items ?? []).length === 0 && (
+                                <span className="ag-muted">Nessun arretrato — tutto saldato ✓</span>
+                              )}
+                              {(arretratiState?.items ?? []).map((a, idx) => {
+                                const rowKey = arretratoRowKey(a);
+                                const busy = arretratoSettling === rowKey;
+                                const errored = arretratoError === rowKey;
+                                return (
+                                  <div key={`${rowKey}-${idx}`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div className="ag-item__service">{a.label}</div>
+                                      <div className="ag-muted" style={{ fontSize: "0.78rem" }}>
+                                        {new Date(a.occurredAt).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
+                                      </div>
+                                    </div>
+                                    <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                                      {a.price == null ? "—" : `€${Number(a.price).toFixed(0)}`}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="ag-pill ag-pill--toggle"
+                                      disabled={arretratoSettling !== null}
+                                      onClick={() => setConfirmArretrato({ card: b, a })}
+                                    >
+                                      {busy ? "…" : errored ? "Riprova" : "Salda"}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
 
                           {b.status !== "CANCELLED" &&
                             b.status !== "COMPLETED" &&
@@ -2489,6 +2694,24 @@ export default function AdminAgendaPage() {
       />
 
       <ConfirmDialog
+        show={!!confirmArretrato}
+        onHide={() => setConfirmArretrato(null)}
+        onConfirm={() => {
+          const ctx = confirmArretrato;
+          setConfirmArretrato(null);
+          if (ctx) settleArretrato(ctx.card, ctx.a);
+        }}
+        title="Salda arretrato"
+        message={
+          confirmArretrato
+            ? `Confermi di saldare questo arretrato? ${confirmArretrato.a.label} del ${new Date(confirmArretrato.a.occurredAt).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })} — ${confirmArretrato.a.price == null ? "—" : `€${Number(confirmArretrato.a.price).toFixed(0)}`}`
+            : ""
+        }
+        confirmLabel="Salda"
+        confirmVariant="primary"
+      />
+
+      <ConfirmDialog
         show={!!refundConfirmBooking}
         onHide={() => setRefundConfirmBooking(null)}
         onConfirm={executeRefund}
@@ -2513,6 +2736,15 @@ export default function AdminAgendaPage() {
       />
 
       {showEstimatoModal && <EstimatoModal bookings={bookings} services={services} onClose={() => setShowEstimatoModal(false)} />}
+
+      {completionDrawer && (
+        <CompletionDrawer
+          booking={completionDrawer.booking}
+          items={completionDrawer.items}
+          onClose={() => setCompletionDrawer(null)}
+          onConfirm={handleDrawerConfirm}
+        />
+      )}
 
       {/* ── Floating action buttons (compact only — hidden on desktop by CSS) ── */}
       {isCompact && (

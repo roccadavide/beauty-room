@@ -39,6 +39,8 @@ public record AdminBookingCardDTO(
         String customServiceName,
         Integer customServiceDurationMinutes,
         BigDecimal customServicePrice,
+        // V64: whole-appointment custom total price override (null = none).
+        BigDecimal customTotalPrice,
         Integer currentSession,
         Integer totalSessions,
         // Account linking
@@ -59,5 +61,9 @@ public record AdminBookingCardDTO(
         LocalDateTime paidAt,
         boolean paidOnline,
         boolean refundable,
-        LocalDateTime reminderSentAt
+        LocalDateTime reminderSentAt,
+        // V64 (Fase 2): the customer (matched by normalized phone) has ≥1 unsettled line on a
+        // past COMPLETED booking → the agenda item shows the arretrati badge. Populated by a
+        // single batch query in getAgendaRange/getAgendaDay; false everywhere else.
+        boolean hasOutstanding
 ) {}
