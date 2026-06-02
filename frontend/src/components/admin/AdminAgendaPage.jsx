@@ -20,6 +20,7 @@ import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../ut
 import BookingModal from "./BookingModal";
 import BookingSalePanel from "./BookingSalePanel";
 import CompletionDrawer from "./CompletionDrawer";
+import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
 import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
 import ClosuresDrawer from "../../features/admin/ClosuresDrawer";
 import ConfirmDialog from "../common/ConfirmDialog";
@@ -236,6 +237,33 @@ function computeBookingAmountDue(booking, items) {
     : items.filter(it => !it.paid).reduce((acc, it) => acc + Number(it.price ?? 0), 0);
 }
 
+// Snapshot of the CURRENT (pre-completion) paid flags as a /settle-style payload.
+// Stored in completedUndo so "Annulla completamento" can restore the exact flags
+// (symmetric undo). Bundle → single lockstep value; non-bundle → per-line maps.
+// Locked lines are skipped (backend ignores them either way). alsoComplete is added
+// by the caller (false on restore).
+function buildSnapshotPayload(booking, items) {
+  if (booking.customTotalPrice != null) {
+    return { markAllPaid: items.length > 0 && items.every(it => it.paid) };
+  }
+  const servicePaid = {};
+  const packageSessionPaid = {};
+  let customServicePaid;
+  items.forEach(it => {
+    if (it.locked) return;
+    if (it.refKind === "service" || it.refKind === "legacy") {
+      if (it.refId != null) servicePaid[String(it.refId)] = it.paid === true;
+    } else if (it.refKind === "package") {
+      if (it.refId != null) packageSessionPaid[String(it.refId)] = it.paid === true;
+    } else if (it.refKind === "custom") {
+      customServicePaid = it.paid === true;
+    }
+  });
+  const snap = { servicePaid, packageSessionPaid };
+  if (customServicePaid !== undefined) snap.customServicePaid = customServicePaid;
+  return snap;
+}
+
 // V62: column-level booking status. New bookings no longer write paid_in_store;
 // the "In negozio" label is kept only as a fallback for legacy rows that still
 // carry the dormant flag set to TRUE.
@@ -283,6 +311,12 @@ function EstimatoModal({ bookings, services, onClose }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Stop background (Lenis) scroll while open; ref-counted, balanced on abrupt unmount.
+  useEffect(() => {
+    pushLenisLock();
+    return () => popLenisLock();
+  }, []);
+
   return ReactDOM.createPortal(
     <div className="ag-estimato-backdrop" onClick={onClose}>
       <div className="ag-estimato-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Dettaglio Incasso">
@@ -293,7 +327,7 @@ function EstimatoModal({ bookings, services, onClose }) {
           </button>
         </div>
 
-        <div className="ag-estimato-body">
+        <div className="ag-estimato-body" data-lenis-prevent>
           <table className="ag-estimato-table">
             <thead>
               <tr>
@@ -1077,13 +1111,15 @@ export default function AdminAgendaPage() {
   // ritardo) apre il drawer normalmente. Conta solo lo stato + i flag paid.
   // Rami diretti (1 paidOnline, 2 tutte già pagate): mappe vuote → il backend non
   // flippa alcun flag, esegue solo la transizione a COMPLETED.
-  const settleAndComplete = async b => {
-    const prev = b.status;
+  // completedUndo[bookingId] = { prevStatus, paidSnapshot } → snapshot dei flag paid
+  // PRE-completamento, per l'undo simmetrico (vedi bottone "Annulla completamento").
+  const settleAndComplete = async (b, items) => {
+    const undo = { prevStatus: b.status, paidSnapshot: buildSnapshotPayload(b, items) };
     setErr("");
     setErrDetails(null);
     try {
       await settleBookingLines(b.bookingId, { servicePaid: {}, packageSessionPaid: {}, alsoComplete: true });
-      setCompletedUndo(u => ({ ...u, [b.bookingId]: prev }));
+      setCompletedUndo(u => ({ ...u, [b.bookingId]: undo }));
       await refresh();
     } catch (e) {
       setErr(e.message);
@@ -1091,22 +1127,47 @@ export default function AdminAgendaPage() {
   };
 
   const handleCompleteClick = b => {
-    if (b.paidOnline) return settleAndComplete(b);                                    // 1
     const items = buildBreakdownItems(b, priceMap);
+    if (b.paidOnline) return settleAndComplete(b, items);                              // 1
     if (b.customTotalPrice != null) return setCompletionDrawer({ booking: b, items }); // 3 (bundle prima di "tutte pagate")
-    if (items.every(it => it.paid)) return settleAndComplete(b);                       // 2
+    if (items.every(it => it.paid)) return settleAndComplete(b, items);                // 2
     setCompletionDrawer({ booking: b, items });                                        // 4
   };
 
   const handleDrawerConfirm = async payload => {
     if (!completionDrawer) return;
     const b = completionDrawer.booking;
+    const undo = { prevStatus: b.status, paidSnapshot: buildSnapshotPayload(b, completionDrawer.items) };
     setErr("");
     setErrDetails(null);
     try {
       await settleBookingLines(b.bookingId, payload);
-      setCompletedUndo(u => ({ ...u, [b.bookingId]: b.status }));
+      setCompletedUndo(u => ({ ...u, [b.bookingId]: undo }));
       setCompletionDrawer(null);
+      await refresh();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  // Undo simmetrico: ripristina PRIMA i flag paid pre-completamento (settle senza
+  // completare), POI lo stato a CONFIRMED (+ ripristino seduta via /status). Se la
+  // prima fallisce, lo stato resta COMPLETED e l'entry undo è conservata (retry).
+  const undoCompletion = async b => {
+    const undo = completedUndo[b.bookingId];
+    if (!undo) return;
+    setErr("");
+    setErrDetails(null);
+    try {
+      if (undo.paidSnapshot) {
+        await settleBookingLines(b.bookingId, { ...undo.paidSnapshot, alsoComplete: false });
+      }
+      await patchBookingStatus(b.bookingId, undo.prevStatus || "CONFIRMED");
+      setCompletedUndo(u => {
+        const n = { ...u };
+        delete n[b.bookingId];
+        return n;
+      });
       await refresh();
     } catch (e) {
       setErr(e.message);
@@ -2231,15 +2292,7 @@ export default function AdminAgendaPage() {
                             {b.status === "COMPLETED" && completedUndo[b.bookingId] && (
                               <Button
                                 className="ag-btn ag-btn-undo"
-                                onClick={async () => {
-                                  const prev = completedUndo[b.bookingId];
-                                  await changeStatus(b.bookingId, prev);
-                                  setCompletedUndo(u => {
-                                    const n = { ...u };
-                                    delete n[b.bookingId];
-                                    return n;
-                                  });
-                                }}
+                                onClick={() => undoCompletion(b)}
                               >
                                 ↩ Annulla completamento
                               </Button>

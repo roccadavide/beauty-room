@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
+import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
 
 /**
  * Completion drawer for the agenda "Completa" button (per-line settle path).
@@ -34,6 +35,13 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // Stop background (Lenis) scroll while open; ref-counted so it's balanced even on
+  // abrupt unmount (e.g. route change). The cleanup always runs on unmount.
+  useEffect(() => {
+    pushLenisLock();
+    return () => popLenisLock();
+  }, []);
 
   const bundleTotal = useMemo(
     () => (isBundle ? Number(booking.customTotalPrice) : 0),
@@ -87,25 +95,39 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
           </button>
         </div>
 
-        <div className="ag-estimato-body">
+        <div className="ag-estimato-body" data-lenis-prevent>
           {isBundle ? (
-            <table className="ag-estimato-table">
-              <tbody>
-                <tr>
-                  <td>{booking.customServiceName || "Pacchetto"}</td>
-                  <td className="ag-estimato-price">€{bundleTotal.toFixed(0)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className={`ag-pill ag-pill--toggle ${bundlePaid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
-                      onClick={() => setBundlePaid(v => !v)}
-                    >
-                      {bundlePaid ? `✓ Pagato in totale (€${bundleTotal.toFixed(0)})` : `⏳ Pagato in totale (€${bundleTotal.toFixed(0)})`}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            // Bundle = prezzo unico atomico. Le righe sono SOLO informative (cosa
+            // include l'appuntamento), prezzo attenuato (.ag-muted), nessun toggle per
+            // riga. Il pagamento è un unico toggle sul totale (all-or-nothing). La riga
+            // di spiegazione chiarisce perché il totale ≠ somma delle righe.
+            <>
+              <table className="ag-estimato-table">
+                <tbody>
+                  {items.map((it, idx) => (
+                    <tr key={idx}>
+                      <td><span className="ag-muted">{it.label}</span></td>
+                      <td className={`ag-estimato-price ag-muted${it.price == null ? " ag-estimato-price--null" : ""}`}>
+                        {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p style={{ padding: "0.75rem 1rem 0", margin: 0, fontSize: "0.85rem" }}>
+                <strong>Prezzo totale concordato: €{bundleTotal.toFixed(0)}</strong>
+                <span className="ag-muted"> — impostato manualmente. I prezzi per riga sopra sono solo indicativi.</span>
+              </p>
+              <div style={{ display: "flex", justifyContent: "center", marginTop: "0.75rem" }}>
+                <button
+                  type="button"
+                  className={`ag-pill ag-pill--toggle ${bundlePaid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                  onClick={() => setBundlePaid(v => !v)}
+                >
+                  {bundlePaid ? "✓ Pagato in totale" : "⏳ Pagato in totale"}
+                </button>
+              </div>
+            </>
           ) : (
             <table className="ag-estimato-table">
               <tbody>
