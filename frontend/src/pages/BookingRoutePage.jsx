@@ -8,7 +8,7 @@ import { BookingFlow } from "../features/bookings/BookingModal";
 import { MultiServiceBookingFlow } from "../features/bookings/MultiServiceBookingModal";
 import { PayNowFlow } from "../features/products/PayNowModal";
 import { CheckoutFlow } from "../features/cart/CheckoutModal";
-import { PromoDetailFlow } from "../features/Occasioni/PromoDetailDrawer";
+import { PromoDetailFlow } from "../features/occasioni/PromoDetailDrawer";
 
 // The booking/purchase surface as a real route, for virtual-keyboard devices.
 // Reads the typed descriptor from location.state.booking ({ type, ...props }) and
