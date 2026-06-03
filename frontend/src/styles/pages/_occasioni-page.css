@@ -455,7 +455,7 @@
   flex-shrink: 0;
   border-radius: 22px 22px 0 0;
   -webkit-mask-image: -webkit-radial-gradient(white, black);
-          mask-image: radial-gradient(white, black);
+  mask-image: radial-gradient(white, black);
 }
 .pcn-img-wrap img {
   width: 100%;
@@ -1070,7 +1070,8 @@
   stroke-linecap: round;
 }
 .puc-rot {
-  transform-origin: center;
+  transform-box: view-box;
+  transform-origin: 24px 24px;
   animation: puc-tick 3.6s infinite;
 }
 .puc-clock--calm .puc-rot {
@@ -1085,16 +1086,44 @@
   fill: #c97b4a;
 }
 @keyframes puc-tick {
-  0%   { transform: rotate(0deg);   animation-timing-function: linear; }
-  15%  { transform: rotate(0deg);   animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1); }
-  25%  { transform: rotate(90deg);  animation-timing-function: linear; }
-  40%  { transform: rotate(90deg);  animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1); }
-  50%  { transform: rotate(180deg); animation-timing-function: linear; }
-  65%  { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1); }
-  75%  { transform: rotate(270deg); animation-timing-function: linear; }
-  90%  { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: linear;
+  }
+  15% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1);
+  }
+  25% {
+    transform: rotate(90deg);
+    animation-timing-function: linear;
+  }
+  40% {
+    transform: rotate(90deg);
+    animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1);
+  }
+  50% {
+    transform: rotate(180deg);
+    animation-timing-function: linear;
+  }
+  65% {
+    transform: rotate(180deg);
+    animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1);
+  }
+  75% {
+    transform: rotate(270deg);
+    animation-timing-function: linear;
+  }
+  90% {
+    transform: rotate(270deg);
+    animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .puc-rot { animation: none; }
+  .puc-rot {
+    animation: none;
+  }
 }
