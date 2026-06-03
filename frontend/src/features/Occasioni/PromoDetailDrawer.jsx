@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
 import PromoCountdown from "./PromoCountdown";
+import PromoUrgencyClock from "./PromoUrgencyClock";
 
 const getDiscountLabel = promo => {
   if (!promo) return null;
@@ -149,7 +150,10 @@ export function PromoDetailFlow({ promo, products, services, showCancelBanner = 
           )}
 
           {promo?.endDate && !isExpired && (
-            <PromoCountdown endDate={promo.endDate} />
+            <div className="puc-row">
+              <PromoUrgencyClock endDate={promo.endDate} />
+              <PromoCountdown endDate={promo.endDate} />
+            </div>
           )}
         </div>
 
