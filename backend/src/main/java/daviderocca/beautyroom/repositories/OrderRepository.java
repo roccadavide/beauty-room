@@ -20,6 +20,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     List<Order> findByCustomerEmail(String customerEmail);
 
+    // Idempotenza fulfillment webhook: un ordine per sessione Stripe.
+    Optional<Order> findByStripeSessionId(String stripeSessionId);
+
     List<Order> findByUser_UserId(UUID userId);
 
     List<Order> findByOrderStatusAndExpiresAtBefore(OrderStatus status, LocalDateTime time);

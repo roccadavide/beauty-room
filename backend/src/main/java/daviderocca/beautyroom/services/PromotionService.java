@@ -23,7 +23,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -115,17 +114,7 @@ public class PromotionService {
             throw new BadRequestException("Promozione senza prezzo valido.");
         }
 
-        BigDecimal discounted;
-        switch (promo.getDiscountType()) {
-            case PERCENTAGE -> discounted = productTotal.subtract(
-                    productTotal.multiply(promo.getDiscountValue())
-                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
-            case FIXED -> discounted = productTotal.subtract(promo.getDiscountValue()).max(BigDecimal.ZERO);
-            case PRICE_OVERRIDE -> discounted = promo.getDiscountValue();
-            default -> discounted = productTotal; // NONE: nessuno sconto
-        }
-
-        BigDecimal amount = PricingUtils.roundPromoPrice(discounted);
+        BigDecimal amount = PricingUtils.applyPromoDiscount(productTotal, promo.getDiscountType(), promo.getDiscountValue());
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BadRequestException("Importo promozione non valido.");
         }

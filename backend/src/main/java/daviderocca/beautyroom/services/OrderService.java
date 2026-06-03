@@ -11,6 +11,7 @@ import daviderocca.beautyroom.DTO.orderItemDTOs.OrderItemResponseDTO;
 import daviderocca.beautyroom.entities.Order;
 import daviderocca.beautyroom.entities.OrderItem;
 import daviderocca.beautyroom.entities.Product;
+import daviderocca.beautyroom.entities.Promotion;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.NotificationType;
 import daviderocca.beautyroom.enums.OrderStatus;
@@ -22,6 +23,9 @@ import daviderocca.beautyroom.exceptions.UnauthorizedException;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.repositories.OrderRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
+import daviderocca.beautyroom.repositories.PromotionRepository;
+import daviderocca.beautyroom.repositories.UserRepository;
+import daviderocca.beautyroom.util.PricingUtils;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +34,14 @@ import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -46,6 +55,8 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final EmailOutboxService emailOutboxService;
     private final AdminNotificationService notificationService;
+    private final PromotionRepository promotionRepository;
+    private final UserRepository userRepository;
 
     @Value("${stripe.secret}")
     private String stripeSecretKey;
@@ -447,6 +458,132 @@ public class OrderService {
         }
 
         log.info("Order paid: id={} email={}", orderId, customerEmail);
+    }
+
+    // ---------------------------- Stripe webhook: product-promo fulfillment ----------------------------
+
+    /**
+     * Crea (e segna pagato) l'ordine per una promo SOLO prodotti dopo il pagamento Stripe.
+     * Idempotente per sessione Stripe: una replay non duplica ordine né scarico stock.
+     * L'importo è ricalcolato server-side con la STESSA logica del checkout
+     * ({@link PricingUtils#applyPromoDiscount}); il valore Stripe è solo un cross-check.
+     * OrderItem richiede una FK prodotto non-null → si itemizza una riga per prodotto,
+     * con prezzi che sommano ESATTAMENTE al totale arrotondato (resto sulla prima riga).
+     *
+     * @return l'ordine creato, oppure {@code null} se già evaso (no-op idempotente).
+     */
+    @Transactional
+    public Order fulfillProductPromoOrder(UUID promotionId, UUID userIdOrNull,
+                                          String customerName, String customerEmail, String customerPhone,
+                                          String stripeSessionId, Long stripeAmountTotalCents) {
+
+        // 1) Idempotenza: un solo ordine per sessione Stripe.
+        Optional<Order> existing = orderRepository.findByStripeSessionId(stripeSessionId);
+        if (existing.isPresent()) {
+            log.info("Promo product order già evaso per sessione {} (skip)", stripeSessionId);
+            return null;
+        }
+
+        // 2) Carica la promo (prodotti LAZY: accessibili in questa transazione).
+        Promotion promo = promotionRepository.findByIdWithDetails(promotionId)
+                .orElseThrow(() -> new ResourceNotFoundException(promotionId));
+        List<Product> promoProducts = new ArrayList<>(promo.getProducts());
+        if (promoProducts.isEmpty()) {
+            throw new BadRequestException("Promo prodotti senza prodotti: " + promotionId);
+        }
+
+        // 3) Ricalcolo autorevole (stessa logica del checkout) + cross-check con Stripe.
+        BigDecimal productTotal = promoProducts.stream()
+                .map(p -> p.getPrice() != null ? p.getPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = PricingUtils.applyPromoDiscount(productTotal, promo.getDiscountType(), promo.getDiscountValue());
+        if (total == null || total.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Importo promo non valido: " + promotionId);
+        }
+        long recomputedCents = total.movePointRight(2).longValueExact();
+        if (stripeAmountTotalCents != null && stripeAmountTotalCents != recomputedCents) {
+            log.warn("Promo {} importo Stripe={} != ricalcolo server={} (uso il ricalcolo server)",
+                    promotionId, stripeAmountTotalCents, recomputedCents);
+        }
+
+        // 4) Collega all'utente loggato se presente nei metadata, altrimenti ordine guest.
+        User user = userIdOrNull != null ? userRepository.findById(userIdOrNull).orElse(null) : null;
+
+        Order order = new Order(
+                (customerName != null && !customerName.isBlank()) ? customerName : "Cliente",
+                "",                                              // cognome non disponibile da Stripe
+                customerEmail,
+                customerPhone != null ? customerPhone : "",
+                null,                                            // pickupNote
+                user
+        );
+        order.setOrderStatus(OrderStatus.PAID_PENDING_PICKUP);
+        order.setPaymentMethod(PaymentMethod.PAID_ONLINE);
+        order.setStripeSessionId(stripeSessionId);
+        order.setPaidAt(LocalDateTime.now());
+        order.setExpiresAt(null);
+
+        // 5) Una riga per prodotto (FK obbligatoria) + scarico stock. Ordine già pagato:
+        //    non blocchiamo se lo stock è insufficiente, ma logghiamo (oversell).
+        List<BigDecimal> lines = distributePromoLines(total, promoProducts);
+        for (int i = 0; i < promoProducts.size(); i++) {
+            Product product = productService.findProductById(promoProducts.get(i).getProductId());
+            if (product.getStock() < 1) {
+                log.warn("Stock insufficiente al fulfillment promo: product={} stock={}",
+                        product.getProductId(), product.getStock());
+            }
+            product.setStock(product.getStock() - 1);
+            productRepository.save(product);
+
+            OrderItem item = new OrderItem(1, lines.get(i), product, order);
+            order.getOrderItems().add(item);
+        }
+
+        Order saved = orderRepository.save(order);
+        log.info("Promo product order creato: id={} total={} sessione={}", saved.getOrderId(), total, stripeSessionId);
+
+        // 6) Email conferma + notifica admin (non bloccanti, come il flusso ordine normale).
+        try {
+            emailOutboxService.enqueueOrderPaid(saved);
+        } catch (Exception ex) {
+            log.warn("enqueueOrderPaid (promo) failed: orderId={} err={}", saved.getOrderId(), ex.getMessage());
+        }
+        try {
+            notificationService.create(
+                NotificationType.NEW_ORDER,
+                "Nuovo ordine ricevuto 🛍️",
+                (customerEmail != null ? customerEmail : "Cliente") + " · Promo #" + saved.getOrderId().toString().substring(0, 8),
+                saved.getOrderId(),
+                "ORDER"
+            );
+        } catch (Exception ex) {
+            log.warn("Notification (promo) failed for order {}: {}", saved.getOrderId(), ex.getMessage());
+        }
+
+        return saved;
+    }
+
+    /**
+     * Ripartisce il totale arrotondato sulle righe-prodotto in modo che la somma sia
+     * ESATTA: le righe 2..n proporzionali al prezzo pieno, il resto sulla PRIMA riga.
+     */
+    private List<BigDecimal> distributePromoLines(BigDecimal total, List<Product> products) {
+        int n = products.size();
+        BigDecimal fullTotal = products.stream()
+                .map(p -> p.getPrice() != null ? p.getPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal[] lines = new BigDecimal[n];
+        BigDecimal allocatedToRest = BigDecimal.ZERO;
+        for (int i = 1; i < n; i++) {
+            BigDecimal price = products.get(i).getPrice() != null ? products.get(i).getPrice() : BigDecimal.ZERO;
+            BigDecimal share = fullTotal.compareTo(BigDecimal.ZERO) == 0
+                    ? total.divide(BigDecimal.valueOf(n), 2, RoundingMode.HALF_UP)
+                    : price.multiply(total).divide(fullTotal, 2, RoundingMode.HALF_UP);
+            lines[i] = share;
+            allocatedToRest = allocatedToRest.add(share);
+        }
+        lines[0] = total.subtract(allocatedToRest).setScale(2, RoundingMode.HALF_UP); // resto sulla prima riga
+        return Arrays.asList(lines);
     }
 
     // ---------------------------- Cancel from Stripe expired session ----------------------------

@@ -104,8 +104,10 @@ public class PromotionController {
                 .putMetadata("promotionId", info.promotionId().toString())
                 .putMetadata("promoType", "PRODUCT");
 
-        if (currentUser != null && currentUser.getEmail() != null) {
-            builder.setCustomerEmail(currentUser.getEmail());
+        if (currentUser != null) {
+            if (currentUser.getEmail() != null) builder.setCustomerEmail(currentUser.getEmail());
+            // Link the resulting order to the buyer at webhook fulfillment time.
+            builder.putMetadata("userId", currentUser.getUserId().toString());
         }
 
         builder.addLineItem(
