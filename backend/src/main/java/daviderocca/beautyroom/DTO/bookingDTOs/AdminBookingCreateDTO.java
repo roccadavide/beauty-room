@@ -106,5 +106,13 @@ public record AdminBookingCreateDTO(
         // is settled. Locked packages (assignment.paidUpfront = TRUE) are ignored:
         // the UI cannot edit them and the backend treats the upfront flag as
         // authoritative regardless of any value passed here.
-        Map<UUID, Boolean> packageSessionPaid
+        Map<UUID, Boolean> packageSessionPaid,
+
+        // V65 (08.1): promotions to attach to this appointment (mirrors packageAssignmentIds).
+        // Appended at the end so Jackson name-based deserialization stays safe.
+        // Unused by BookingService until 08.2 — present only to grow the payload shape.
+        List<UUID> promotionIds,
+
+        // V65 (08.1): per-promotion paid toggle, keyed by promotionId (mirrors packageSessionPaid).
+        Map<UUID, Boolean> promotionPaid
 ) {}
