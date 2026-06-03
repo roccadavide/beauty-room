@@ -3,12 +3,13 @@ import { useSelector } from "react-redux";
 import BookingRouteShell from "../features/bookings/BookingRouteShell";
 import openBookingSurface from "../features/bookings/openBookingSurface";
 import { createCheckoutSession, createCheckoutSessionGuest } from "../api/modules/stripe.api";
+import { createPromoCheckout } from "../api/modules/promotions.api";
 import { createOrderPayInStore } from "../api/modules/orders.api";
 import { BookingFlow } from "../features/bookings/BookingModal";
 import { MultiServiceBookingFlow } from "../features/bookings/MultiServiceBookingModal";
 import { PayNowFlow } from "../features/products/PayNowModal";
 import { CheckoutFlow } from "../features/cart/CheckoutModal";
-import { PromoDetailFlow } from "../features/Occasioni/PromoDetailDrawer";
+import { PromoDetailFlow } from "../features/occasioni/PromoDetailDrawer";
 
 // The booking/purchase surface as a real route, for virtual-keyboard devices.
 // Reads the typed descriptor from location.state.booking ({ type, ...props }) and
@@ -100,7 +101,10 @@ export default function BookingRoutePage() {
             onBook={(service, promoPrice, promotionId, promoProducts) =>
               navigate(...openBookingSurface({ type: "service", service, promoPrice, promotionId, promoProducts }))
             }
-            onGoProducts={() => navigate("/prodotti")}
+            onBuyPromo={async () => {
+              const res = await createPromoCheckout(booking.promo.promotionId, accessToken);
+              if (res?.url) window.location.assign(res.url);
+            }}
           />
         </BookingRouteShell>
       );

@@ -33,7 +33,7 @@ const MyProfile = lazy(() => import("./features/profile/MyProfile"));
 const BookingSuccessPage = lazy(() => import("./features/bookings/BookingSuccessPage"));
 const MyArea = lazy(() => import("./pages/user/MyArea"));
 const ResultsPage = lazy(() => import("./features/results/ResultsPage"));
-const OccasioniPage = lazy(() => import("./features/Occasioni/OccasioniPage"));
+const OccasioniPage = lazy(() => import("./features/occasioni/OccasioniPage"));
 const Login = lazy(() => import("./features/auth/Login"));
 const Register = lazy(() => import("./features/auth/Register"));
 const CartPage = lazy(() => import("./features/cart/CartPage"));

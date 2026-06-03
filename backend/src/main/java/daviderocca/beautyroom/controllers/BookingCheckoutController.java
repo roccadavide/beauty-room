@@ -19,6 +19,7 @@ import daviderocca.beautyroom.repositories.PromotionRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
 import daviderocca.beautyroom.services.BookingService;
 import daviderocca.beautyroom.services.ServiceItemService;
+import daviderocca.beautyroom.util.PricingUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -387,6 +388,6 @@ public class BookingCheckoutController {
             default -> { return null; }
         }
 
-        return discounted.setScale(2, RoundingMode.HALF_UP);
+        return PricingUtils.roundPromoPrice(discounted);
     }
 }

@@ -1,7 +1,10 @@
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
 import PromoCountdown from "./PromoCountdown";
+import PromoUrgencyClock from "./PromoUrgencyClock";
+import { computePromoPricing, computeServicePromoPrice } from "../../utils/promoPricing";
+import { createPromoCheckout } from "../../api/modules/promotions.api";
 
 const getDiscountLabel = promo => {
   if (!promo) return null;
@@ -10,38 +13,14 @@ const getDiscountLabel = promo => {
   return null;
 };
 
-const getTotalOriginalPrice = (promo, products, services) => {
-  if (!promo) return 0;
-  const pidSet = new Set((promo.productIds ?? []).map(String));
-  const sidSet = new Set((promo.serviceIds ?? []).map(String));
-  const pSum = products
-    .filter(p => pidSet.has(String(p.productId)))
-    .reduce((s, p) => s + (p.price || 0), 0);
-  const sSum = services
-    .filter(s => sidSet.has(String(s.serviceId)))
-    .reduce((s, sv) => s + (sv.price || 0), 0);
-  return pSum + sSum;
-};
-
-const getDiscountedPrice = (original, discountType, discountValue) => {
-  if (!original || !discountType || !discountValue) return original;
-  if (discountType === "PERCENTAGE")
-    return original - (original * discountValue) / 100;
-  if (discountType === "FIXED")
-    return Math.max(0, original - discountValue);
-  if (discountType === "PRICE_OVERRIDE")
-    return Number(discountValue);
-  return original;
-};
-
 // PromoDetailFlow = the SAME promo content rendered in both modes. Desktop keeps
 // the custom .pd-drawer portal (below) wrapping this — zero visual change. The
 // touch route renders this inside BookingRouteShell (bare). The content brings
 // its own banner header + ✕, so callbacks are injected:
 //   onClose       — dismiss the surface
 //   onBook(service, promoPrice, promotionId, promoProducts) — same args as the old onBooking
-//   onGoProducts  — navigate to the products page
-export function PromoDetailFlow({ promo, products, services, showCancelBanner = false, onClose, onBook, onGoProducts }) {
+//   onBuyPromo    — start Stripe checkout for a product-only promo bundle
+export function PromoDetailFlow({ promo, products, services, showCancelBanner = false, onClose, onBook, onBuyPromo }) {
   const isExpired = promo?.endDate && new Date(promo.endDate) < new Date();
   const discount = getDiscountLabel(promo);
 
@@ -55,24 +34,13 @@ export function PromoDetailFlow({ promo, products, services, showCancelBanner = 
   const hasServices = includedServices.length > 0;
   const hasProducts = includedProducts.length > 0;
 
-  const totalOriginal = getTotalOriginalPrice(promo, products, services);
-  const totalDiscounted =
-    totalOriginal && promo
-      ? getDiscountedPrice(totalOriginal, promo.discountType, promo.discountValue)
-      : null;
+  const { totalOriginal, totalDiscounted } = computePromoPricing(promo, products, services);
 
-  // Prezzo promozionale da passare al flusso di prenotazione
-  const promoServicePrice = (() => {
-    if (!totalDiscounted || includedServices.length === 0) return null;
-    if (includedServices.length === 1 && includedProducts.length === 0) {
-      return totalDiscounted;
-    }
-    const serviceTotal = includedServices.reduce((s, sv) => s + (sv.price || 0), 0);
-    const productTotal = includedProducts.reduce((s, p) => s + (p.price || 0), 0);
-    const grandTotal = serviceTotal + productTotal;
-    if (!grandTotal) return null;
-    return totalDiscounted * (serviceTotal / grandTotal);
-  })();
+  // Importo addebitato alla prenotazione: mirror esatto del backend
+  // (computeServerPromoPrice). Per le promo MIXED include il prodotto, che si
+  // ritira il giorno dell'appuntamento. La card mostra invece il valore intero
+  // dell'offerta (totalDiscounted); solo il BookingModal deve eguagliare l'addebito.
+  const serviceChargePrice = computeServicePromoPrice(promo, services, products);
 
   return (
     <>
@@ -149,7 +117,10 @@ export function PromoDetailFlow({ promo, products, services, showCancelBanner = 
           )}
 
           {promo?.endDate && !isExpired && (
-            <PromoCountdown endDate={promo.endDate} />
+            <div className="puc-row">
+              <PromoUrgencyClock endDate={promo.endDate} />
+              <PromoCountdown endDate={promo.endDate} />
+            </div>
           )}
         </div>
 
@@ -157,17 +128,14 @@ export function PromoDetailFlow({ promo, products, services, showCancelBanner = 
           {hasServices && (
             <button
               className="pd-cta-primary"
-              onClick={() => onBook(includedServices[0], totalDiscounted, promo.promotionId, includedProducts)}
+              onClick={() => onBook(includedServices[0], serviceChargePrice, promo.promotionId, includedProducts)}
             >
               Prenota ora →
             </button>
           )}
-          {hasProducts && (
-            <button
-              className="pd-cta-secondary"
-              onClick={onGoProducts}
-            >
-              Vai ai prodotti
+          {!hasServices && hasProducts && (
+            <button className="pd-cta-primary" onClick={onBuyPromo}>
+              Compra ora la promozione →
             </button>
           )}
           {!hasServices && !hasProducts && (
@@ -176,9 +144,7 @@ export function PromoDetailFlow({ promo, products, services, showCancelBanner = 
             </button>
           )}
           {hasServices && hasProducts && (
-            <p className="pd-mixed-note">
-              Il prodotto incluso verrà consegnato il giorno del trattamento.
-            </p>
+            <p className="pd-mixed-note">Il prodotto incluso lo ritiri il giorno dell&apos;appuntamento.</p>
           )}
         </div>
     </>
@@ -188,7 +154,7 @@ export function PromoDetailFlow({ promo, products, services, showCancelBanner = 
 // Desktop wrapper — custom side-drawer portal, visuals unchanged. The touch
 // route renders <PromoDetailFlow/> inside BookingRouteShell (bare) instead.
 export default function PromoDetailDrawer({ show, onHide, promo, products, services, onBooking, showCancelBanner = false }) {
-  const navigate = useNavigate();
+  const { accessToken } = useSelector(s => s.auth);
   // Lock Lenis while the drawer is open.
   useLenisModalLock(show);
   return createPortal(
@@ -202,7 +168,10 @@ export default function PromoDetailDrawer({ show, onHide, promo, products, servi
           showCancelBanner={showCancelBanner}
           onClose={onHide}
           onBook={onBooking}
-          onGoProducts={() => { onHide(); navigate("/prodotti"); }}
+          onBuyPromo={async () => {
+            const res = await createPromoCheckout(promo.promotionId, accessToken);
+            if (res?.url) window.location.assign(res.url);
+          }}
         />
       </div>
     </>,

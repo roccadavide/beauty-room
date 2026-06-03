@@ -53,3 +53,20 @@ export const deletePromotion = async (promotionId, token) => {
   });
   return true;
 };
+
+// -------------------------- PRODUCT-PROMO CHECKOUT --------------------------
+// Product-only promo → direct Stripe Checkout for the bundle at the server-computed
+// rounded price. Returns { url } (same shape as stripe.api createCheckoutSession).
+export const createPromoCheckout = async (promotionId, accessToken) => {
+  try {
+    const { data } = await http.post(
+      `${PROMOTION_ENDPOINTS.BY_ID(promotionId)}/checkout`,
+      {},
+      accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {},
+    );
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante la creazione della sessione di pagamento.";
+    throw new Error(message);
+  }
+};

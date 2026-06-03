@@ -4,10 +4,16 @@ import { Col, Form, Row, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
 import { createPromotion, updatePromotion } from "../../api/modules/promotions.api";
 import CustomSelect from "../../components/common/CustomSelect";
-import DateTimeField from "../../components/common/DateTimeField";
+import RangeCalendar from "../../components/common/RangeCalendar";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import { BadgesPicker } from "../../components/common/BadgeFlag";
 import ServiceProductSelector from "./ServiceProductSelector";
+import { computePromoPricing } from "../../utils/promoPricing";
+
+const todayISO = new Date().toISOString().slice(0, 10);
+const formatItDate = iso =>
+  iso ? new Date(iso + "T00:00:00").toLocaleDateString("it-IT", { day: "numeric", month: "long" }) : "";
+const rangeDays = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000) + 1;
 
 const ImageUploadZone = ({ current, onFile, aspectHint }) => {
   const [preview, setPreview] = useState(current || null);
@@ -186,6 +192,20 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
     };
   }, [form]);
 
+  const pricingPreview = useMemo(() => {
+    if (form.discountType === "NONE" || !form.discountValue) return null;
+    if (form.scope === "GLOBAL") return { global: true };
+    const promoLike = {
+      discountType: form.discountType,
+      discountValue: Number(String(form.discountValue).replace(",", ".")),
+      productIds: form.productIds,
+      serviceIds: form.serviceIds,
+    };
+    const { totalOriginal, totalDiscounted, savings } = computePromoPricing(promoLike, products, services);
+    if (!totalOriginal) return null;
+    return { totalOriginal, totalDiscounted, savings };
+  }, [form.discountType, form.discountValue, form.scope, form.productIds, form.serviceIds, products, services]);
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
     setLoading(true);
@@ -258,28 +278,24 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
               <Form.Control as="textarea" rows={3} value={form.description} onChange={e => handleChange("description", e.target.value)} />
             </Form.Group>
           </Col>
-          <Col md={6}>
-            <Form.Group>
-              <DateTimeField
-                label="Data inizio"
-                mode="date"
-                value={form.startDate || ""}
-                onChange={v => handleChange("startDate", v)}
-                placeholder="Seleziona data"
-              />
-            </Form.Group>
-          </Col>
-          <Col md={6}>
-            <Form.Group>
-              <DateTimeField
-                label="Data fine"
-                mode="date"
-                value={form.endDate || ""}
-                onChange={v => handleChange("endDate", v)}
-                error={errors.endDate || null}
-                placeholder="Seleziona data"
-              />
-            </Form.Group>
+          <Col md={12}>
+            <Form.Label>Periodo di validità</Form.Label>
+            <RangeCalendar
+              startDate={form.startDate || ""}
+              endDate={form.endDate || ""}
+              minDate={isEdit ? null : todayISO}
+              onChange={({ startDate, endDate }) => {
+                handleChange("startDate", startDate);
+                handleChange("endDate", endDate);
+              }}
+            />
+            {form.startDate && (
+              <p className="ud-field-helper">
+                {form.endDate && form.endDate !== form.startDate
+                  ? `Attiva dal ${formatItDate(form.startDate)} al ${formatItDate(form.endDate)} · ${rangeDays(form.startDate, form.endDate)} giorni`
+                  : `Attiva il ${formatItDate(form.startDate)}`}
+              </p>
+            )}
           </Col>
           <Col md={6}>
             <Form.Group>
@@ -305,6 +321,32 @@ const PromotionDrawer = ({ show, onHide, onSaved, products, services, promotion 
               <Form.Control.Feedback type="invalid">{errors.discountValue}</Form.Control.Feedback>
             </Form.Group>
           </Col>
+          {pricingPreview && (
+            <Col md={12}>
+              <div className="ud-section">
+                <div className="ud-section__header">
+                  <span className="ud-section__title">Anteprima prezzo</span>
+                </div>
+                {pricingPreview.global ? (
+                  <p className="ud-field-helper" style={{ margin: 0 }}>
+                    Sconto applicato a tutti i prezzi del sito.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "10px" }}>
+                    <span style={{ textDecoration: "line-through", color: "#b0a09a" }}>
+                      {pricingPreview.totalOriginal.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                    </span>
+                    <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "#8c6d3f" }}>
+                      {pricingPreview.totalDiscounted.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                    </span>
+                    <span className="pcn-savings-pill">
+                      Risparmio {pricingPreview.savings.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </Col>
+          )}
           <Col md={6}>
             <Form.Check type="switch" id="pd-active" label="Promozione attiva" checked={form.active} onChange={e => handleChange("active", e.target.checked)} />
           </Col>

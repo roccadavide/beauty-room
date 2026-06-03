@@ -20,22 +20,7 @@ import { fetchPromotions, deletePromotion } from "../../api/modules/promotions.a
 import { fetchProducts } from "../../api/modules/products.api";
 import { fetchServices } from "../../api/modules/services.api";
 import SEO from "../../components/common/SEO";
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-const getDiscountedPrice = (original, discountType, discountValue) => {
-  if (!original || !discountType || !discountValue) return original;
-  if (discountType === "PERCENTAGE") return original - (original * discountValue) / 100;
-  if (discountType === "FIXED") return Math.max(0, original - discountValue);
-  if (discountType === "PRICE_OVERRIDE") return Number(discountValue);
-  return original;
-};
-
-const getTotalOriginalPrice = (promotion, products, services) => {
-  const pSum = products.filter(p => promotion.productIds?.includes(p.productId)).reduce((s, p) => s + (p.price || 0), 0);
-  const sSum = services.filter(s => promotion.serviceIds?.includes(s.serviceId)).reduce((s, sv) => s + (sv.price || 0), 0);
-  return pSum + sSum;
-};
+import { computePromoPricing } from "../../utils/promoPricing";
 
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -461,8 +446,7 @@ function OccasioniPage() {
 
           <div className="promo-grid">
             {filteredPromos.map((p, idx) => {
-              const totalOriginal = getTotalOriginalPrice(p, products, services);
-              const totalDiscounted = totalOriginal ? getDiscountedPrice(totalOriginal, p.discountType, p.discountValue) : null;
+              const { totalOriginal, totalDiscounted } = computePromoPricing(p, products, services);
               return (
                 <div
                   key={p.promotionId}

@@ -144,6 +144,13 @@ public class StripeWebhookController {
             return;
         }
 
+        // ===== PRODUCT PROMO (session-only checkout) =====
+        String promoType = metadata != null ? metadata.get("promoType") : null;
+        if ("PRODUCT".equals(promoType)) {
+            fulfillProductPromoOrder(session, metadata, customerEmail);
+            return;
+        }
+
         // ===== BOOKING =====
         if (bookingIdStr != null) {
             UUID bookingId = UUID.fromString(bookingIdStr);
@@ -345,6 +352,45 @@ public class StripeWebhookController {
 
         log.info("MULTI booking confermato: bookingId={} sessionId={} servizi={} cliente={}",
                 saved.getBookingId(), session.getId(), serviceIds.size(), customerEmail);
+    }
+
+    // Fulfillment promo SOLO prodotti (checkout session-only del prompt 05): crea l'ordine
+    // pagato + scarica lo stock + invia l'email. Idempotente per sessione Stripe (in più
+    // dell'idempotenza per event-id già garantita da ProcessedStripeEvent).
+    private void fulfillProductPromoOrder(Session session, Map<String, String> metadata, String customerEmail) {
+        String promotionIdStr = metadata != null ? metadata.get("promotionId") : null;
+        if (promotionIdStr == null || promotionIdStr.isBlank()) {
+            log.error("promo PRODUCT: promotionId assente nei metadata. sessionId={}", session.getId());
+            return;
+        }
+        UUID promotionId;
+        try {
+            promotionId = UUID.fromString(promotionIdStr);
+        } catch (Exception e) {
+            log.error("promo PRODUCT: promotionId non valido '{}': {}", promotionIdStr, e.getMessage());
+            return;
+        }
+
+        UUID userId = null;
+        String userIdStr = metadata.get("userId");
+        if (userIdStr != null && !userIdStr.isBlank()) {
+            try { userId = UUID.fromString(userIdStr); } catch (Exception ignored) { /* guest */ }
+        }
+
+        String customerName  = session.getCustomerDetails() != null ? session.getCustomerDetails().getName() : null;
+        String customerPhone = session.getCustomerDetails() != null ? session.getCustomerDetails().getPhone() : null;
+
+        try {
+            Order order = orderService.fulfillProductPromoOrder(
+                    promotionId, userId, customerName, customerEmail, customerPhone,
+                    session.getId(), session.getAmountTotal());
+            if (order != null) {
+                log.info("Promo PRODUCT fulfilled: orderId={} sessionId={} cliente={}",
+                        order.getOrderId(), session.getId(), customerEmail);
+            }
+        } catch (Exception e) {
+            log.error("Promo PRODUCT fulfillment errore sessionId={}: {}", session.getId(), e.getMessage(), e);
+        }
     }
 
     private void handleCheckoutExpired(Event event) {
