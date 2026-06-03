@@ -3,36 +3,13 @@ import { useNavigate } from "react-router-dom";
 import useLenisModalLock from "../../hooks/useLenisModalLock";
 import PromoCountdown from "./PromoCountdown";
 import PromoUrgencyClock from "./PromoUrgencyClock";
+import { computePromoPricing } from "../../utils/promoPricing";
 
 const getDiscountLabel = promo => {
   if (!promo) return null;
   if (promo.discountType === "PERCENTAGE") return `-${promo.discountValue}%`;
   if (promo.discountType === "FIXED") return `-€${Number(promo.discountValue).toFixed(0)}`;
   return null;
-};
-
-const getTotalOriginalPrice = (promo, products, services) => {
-  if (!promo) return 0;
-  const pidSet = new Set((promo.productIds ?? []).map(String));
-  const sidSet = new Set((promo.serviceIds ?? []).map(String));
-  const pSum = products
-    .filter(p => pidSet.has(String(p.productId)))
-    .reduce((s, p) => s + (p.price || 0), 0);
-  const sSum = services
-    .filter(s => sidSet.has(String(s.serviceId)))
-    .reduce((s, sv) => s + (sv.price || 0), 0);
-  return pSum + sSum;
-};
-
-const getDiscountedPrice = (original, discountType, discountValue) => {
-  if (!original || !discountType || !discountValue) return original;
-  if (discountType === "PERCENTAGE")
-    return original - (original * discountValue) / 100;
-  if (discountType === "FIXED")
-    return Math.max(0, original - discountValue);
-  if (discountType === "PRICE_OVERRIDE")
-    return Number(discountValue);
-  return original;
 };
 
 // PromoDetailFlow = the SAME promo content rendered in both modes. Desktop keeps
@@ -56,11 +33,7 @@ export function PromoDetailFlow({ promo, products, services, showCancelBanner = 
   const hasServices = includedServices.length > 0;
   const hasProducts = includedProducts.length > 0;
 
-  const totalOriginal = getTotalOriginalPrice(promo, products, services);
-  const totalDiscounted =
-    totalOriginal && promo
-      ? getDiscountedPrice(totalOriginal, promo.discountType, promo.discountValue)
-      : null;
+  const { totalOriginal, totalDiscounted } = computePromoPricing(promo, products, services);
 
   // Prezzo promozionale da passare al flusso di prenotazione
   const promoServicePrice = (() => {
