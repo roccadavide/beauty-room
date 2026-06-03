@@ -1,21 +1,32 @@
 package daviderocca.beautyroom.controllers;
 
+import com.stripe.Stripe;
+import com.stripe.exception.StripeException;
+import com.stripe.model.checkout.Session;
+import com.stripe.param.checkout.SessionCreateParams;
 import daviderocca.beautyroom.DTO.promotionDTOs.NewPromotionDTO;
+import daviderocca.beautyroom.DTO.promotionDTOs.ProductPromoCheckoutInfo;
 import daviderocca.beautyroom.DTO.promotionDTOs.PromotionResponseDTO;
+import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.PromotionScope;
 import daviderocca.beautyroom.services.PromotionService;
+import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -25,6 +36,17 @@ import java.util.UUID;
 public class PromotionController {
 
     private final PromotionService promotionService;
+
+    @Value("${stripe.secret}")
+    private String stripeSecretKey;
+
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
+
+    @PostConstruct
+    public void init() {
+        Stripe.apiKey = this.stripeSecretKey;
+    }
 
     // ---------------------------------- GET ----------------------------------
     @GetMapping("/active")
@@ -60,6 +82,54 @@ public class PromotionController {
     public ResponseEntity<PromotionResponseDTO> getPromotionById(@PathVariable UUID promotionId) {
         log.info("Richiesta dettaglio promozione {}", promotionId);
         return ResponseEntity.ok(promotionService.findByIdAndConvert(promotionId));
+    }
+
+    // ------------------------- PRODUCT-PROMO CHECKOUT (public) -------------------------
+    // Promo SOLO prodotti → Stripe Checkout per il bundle al prezzo promo arrotondato.
+    // Le promo con trattamento passano dalla prenotazione (rifiutate qui con 400).
+    // L'importo è calcolato server-side; nessun valore dal client è considerato attendibile.
+    @PostMapping("/{promotionId}/checkout")
+    public ResponseEntity<Map<String, Object>> createProductPromoCheckout(
+            @PathVariable UUID promotionId,
+            @AuthenticationPrincipal User currentUser
+    ) throws StripeException {
+        ProductPromoCheckoutInfo info = promotionService.prepareProductPromoCheckout(promotionId);
+        log.info("Checkout promo prodotti {} importo={}", info.promotionId(), info.amount());
+
+        SessionCreateParams.Builder builder = SessionCreateParams.builder()
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
+                .setMode(SessionCreateParams.Mode.PAYMENT)
+                .setSuccessUrl(frontendUrl + "/ordine-confermato?session_id={CHECKOUT_SESSION_ID}")
+                .setCancelUrl(frontendUrl + "/occasioni?cancel=1&tab=promozioni&promo=" + info.promotionId())
+                .putMetadata("promotionId", info.promotionId().toString())
+                .putMetadata("promoType", "PRODUCT");
+
+        if (currentUser != null && currentUser.getEmail() != null) {
+            builder.setCustomerEmail(currentUser.getEmail());
+        }
+
+        builder.addLineItem(
+                SessionCreateParams.LineItem.builder()
+                        .setQuantity(1L)
+                        .setPriceData(
+                                SessionCreateParams.LineItem.PriceData.builder()
+                                        .setCurrency("eur")
+                                        .setUnitAmount(info.amount().movePointRight(2).longValueExact())
+                                        .setProductData(
+                                                SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                                        .setName(info.title() + " (Promozione)")
+                                                        .build()
+                                        )
+                                        .build()
+                        )
+                        .build()
+        );
+
+        Session session = Session.create(builder.build());
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("url", session.getUrl());
+        return ResponseEntity.ok(resp);
     }
 
     // ---------------------------------- POST ----------------------------------

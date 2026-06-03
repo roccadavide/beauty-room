@@ -111,6 +111,9 @@ public class SecConfig {
                                 .requestMatchers(HttpMethod.GET, "/checkout/bookings/booking-summary").permitAll()
                                 .requestMatchers(HttpMethod.GET,  "/checkout/order-summary").permitAll()
 
+                        // PROMO PRODOTTI — checkout pubblico (importo calcolato server-side)
+                        .requestMatchers(HttpMethod.POST, "/promotions/*/checkout").permitAll()
+
                         // SERVICE-ITEMS WRITE — ADMIN only
                         .requestMatchers(HttpMethod.POST,   "/service-items/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT,    "/service-items/**").hasRole("ADMIN")

@@ -3,6 +3,7 @@ package daviderocca.beautyroom.services;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import daviderocca.beautyroom.DTO.promotionDTOs.NewPromotionDTO;
+import daviderocca.beautyroom.DTO.promotionDTOs.ProductPromoCheckoutInfo;
 import daviderocca.beautyroom.DTO.promotionDTOs.PromotionResponseDTO;
 import daviderocca.beautyroom.entities.*;
 import daviderocca.beautyroom.enums.DiscountType;
@@ -12,6 +13,7 @@ import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.repositories.*;
 import daviderocca.beautyroom.util.BadgesUtil;
+import daviderocca.beautyroom.util.PricingUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -20,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -80,6 +84,52 @@ public class PromotionService {
                 .sorted(Comparator.comparingInt(Promotion::getPriority).reversed())
                 .map(this::convertToDTO)
                 .toList();
+    }
+
+    // ---------------------------- PRODUCT-PROMO CHECKOUT ----------------------------
+
+    /**
+     * Calcola l'importo autorevole (server-side) per il checkout di una promozione
+     * SOLO prodotti. Rifiuta promo che includono trattamenti (vanno in prenotazione)
+     * o non attive. Importo = somma prezzi prodotti → sconto → arrotondamento 0,50 €.
+     */
+    @Transactional(readOnly = true)
+    public ProductPromoCheckoutInfo prepareProductPromoCheckout(UUID promotionId) {
+        Promotion promo = promotionRepository.findByIdWithDetails(promotionId)
+                .orElseThrow(() -> new ResourceNotFoundException(promotionId));
+
+        if (!promo.isCurrentlyActive()) {
+            throw new BadRequestException("Promozione non più attiva.");
+        }
+        if (promo.appliesToServices()) {
+            throw new BadRequestException("Questa promozione include un trattamento: prenotala invece di acquistarla.");
+        }
+        if (!promo.appliesToProducts()) {
+            throw new BadRequestException("Promozione senza prodotti acquistabili.");
+        }
+
+        BigDecimal productTotal = promo.getProducts().stream()
+                .map(p -> p.getPrice() != null ? p.getPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (productTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Promozione senza prezzo valido.");
+        }
+
+        BigDecimal discounted;
+        switch (promo.getDiscountType()) {
+            case PERCENTAGE -> discounted = productTotal.subtract(
+                    productTotal.multiply(promo.getDiscountValue())
+                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+            case FIXED -> discounted = productTotal.subtract(promo.getDiscountValue()).max(BigDecimal.ZERO);
+            case PRICE_OVERRIDE -> discounted = promo.getDiscountValue();
+            default -> discounted = productTotal; // NONE: nessuno sconto
+        }
+
+        BigDecimal amount = PricingUtils.roundPromoPrice(discounted);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Importo promozione non valido.");
+        }
+        return new ProductPromoCheckoutInfo(promo.getPromotionId(), promo.getTitle(), amount);
     }
 
     // ---------------------------- CREATE ----------------------------
