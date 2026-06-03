@@ -454,6 +454,8 @@
   background: #e8ddd3;
   flex-shrink: 0;
   border-radius: 22px 22px 0 0;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+          mask-image: radial-gradient(white, black);
 }
 .pcn-img-wrap img {
   width: 100%;
@@ -476,7 +478,7 @@
 .pcn-badge-discount {
   position: absolute;
   top: 12px;
-  right: 90px;
+  left: 12px;
   background: var(--card-gold, #b8976a);
   color: #fff;
   font-size: 0.73rem;
@@ -490,7 +492,7 @@
 }
 .pcn-badge-expired {
   position: absolute;
-  top: 12px;
+  bottom: 12px;
   left: 12px;
   background: rgba(80, 60, 50, 0.72);
   color: #f0e8df;
@@ -1029,4 +1031,70 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ── PROMO URGENCY CLOCK ───────────────────────────────────── */
+.puc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 0.6rem;
+}
+.puc-row .pc-wrap {
+  margin-top: 0;
+}
+.puc-clock {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: block;
+}
+.puc-ring {
+  fill: none;
+  stroke: var(--card-gold, #b8976a);
+  opacity: 0.32;
+  stroke-width: 2.4;
+}
+.puc-tick {
+  stroke: var(--card-gold-deep, #8c6d3f);
+  stroke-width: 2;
+  opacity: 0.5;
+  stroke-linecap: round;
+}
+.puc-hub {
+  fill: var(--card-gold-deep, #8c6d3f);
+}
+.puc-hand {
+  stroke: var(--card-gold-deep, #8c6d3f);
+  stroke-width: 2.8;
+  stroke-linecap: round;
+}
+.puc-rot {
+  transform-origin: center;
+  animation: puc-tick 3.6s infinite;
+}
+.puc-clock--calm .puc-rot {
+  animation-duration: 4.8s;
+}
+.puc-clock--hot .puc-rot {
+  animation-duration: 2.6s;
+}
+.puc-clock--hot .puc-hand,
+.puc-clock--hot .puc-hub {
+  stroke: #c97b4a;
+  fill: #c97b4a;
+}
+@keyframes puc-tick {
+  0%   { transform: rotate(0deg);   animation-timing-function: linear; }
+  15%  { transform: rotate(0deg);   animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1); }
+  25%  { transform: rotate(90deg);  animation-timing-function: linear; }
+  40%  { transform: rotate(90deg);  animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1); }
+  50%  { transform: rotate(180deg); animation-timing-function: linear; }
+  65%  { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1); }
+  75%  { transform: rotate(270deg); animation-timing-function: linear; }
+  90%  { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.34, 1.7, 0.6, 1); }
+  100% { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .puc-rot { animation: none; }
 }
