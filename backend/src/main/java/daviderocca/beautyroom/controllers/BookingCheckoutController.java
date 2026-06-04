@@ -226,6 +226,12 @@ public class BookingCheckoutController {
             @Valid @RequestBody PublicMultiServiceBookingDTO payload
     ) throws StripeException {
 
+        // 08.4: a promotion booking takes its services from the promo snapshot, not serviceIds —
+        // route it through the dedicated promo session builder (same pricing source as the snapshot).
+        if (payload.promotionId() != null) {
+            return createPromoMultiSession(payload);
+        }
+
         if (payload.serviceIds() == null || payload.serviceIds().isEmpty()) {
             throw new BadRequestException("Seleziona almeno un servizio.");
         }
@@ -286,6 +292,68 @@ public class BookingCheckoutController {
                             .build()
             );
         }
+
+        Session session = Session.create(builder.build());
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("url", session.getUrl());
+        return resp;
+    }
+
+    /**
+     * 08.4: builds the Stripe session for a PROMO booking (one or more treatments at a discount).
+     * The amount comes from the SAME source the webhook will snapshot
+     * ({@link BookingService#computePromoBundleTotal}), so the charge equals the recorded snapshot.
+     * No serviceIds metadata — the webhook derives the services from the promo itself.
+     */
+    private Map<String, Object> createPromoMultiSession(PublicMultiServiceBookingDTO payload) throws StripeException {
+        Promotion promo = promotionRepository.findByIdWithDetails(payload.promotionId())
+                .orElseThrow(() -> new BadRequestException("Promozione non trovata."));
+        if (!promo.isCurrentlyActive()) throw new BadRequestException("Promozione non più attiva.");
+        if (promo.getServices().isEmpty())
+            throw new BadRequestException("Questa promozione non include trattamenti prenotabili online.");
+
+        BigDecimal amount = bookingService.computePromoBundleTotal(promo); // same source as the snapshot
+        if (amount == null || amount.signum() <= 0) throw new BadRequestException("Promozione non applicabile.");
+
+        SessionCreateParams.Builder builder = SessionCreateParams.builder()
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
+                .setMode(SessionCreateParams.Mode.PAYMENT)
+                .setExpiresAt(Instant.now().plusSeconds(30 * 60L).getEpochSecond())
+                .setSuccessUrl(frontendUrl + "/prenotazione-confermata?session_id={CHECKOUT_SESSION_ID}")
+                .setCancelUrl(frontendUrl + "/occasioni?cancel=1&tab=promozioni&promo=" + promo.getPromotionId())
+                .setCustomerEmail(payload.customerEmail())
+                .putMetadata("bookingType", "MULTI")
+                .putMetadata("promotionId", promo.getPromotionId().toString())
+                .putMetadata("date", payload.date().toString())
+                .putMetadata("startTime", payload.startTime().toString())
+                .putMetadata("totalDurationMinutes", String.valueOf(payload.totalDurationMinutes()))
+                .putMetadata("customerName", payload.customerName())
+                .putMetadata("customerPhone", payload.customerPhone() != null ? payload.customerPhone() : "");
+
+        if (payload.notes() != null && !payload.notes().isBlank()) {
+            String notes = payload.notes().length() > 490
+                    ? payload.notes().substring(0, 490) : payload.notes();
+            builder.putMetadata("notes", notes);
+        }
+
+        // Single bundled line item — the discount applies to the whole promo (mirrors the single-service promo).
+        builder.addLineItem(
+                SessionCreateParams.LineItem.builder()
+                        .setQuantity(1L)
+                        .setPriceData(
+                                SessionCreateParams.LineItem.PriceData.builder()
+                                        .setCurrency("eur")
+                                        .setUnitAmount(amount.movePointRight(2).longValueExact())
+                                        .setProductData(
+                                                SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                                        .setName(promo.getTitle() + " (Promozione)")
+                                                        .build()
+                                        )
+                                        .build()
+                        )
+                        .build()
+        );
 
         Session session = Session.create(builder.build());
 

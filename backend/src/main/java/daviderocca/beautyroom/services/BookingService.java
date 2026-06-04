@@ -926,7 +926,8 @@ public class BookingService {
             String customerEmail,
             String customerPhone,
             String notes,
-            String stripeSessionId
+            String stripeSessionId,
+            UUID promotionId
     ) {
         LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
@@ -967,14 +968,26 @@ public class BookingService {
         log.info("Multi-service webhook booking created: id={} duration={}min services={}",
                 saved.getBookingId(), totalDurationMinutes, services.size());
 
+        // 08.4: promo-only online booking — attach the frozen promo snapshot (paid online), exactly
+        // like the admin path. The promo carries its services in the link snapshot, not booking_services.
+        String promoTitle = null;
+        if (promotionId != null) {
+            Promotion promo = loadPromotionOrThrow(promotionId);
+            buildAndPersistPromotionLink(saved, promo, true); // paid online
+            promoTitle = promo.getTitle();
+        }
+        // Single display title for both admin notifications below (promo title, else primary, else fallback).
+        String displayTitle = promoTitle != null ? promoTitle
+                : (primary != null ? primary.getTitle()
+                   : (services.isEmpty() ? "Trattamento" : services.get(0).getTitle()));
+
         // Notifica admin
         try {
-            String svc  = primary != null ? primary.getTitle() : (services.isEmpty() ? "Trattamento" : services.get(0).getTitle());
             String when = saved.getStartTime().format(NOTIF_FMT);
             notificationService.create(
                 NotificationType.NEW_BOOKING,
                 "Nuova prenotazione online 🗓",
-                name + " · " + svc + " · " + when,
+                name + " · " + displayTitle + " · " + when,
                 saved.getBookingId(),
                 "BOOKING"
             );
@@ -986,12 +999,11 @@ public class BookingService {
         // paid via Stripe. We honour the booking and flag it for the admin instead.
         try {
             if (closureService.hasOverlappingClosure(saved.getStartTime(), saved.getEndTime())) {
-                String svc  = primary != null ? primary.getTitle() : (services.isEmpty() ? "Trattamento" : services.get(0).getTitle());
                 String when = saved.getStartTime().format(NOTIF_FMT);
                 notificationService.create(
                     NotificationType.BOOKING_CLOSURE_CONFLICT,
                     "⚠ Prenotazione online dentro una chiusura",
-                    name + " · " + svc + " · " + when + " — verifica con il cliente.",
+                    name + " · " + displayTitle + " · " + when + " — verifica con il cliente.",
                     saved.getBookingId(),
                     "BOOKING"
                 );
@@ -2094,13 +2106,19 @@ public class BookingService {
         return total;
     }
 
+    // 08.4: ordered promo lines + their computed bundle — single source of truth shared by the
+    // frozen snapshot (admin path AND paid-online webhook) and the online Stripe amount, so the
+    // charge and the persisted snapshot can never drift.
+    private record PromoComputation(List<ServiceItem> services,
+                                    List<Product> products,
+                                    PricingUtils.PromoBundle bundle) {}
+
     /**
-     * Build + persist ONE frozen promo link for a booking: snapshot services as ordered link
-     * items, snapshot products as tagged BookingSale rows, and decrement product stock by
-     * exactly 1 each. Pricing/rounding come from the 08.1 single source of truth.
+     * Deterministically order a promotion's services/products and price the WHOLE bundle via the
+     * 08.1 single source of truth. Pure read of the (eagerly-fetched) promo — no persistence.
      */
-    private void buildAndPersistPromotionLink(Booking booking, Promotion promotion, AdminBookingCreateDTO dto) {
-        // 1) deterministic order for stable item positions (services/products are Sets): name, then id.
+    private PromoComputation computePromoComputation(Promotion promotion) {
+        // deterministic order for stable item positions (services/products are Sets): name, then id.
         List<ServiceItem> svc = promotion.getServices().stream()
                 .sorted(Comparator.comparing(ServiceItem::getTitle,
                             Comparator.nullsLast(Comparator.naturalOrder()))
@@ -2112,7 +2130,7 @@ public class BookingService {
                         .thenComparing(p -> p.getProductId().toString()))
                 .toList();
 
-        // 2) PromoLines (promo services carry no per-line option here → optionId null).
+        // PromoLines (promo services carry no per-line option here → optionId null).
         List<PricingUtils.PromoLine> svcLines = new ArrayList<>();
         for (ServiceItem s : svc) {
             svcLines.add(new PricingUtils.PromoLine(s.getServiceId(), null, s.getTitle(), s.getPrice(), s.getDurationMin()));
@@ -2122,11 +2140,39 @@ public class BookingService {
             prodLines.add(new PricingUtils.PromoLine(p.getProductId(), null, p.getName(), p.getPrice(), null));
         }
 
-        // 3) frozen bundle via the 08.1 single source of truth.
+        // frozen bundle via the 08.1 single source of truth.
         PricingUtils.PromoBundle bundle = PricingUtils.computeMultiServicePromoBundle(
                 promotion.getDiscountType(), promotion.getDiscountValue(), svcLines, prodLines);
 
-        // 4) link + snapshotted service items.
+        return new PromoComputation(svc, prods, bundle);
+    }
+
+    /**
+     * Discounted bundle total for a promotion — used by the online checkout to set the Stripe
+     * amount so it matches the snapshot the webhook will persist (same source as the snapshot).
+     */
+    public BigDecimal computePromoBundleTotal(Promotion promotion) {
+        return computePromoComputation(promotion).bundle().totalDiscounted();
+    }
+
+    /**
+     * Build + persist ONE frozen promo link for a booking: snapshot services as ordered link
+     * items, snapshot products as tagged BookingSale rows, and decrement product stock by
+     * exactly 1 each. Pricing/rounding come from the 08.1 single source of truth.
+     */
+    // existing signature — thin delegate (admin path), unchanged effect (per-promo paid from the payload).
+    private void buildAndPersistPromotionLink(Booking booking, Promotion promotion, AdminBookingCreateDTO dto) {
+        buildAndPersistPromotionLink(booking, promotion, resolvePromoPaid(promotion.getPromotionId(), dto));
+    }
+
+    // core — paid is explicit (admin toggle, OR true for a paid-online webhook booking).
+    private void buildAndPersistPromotionLink(Booking booking, Promotion promotion, boolean paid) {
+        PromoComputation pc = computePromoComputation(promotion);
+        List<ServiceItem> svc = pc.services();
+        List<Product> prods = pc.products();
+        PricingUtils.PromoBundle bundle = pc.bundle();
+
+        // link + snapshotted service items.
         BookingPromotionLink link = new BookingPromotionLink();
         link.setBooking(booking);
         link.setPromotion(promotion);
@@ -2136,7 +2182,7 @@ public class BookingService {
         link.setTotalOriginalSnapshot(bundle.totalOriginal());
         link.setTotalDiscountedSnapshot(bundle.totalDiscounted());
         link.setAppliedWhileActive(promotion.isCurrentlyActive());
-        link.setPaid(resolvePromoPaid(promotion.getPromotionId(), dto));
+        link.setPaid(paid);
         int pos = 0;
         for (PricingUtils.PromoLineResult r : bundle.serviceResults()) {
             BookingPromotionLinkItem it = new BookingPromotionLinkItem();

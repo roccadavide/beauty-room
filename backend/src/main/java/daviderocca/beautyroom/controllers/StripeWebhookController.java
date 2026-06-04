@@ -273,6 +273,25 @@ public class StripeWebhookController {
     }
 
     private void handleMultiServiceBooking(Session session, Map<String, String> metadata, String customerEmail) {
+        // 08.4: per-session idempotency — if a booking already exists for this Stripe session, skip
+        // (prevents a duplicate booking → duplicate stock decrement, beyond the per-event guard).
+        if (bookingRepository.findByStripeSessionId(session.getId()).isPresent()) {
+            log.info("MULTI booking already exists for sessionId={}, skip", session.getId());
+            return;
+        }
+
+        // 08.4: when present, this is a PROMO booking — services come from the promo, not serviceIds.
+        String promotionIdStr = metadata.getOrDefault("promotionId", null);
+        UUID promotionId = null;
+        if (promotionIdStr != null && !promotionIdStr.isBlank()) {
+            try {
+                promotionId = UUID.fromString(promotionIdStr);
+            } catch (Exception e) {
+                log.error("MULTI booking: promotionId non valido '{}'", promotionIdStr);
+                return;
+            }
+        }
+
         String serviceIdsRaw      = metadata.getOrDefault("serviceIds", "");
         String dateStr            = metadata.getOrDefault("date", "");
         String startTimeStr       = metadata.getOrDefault("startTime", "");
@@ -281,22 +300,28 @@ public class StripeWebhookController {
         String customerPhone      = metadata.getOrDefault("customerPhone", "");
         String notes              = metadata.getOrDefault("notes", null);
 
-        if (serviceIdsRaw.isBlank() || dateStr.isBlank() || startTimeStr.isBlank()) {
-            log.error("MULTI booking: metadata incompleta — serviceIds={} date={} startTime={}",
-                    serviceIdsRaw, dateStr, startTimeStr);
+        // PROMO booking carries no serviceIds (services live in the promo snapshot) — require them
+        // only for the non-promo path; date/startTime are required for both.
+        if ((promotionId == null && serviceIdsRaw.isBlank()) || dateStr.isBlank() || startTimeStr.isBlank()) {
+            log.error("MULTI booking: metadata incompleta — promotionId={} serviceIds={} date={} startTime={}",
+                    promotionId, serviceIdsRaw, dateStr, startTimeStr);
             return;
         }
 
         List<UUID> serviceIds;
-        try {
-            serviceIds = Arrays.stream(serviceIdsRaw.split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(UUID::fromString)
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.error("MULTI booking: impossibile parsare serviceIds='{}': {}", serviceIdsRaw, e.getMessage());
-            return;
+        if (promotionId != null) {
+            serviceIds = List.of(); // promo booking: services come from the promo snapshot
+        } else {
+            try {
+                serviceIds = Arrays.stream(serviceIdsRaw.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(UUID::fromString)
+                        .collect(Collectors.toList());
+            } catch (Exception e) {
+                log.error("MULTI booking: impossibile parsare serviceIds='{}': {}", serviceIdsRaw, e.getMessage());
+                return;
+            }
         }
 
         LocalDate date;
@@ -315,7 +340,7 @@ public class StripeWebhookController {
         try {
             saved = bookingService.createMultiServiceBookingFromWebhook(
                     serviceIds, date, startTime, totalDurationMinutes,
-                    customerName, customerEmail, customerPhone, notes, session.getId()
+                    customerName, customerEmail, customerPhone, notes, session.getId(), promotionId
             );
         } catch (daviderocca.beautyroom.exceptions.BadRequestException bex) {
             if ("CONFLICT".equals(bex.getMessage())) {
