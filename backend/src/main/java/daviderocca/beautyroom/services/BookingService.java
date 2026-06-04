@@ -17,6 +17,8 @@ import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PromoSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PromoLineSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
@@ -2498,6 +2500,24 @@ public class BookingService {
             log.warn("Could not resolve linkedPackages for booking {}: {}", b.getBookingId(), e.getMessage());
         }
 
+        // Phase 08.3: expose promotions frozen onto this booking (snapshot + tagged product-sales).
+        List<PromoSummaryDTO> linkedPromotions = List.of();
+        try {
+            List<BookingPromotionLink> promoLinks = bookingPromotionLinkRepository
+                    .findAllByBookingBookingIdWithPromotion(b.getBookingId());
+            if (!promoLinks.isEmpty()) {
+                Map<UUID, List<BookingSale>> salesByLink = bookingSaleRepository
+                        .findByBookingIdOrderByAddedAtDesc(b.getBookingId()).stream()
+                        .filter(s -> s.getPromotionLinkId() != null)
+                        .collect(Collectors.groupingBy(BookingSale::getPromotionLinkId));
+                linkedPromotions = promoLinks.stream()
+                        .map(link -> buildPromoSummary(link, salesByLink.getOrDefault(link.getId(), List.of())))
+                        .toList();
+            }
+        } catch (Exception e) {
+            log.warn("Could not resolve linkedPromotions for booking {}: {}", b.getBookingId(), e.getMessage());
+        }
+
         // Custom service duration. Phase 6e (V61) added a persisted column on the
         // booking — when present we return it verbatim (eliminates the Phase 6e
         // Bug 1 "every edit doubles the duration" loop, which was caused by the
@@ -2564,7 +2584,8 @@ public class BookingService {
                 paidOnline,
                 refundable,
                 b.getReminderSentAt(),
-                hasOutstanding
+                hasOutstanding,
+                linkedPromotions
         );
     }
 
@@ -2688,6 +2709,44 @@ public class BookingService {
                 paid,
                 paidLocked,
                 a.getNotes());
+    }
+
+    /**
+     * Phase 08.3: build the agenda-card summary of one promotion frozen onto a booking.
+     * Service lines come from the link's ordered snapshot items; product lines come from
+     * the BookingSale rows already tagged with this link (promotionLinkId). Display-only —
+     * every value is the frozen snapshot; the live promotion FK is read solely to expose
+     * promotionId (null when the promo was deleted after attach).
+     */
+    private PromoSummaryDTO buildPromoSummary(BookingPromotionLink link, List<BookingSale> linkSales) {
+        List<PromoLineSummaryDTO> services = link.getItems().stream()
+                .map(it -> new PromoLineSummaryDTO(
+                        it.getService() != null ? it.getService().getServiceId() : null,
+                        it.getNameSnapshot(),
+                        it.getOriginalPriceSnapshot(),
+                        it.getDiscountedPriceSnapshot(),
+                        it.getDurationMinSnapshot()))
+                .toList();
+        List<PromoLineSummaryDTO> products = linkSales.stream()
+                .map(s -> new PromoLineSummaryDTO(
+                        s.getProductId(),
+                        s.getProductName(),
+                        s.getOriginalUnitPrice(),
+                        s.getUnitPrice(),
+                        null))
+                .toList();
+        return new PromoSummaryDTO(
+                link.getPromotion() != null ? link.getPromotion().getPromotionId() : null,
+                link.getId(),
+                link.getPromotionTitleSnapshot(),
+                link.getDiscountTypeSnapshot(),
+                link.getDiscountValueSnapshot(),
+                link.getTotalOriginalSnapshot(),
+                link.getTotalDiscountedSnapshot(),
+                link.isPaid(),
+                link.isAppliedWhileActive(),
+                services,
+                products);
     }
 
     /**

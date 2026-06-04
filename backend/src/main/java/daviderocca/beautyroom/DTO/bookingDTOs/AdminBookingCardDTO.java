@@ -65,5 +65,7 @@ public record AdminBookingCardDTO(
         // V64 (Fase 2): the customer (matched by normalized phone) has ≥1 unsettled line on a
         // past COMPLETED booking → the agenda item shows the arretrati badge. Populated by a
         // single batch query in getAgendaRange/getAgendaDay; false everywhere else.
-        boolean hasOutstanding
+        boolean hasOutstanding,
+        // Phase 08.3: every promotion frozen onto this booking (snapshot). Empty when none.
+        List<PromoSummaryDTO> linkedPromotions
 ) {}
