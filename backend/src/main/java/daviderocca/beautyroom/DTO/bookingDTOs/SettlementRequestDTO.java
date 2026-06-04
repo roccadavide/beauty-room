@@ -22,5 +22,6 @@ public record SettlementRequestDTO(
         Map<UUID, Boolean> servicePaid,
         Map<UUID, Boolean> packageSessionPaid,
         Boolean customServicePaid,
-        boolean alsoComplete
+        boolean alsoComplete,
+        Map<UUID, Boolean> promotionPaid   // per-promotion paid toggle, keyed by promotionId (08.2b)
 ) {}

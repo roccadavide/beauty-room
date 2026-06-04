@@ -1480,6 +1480,19 @@ public class BookingService {
                         ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
                         : List.of());
 
+        // 08.2b: the requested promo set is the desired FULL set (like packageAssignmentIds).
+        // Load it once for the duration math (and to fail fast if an id is unknown).
+        final java.util.List<java.util.UUID> reqPromoIds =
+                (dto.promotionIds() != null && !dto.promotionIds().isEmpty())
+                        ? dto.promotionIds().stream().distinct().toList()
+                        : java.util.List.of();
+        int requestedPromoDuration = 0;
+        if (!reqPromoIds.isEmpty()) {
+            java.util.List<Promotion> reqPromos = new java.util.ArrayList<>();
+            for (java.util.UUID pid : reqPromoIds) reqPromos.add(loadPromotionOrThrow(pid));
+            requestedPromoDuration = sumPromoServicesDuration(reqPromos);
+        }
+
         // Total duration: explicit override → computed from services → keep existing
         int totalDuration;
         if (dto.customTotalDurationMin() != null && dto.customTotalDurationMin() > 0) {
@@ -1506,16 +1519,16 @@ public class BookingService {
                 }
             }
             if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
-            // 08.2: re-add the existing promos' snapshotted duration to the recomputed total
-            // (this branch rebuilds from scratch, dropping it otherwise). The package-only
-            // branch below keeps found.getDurationMinutes(), which already includes it, so it
-            // is intentionally NOT added there. Add/remove of promos via edit is 08.2b.
-            totalDuration += existingPromoDuration(bookingId);
+            // 08.2b: size the slot for the REQUESTED promo set (it may change in the reconcile
+            // below; under the full-set contract this equals the existing duration when unchanged).
+            totalDuration += requestedPromoDuration;
         } else {
-            // Package-only or no services in payload — keep the booking's existing duration
-            totalDuration = found.getDurationMinutes() != null
+            // Package-only or no services in payload — keep existing duration, but swap the promo
+            // contribution (08.2b): remove the OLD promos' snapshot duration, add the requested one.
+            int base = found.getDurationMinutes() != null
                     ? found.getDurationMinutes()
                     : (int) java.time.Duration.between(found.getStartTime(), found.getEndTime()).toMinutes();
+            totalDuration = base - existingPromoDuration(bookingId) + requestedPromoDuration;
         }
         totalDuration = Math.max(totalDuration, 5);
 
@@ -1739,6 +1752,42 @@ public class BookingService {
         // Recalc every assignment still linked to this booking (covers added + unchanged).
         maybeRecalculatePackage(bookingId);
 
+        // ── 08.2b: reconcile promotions (N → M) — mirrors the package reconcile above ──
+        // dto.promotionIds() is the desired FULL set (NOT a delta); empty ⇒ remove all promos.
+        List<BookingPromotionLink> currentPromoLinks =
+                bookingPromotionLinkRepository.findAllByBookingBookingIdWithPromotion(bookingId);
+        // Links whose live promotion was deleted (promotion == null) are frozen history: no
+        // promotionId to match on ⇒ never removed/re-added by this id-keyed diff.
+        java.util.Map<java.util.UUID, BookingPromotionLink> existingPromoById = new java.util.HashMap<>();
+        for (BookingPromotionLink l : currentPromoLinks) {
+            if (l.getPromotion() != null) existingPromoById.put(l.getPromotion().getPromotionId(), l);
+        }
+        java.util.Set<java.util.UUID> existingPromoIdSet = new java.util.HashSet<>(existingPromoById.keySet());
+        java.util.Set<java.util.UUID> requestedPromoIdSet = new java.util.HashSet<>(reqPromoIds);
+
+        java.util.Set<java.util.UUID> promoIdsToRemove = new java.util.HashSet<>(existingPromoIdSet);
+        promoIdsToRemove.removeAll(requestedPromoIdSet);
+        java.util.Set<java.util.UUID> promoIdsToAdd = new java.util.HashSet<>(requestedPromoIdSet);
+        promoIdsToAdd.removeAll(existingPromoIdSet);
+
+        for (java.util.UUID pid : promoIdsToRemove) {
+            detachPromotionLink(bookingId, existingPromoById.get(pid)); // restore stock + delete sales + link
+        }
+        for (java.util.UUID pid : promoIdsToAdd) {
+            Promotion promo = loadPromotionOrThrow(pid);          // managed + details for the snapshot
+            buildAndPersistPromotionLink(found, promo, dto);      // snapshot + tagged sales + stock −1
+        }
+        // paid sync for survivors (existed ∩ requested) — no drop/recreate.
+        if (dto.promotionPaid() != null && !dto.promotionPaid().isEmpty()) {
+            java.util.Set<java.util.UUID> promoIdsToSync = new java.util.HashSet<>(requestedPromoIdSet);
+            promoIdsToSync.retainAll(existingPromoIdSet);
+            for (java.util.UUID pid : promoIdsToSync) {
+                BookingPromotionLink lnk = existingPromoById.get(pid);
+                boolean newPaid = resolvePromoPaid(pid, dto);
+                if (lnk.isPaid() != newPaid) { lnk.setPaid(newPaid); bookingPromotionLinkRepository.save(lnk); }
+            }
+        }
+
         // Back-compat: when the booking has exactly one link and the request resolves
         // to that same single package, honor dto.currentSession as a direct session-number
         // override (Phase 4 behaviour). With multiple links this is intentionally ignored.
@@ -1916,6 +1965,15 @@ public class BookingService {
                         lnk.setPaid(v);
                         bookingPackageLinkRepository.save(lnk);
                     }
+                }
+            }
+            // 08.2b: per-line promo settle, keyed by promotionId (a promo attaches at most once).
+            if (req.promotionPaid() != null && !req.promotionPaid().isEmpty()) {
+                for (BookingPromotionLink lnk :
+                        bookingPromotionLinkRepository.findAllByBookingBookingIdWithPromotion(bookingId)) {
+                    if (lnk.getPromotion() == null) continue; // frozen/orphaned — no promotionId to key by
+                    Boolean v = req.promotionPaid().get(lnk.getPromotion().getPromotionId());
+                    if (v != null) { lnk.setPaid(v); bookingPromotionLinkRepository.save(lnk); }
                 }
             }
             if (req.customServicePaid() != null && found.isCustomService()) {
@@ -2131,6 +2189,22 @@ public class BookingService {
                 productRepository.save(p);
             });
         }
+    }
+
+    /** 08.2b reconcile-remove: restore +qty stock for ONE promo link's product-sales, delete those
+     *  sales, then delete the link (items cascade via orphanRemoval + DB FK). */
+    private void detachPromotionLink(java.util.UUID bookingId, BookingPromotionLink link) {
+        java.util.UUID linkId = link.getId();
+        for (BookingSale sale : bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)) {
+            if (linkId.equals(sale.getPromotionLinkId())) {
+                productRepository.findById(sale.getProductId()).ifPresent(p -> {
+                    p.setStock(p.getStock() + sale.getQuantity());
+                    productRepository.save(p);
+                });
+                bookingSaleRepository.delete(sale);
+            }
+        }
+        bookingPromotionLinkRepository.delete(link);
     }
 
     /** Delete promo artifacts: sales FIRST (while promotion_link_id still identifies them), then links. */
