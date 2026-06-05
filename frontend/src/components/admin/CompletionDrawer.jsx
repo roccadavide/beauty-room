@@ -60,7 +60,7 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
     // kind→key mapping lives in the shared applySettleLine (also used by the
     // ClientiPage arretrati panel) — customServicePaid is only added when a custom
     // line is present, matching the previous behavior.
-    const payload = { servicePaid: {}, packageSessionPaid: {}, alsoComplete: true };
+    const payload = { servicePaid: {}, packageSessionPaid: {}, promotionPaid: {}, alsoComplete: true };
     items.forEach((it, idx) => {
       if (it.locked) return; // upfront-paid package etc.: backend ignores it
       applySettleLine(payload, it.refKind, it.refId, rowsPaid[idx]);

@@ -213,6 +213,27 @@ function buildBreakdownItems(booking, priceMap) {
     });
   }
 
+  // c-bis. Promotions (frozen snapshot). One atomic row per linked promotion —
+  // 🏷️ title + the bundle's discounted total — mirroring the agenda card and the
+  // package treatment. Without this branch a promo-only booking falls through to
+  // the legacy "—" fallback below, can't be settled from the CompletionDrawer, and
+  // never contributes to "incasso stimato".
+  const promos = Array.isArray(booking.linkedPromotions) ? booking.linkedPromotions : [];
+  promos.forEach(promo => {
+    items.push({
+      label: `🏷️ ${promo.title || "Promozione"}`,
+      price: promo.totalDiscounted != null ? Number(promo.totalDiscounted) : null,
+      kind: "promotion",
+      // paid via isLineSettled so Stripe paidOnline OR the per-link paid flag settles it.
+      paid: isLineSettled(promo, booking),
+      // refId = promotionId (the settle map key). A deleted-promo link has a null
+      // promotionId and can't be settled → locked; paidOnline locks too.
+      refKind: "promotion",
+      refId: promo.promotionId,
+      locked: promo.promotionId == null || booking.paidOnline === true,
+    });
+  });
+
   // d. Legacy fallback
   if (items.length === 0) {
     items.push({
@@ -255,6 +276,7 @@ function buildSnapshotPayload(booking, items) {
   const servicePaid = {};
   const packageSessionPaid = {};
   let customServicePaid;
+  const promotionPaid = {};
   items.forEach(it => {
     if (it.locked) return;
     if (it.refKind === "service" || it.refKind === "legacy") {
@@ -263,9 +285,12 @@ function buildSnapshotPayload(booking, items) {
       if (it.refId != null) packageSessionPaid[String(it.refId)] = it.paid === true;
     } else if (it.refKind === "custom") {
       customServicePaid = it.paid === true;
+    } else if (it.refKind === "promotion") {
+      if (it.refId != null) promotionPaid[String(it.refId)] = it.paid === true;
     }
   });
   const snap = { servicePaid, packageSessionPaid };
+  if (Object.keys(promotionPaid).length) snap.promotionPaid = promotionPaid;
   if (customServicePaid !== undefined) snap.customServicePaid = customServicePaid;
   return snap;
 }
@@ -2128,7 +2153,7 @@ export default function AdminAgendaPage() {
                                                   onKeyDown={onPromoChevronKeyDown}
                                                 >
                                                   <span className={`pkgi-toggle__chevron${isPromoExpanded ? " is-expanded" : ""}`}>▸</span>
-                                                  Cosa contiene
+                                                  {promoItems.length} element{promoItems.length === 1 ? "o" : "i"}
                                                 </button>
                                               )}
                                               {hasPromoItems && isPromoExpanded && (

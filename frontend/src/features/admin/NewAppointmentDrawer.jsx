@@ -233,6 +233,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     if (hasAnyLinkedPackage) {
       return [];
     }
+    // Bug D defense: a promo-only booking can carry a dangling primary serviceId
+    // (re-derived from a since-removed package by the backend on legacy/pre-fix
+    // rows). Mirror the package guard so it is NOT exploded into a phantom row.
+    const hasAnyLinkedPromotion = Array.isArray(editBooking.linkedPromotions) && editBooking.linkedPromotions.length > 0;
+    if (hasAnyLinkedPromotion) {
+      return [];
+    }
     // Case 2: legacy single serviceId — look up from services catalog for accurate data
     if (editBooking.serviceId) {
       const match = services.find(s => String(s.serviceId) === String(editBooking.serviceId));
@@ -1205,7 +1212,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         })),
         customTotalDurationMin:
           totalDurationOverride ??
-          (selectedPackageIds.size > 0 || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null) ? totalDuration : null),
+          (selectedPackageIds.size > 0 || selectedPromotionIds.size > 0 || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null) ? totalDuration : null),
         // V64 M2a: whole-appointment custom total price (null = no override, per-line sum wins).
         customTotalPrice: totalPriceOverride ?? null,
         hasCustomService: customItems.length > 0,
