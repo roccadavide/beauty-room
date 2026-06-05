@@ -1756,6 +1756,36 @@ public class BookingService {
         // Recalc every assignment still linked to this booking (covers added + unchanged).
         maybeRecalculatePackage(bookingId);
 
+        // ── post-reconcile cleanup (Bug C + Bug D): once the package reconcile above has run, the booking
+        // may legitimately retain other content (a catalog service, a custom service, or
+        // a promotion) while having NO in-person package link left. In that case the
+        // booking-level session counters (echoed back by the drawer and written earlier in
+        // this method) and the package-derived primary service (set in the "removed all
+        // extras" branch above, never cleared once the link is gone) are stale and must be
+        // reset — otherwise the agenda shows an orphan "Seduta X/Y" badge and re-prefills a
+        // phantom service on the next edit. With a package still linked, none of this fires.
+        {
+            List<BookingPackageLink> remainingPkgLinks = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(bookingId);
+            if (remainingPkgLinks.isEmpty()) {
+                boolean clearedAnything = false;
+                if (found.getCurrentSession() != null) { found.setCurrentSession(null); clearedAnything = true; }
+                if (found.getTotalSessions() != null)  { found.setTotalSessions(null);  clearedAnything = true; }
+                // Only null the primary service when the payload itself carries no catalog
+                // service — with catalog services present, the primary FK is correctly the
+                // first catalog service (set in the hasCatalog branch above).
+                if (!hasCatalog) {
+                    if (found.getService() != null)       { found.setService(null);       clearedAnything = true; }
+                    if (found.getServiceOption() != null) { found.setServiceOption(null); clearedAnything = true; }
+                }
+                if (clearedAnything) {
+                    updated = bookingRepository.save(found);
+                    log.info("updateMultiServiceBooking: no package link remains for bookingId={} -> cleared session counters{}",
+                            bookingId, hasCatalog ? "" : " + dangling primary service/option");
+                }
+            }
+        }
+
         // ── 08.2b: reconcile promotions (N → M) — mirrors the package reconcile above ──
         // dto.promotionIds() is the desired FULL set (NOT a delta); empty ⇒ remove all promos.
         List<BookingPromotionLink> currentPromoLinks =
