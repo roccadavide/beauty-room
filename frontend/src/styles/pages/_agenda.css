@@ -742,6 +742,17 @@ body.modal-open {
   flex-shrink: 0;
 }
 
+/* ── Promo entry icon (A2): a linked promotion renders as ONE package-style
+   row in the unified service list — 🏷️ icon + title + paid pill + the same
+   collapsible (pkgi-*) dropdown packages use. Per D1 only the emoji differs,
+   so this mirrors .ag-svc-entries__pkg-icon exactly. ─────────────────────── */
+.ag-svc-entries__promo-icon {
+  color: var(--card-gold, #b8976a);
+  font-size: 0.95rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .ag-svc-entries__name {
   /* Typography inherited from .ag-svc-entries__row — both packages and extras
      read at the same weight, the same size, the same colour. The 📦 + badges
