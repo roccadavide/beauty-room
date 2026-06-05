@@ -1612,8 +1612,12 @@ public class BookingService {
             found.setCustomServiceDurationMin(dto.customServiceDurationMinutes());
             // V62: per-line paid for the custom service line.
             found.setCustomServicePaid(Boolean.TRUE.equals(dto.customServicePaid()));
-        } else if (hasCatalog) {
-            // Switching from custom to catalog — clear stale custom fields
+        } else {
+            // No custom service in the payload (removed on edit, or never present): clear
+            // ALL custom fields unconditionally. Previously gated on hasCatalog, which left
+            // a stale custom name/price/duration on a package-only or promo-only booking
+            // after its custom line was removed — surfacing a phantom custom row in
+            // buildBreakdownItems (incasso stimato + CompletionDrawer).
             found.setCustomServiceName(null);
             found.setCustomServicePrice(null);
             found.setCustomServiceDurationMin(null);
