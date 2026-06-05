@@ -443,16 +443,6 @@ public class BookingService {
      */
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO createMultiServiceBooking(AdminBookingCreateDTO dto, User currentUser) {
-        // TEMP DEBUG — remove after investigation
-        System.out.println("[BookingService] createMultiServiceBooking RECEIVED:" +
-                " currentSession=" + dto.currentSession() +
-                " totalSessions=" + dto.totalSessions() +
-                " packageAssignmentId=" + dto.packageAssignmentId() +
-                " packageAssignmentIds=" + dto.packageAssignmentIds() +
-                " packageCreditId=" + dto.packageCreditId() +
-                " serviceIds=" + dto.serviceIds() +
-                " serviceEntries=" + (dto.serviceEntries() != null ? dto.serviceEntries().size() + " entries" : "null") +
-                " customTotalDurationMin=" + dto.customTotalDurationMin());
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni.");
 
         // ── Step 1: validate at least one service source ──────────────────────
