@@ -213,6 +213,27 @@ function buildBreakdownItems(booking, priceMap) {
     });
   }
 
+  // c-bis. Promotions (frozen snapshot). One atomic row per linked promotion —
+  // 🏷️ title + the bundle's discounted total — mirroring the agenda card and the
+  // package treatment. Without this branch a promo-only booking falls through to
+  // the legacy "—" fallback below, can't be settled from the CompletionDrawer, and
+  // never contributes to "incasso stimato".
+  const promos = Array.isArray(booking.linkedPromotions) ? booking.linkedPromotions : [];
+  promos.forEach(promo => {
+    items.push({
+      label: `🏷️ ${promo.title || "Promozione"}`,
+      price: promo.totalDiscounted != null ? Number(promo.totalDiscounted) : null,
+      kind: "promotion",
+      // paid via isLineSettled so Stripe paidOnline OR the per-link paid flag settles it.
+      paid: isLineSettled(promo, booking),
+      // refId = promotionId (the settle map key). A deleted-promo link has a null
+      // promotionId and can't be settled → locked; paidOnline locks too.
+      refKind: "promotion",
+      refId: promo.promotionId,
+      locked: promo.promotionId == null || booking.paidOnline === true,
+    });
+  });
+
   // d. Legacy fallback
   if (items.length === 0) {
     items.push({
@@ -255,6 +276,7 @@ function buildSnapshotPayload(booking, items) {
   const servicePaid = {};
   const packageSessionPaid = {};
   let customServicePaid;
+  const promotionPaid = {};
   items.forEach(it => {
     if (it.locked) return;
     if (it.refKind === "service" || it.refKind === "legacy") {
@@ -263,9 +285,12 @@ function buildSnapshotPayload(booking, items) {
       if (it.refId != null) packageSessionPaid[String(it.refId)] = it.paid === true;
     } else if (it.refKind === "custom") {
       customServicePaid = it.paid === true;
+    } else if (it.refKind === "promotion") {
+      if (it.refId != null) promotionPaid[String(it.refId)] = it.paid === true;
     }
   });
   const snap = { servicePaid, packageSessionPaid };
+  if (Object.keys(promotionPaid).length) snap.promotionPaid = promotionPaid;
   if (customServicePaid !== undefined) snap.customServicePaid = customServicePaid;
   return snap;
 }
@@ -513,6 +538,7 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
       booking?.linkedPackage?.packageName ??
       booking?.serviceTitle ??
       booking?.customServiceName ??
+      booking?.linkedPromotions?.[0]?.title ??
       null;
     const color = categoryColor(colorKey);
     // Subtle secondary signal: package-linked bookings get a slightly thicker
@@ -541,7 +567,7 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
       ? `${pkgName}${sessionBadge}${additionalCount > 0 ? ` +${additionalCount}` : ""}`
       : extraSvcs.length > 1
         ? `${extraSvcs[0].name || extraSvcs[0].title || "?"} +${extraSvcs.length - 1}`
-        : extraSvcs[0]?.name || extraSvcs[0]?.title || booking?.serviceTitle || booking?.customServiceName || "—";
+        : extraSvcs[0]?.name || extraSvcs[0]?.title || booking?.serviceTitle || booking?.customServiceName || booking?.linkedPromotions?.[0]?.title || "—";
     // Fix C: aggiungi optionName al label (solo se non è già un pacchetto o multi-servizio)
     const serviceName = !pkgName && extraSvcs.length <= 1 && booking?.optionName ? `${baseServiceName} · ${booking.optionName}` : baseServiceName;
 
@@ -1978,8 +2004,9 @@ export default function AdminAgendaPage() {
                                   // before reaching the custom fallback, so a package+custom
                                   // booking dropped the custom from the card entirely.
                                   const hasCustom = !!(b.isCustomService && b.customServiceName);
+                                  const promos = Array.isArray(b.linkedPromotions) ? b.linkedPromotions : [];
 
-                                  if (itemPkgs.length > 0 || services.length > 0 || hasCustom) {
+                                  if (itemPkgs.length > 0 || promos.length > 0 || services.length > 0 || hasCustom) {
                                     // V62 Fix 2: per-line paid pills are ALWAYS visible —
                                     // no special-case branch when the appointment is fully
                                     // settled. Consistency beats the at-a-glance summary.
@@ -2074,6 +2101,66 @@ export default function AdminAgendaPage() {
                                                       className="pkgi-list__item"
                                                     >
                                                       {formatPackageItemLabel(it)}
+                                                    </li>
+                                                  ))}
+                                                </ul>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                        {promos.map((promo, promoIdx) => {
+                                          const promoTitle = promo.title || "Promozione";
+                                          const promoServices = Array.isArray(promo.services) ? promo.services : [];
+                                          const promoProducts = Array.isArray(promo.products) ? promo.products : [];
+                                          const promoItems = [...promoServices, ...promoProducts];
+                                          const hasPromoItems = promoItems.length >= 1;
+                                          // Namespaced key so promo dropdowns never collide with package
+                                          // dropdowns — both reuse expandedAgendaPkgs / agendaPkgKey /
+                                          // toggleAgendaPkg, exactly like the "arretrati" sentinel does.
+                                          const promoKeyId = `promo-${promo.promotionLinkId ?? promo.promotionId ?? promoIdx}`;
+                                          const promoExpansionKey = agendaPkgKey(b.bookingId, promoKeyId);
+                                          const isPromoExpanded = expandedAgendaPkgs.has(promoExpansionKey);
+                                          // paidOnline (Stripe promo purchase, 08.4) overrides the per-link
+                                          // paid flag, exactly as isLineSettled does for services/packages.
+                                          const promoPaid = isLineSettled(promo, b);
+                                          const onPromoChevronClick = e => {
+                                            e.stopPropagation();
+                                            toggleAgendaPkg(b.bookingId, promoKeyId);
+                                          };
+                                          const onPromoChevronKeyDown = e => {
+                                            if (e.key === "Enter" || e.key === " ") {
+                                              e.stopPropagation();
+                                              e.preventDefault();
+                                              toggleAgendaPkg(b.bookingId, promoKeyId);
+                                            }
+                                          };
+                                          return (
+                                            <div className="ag-svc-entries__row" key={promoKeyId}>
+                                              <span className="ag-svc-entries__promo-icon" aria-hidden="true">🏷️</span>
+                                              <span className="ag-svc-entries__name">{promoTitle}</span>
+                                              <span
+                                                className={`ag-pill ${promoPaid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                                                title={promoPaid ? "Promozione pagata" : "Promozione da pagare"}
+                                              >
+                                                {promoPaid ? "✓ Pagato" : "⏳ Da pagare"}
+                                              </span>
+                                              {hasPromoItems && (
+                                                <button
+                                                  type="button"
+                                                  className="pkgi-toggle"
+                                                  aria-expanded={isPromoExpanded}
+                                                  onClick={onPromoChevronClick}
+                                                  onKeyDown={onPromoChevronKeyDown}
+                                                >
+                                                  <span className={`pkgi-toggle__chevron${isPromoExpanded ? " is-expanded" : ""}`}>▸</span>
+                                                  {promoItems.length} element{promoItems.length === 1 ? "o" : "i"}
+                                                </button>
+                                              )}
+                                              {hasPromoItems && isPromoExpanded && (
+                                                <ul className="pkgi-list">
+                                                  {promoItems.map((it, itIdx) => (
+                                                    <li key={`${b.bookingId}-${promoKeyId}-${it.refId ?? itIdx}`} className="pkgi-list__item">
+                                                      {it.name}
                                                     </li>
                                                   ))}
                                                 </ul>

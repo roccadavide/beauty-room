@@ -17,6 +17,8 @@ import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PromoSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PromoLineSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
@@ -38,6 +40,17 @@ import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ClosureRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
 import daviderocca.beautyroom.repositories.WorkingHoursRepository;
+// 08.2: promotions <-> agenda wiring
+import daviderocca.beautyroom.entities.Product;
+import daviderocca.beautyroom.entities.Promotion;
+import daviderocca.beautyroom.entities.BookingSale;
+import daviderocca.beautyroom.repositories.ProductRepository;
+import daviderocca.beautyroom.repositories.BookingSaleRepository;
+import daviderocca.beautyroom.repositories.PromotionRepository;
+import daviderocca.beautyroom.promotions.BookingPromotionLink;
+import daviderocca.beautyroom.promotions.BookingPromotionLinkItem;
+import daviderocca.beautyroom.promotions.BookingPromotionLinkRepository;
+import daviderocca.beautyroom.util.PricingUtils;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Refund;
@@ -85,6 +98,11 @@ public class BookingService {
     private final UserLookupService userLookupService;
     private final ClientPackageService clientPackageService;
     private final BookingPackageLinkRepository bookingPackageLinkRepository;
+    // 08.2: promotions <-> agenda wiring
+    private final BookingPromotionLinkRepository bookingPromotionLinkRepository;
+    private final BookingSaleRepository bookingSaleRepository;
+    private final ProductRepository productRepository;
+    private final PromotionRepository promotionRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -425,16 +443,6 @@ public class BookingService {
      */
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO createMultiServiceBooking(AdminBookingCreateDTO dto, User currentUser) {
-        // TEMP DEBUG — remove after investigation
-        System.out.println("[BookingService] createMultiServiceBooking RECEIVED:" +
-                " currentSession=" + dto.currentSession() +
-                " totalSessions=" + dto.totalSessions() +
-                " packageAssignmentId=" + dto.packageAssignmentId() +
-                " packageAssignmentIds=" + dto.packageAssignmentIds() +
-                " packageCreditId=" + dto.packageCreditId() +
-                " serviceIds=" + dto.serviceIds() +
-                " serviceEntries=" + (dto.serviceEntries() != null ? dto.serviceEntries().size() + " entries" : "null") +
-                " customTotalDurationMin=" + dto.customTotalDurationMin());
         if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni.");
 
         // ── Step 1: validate at least one service source ──────────────────────
@@ -450,8 +458,11 @@ public class BookingService {
         boolean hasCustom     = Boolean.TRUE.equals(dto.hasCustomService());
         boolean hasPkg        = !assignmentIds.isEmpty();
         boolean hasPkgCredit  = dto.packageCreditId() != null;
+        // 08.2: a promo-only appointment (only products, or services not also added as
+        // catalog lines) is valid — like packages, it may carry a null primary service.
+        boolean hasPromo      = dto.promotionIds() != null && !dto.promotionIds().isEmpty();
 
-        if (!hasCatalog && !hasCustom && !hasPkg && !hasPkgCredit) {
+        if (!hasCatalog && !hasCustom && !hasPkg && !hasPkgCredit && !hasPromo) {
             throw new BadRequestException(
                     "Specifica almeno un servizio, un servizio personalizzato o un pacchetto.");
         }
@@ -488,6 +499,17 @@ public class BookingService {
             }
             if (packageCredit.getSessionsRemaining() <= 0) {
                 throw new BadRequestException("Il pacchetto online non ha sedute residue.");
+            }
+        }
+
+        // ── Step 2b: load promotions to attach (08.2) ─────────────────────────
+        // Load active OR inactive (an admin may attach a just-ended promo). Dedupe per
+        // the V65 (booking_id, promotion_id) UNIQUE constraint. findByIdWithDetails eager-
+        // fetches services/products so the snapshot build below doesn't lazy-load per line.
+        List<Promotion> promotions = new ArrayList<>();
+        if (hasPromo) {
+            for (UUID pid : dto.promotionIds().stream().distinct().toList()) {
+                promotions.add(loadPromotionOrThrow(pid));
             }
         }
 
@@ -546,6 +568,9 @@ public class BookingService {
                     totalDuration += pcOption.getService().getDurationMin();
                 }
             }
+            // 08.2: promo services contribute to the COMPUTED duration (like packages).
+            // The override branch above is intentionally NOT affected.
+            totalDuration += sumPromoServicesDuration(promotions);
         }
         totalDuration = Math.max(totalDuration, 15);
 
@@ -853,6 +878,13 @@ public class BookingService {
                     dto.currentSession(), dto.totalSessions(), remaining);
         }
 
+        // ── Step 6b: attach promotions (frozen snapshot + product stock −1) ────
+        // Mirrors the package-link block: one BookingPromotionLink per promotion, built
+        // from the 08.1 single source of truth. Promo-only keeps a null primary service.
+        for (Promotion promo : promotions) {
+            buildAndPersistPromotionLink(saved, promo, dto);
+        }
+
         // ── Step 7: auto account-linking ──────────────────────────────────────
         try {
             LinkingOutcome outcome = userLookupService.tryLink(saved.getCustomerName());
@@ -884,7 +916,8 @@ public class BookingService {
             String customerEmail,
             String customerPhone,
             String notes,
-            String stripeSessionId
+            String stripeSessionId,
+            UUID promotionId
     ) {
         LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
@@ -925,14 +958,26 @@ public class BookingService {
         log.info("Multi-service webhook booking created: id={} duration={}min services={}",
                 saved.getBookingId(), totalDurationMinutes, services.size());
 
+        // 08.4: promo-only online booking — attach the frozen promo snapshot (paid online), exactly
+        // like the admin path. The promo carries its services in the link snapshot, not booking_services.
+        String promoTitle = null;
+        if (promotionId != null) {
+            Promotion promo = loadPromotionOrThrow(promotionId);
+            buildAndPersistPromotionLink(saved, promo, true); // paid online
+            promoTitle = promo.getTitle();
+        }
+        // Single display title for both admin notifications below (promo title, else primary, else fallback).
+        String displayTitle = promoTitle != null ? promoTitle
+                : (primary != null ? primary.getTitle()
+                   : (services.isEmpty() ? "Trattamento" : services.get(0).getTitle()));
+
         // Notifica admin
         try {
-            String svc  = primary != null ? primary.getTitle() : (services.isEmpty() ? "Trattamento" : services.get(0).getTitle());
             String when = saved.getStartTime().format(NOTIF_FMT);
             notificationService.create(
                 NotificationType.NEW_BOOKING,
                 "Nuova prenotazione online 🗓",
-                name + " · " + svc + " · " + when,
+                name + " · " + displayTitle + " · " + when,
                 saved.getBookingId(),
                 "BOOKING"
             );
@@ -944,12 +989,11 @@ public class BookingService {
         // paid via Stripe. We honour the booking and flag it for the admin instead.
         try {
             if (closureService.hasOverlappingClosure(saved.getStartTime(), saved.getEndTime())) {
-                String svc  = primary != null ? primary.getTitle() : (services.isEmpty() ? "Trattamento" : services.get(0).getTitle());
                 String when = saved.getStartTime().format(NOTIF_FMT);
                 notificationService.create(
                     NotificationType.BOOKING_CLOSURE_CONFLICT,
                     "⚠ Prenotazione online dentro una chiusura",
-                    name + " · " + svc + " · " + when + " — verifica con il cliente.",
+                    name + " · " + displayTitle + " · " + when + " — verifica con il cliente.",
                     saved.getBookingId(),
                     "BOOKING"
                 );
@@ -1188,6 +1232,18 @@ public class BookingService {
                     "Questa prenotazione è stata pagata online. Gestisci prima il rimborso prima di eliminarla."
             );
         }
+
+        // 08.2: restore promo-product stock only while the booking is still "held"
+        // (PENDING_PAYMENT / CONFIRMED); COMPLETED/NO_SHOW keep stock decremented. Then purge
+        // promo artifacts — sales FIRST (booking_sales.promotion_link_id is ON DELETE SET NULL).
+        // MUST flush before the entityManager.clear() below: clear() discards unflushed removals,
+        // and booking_sales has no FK cascade to bookings, so the promo sale rows would leak.
+        BookingStatus promoSt = found.getBookingStatus();
+        if (promoSt == BookingStatus.PENDING_PAYMENT || promoSt == BookingStatus.CONFIRMED) {
+            restorePromoStockForBooking(found.getBookingId());
+        }
+        deleteAllPromoArtifactsForBooking(found.getBookingId());
+        entityManager.flush();
 
         // Phase 5a: capture ALL link assignment ids before delete — every assignment
         // this booking was linked to needs its session count realigned afterwards.
@@ -1428,6 +1484,19 @@ public class BookingService {
                         ? dto.serviceIds().stream().map(serviceItemService::findServiceItemById).toList()
                         : List.of());
 
+        // 08.2b: the requested promo set is the desired FULL set (like packageAssignmentIds).
+        // Load it once for the duration math (and to fail fast if an id is unknown).
+        final java.util.List<java.util.UUID> reqPromoIds =
+                (dto.promotionIds() != null && !dto.promotionIds().isEmpty())
+                        ? dto.promotionIds().stream().distinct().toList()
+                        : java.util.List.of();
+        int requestedPromoDuration = 0;
+        if (!reqPromoIds.isEmpty()) {
+            java.util.List<Promotion> reqPromos = new java.util.ArrayList<>();
+            for (java.util.UUID pid : reqPromoIds) reqPromos.add(loadPromotionOrThrow(pid));
+            requestedPromoDuration = sumPromoServicesDuration(reqPromos);
+        }
+
         // Total duration: explicit override → computed from services → keep existing
         int totalDuration;
         if (dto.customTotalDurationMin() != null && dto.customTotalDurationMin() > 0) {
@@ -1454,11 +1523,16 @@ public class BookingService {
                 }
             }
             if (hasCustom) totalDuration += dto.customServiceDurationMinutes();
+            // 08.2b: size the slot for the REQUESTED promo set (it may change in the reconcile
+            // below; under the full-set contract this equals the existing duration when unchanged).
+            totalDuration += requestedPromoDuration;
         } else {
-            // Package-only or no services in payload — keep the booking's existing duration
-            totalDuration = found.getDurationMinutes() != null
+            // Package-only or no services in payload — keep existing duration, but swap the promo
+            // contribution (08.2b): remove the OLD promos' snapshot duration, add the requested one.
+            int base = found.getDurationMinutes() != null
                     ? found.getDurationMinutes()
                     : (int) java.time.Duration.between(found.getStartTime(), found.getEndTime()).toMinutes();
+            totalDuration = base - existingPromoDuration(bookingId) + requestedPromoDuration;
         }
         totalDuration = Math.max(totalDuration, 5);
 
@@ -1538,8 +1612,12 @@ public class BookingService {
             found.setCustomServiceDurationMin(dto.customServiceDurationMinutes());
             // V62: per-line paid for the custom service line.
             found.setCustomServicePaid(Boolean.TRUE.equals(dto.customServicePaid()));
-        } else if (hasCatalog) {
-            // Switching from custom to catalog — clear stale custom fields
+        } else {
+            // No custom service in the payload (removed on edit, or never present): clear
+            // ALL custom fields unconditionally. Previously gated on hasCatalog, which left
+            // a stale custom name/price/duration on a package-only or promo-only booking
+            // after its custom line was removed — surfacing a phantom custom row in
+            // buildBreakdownItems (incasso stimato + CompletionDrawer).
             found.setCustomServiceName(null);
             found.setCustomServicePrice(null);
             found.setCustomServiceDurationMin(null);
@@ -1682,6 +1760,72 @@ public class BookingService {
         // Recalc every assignment still linked to this booking (covers added + unchanged).
         maybeRecalculatePackage(bookingId);
 
+        // ── post-reconcile cleanup (Bug C + Bug D): once the package reconcile above has run, the booking
+        // may legitimately retain other content (a catalog service, a custom service, or
+        // a promotion) while having NO in-person package link left. In that case the
+        // booking-level session counters (echoed back by the drawer and written earlier in
+        // this method) and the package-derived primary service (set in the "removed all
+        // extras" branch above, never cleared once the link is gone) are stale and must be
+        // reset — otherwise the agenda shows an orphan "Seduta X/Y" badge and re-prefills a
+        // phantom service on the next edit. With a package still linked, none of this fires.
+        {
+            List<BookingPackageLink> remainingPkgLinks = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(bookingId);
+            if (remainingPkgLinks.isEmpty()) {
+                boolean clearedAnything = false;
+                if (found.getCurrentSession() != null) { found.setCurrentSession(null); clearedAnything = true; }
+                if (found.getTotalSessions() != null)  { found.setTotalSessions(null);  clearedAnything = true; }
+                // Only null the primary service when the payload itself carries no catalog
+                // service — with catalog services present, the primary FK is correctly the
+                // first catalog service (set in the hasCatalog branch above).
+                if (!hasCatalog) {
+                    if (found.getService() != null)       { found.setService(null);       clearedAnything = true; }
+                    if (found.getServiceOption() != null) { found.setServiceOption(null); clearedAnything = true; }
+                }
+                if (clearedAnything) {
+                    updated = bookingRepository.save(found);
+                    log.info("updateMultiServiceBooking: no package link remains for bookingId={} -> cleared session counters{}",
+                            bookingId, hasCatalog ? "" : " + dangling primary service/option");
+                }
+            }
+        }
+
+        // ── 08.2b: reconcile promotions (N → M) — mirrors the package reconcile above ──
+        // dto.promotionIds() is the desired FULL set (NOT a delta); empty ⇒ remove all promos.
+        List<BookingPromotionLink> currentPromoLinks =
+                bookingPromotionLinkRepository.findAllByBookingBookingIdWithPromotion(bookingId);
+        // Links whose live promotion was deleted (promotion == null) are frozen history: no
+        // promotionId to match on ⇒ never removed/re-added by this id-keyed diff.
+        java.util.Map<java.util.UUID, BookingPromotionLink> existingPromoById = new java.util.HashMap<>();
+        for (BookingPromotionLink l : currentPromoLinks) {
+            if (l.getPromotion() != null) existingPromoById.put(l.getPromotion().getPromotionId(), l);
+        }
+        java.util.Set<java.util.UUID> existingPromoIdSet = new java.util.HashSet<>(existingPromoById.keySet());
+        java.util.Set<java.util.UUID> requestedPromoIdSet = new java.util.HashSet<>(reqPromoIds);
+
+        java.util.Set<java.util.UUID> promoIdsToRemove = new java.util.HashSet<>(existingPromoIdSet);
+        promoIdsToRemove.removeAll(requestedPromoIdSet);
+        java.util.Set<java.util.UUID> promoIdsToAdd = new java.util.HashSet<>(requestedPromoIdSet);
+        promoIdsToAdd.removeAll(existingPromoIdSet);
+
+        for (java.util.UUID pid : promoIdsToRemove) {
+            detachPromotionLink(bookingId, existingPromoById.get(pid)); // restore stock + delete sales + link
+        }
+        for (java.util.UUID pid : promoIdsToAdd) {
+            Promotion promo = loadPromotionOrThrow(pid);          // managed + details for the snapshot
+            buildAndPersistPromotionLink(found, promo, dto);      // snapshot + tagged sales + stock −1
+        }
+        // paid sync for survivors (existed ∩ requested) — no drop/recreate.
+        if (dto.promotionPaid() != null && !dto.promotionPaid().isEmpty()) {
+            java.util.Set<java.util.UUID> promoIdsToSync = new java.util.HashSet<>(requestedPromoIdSet);
+            promoIdsToSync.retainAll(existingPromoIdSet);
+            for (java.util.UUID pid : promoIdsToSync) {
+                BookingPromotionLink lnk = existingPromoById.get(pid);
+                boolean newPaid = resolvePromoPaid(pid, dto);
+                if (lnk.isPaid() != newPaid) { lnk.setPaid(newPaid); bookingPromotionLinkRepository.save(lnk); }
+            }
+        }
+
         // Back-compat: when the booking has exactly one link and the request resolves
         // to that same single package, honor dto.currentSession as a direct session-number
         // override (Phase 4 behaviour). With multiple links this is intentionally ignored.
@@ -1730,6 +1874,9 @@ public class BookingService {
             found.setCanceledAt(LocalDateTime.now());
             found.setCancelReason("ADMIN_CANCEL");
             found.setExpiresAt(null);
+            // 08.2: restore promo-product stock on the transition into CANCELLED.
+            // old == CANCELLED already threw above (~:1726) → this never double-restores.
+            restorePromoStockForBooking(bookingId);
         }
         if (newStatus == BookingStatus.NO_SHOW) {
             found.setCanceledAt(LocalDateTime.now());
@@ -1762,7 +1909,7 @@ public class BookingService {
                 updated.getBookingId(), old, newStatus,
                 updated.getPackageCredit() != null ? updated.getPackageCredit().getPackageCreditId() : "none");
 
-        if (newStatus == BookingStatus.CANCELLED) {
+        if (newStatus == BookingStatus.CANCELLED && updated.getService() != null) {
             try {
                 waitlistService.notifyNextInQueue(
                     updated.getService().getServiceId(),
@@ -1829,6 +1976,8 @@ public class BookingService {
             if (found.isCustomService()) found.setCustomServicePaid(value);
             // Lockstep: the legacy principal moves with the single bundle value.
             if (legacyPrincipal) found.setPaidInStore(value);
+            // 08.2: promo links settle together with the bundle.
+            setAllPromotionLinksPaid(bookingId, value);
         } else if (req.markAllPaid() != null) {
             // Bulk for a normal appointment.
             boolean value = req.markAllPaid();
@@ -1836,6 +1985,8 @@ public class BookingService {
             setAllPackageLinksPaid(bookingId, value);
             if (found.isCustomService()) found.setCustomServicePaid(value);
             if (legacyPrincipal) found.setPaidInStore(value);
+            // 08.2: promo links settle together with mark-all-paid.
+            setAllPromotionLinksPaid(bookingId, value);
         } else {
             // Per-line settle.
             if (req.servicePaid() != null) {
@@ -1852,6 +2003,15 @@ public class BookingService {
                         lnk.setPaid(v);
                         bookingPackageLinkRepository.save(lnk);
                     }
+                }
+            }
+            // 08.2b: per-line promo settle, keyed by promotionId (a promo attaches at most once).
+            if (req.promotionPaid() != null && !req.promotionPaid().isEmpty()) {
+                for (BookingPromotionLink lnk :
+                        bookingPromotionLinkRepository.findAllByBookingBookingIdWithPromotion(bookingId)) {
+                    if (lnk.getPromotion() == null) continue; // frozen/orphaned — no promotionId to key by
+                    Boolean v = req.promotionPaid().get(lnk.getPromotion().getPromotionId());
+                    if (v != null) { lnk.setPaid(v); bookingPromotionLinkRepository.save(lnk); }
                 }
             }
             if (req.customServicePaid() != null && found.isCustomService()) {
@@ -1933,6 +2093,212 @@ public class BookingService {
         }
     }
 
+    // ============================ PROMOTIONS (08.2) ============================
+
+    /** Loads a promotion with its services/products eagerly fetched (snapshot needs them). */
+    private Promotion loadPromotionOrThrow(UUID promotionId) {
+        return promotionRepository.findByIdWithDetails(promotionId)
+                .orElseThrow(() -> new ResourceNotFoundException(promotionId));
+    }
+
+    /** Per-promotion paid flag from the payload map (null map / missing key → false). */
+    private boolean resolvePromoPaid(UUID promotionId, AdminBookingCreateDTO dto) {
+        if (dto.promotionPaid() == null) return false;
+        return Boolean.TRUE.equals(dto.promotionPaid().get(promotionId));
+    }
+
+    /** Sum the LIVE durations of the services inside the given promotions (used at create time). */
+    private int sumPromoServicesDuration(List<Promotion> promotions) {
+        int total = 0;
+        for (Promotion promo : promotions) {
+            for (ServiceItem s : promo.getServices()) {
+                total += s.getDurationMin(); // primitive int — never null
+            }
+        }
+        return total;
+    }
+
+    /** Sum the snapshotted durations of promo service-items already attached to a booking (update path). */
+    private int existingPromoDuration(UUID bookingId) {
+        int total = 0;
+        for (BookingPromotionLink link : bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId)) {
+            for (BookingPromotionLinkItem it : link.getItems()) {
+                Integer d = it.getDurationMinSnapshot();
+                if (d != null) total += d;
+            }
+        }
+        return total;
+    }
+
+    // 08.4: ordered promo lines + their computed bundle — single source of truth shared by the
+    // frozen snapshot (admin path AND paid-online webhook) and the online Stripe amount, so the
+    // charge and the persisted snapshot can never drift.
+    private record PromoComputation(List<ServiceItem> services,
+                                    List<Product> products,
+                                    PricingUtils.PromoBundle bundle) {}
+
+    /**
+     * Deterministically order a promotion's services/products and price the WHOLE bundle via the
+     * 08.1 single source of truth. Pure read of the (eagerly-fetched) promo — no persistence.
+     */
+    private PromoComputation computePromoComputation(Promotion promotion) {
+        // deterministic order for stable item positions (services/products are Sets): name, then id.
+        List<ServiceItem> svc = promotion.getServices().stream()
+                .sorted(Comparator.comparing(ServiceItem::getTitle,
+                            Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(s -> s.getServiceId().toString()))
+                .toList();
+        List<Product> prods = promotion.getProducts().stream()
+                .sorted(Comparator.comparing(Product::getName,
+                            Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(p -> p.getProductId().toString()))
+                .toList();
+
+        // PromoLines (promo services carry no per-line option here → optionId null).
+        List<PricingUtils.PromoLine> svcLines = new ArrayList<>();
+        for (ServiceItem s : svc) {
+            svcLines.add(new PricingUtils.PromoLine(s.getServiceId(), null, s.getTitle(), s.getPrice(), s.getDurationMin()));
+        }
+        List<PricingUtils.PromoLine> prodLines = new ArrayList<>();
+        for (Product p : prods) {
+            prodLines.add(new PricingUtils.PromoLine(p.getProductId(), null, p.getName(), p.getPrice(), null));
+        }
+
+        // frozen bundle via the 08.1 single source of truth.
+        PricingUtils.PromoBundle bundle = PricingUtils.computeMultiServicePromoBundle(
+                promotion.getDiscountType(), promotion.getDiscountValue(), svcLines, prodLines);
+
+        return new PromoComputation(svc, prods, bundle);
+    }
+
+    /**
+     * Discounted bundle total for a promotion — used by the online checkout to set the Stripe
+     * amount so it matches the snapshot the webhook will persist (same source as the snapshot).
+     */
+    public BigDecimal computePromoBundleTotal(Promotion promotion) {
+        return computePromoComputation(promotion).bundle().totalDiscounted();
+    }
+
+    /**
+     * Build + persist ONE frozen promo link for a booking: snapshot services as ordered link
+     * items, snapshot products as tagged BookingSale rows, and decrement product stock by
+     * exactly 1 each. Pricing/rounding come from the 08.1 single source of truth.
+     */
+    // existing signature — thin delegate (admin path), unchanged effect (per-promo paid from the payload).
+    private void buildAndPersistPromotionLink(Booking booking, Promotion promotion, AdminBookingCreateDTO dto) {
+        buildAndPersistPromotionLink(booking, promotion, resolvePromoPaid(promotion.getPromotionId(), dto));
+    }
+
+    // core — paid is explicit (admin toggle, OR true for a paid-online webhook booking).
+    private void buildAndPersistPromotionLink(Booking booking, Promotion promotion, boolean paid) {
+        PromoComputation pc = computePromoComputation(promotion);
+        List<ServiceItem> svc = pc.services();
+        List<Product> prods = pc.products();
+        PricingUtils.PromoBundle bundle = pc.bundle();
+
+        // link + snapshotted service items.
+        BookingPromotionLink link = new BookingPromotionLink();
+        link.setBooking(booking);
+        link.setPromotion(promotion);
+        link.setPromotionTitleSnapshot(promotion.getTitle());
+        link.setDiscountTypeSnapshot(promotion.getDiscountType() == null ? "NONE" : promotion.getDiscountType().name());
+        link.setDiscountValueSnapshot(promotion.getDiscountValue());
+        link.setTotalOriginalSnapshot(bundle.totalOriginal());
+        link.setTotalDiscountedSnapshot(bundle.totalDiscounted());
+        link.setAppliedWhileActive(promotion.isCurrentlyActive());
+        link.setPaid(paid);
+        int pos = 0;
+        for (PricingUtils.PromoLineResult r : bundle.serviceResults()) {
+            BookingPromotionLinkItem it = new BookingPromotionLinkItem();
+            it.setPosition(pos++);
+            ServiceItem managed = svc.stream()
+                    .filter(s -> s.getServiceId().equals(r.line().id()))
+                    .findFirst().orElse(null);
+            it.setService(managed);
+            it.setServiceOption(null);
+            it.setNameSnapshot(r.line().name());
+            it.setOriginalPriceSnapshot(r.line().fullPrice());
+            it.setDiscountedPriceSnapshot(r.discountedPrice());
+            it.setDurationMinSnapshot(r.line().durationMin());
+            link.addItem(it);
+        }
+        BookingPromotionLink savedLink = bookingPromotionLinkRepository.saveAndFlush(link); // flush → generated id
+
+        // 5) promo PRODUCTS reuse the BookingSale table (tagged with the link); stock −1 each.
+        for (PricingUtils.PromoLineResult r : bundle.productResults()) {
+            Product product = prods.stream()
+                    .filter(p -> p.getProductId().equals(r.line().id()))
+                    .findFirst().orElse(null);
+            if (product == null) continue;
+
+            BookingSale sale = new BookingSale();
+            sale.setBookingId(booking.getBookingId());
+            sale.setProductId(product.getProductId());
+            sale.setProductName(r.line().name());
+            sale.setQuantity(1);
+            sale.setUnitPrice(r.discountedPrice());
+            sale.setOriginalUnitPrice(r.line().fullPrice());
+            sale.setPromotionLinkId(savedLink.getId());
+            // addedAt is populated by BookingSale @PrePersist — do not set here.
+            bookingSaleRepository.save(sale);
+
+            int before = product.getStock();
+            if (before < 1) {
+                log.warn("Promo product {} oversold on booking {}: stock {} -> {}",
+                        product.getProductId(), booking.getBookingId(), before, before - 1);
+            }
+            product.setStock(before - 1); // ALWAYS −1 (may go negative — keeps restore symmetric)
+            productRepository.save(product);
+        }
+    }
+
+    /** Restore +quantity for PROMO sales only (free sales untouched). Idempotency is the caller's job. */
+    private void restorePromoStockForBooking(UUID bookingId) {
+        for (BookingSale sale : bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)) {
+            if (sale.getPromotionLinkId() == null) continue; // free sale → never touched
+            productRepository.findById(sale.getProductId()).ifPresent(p -> {
+                p.setStock(p.getStock() + sale.getQuantity());
+                productRepository.save(p);
+            });
+        }
+    }
+
+    /** 08.2b reconcile-remove: restore +qty stock for ONE promo link's product-sales, delete those
+     *  sales, then delete the link (items cascade via orphanRemoval + DB FK). */
+    private void detachPromotionLink(java.util.UUID bookingId, BookingPromotionLink link) {
+        java.util.UUID linkId = link.getId();
+        for (BookingSale sale : bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)) {
+            if (linkId.equals(sale.getPromotionLinkId())) {
+                productRepository.findById(sale.getProductId()).ifPresent(p -> {
+                    p.setStock(p.getStock() + sale.getQuantity());
+                    productRepository.save(p);
+                });
+                bookingSaleRepository.delete(sale);
+            }
+        }
+        bookingPromotionLinkRepository.delete(link);
+    }
+
+    /** Delete promo artifacts: sales FIRST (while promotion_link_id still identifies them), then links. */
+    private void deleteAllPromoArtifactsForBooking(UUID bookingId) {
+        for (BookingSale sale : bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)) {
+            if (sale.getPromotionLinkId() != null) {
+                bookingSaleRepository.delete(sale);
+            }
+        }
+        List<BookingPromotionLink> links = bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId);
+        if (!links.isEmpty()) {
+            bookingPromotionLinkRepository.deleteAll(links);
+        }
+    }
+
+    /** Flip every promo link of a booking to the given paid value (whole-booking settle). */
+    private void setAllPromotionLinksPaid(UUID bookingId, boolean paid) {
+        List<BookingPromotionLink> links = bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId);
+        for (BookingPromotionLink link : links) link.setPaid(paid);
+        bookingPromotionLinkRepository.saveAll(links);
+    }
+
     /**
      * V64: alerts the admin when a returning customer still has unpaid lines on
      * past COMPLETED bookings. Best-effort + anti-dup (24h, keyed on the customer).
@@ -1988,6 +2354,9 @@ public class BookingService {
 
         bookingRepository.save(found);
         maybeRecalculatePackage(bookingId);
+        // 08.2: restore promo-product stock on cancel. Already-CANCELLED returned at the
+        // top of this method (~:1978) → this runs at most once per booking.
+        restorePromoStockForBooking(bookingId);
         log.info("Booking cancelled: id={} reason={}", bookingId, found.getCancelReason());
 
         if (!admin) {
@@ -2005,14 +2374,17 @@ public class BookingService {
             }
         }
 
-        try {
-            waitlistService.notifyNextInQueue(
-                found.getService().getServiceId(),
-                found.getStartTime().toLocalDate(),
-                found.getStartTime().toLocalTime().truncatedTo(ChronoUnit.MINUTES)
-            );
-        } catch (Exception e) {
-            log.warn("Waitlist notification skipped for booking {}: {}", bookingId, e.getMessage());
+        // 08.2: promo-only bookings have no primary service — guard before the waitlist notify.
+        if (found.getService() != null) {
+            try {
+                waitlistService.notifyNextInQueue(
+                    found.getService().getServiceId(),
+                    found.getStartTime().toLocalDate(),
+                    found.getStartTime().toLocalTime().truncatedTo(ChronoUnit.MINUTES)
+                );
+            } catch (Exception e) {
+                log.warn("Waitlist notification skipped for booking {}: {}", bookingId, e.getMessage());
+            }
         }
     }
 
@@ -2198,6 +2570,24 @@ public class BookingService {
             log.warn("Could not resolve linkedPackages for booking {}: {}", b.getBookingId(), e.getMessage());
         }
 
+        // Phase 08.3: expose promotions frozen onto this booking (snapshot + tagged product-sales).
+        List<PromoSummaryDTO> linkedPromotions = List.of();
+        try {
+            List<BookingPromotionLink> promoLinks = bookingPromotionLinkRepository
+                    .findAllByBookingBookingIdWithPromotion(b.getBookingId());
+            if (!promoLinks.isEmpty()) {
+                Map<UUID, List<BookingSale>> salesByLink = bookingSaleRepository
+                        .findByBookingIdOrderByAddedAtDesc(b.getBookingId()).stream()
+                        .filter(s -> s.getPromotionLinkId() != null)
+                        .collect(Collectors.groupingBy(BookingSale::getPromotionLinkId));
+                linkedPromotions = promoLinks.stream()
+                        .map(link -> buildPromoSummary(link, salesByLink.getOrDefault(link.getId(), List.of())))
+                        .toList();
+            }
+        } catch (Exception e) {
+            log.warn("Could not resolve linkedPromotions for booking {}: {}", b.getBookingId(), e.getMessage());
+        }
+
         // Custom service duration. Phase 6e (V61) added a persisted column on the
         // booking — when present we return it verbatim (eliminates the Phase 6e
         // Bug 1 "every edit doubles the duration" loop, which was caused by the
@@ -2264,7 +2654,8 @@ public class BookingService {
                 paidOnline,
                 refundable,
                 b.getReminderSentAt(),
-                hasOutstanding
+                hasOutstanding,
+                linkedPromotions
         );
     }
 
@@ -2388,6 +2779,44 @@ public class BookingService {
                 paid,
                 paidLocked,
                 a.getNotes());
+    }
+
+    /**
+     * Phase 08.3: build the agenda-card summary of one promotion frozen onto a booking.
+     * Service lines come from the link's ordered snapshot items; product lines come from
+     * the BookingSale rows already tagged with this link (promotionLinkId). Display-only —
+     * every value is the frozen snapshot; the live promotion FK is read solely to expose
+     * promotionId (null when the promo was deleted after attach).
+     */
+    private PromoSummaryDTO buildPromoSummary(BookingPromotionLink link, List<BookingSale> linkSales) {
+        List<PromoLineSummaryDTO> services = link.getItems().stream()
+                .map(it -> new PromoLineSummaryDTO(
+                        it.getService() != null ? it.getService().getServiceId() : null,
+                        it.getNameSnapshot(),
+                        it.getOriginalPriceSnapshot(),
+                        it.getDiscountedPriceSnapshot(),
+                        it.getDurationMinSnapshot()))
+                .toList();
+        List<PromoLineSummaryDTO> products = linkSales.stream()
+                .map(s -> new PromoLineSummaryDTO(
+                        s.getProductId(),
+                        s.getProductName(),
+                        s.getOriginalUnitPrice(),
+                        s.getUnitPrice(),
+                        null))
+                .toList();
+        return new PromoSummaryDTO(
+                link.getPromotion() != null ? link.getPromotion().getPromotionId() : null,
+                link.getId(),
+                link.getPromotionTitleSnapshot(),
+                link.getDiscountTypeSnapshot(),
+                link.getDiscountValueSnapshot(),
+                link.getTotalOriginalSnapshot(),
+                link.getTotalDiscountedSnapshot(),
+                link.isPaid(),
+                link.isAppliedWhileActive(),
+                services,
+                products);
     }
 
     /**

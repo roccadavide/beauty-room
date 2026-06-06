@@ -8,6 +8,7 @@ import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
+import daviderocca.beautyroom.promotions.BookingPromotionLinkRepository;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.services.BookingService;
 import daviderocca.beautyroom.services.PackageCreditService;
@@ -47,6 +48,9 @@ class BookingServiceSettlementTest {
     @Mock private BookingRepository bookingRepository;
     @Mock private PackageCreditService packageCreditService;
     @Mock private BookingPackageLinkRepository bookingPackageLinkRepository;
+    // 08.2 added setAllPromotionLinksPaid(...) to the bundle/mark-all settle branches;
+    // @InjectMocks would otherwise leave this null → NPE in those two tests (08.2b).
+    @Mock private BookingPromotionLinkRepository bookingPromotionLinkRepository;
     @Mock private EntityManager entityManager;
 
     @InjectMocks private BookingService bookingService;
@@ -97,7 +101,7 @@ class BookingServiceSettlementTest {
         Map<UUID, Boolean> servicePaid = new LinkedHashMap<>();
         servicePaid.put(svcA, true);
         servicePaid.put(svcB, false);
-        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false);
+        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null);
 
         BookingResponseDTO res = bookingService.settleBookingLines(id, req, admin());
 
@@ -132,7 +136,7 @@ class BookingServiceSettlementTest {
         Map<UUID, Boolean> servicePaid = new LinkedHashMap<>();
         servicePaid.put(svcA, true);
         servicePaid.put(svcB, false);
-        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false);
+        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null);
 
         bookingService.settleBookingLines(id, req, admin());
 
@@ -158,7 +162,7 @@ class BookingServiceSettlementTest {
         when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(id)).thenReturn(List.of());
         stubNativeQuery();
 
-        SettlementRequestDTO req = new SettlementRequestDTO(Boolean.TRUE, null, null, null, true);
+        SettlementRequestDTO req = new SettlementRequestDTO(Boolean.TRUE, null, null, null, true, null);
 
         // First settle: CONFIRMED → COMPLETED, consumes one session, stamps completedAt.
         BookingResponseDTO r1 = bookingService.settleBookingLines(id, req, admin());
@@ -198,7 +202,7 @@ class BookingServiceSettlementTest {
 
         Map<UUID, Boolean> servicePaid = new LinkedHashMap<>();
         servicePaid.put(principalSvcId, true); // frontend legacy fallback keys by booking.serviceId
-        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false);
+        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null);
 
         bookingService.settleBookingLines(id, req, admin());
 

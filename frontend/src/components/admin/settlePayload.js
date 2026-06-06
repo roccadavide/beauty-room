@@ -30,6 +30,11 @@ export function applySettleLine(payload, kind, refId, paid) {
     }
   } else if (kind === "custom") {
     payload.customServicePaid = paid;
+  } else if (kind === "promotion") {
+    if (refId != null) {
+      if (!payload.promotionPaid) payload.promotionPaid = {};
+      payload.promotionPaid[String(refId)] = paid;
+    }
   } else if (kind === "bundle") {
     payload.markAllPaid = paid;
   }

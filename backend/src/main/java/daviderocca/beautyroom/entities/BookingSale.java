@@ -32,6 +32,17 @@ public class BookingSale {
     @Column(name = "added_at", nullable = false, updatable = false)
     private LocalDateTime addedAt;
 
+    // V65 (08.1): when set, tags this sale as a product line of a promotion link
+    // (booking_promotion_link.id). NULL = standalone free sale (unchanged behavior,
+    // moves no stock). Plain UUID, mirroring bookingId/productId — NOT a JPA relationship.
+    @Column(name = "promotion_link_id")
+    private UUID promotionLinkId;
+
+    // V65 (08.1): frozen pre-discount unit price, for the struck-through display on
+    // promo products. NULL on free sales (unit_price is already the full price there).
+    @Column(name = "original_unit_price", precision = 10, scale = 2)
+    private BigDecimal originalUnitPrice;
+
     @PrePersist
     void onCreate() {
         addedAt = LocalDateTime.now();

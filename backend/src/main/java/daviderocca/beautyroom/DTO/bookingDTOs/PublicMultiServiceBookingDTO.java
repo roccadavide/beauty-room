@@ -2,7 +2,6 @@ package daviderocca.beautyroom.DTO.bookingDTOs;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -39,9 +38,14 @@ public record PublicMultiServiceBookingDTO(
         @NotNull(message = "Ora di inizio obbligatoria")
         LocalTime startTime,
 
-        @NotEmpty(message = "Seleziona almeno un servizio")
+        // 08.4: a promo booking sends no catalog services (services come from the promo);
+        // non-promo bookings are validated in code (BookingCheckoutController.createSessionMulti).
         List<UUID> serviceIds,
 
         @NotNull(message = "Durata totale obbligatoria")
-        Integer totalDurationMinutes
+        Integer totalDurationMinutes,
+
+        // 08.4: when present, this is a promotion booking — services come from the promo,
+        // not from serviceIds (which may be empty). Mutually exclusive with serviceIds in practice.
+        UUID promotionId
 ) {}

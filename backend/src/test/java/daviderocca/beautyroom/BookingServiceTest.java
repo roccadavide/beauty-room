@@ -14,6 +14,7 @@ import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
 import daviderocca.beautyroom.repositories.BookingRepository;
+import daviderocca.beautyroom.repositories.BookingSaleRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
 import daviderocca.beautyroom.services.BookingService;
 import daviderocca.beautyroom.packages.ClientPackageService;
@@ -59,6 +60,8 @@ class BookingServiceTest {
     // on closureService.assertNoOverlappingClosure(...). Pure test-infra fix.
     @Mock
     private daviderocca.beautyroom.services.ClosureService closureService;
+    @Mock
+    private BookingSaleRepository bookingSaleRepository;
 
     @InjectMocks
     private BookingService bookingService;

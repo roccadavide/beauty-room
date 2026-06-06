@@ -18,6 +18,7 @@ import {
   updatePersonalAppointment,
 } from "../../api/modules/adminAgenda.api";
 import { createCustomer, getActivePackages, updateCustomer, deleteCustomer } from "../../api/modules/customer.api";
+import { fetchActivePromotions } from "../../api/modules/promotions.api";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import EditPackageModal from "../../components/common/EditPackageModal";
 import PackagesTab from "../../components/admin/PackagesTab";
@@ -55,6 +56,14 @@ const formatItalianSlot = (dateStr, timeStr) => {
   const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
   return `${_WEEKDAYS_IT[dt.getDay()]} ${d} ${_MONTHS_IT[dt.getMonth()]} · ${timeStr}`;
+};
+
+// Promo discount label for the selector cards (mirrors PromoDetailDrawer.getDiscountLabel).
+const getPromoDiscountLabel = promo => {
+  if (!promo) return null;
+  if (promo.discountType === "PERCENTAGE") return `-${Number(promo.discountValue)}%`;
+  if (promo.discountType === "FIXED") return `-€${Number(promo.discountValue).toFixed(0)}`;
+  return null;
 };
 
 // Factory for a blank service item
@@ -224,6 +233,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     if (hasAnyLinkedPackage) {
       return [];
     }
+    // Bug D defense: a promo-only booking can carry a dangling primary serviceId
+    // (re-derived from a since-removed package by the backend on legacy/pre-fix
+    // rows). Mirror the package guard so it is NOT exploded into a phantom row.
+    const hasAnyLinkedPromotion = Array.isArray(editBooking.linkedPromotions) && editBooking.linkedPromotions.length > 0;
+    if (hasAnyLinkedPromotion) {
+      return [];
+    }
     // Case 2: legacy single serviceId — look up from services catalog for accurate data
     if (editBooking.serviceId) {
       const match = services.find(s => String(s.serviceId) === String(editBooking.serviceId));
@@ -351,6 +367,34 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     // packageCreditId lives at the top level of AdminBookingCardDTO (for online packages)
     return editBooking.packageCreditId ?? null;
   });
+
+  // ── Promotions (08.5) ──────────────────────────────────────────────────────
+  // Promotions are GLOBAL (not per-customer like packages): fetched once on mount.
+  // selectedPromotionIds is a Set of promotionIds; promotionPaid is a
+  // Map<promotionId, bool>. Edit mode seeds BOTH from editBooking.linkedPromotions
+  // (the frozen snapshot exposed by 08.3). A deleted-promo link has promotionId ==
+  // null (frozen history the reconcile never touches) → filtered out so it's NOT re-sent.
+  const [activePromotions, setActivePromotions] = useState([]);
+  const [selectedPromotionIds, setSelectedPromotionIds] = useState(() => {
+    if (!isEditMode || !editBooking) return new Set(initialDraft?.selectedPromotionIds ?? []);
+    if (Array.isArray(editBooking.linkedPromotions) && editBooking.linkedPromotions.length > 0) {
+      return new Set(editBooking.linkedPromotions.map(p => p.promotionId).filter(Boolean));
+    }
+    return new Set();
+  });
+  const [promotionPaid, setPromotionPaid] = useState(() => {
+    if (!isEditMode || !editBooking) return new Map(initialDraft?.promotionPaid ?? []);
+    const m = new Map();
+    (Array.isArray(editBooking.linkedPromotions) ? editBooking.linkedPromotions : []).forEach(p => {
+      if (p?.promotionId) m.set(p.promotionId, p.paid === true);
+    });
+    return m;
+  });
+  // D2: the promo selector is collapsible — promotions are global and many, and most
+  // appointments use none. Collapsed by default; auto-open when a promo is already
+  // selected (edit mode) so the current selection stays visible. Transient UI —
+  // deliberately NOT persisted in formDraft (like the package expansion toggles).
+  const [promosOpen, setPromosOpen] = useState(() => selectedPromotionIds.size > 0);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState({ fullName: "", phone: "", email: "" });
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
@@ -427,6 +471,32 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     setExpandedSelectedPkgIds(prev => {
       if (!prev.has(id)) return prev;
       const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  // Promo selection toggles (08.5). Selecting/deselecting works in both create and
+  // edit; deselecting in edit drops the promo from the full set we send, so the
+  // backend reconcile detaches it (and restores its product stock).
+  const togglePromotion = useCallback(id => {
+    setSelectedPromotionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const deselectPromotion = useCallback(id => {
+    setSelectedPromotionIds(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setPromotionPaid(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
       next.delete(id);
       return next;
     });
@@ -535,6 +605,53 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     [services],
   );
 
+  // Promo duration: prefer the frozen snapshot (edit mode), else resolve each of
+  // the promo's services from the catalog. A deleted/expired promo only exists in
+  // the snapshot, so the snapshot branch keeps its row's duration correct.
+  const resolvePromoDuration = useCallback(
+    promoId => {
+      const snap = isEditMode
+        ? (editBooking?.linkedPromotions || []).find(p => String(p.promotionId) === String(promoId))
+        : null;
+      if (snap && Array.isArray(snap.services)) {
+        return snap.services.reduce((sum, sv) => sum + (sv.durationMin ?? 0), 0);
+      }
+      const live = activePromotions.find(p => String(p.promotionId) === String(promoId));
+      if (live && Array.isArray(live.serviceIds)) {
+        return live.serviceIds.reduce((sum, sid) => {
+          const svc = services.find(s => String(s.serviceId) === String(sid));
+          return sum + (svc?.durationMin ?? 0);
+        }, 0);
+      }
+      return 0;
+    },
+    [isEditMode, editBooking, activePromotions, services],
+  );
+
+  // Display meta for a selected promo row (title + included service labels).
+  const resolvePromoMeta = useCallback(
+    promoId => {
+      const snap = isEditMode
+        ? (editBooking?.linkedPromotions || []).find(p => String(p.promotionId) === String(promoId))
+        : null;
+      if (snap) {
+        return {
+          title: snap.title || "Promozione",
+          serviceNames: (snap.services || []).map(sv => sv.name).filter(Boolean),
+        };
+      }
+      const live = activePromotions.find(p => String(p.promotionId) === String(promoId));
+      if (live) {
+        const names = (live.serviceIds || [])
+          .map(sid => services.find(s => String(s.serviceId) === String(sid))?.title)
+          .filter(Boolean);
+        return { title: live.title || "Promozione", serviceNames: names };
+      }
+      return { title: "Promozione", serviceNames: [] };
+    },
+    [isEditMode, editBooking, activePromotions, services],
+  );
+
   const totalDuration = useMemo(() => {
     const catalogDur = selectedServices.reduce((sum, ss) => sum + (ss.overrideDurationMin ?? ss.defaultDurationMin), 0);
     const itemsDur = serviceItems.reduce((sum, item) => sum + (parseInt(item.customDuration, 10) || 0), 0);
@@ -553,8 +670,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       if (pkg) base += resolvePkgDuration(pkg, null);
     }
 
+    // Promotions (08.5): add each selected promo's resolved service duration.
+    for (const promoId of selectedPromotionIds) {
+      base += resolvePromoDuration(promoId);
+    }
+
     return totalDurationOverride ?? base;
-  }, [selectedServices, totalDurationOverride, serviceItems, selectedPackageIds, selectedPackageCreditId, activePackages, packageDurationOverrides, resolvePkgDuration]);
+  }, [selectedServices, totalDurationOverride, serviceItems, selectedPackageIds, selectedPackageCreditId, activePackages, packageDurationOverrides, resolvePkgDuration, selectedPromotionIds, resolvePromoDuration]);
 
   const ensureWalkInEmail = useCallback(() => {
     const d = new Date();
@@ -708,6 +830,22 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch active promotions once on mount. Promotions are global (not tied to the
+  // selected customer), so this does not depend on customerId. Only promos that
+  // include at least one service are attachable to an appointment — product-only
+  // promos go through the Order/product-promo flow, not the agenda.
+  useEffect(() => {
+    (async () => {
+      try {
+        const promos = await fetchActivePromotions();
+        setActivePromotions((promos || []).filter(p => Array.isArray(p.serviceIds) && p.serviceIds.length > 0));
+      } catch (err) {
+        console.error("Active promotions fetch failed (non-blocking):", err);
+        setActivePromotions([]);
+      }
+    })();
   }, []);
 
   // ── Slot fetch ────────────────────────────────────────────────────────────
@@ -958,9 +1096,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       selectedServices.length > 0 ||
       serviceItems.length > 0 ||
       selectedPackageIds.size > 0 ||
-      selectedPackageCreditId != null;
+      selectedPackageCreditId != null ||
+      selectedPromotionIds.size > 0;
     if (!hasService) {
-      errs.services = "Seleziona almeno un servizio o un pacchetto attivo";
+      errs.services = "Seleziona almeno un servizio, un pacchetto o una promozione";
     }
 
     serviceItems.forEach(item => {
@@ -991,6 +1130,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     serviceItems,
     selectedPackageIds,
     selectedPackageCreditId,
+    selectedPromotionIds,
     appointmentDate,
     selectedSlot,
     customTime,
@@ -1020,8 +1160,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       customTime,
       paddingMinutes,
       notes,
+      selectedPromotionIds: Array.from(selectedPromotionIds),
+      promotionPaid: Array.from(promotionPaid.entries()),
     }),
-    [selectedServices, serviceItems, selectedPackageIds, packageDurationOverrides, selectedPackageCreditId, packageSessionPaid, customServicePaid, totalDurationOverride, totalPriceOverride, appointmentDate, selectedSlot, customTime, paddingMinutes, notes],
+    [selectedServices, serviceItems, selectedPackageIds, packageDurationOverrides, selectedPackageCreditId, packageSessionPaid, customServicePaid, totalDurationOverride, totalPriceOverride, appointmentDate, selectedSlot, customTime, paddingMinutes, notes, selectedPromotionIds, promotionPaid],
   );
   // Latest snapshot in a ref so the unmount flush captures the final edit even if
   // a passive effect hasn't run yet (fast tab-switch). onDraftChange is undefined
@@ -1075,7 +1217,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         })),
         customTotalDurationMin:
           totalDurationOverride ??
-          (selectedPackageIds.size > 0 || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null) ? totalDuration : null),
+          (selectedPackageIds.size > 0 || selectedPromotionIds.size > 0 || selectedPackageCreditId != null || selectedServices.some(ss => ss.overrideDurationMin != null) ? totalDuration : null),
         // V64 M2a: whole-appointment custom total price (null = no override, per-line sum wins).
         customTotalPrice: totalPriceOverride ?? null,
         hasCustomService: customItems.length > 0,
@@ -1088,6 +1230,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         packageAssignmentIds: Array.from(selectedPackageIds),
         packageAssignmentId: null,
         packageCreditId: selectedPackageCreditId ?? null,
+        // 08.5: full set of attached promotions (empty ⇒ detach all, mirrors
+        // packageAssignmentIds). promotionPaid keyed by promotionId.
+        promotionIds: Array.from(selectedPromotionIds),
+        promotionPaid: Object.fromEntries(promotionPaid),
         serviceOptionId: selectedServices[0]?.optionId ?? null, // backward compat; serviceEntries takes precedence
         // V62: per-line paid fields. paidInStore is intentionally NOT sent —
         // the legacy booking-level flag is being retired (V50 → V62) and the
@@ -1381,6 +1527,77 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         </div>
       )}
 
+      {/* ── Promozioni (08.5) — global, not customer-gated ─────────────────── */}
+      {activePromotions.length > 0 && (
+        <div className="nad-section ag-packages-section">
+          <button
+            type="button"
+            className="ag-active-pkg-header"
+            onClick={() => setPromosOpen(o => !o)}
+            aria-expanded={promosOpen}
+            style={{ background: "none", border: "none", padding: 0, width: "100%", cursor: "pointer", textAlign: "left" }}
+          >
+            <span className="ag-active-pkg-header__icon">🏷️</span>
+            <span className="ag-active-pkg-header__label">Promozioni</span>
+            <span style={{ marginLeft: "auto", fontSize: "0.78rem", fontWeight: 500, color: "var(--card-gold-deep, #8c6d3f)" }}>
+              {selectedPromotionIds.size > 0
+                ? `${selectedPromotionIds.size} selezionat${selectedPromotionIds.size === 1 ? "a" : "e"} · `
+                : ""}
+              {activePromotions.length} disponibil{activePromotions.length === 1 ? "e" : "i"}
+            </span>
+            <span
+              aria-hidden="true"
+              style={{ marginLeft: 8, display: "inline-block", transition: "transform 0.15s ease", transform: promosOpen ? "rotate(90deg)" : "none" }}
+            >
+              ▸
+            </span>
+          </button>
+          {promosOpen && (
+            <>
+          <div className="d-flex flex-wrap gap-2 mt-1">
+            {activePromotions.map(promo => {
+              const isSelected = selectedPromotionIds.has(promo.promotionId);
+              const discount = getPromoDiscountLabel(promo);
+              const svcCount = Array.isArray(promo.serviceIds) ? promo.serviceIds.length : 0;
+              const prodCount = Array.isArray(promo.productIds) ? promo.productIds.length : 0;
+              const dur = resolvePromoDuration(promo.promotionId);
+              const onCardActivate = () => (isSelected ? deselectPromotion(promo.promotionId) : togglePromotion(promo.promotionId));
+              return (
+                <div
+                  key={promo.promotionId}
+                  className={`ag-pkg-select-card${isSelected ? " is-selected" : ""}`}
+                  onClick={onCardActivate}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === "Enter" && onCardActivate()}
+                >
+                  <div className="ag-pkg-select-card__body">
+                    <div className="ag-pkg-select-card__name">
+                      🏷️ {promo.title || "Promozione"}
+                      {discount && (
+                        <span style={{ marginLeft: 6, fontSize: "0.72rem", fontWeight: 700, color: "var(--card-gold-deep, #8c6d3f)" }}>
+                          {discount}
+                        </span>
+                      )}
+                    </div>
+                    <div className="ag-pkg-select-card__meta">
+                      {dur > 0 && <>{formatDuration(dur)} · </>}
+                      {svcCount} trattament{svcCount === 1 ? "o" : "i"}
+                      {prodCount > 0 && <> · {prodCount} prodott{prodCount === 1 ? "o" : "i"}</>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {selectedPromotionIds.size > 0 && (
+            <div className="nad-help mt-1">Il prezzo della promozione viene applicato automaticamente al salvataggio.</div>
+          )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── Section 2: Servizi ─────────────────────────────────────────────── */}
       <div className="nad-section">
         <div className="nad-section__title">Servizi</div>
@@ -1547,10 +1764,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         )}
 
         {/* ── Selected services panel ───────────────────────────────────────── */}
-        {(selectedPackageIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0) && (
+        {(selectedPackageIds.size > 0 || selectedPromotionIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0) && (
           <div className="ag-selected-services">
             <div className="ag-selected-services__label">
-              Servizi selezionati ({selectedPackageIds.size + selectedServices.length + serviceItems.length})
+              Servizi selezionati ({selectedPackageIds.size + selectedPromotionIds.size + selectedServices.length + serviceItems.length})
             </div>
             {/* V62: bulk paid toggle. Counts editable lines (catalog rows +
                 non-paidUpfront packages + custom-service line if present); a
@@ -1562,12 +1779,14 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 const p = activePackages.find(pp => pp.id === id);
                 return p && !p.paidUpfront;
               });
+              const promoIds = Array.from(selectedPromotionIds);
               const hasCustomLine = serviceItems.length > 0;
-              const editableCount = selectedServices.length + editablePkgIds.length + (hasCustomLine ? 1 : 0);
+              const editableCount = selectedServices.length + editablePkgIds.length + promoIds.length + (hasCustomLine ? 1 : 0);
               if (editableCount === 0) return null;
               const allSettled =
                 selectedServices.every(ss => ss.paid === true) &&
                 editablePkgIds.every(id => packageSessionPaid.get(id) === true) &&
+                promoIds.every(id => promotionPaid.get(id) === true) &&
                 (!hasCustomLine || customServicePaid);
               const flip = () => {
                 const next = !allSettled;
@@ -1575,6 +1794,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 setPackageSessionPaid(prev => {
                   const m = new Map(prev);
                   editablePkgIds.forEach(id => m.set(id, next));
+                  return m;
+                });
+                setPromotionPaid(prev => {
+                  const m = new Map(prev);
+                  promoIds.forEach(id => m.set(id, next));
                   return m;
                 });
                 if (hasCustomLine) setCustomServicePaid(next);
@@ -1728,6 +1952,57 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                         </li>
                       ))}
                     </ul>
+                  )}
+                </div>
+              );
+            })}
+            {/* 08.5: promo rows — 🏷️ title + duration + paid toggle. No session
+                badge (promos have no sessions). Removable only in create, mirroring
+                packages; in edit the top selector still toggles attach. */}
+            {Array.from(selectedPromotionIds).map(promoId => {
+              const meta = resolvePromoMeta(promoId);
+              const dur = resolvePromoDuration(promoId);
+              const settled = isPaidOnline || promotionPaid.get(promoId) === true;
+              return (
+                <div
+                  key={promoId}
+                  className="ag-selected-service-row"
+                  style={{ background: "rgba(184, 151, 106, 0.08)", borderLeft: "3px solid var(--card-gold, #b8976a)", flexWrap: "wrap" }}
+                >
+                  <span className="ag-selected-service-row__name">
+                    🏷️ {meta.title}
+                    {meta.serviceNames.length > 0 && (
+                      <span className="ag-selected-service-row__orig"> · {meta.serviceNames.join(", ")}</span>
+                    )}
+                  </span>
+                  <span className="ag-selected-service-row__dur">{dur > 0 ? formatDuration(dur) : "—"}</span>
+                  {isPaidOnline ? (
+                    <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`ag-pill ag-pill--toggle ${settled ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                      title={settled ? "Segna come da pagare" : "Segna come pagata"}
+                      onClick={() =>
+                        setPromotionPaid(prev => {
+                          const m = new Map(prev);
+                          m.set(promoId, !settled);
+                          return m;
+                        })
+                      }
+                    >
+                      {settled ? "✓ Pagato" : "⏳ Da pagare"}
+                    </button>
+                  )}
+                  {!isEditMode && (
+                    <button
+                      type="button"
+                      className="ag-selected-service-row__remove"
+                      title="Rimuovi promozione"
+                      onClick={() => deselectPromotion(promoId)}
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
               );
