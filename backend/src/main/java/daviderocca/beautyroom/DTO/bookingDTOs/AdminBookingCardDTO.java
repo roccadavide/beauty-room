@@ -67,5 +67,8 @@ public record AdminBookingCardDTO(
         // single batch query in getAgendaRange/getAgendaDay; false everywhere else.
         boolean hasOutstanding,
         // Phase 08.3: every promotion frozen onto this booking (snapshot). Empty when none.
-        List<PromoSummaryDTO> linkedPromotions
+        List<PromoSummaryDTO> linkedPromotions,
+        // BE-2 (scope A): standalone product sales on this booking (promotion_link_id IS NULL).
+        // Promo product-lines stay inside linkedPromotions. Empty when none.
+        List<SaleSummaryDTO> linkedSales
 ) {}

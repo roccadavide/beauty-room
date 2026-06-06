@@ -20,6 +20,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoLineSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.SaleSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
@@ -2570,14 +2571,23 @@ public class BookingService {
             log.warn("Could not resolve linkedPackages for booking {}: {}", b.getBookingId(), e.getMessage());
         }
 
+        // BE-2: fetch the booking's sales ONCE. Standalone sales (promotionLinkId == null)
+        // become linkedSales; promo-tagged sales feed the linkedPromotions grouping below.
+        List<BookingSale> allSales = bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(b.getBookingId());
+        List<SaleSummaryDTO> linkedSales = allSales.stream()
+                .filter(s -> s.getPromotionLinkId() == null)   // standalone only; promo product-lines stay inside linkedPromotions
+                .map(s -> new SaleSummaryDTO(
+                        s.getId(), s.getProductId(), s.getProductName(),
+                        s.getQuantity(), s.getUnitPrice(), s.isPaid()))
+                .toList();
+
         // Phase 08.3: expose promotions frozen onto this booking (snapshot + tagged product-sales).
         List<PromoSummaryDTO> linkedPromotions = List.of();
         try {
             List<BookingPromotionLink> promoLinks = bookingPromotionLinkRepository
                     .findAllByBookingBookingIdWithPromotion(b.getBookingId());
             if (!promoLinks.isEmpty()) {
-                Map<UUID, List<BookingSale>> salesByLink = bookingSaleRepository
-                        .findByBookingIdOrderByAddedAtDesc(b.getBookingId()).stream()
+                Map<UUID, List<BookingSale>> salesByLink = allSales.stream()
                         .filter(s -> s.getPromotionLinkId() != null)
                         .collect(Collectors.groupingBy(BookingSale::getPromotionLinkId));
                 linkedPromotions = promoLinks.stream()
@@ -2655,7 +2665,8 @@ public class BookingService {
                 refundable,
                 b.getReminderSentAt(),
                 hasOutstanding,
-                linkedPromotions
+                linkedPromotions,
+                linkedSales
         );
     }
 

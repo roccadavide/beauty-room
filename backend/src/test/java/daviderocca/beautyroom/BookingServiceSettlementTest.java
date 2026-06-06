@@ -101,7 +101,7 @@ class BookingServiceSettlementTest {
         Map<UUID, Boolean> servicePaid = new LinkedHashMap<>();
         servicePaid.put(svcA, true);
         servicePaid.put(svcB, false);
-        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null);
+        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null, null);
 
         BookingResponseDTO res = bookingService.settleBookingLines(id, req, admin());
 
@@ -136,7 +136,7 @@ class BookingServiceSettlementTest {
         Map<UUID, Boolean> servicePaid = new LinkedHashMap<>();
         servicePaid.put(svcA, true);
         servicePaid.put(svcB, false);
-        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null);
+        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null, null);
 
         bookingService.settleBookingLines(id, req, admin());
 
@@ -162,7 +162,7 @@ class BookingServiceSettlementTest {
         when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(id)).thenReturn(List.of());
         stubNativeQuery();
 
-        SettlementRequestDTO req = new SettlementRequestDTO(Boolean.TRUE, null, null, null, true, null);
+        SettlementRequestDTO req = new SettlementRequestDTO(Boolean.TRUE, null, null, null, true, null, null);
 
         // First settle: CONFIRMED → COMPLETED, consumes one session, stamps completedAt.
         BookingResponseDTO r1 = bookingService.settleBookingLines(id, req, admin());
@@ -202,7 +202,7 @@ class BookingServiceSettlementTest {
 
         Map<UUID, Boolean> servicePaid = new LinkedHashMap<>();
         servicePaid.put(principalSvcId, true); // frontend legacy fallback keys by booking.serviceId
-        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null);
+        SettlementRequestDTO req = new SettlementRequestDTO(null, servicePaid, null, null, false, null, null);
 
         bookingService.settleBookingLines(id, req, admin());
 
