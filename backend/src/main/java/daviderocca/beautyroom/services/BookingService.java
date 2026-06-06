@@ -1248,6 +1248,10 @@ public class BookingService {
         BookingStatus promoSt = found.getBookingStatus();
         if (promoSt == BookingStatus.PENDING_PAYMENT || promoSt == BookingStatus.CONFIRMED) {
             restorePromoStockForBooking(found.getBookingId());
+            // Block B: restore standalone-sale stock under the IDENTICAL held-only guard. A booking
+            // already CANCELLED (stock restored on cancel) is excluded here → no double-restore. The
+            // standalone rows themselves vanish with the booking via the booking_sales FK cascade (V15).
+            restoreStandaloneSaleStock(found.getBookingId());
         }
         deleteAllPromoArtifactsForBooking(found.getBookingId());
         entityManager.flush();
@@ -1887,6 +1891,8 @@ public class BookingService {
             // 08.2: restore promo-product stock on the transition into CANCELLED.
             // old == CANCELLED already threw above (~:1726) → this never double-restores.
             restorePromoStockForBooking(bookingId);
+            // Block B: same transition-guarded restore for standalone sales (rows kept).
+            restoreStandaloneSaleStock(bookingId);
         }
         if (newStatus == BookingStatus.NO_SHOW) {
             found.setCanceledAt(LocalDateTime.now());
@@ -2273,6 +2279,16 @@ public class BookingService {
         }
     }
 
+    /** Block B: restore Product.stock for this booking's STANDALONE sales (promotion_link_id IS NULL).
+     *  Promo product-lines are left to restorePromoStockForBooking. Idempotency is the caller's job —
+     *  wired under the SAME guard as the promo restore so cancel-then-delete restores once, never twice. */
+    private void restoreStandaloneSaleStock(UUID bookingId) {
+        for (BookingSale s : bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)) {
+            if (s.getPromotionLinkId() != null) continue; // promo line → owned by restorePromoStockForBooking
+            adjustProductStock(s.getProductId(), s.getQuantity(), false); // restore; tolerate missing product
+        }
+    }
+
     /** 08.2b reconcile-remove: restore +qty stock for ONE promo link's product-sales, delete those
      *  sales, then delete the link (items cascade via orphanRemoval + DB FK). */
     private void detachPromotionLink(java.util.UUID bookingId, BookingPromotionLink link) {
@@ -2452,6 +2468,8 @@ public class BookingService {
         // 08.2: restore promo-product stock on cancel. Already-CANCELLED returned at the
         // top of this method (~:1978) → this runs at most once per booking.
         restorePromoStockForBooking(bookingId);
+        // Block B: same once-per-booking guard restores standalone-sale stock (rows kept).
+        restoreStandaloneSaleStock(bookingId);
         log.info("Booking cancelled: id={} reason={}", bookingId, found.getCancelReason());
 
         if (!admin) {
