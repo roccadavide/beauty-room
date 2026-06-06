@@ -14,6 +14,7 @@ import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WorkingHours;
 import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
@@ -74,8 +75,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -885,6 +888,9 @@ public class BookingService {
         for (Promotion promo : promotions) {
             buildAndPersistPromotionLink(saved, promo, dto);
         }
+
+        // ── Block B: reconcile standalone product sales (promotion_link_id IS NULL) ──
+        reconcileStandaloneSales(saved.getBookingId(), dto);
 
         // ── Step 7: auto account-linking ──────────────────────────────────────
         try {
@@ -1827,6 +1833,9 @@ public class BookingService {
             }
         }
 
+        // ── Block B: reconcile standalone product sales (promotion_link_id IS NULL) ──
+        reconcileStandaloneSales(bookingId, dto);
+
         // Back-compat: when the booking has exactly one link and the request resolves
         // to that same single package, honor dto.currentSession as a direct session-number
         // override (Phase 4 behaviour). With multiple links this is intentionally ignored.
@@ -2278,6 +2287,91 @@ public class BookingService {
             }
         }
         bookingPromotionLinkRepository.delete(link);
+    }
+
+    /**
+     * Block B: reconcile STANDALONE product sales (promotion_link_id IS NULL) so they
+     * match dto.saleEntries(), keyed by productId, adjusting Product.stock by the qty
+     * delta. Promo product-lines are never touched here (the promo reconcile, which runs
+     * before this, owns their stock). Runs inline in the booking's transaction — a plain
+     * private method, never REQUIRES_NEW, so it sees the still-uncommitted booking.
+     *
+     * null saleEntries() -> no-op (caller omitted products; leave existing standalone
+     * sales, including quick-add ones, untouched). Empty list -> remove all standalone.
+     */
+    private void reconcileStandaloneSales(UUID bookingId, AdminBookingCreateDTO dto) {
+        if (dto.saleEntries() == null) return;
+
+        // Desired set, merged by productId (defensive against duplicate lines).
+        Map<UUID, SaleEntryDTO> desired = new LinkedHashMap<>();
+        for (SaleEntryDTO e : dto.saleEntries()) {
+            if (e == null || e.productId() == null) continue;
+            int qty = Math.max(1, e.quantity());
+            SaleEntryDTO prev = desired.get(e.productId());
+            desired.put(e.productId(), prev == null
+                    ? new SaleEntryDTO(e.productId(), qty, e.unitPrice(), e.paid())
+                    : new SaleEntryDTO(e.productId(), prev.quantity() + qty, e.unitPrice(), e.paid()));
+        }
+
+        // Existing STANDALONE sales, grouped by productId (promo lines excluded).
+        Map<UUID, List<BookingSale>> existing = bookingSaleRepository
+                .findByBookingIdOrderByAddedAtDesc(bookingId).stream()
+                .filter(s -> s.getPromotionLinkId() == null)
+                .collect(Collectors.groupingBy(BookingSale::getProductId, LinkedHashMap::new, Collectors.toList()));
+
+        // 1) Products no longer desired -> restore stock, delete rows.
+        for (Map.Entry<UUID, List<BookingSale>> en : existing.entrySet()) {
+            if (desired.containsKey(en.getKey())) continue;
+            for (BookingSale s : en.getValue()) {
+                adjustProductStock(s.getProductId(), s.getQuantity(), false); // restore; tolerate missing product
+                bookingSaleRepository.delete(s);
+            }
+        }
+
+        // 2) Desired products -> create (decrement) or update (adjust by oldTotal - new).
+        LocalDateTime now = LocalDateTime.now();
+        for (SaleEntryDTO want : desired.values()) {
+            List<BookingSale> rows = existing.getOrDefault(want.productId(), List.of());
+            if (rows.isEmpty()) {
+                Product product = productRepository.findById(want.productId())
+                        .orElseThrow(() -> new IllegalArgumentException("Prodotto non trovato: " + want.productId()));
+                product.setStock(product.getStock() - want.quantity());
+                productRepository.save(product);
+
+                BookingSale s = new BookingSale();
+                s.setBookingId(bookingId);
+                s.setProductId(want.productId());
+                s.setProductName(product.getName());
+                s.setQuantity(want.quantity());
+                s.setUnitPrice(want.unitPrice());
+                s.setPaid(want.paid());
+                s.setAddedAt(now);
+                // promotionLinkId / originalUnitPrice stay null -> standalone, no discount tracking.
+                bookingSaleRepository.save(s);
+            } else {
+                BookingSale keep = rows.get(0);
+                int oldTotal = rows.stream().mapToInt(BookingSale::getQuantity).sum();
+                for (int i = 1; i < rows.size(); i++) bookingSaleRepository.delete(rows.get(i)); // fold duplicates
+                int delta = oldTotal - want.quantity(); // >0 restore, <0 decrement
+                if (delta != 0) adjustProductStock(want.productId(), delta, true);
+                keep.setQuantity(want.quantity());
+                keep.setUnitPrice(want.unitPrice());
+                keep.setPaid(want.paid());
+                bookingSaleRepository.save(keep);
+            }
+        }
+    }
+
+    /** delta > 0 restores stock, delta < 0 decrements. failIfMissing=false tolerates a deleted product (removal path). */
+    private void adjustProductStock(UUID productId, int delta, boolean failIfMissing) {
+        Optional<Product> opt = productRepository.findById(productId);
+        if (opt.isEmpty()) {
+            if (failIfMissing) throw new IllegalArgumentException("Prodotto non trovato: " + productId);
+            return;
+        }
+        Product p = opt.get();
+        p.setStock(p.getStock() + delta);
+        productRepository.save(p);
     }
 
     /** Delete promo artifacts: sales FIRST (while promotion_link_id still identifies them), then links. */

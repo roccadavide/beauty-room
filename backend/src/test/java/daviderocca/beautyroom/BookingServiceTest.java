@@ -2,8 +2,12 @@ package daviderocca.beautyroom;
 
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.BookingSale;
 import daviderocca.beautyroom.entities.Customer;
+import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
@@ -15,6 +19,7 @@ import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.BookingSaleRepository;
+import daviderocca.beautyroom.repositories.ProductRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
 import daviderocca.beautyroom.services.BookingService;
 import daviderocca.beautyroom.packages.ClientPackageService;
@@ -29,7 +34,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,6 +70,8 @@ class BookingServiceTest {
     private daviderocca.beautyroom.services.ClosureService closureService;
     @Mock
     private BookingSaleRepository bookingSaleRepository;
+    @Mock
+    private ProductRepository productRepository;
 
     @InjectMocks
     private BookingService bookingService;
@@ -205,6 +215,172 @@ class BookingServiceTest {
         verify(clientPackageService, times(1)).recalculatePackageSessions(assignmentB);
         verifyNoMoreInteractions(
                 ignoreStubs(clientPackageService) // any other invocations would be a regression
+        );
+    }
+
+    // =========================================================================
+    // BE-3: reconcileStandaloneSales — standalone product sales <-> Product.stock.
+    // Private method, exercised in isolation via reflection (invokeReconcile below).
+    // =========================================================================
+
+    @Test
+    @DisplayName("BE-3: create — one new product decrements stock and saves a standalone sale")
+    void reconcileStandaloneSales_create_oneNewProduct_decrementsStockAndSavesSale() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId  = UUID.randomUUID();
+
+        Product product = new Product();
+        setFieldReflectively(product, "productId", productId);
+        product.setName("Crema Viso");
+        product.setStock(10);
+
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of());
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        AdminBookingCreateDTO dto = dtoWithSales(List.of(
+                new SaleEntryDTO(productId, 2, new BigDecimal("19.90"), true)));
+
+        invokeReconcile(bookingId, dto);
+
+        ArgumentCaptor<Product> pc = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(pc.capture());
+        assertThat(pc.getValue().getStock()).isEqualTo(8); // 10 - 2
+
+        ArgumentCaptor<BookingSale> sc = ArgumentCaptor.forClass(BookingSale.class);
+        verify(bookingSaleRepository).save(sc.capture());
+        BookingSale saved = sc.getValue();
+        assertThat(saved.getPromotionLinkId()).isNull(); // standalone, never a promo line
+        assertThat(saved.getBookingId()).isEqualTo(bookingId);
+        assertThat(saved.getProductId()).isEqualTo(productId);
+        assertThat(saved.getProductName()).isEqualTo("Crema Viso");
+        assertThat(saved.getQuantity()).isEqualTo(2);
+        assertThat(saved.getUnitPrice()).isEqualByComparingTo(new BigDecimal("19.90"));
+        assertThat(saved.isPaid()).isTrue();
+        verify(bookingSaleRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("BE-3: update — removing a standalone sale restores stock and deletes the row")
+    void reconcileStandaloneSales_update_removeStandaloneSale_restoresStockAndDeletes() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId  = UUID.randomUUID();
+
+        Product product = new Product();
+        setFieldReflectively(product, "productId", productId);
+        product.setName("Crema Viso");
+        product.setStock(5);
+
+        BookingSale existing = new BookingSale();
+        existing.setBookingId(bookingId);
+        existing.setProductId(productId);
+        existing.setProductName("Crema Viso");
+        existing.setQuantity(3);
+        existing.setUnitPrice(new BigDecimal("19.90"));
+        // promotionLinkId stays null -> standalone
+
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of(existing));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        AdminBookingCreateDTO dto = dtoWithSales(List.of()); // empty -> remove all standalone
+
+        invokeReconcile(bookingId, dto);
+
+        ArgumentCaptor<Product> pc = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(pc.capture());
+        assertThat(pc.getValue().getStock()).isEqualTo(8); // 5 + 3 restored
+
+        verify(bookingSaleRepository).delete(existing);
+        verify(bookingSaleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("BE-3: update — qty 2->3 decrements stock by 1 and updates the kept sale (no churn)")
+    void reconcileStandaloneSales_update_qtyIncrease_adjustsStockAndUpdatesSale() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId  = UUID.randomUUID();
+
+        Product product = new Product();
+        setFieldReflectively(product, "productId", productId);
+        product.setName("Crema Viso");
+        product.setStock(10);
+
+        BookingSale existing = new BookingSale();
+        existing.setBookingId(bookingId);
+        existing.setProductId(productId);
+        existing.setProductName("Crema Viso");
+        existing.setQuantity(2);
+        existing.setUnitPrice(new BigDecimal("19.90"));
+
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of(existing));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        AdminBookingCreateDTO dto = dtoWithSales(List.of(
+                new SaleEntryDTO(productId, 3, new BigDecimal("19.90"), false)));
+
+        invokeReconcile(bookingId, dto);
+
+        // delta = oldTotal(2) - new(3) = -1 -> decrement: 10 - 1
+        ArgumentCaptor<Product> pc = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(pc.capture());
+        assertThat(pc.getValue().getStock()).isEqualTo(9);
+
+        ArgumentCaptor<BookingSale> sc = ArgumentCaptor.forClass(BookingSale.class);
+        verify(bookingSaleRepository).save(sc.capture());
+        assertThat(sc.getValue()).isSameAs(existing);        // kept row reused, not recreated
+        assertThat(sc.getValue().getQuantity()).isEqualTo(3);
+        verify(bookingSaleRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("BE-3: saleEntries() == null is a no-op (no sale/product writes)")
+    void reconcileStandaloneSales_nullSaleEntries_isNoOp() {
+        UUID bookingId = UUID.randomUUID();
+        AdminBookingCreateDTO dto = dtoWithSales(null); // caller omitted products entirely
+
+        invokeReconcile(bookingId, dto);
+
+        verifyNoInteractions(bookingSaleRepository);
+        verifyNoInteractions(productRepository);
+    }
+
+    // Invokes the private reconcileStandaloneSales on the @InjectMocks instance. The test
+    // class lives in a different package, so reflection is the only access (mirrors the
+    // reflective field helpers below). InvocationTargetException is unwrapped so a helper
+    // exception surfaces with its real type.
+    private void invokeReconcile(UUID bookingId, AdminBookingCreateDTO dto) {
+        try {
+            var m = BookingService.class.getDeclaredMethod(
+                    "reconcileStandaloneSales", UUID.class, AdminBookingCreateDTO.class);
+            m.setAccessible(true);
+            m.invoke(bookingService, bookingId, dto);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException re) throw re;
+            throw new RuntimeException(cause);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("invokeReconcile failed", e);
+        }
+    }
+
+    // Minimal AdminBookingCreateDTO carrying only saleEntries — every other component is
+    // irrelevant to the reconcile. Positional ctor: keep in sync if the record changes.
+    private static AdminBookingCreateDTO dtoWithSales(List<SaleEntryDTO> sales) {
+        return new AdminBookingCreateDTO(
+                "Cliente Test", null, null, null,    // customerName, phone, email, customerId
+                null,                                 // serviceIds
+                false, null, null, null,             // hasCustomService, name, price, durationMin
+                null, null, null,                     // packageAssignmentId, packageAssignmentIds, packageCreditId
+                null, null,                           // currentSession, totalSessions
+                LocalDate.now(), LocalTime.of(10, 0), // date, startTime
+                null, null,                           // notes, paddingMinutes
+                false, false,                         // consentLaser, consentPmu
+                null, null,                           // serviceOptionId, paidInStore
+                null, null,                           // customTotalDurationMin, customTotalPrice
+                null,                                 // serviceEntries
+                null,                                 // customServicePaid
+                null,                                 // packageSessionPaid
+                null, null,                           // promotionIds, promotionPaid
+                sales                                 // saleEntries
         );
     }
 
