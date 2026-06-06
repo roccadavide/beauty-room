@@ -43,6 +43,11 @@ public class BookingSale {
     @Column(name = "original_unit_price", precision = 10, scale = 2)
     private BigDecimal originalUnitPrice;
 
+    // Block B: per-line paid flag for standalone product sales (drawer + quick-add).
+    // Promo product-lines ignore this (their paid lives on booking_promotion_link).
+    @Column(nullable = false)
+    private boolean paid = false;
+
     @PrePersist
     void onCreate() {
         addedAt = LocalDateTime.now();
