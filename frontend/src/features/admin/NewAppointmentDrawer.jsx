@@ -390,6 +390,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     });
     return m;
   });
+  // D2: the promo selector is collapsible — promotions are global and many, and most
+  // appointments use none. Collapsed by default; auto-open when a promo is already
+  // selected (edit mode) so the current selection stays visible. Transient UI —
+  // deliberately NOT persisted in formDraft (like the package expansion toggles).
+  const [promosOpen, setPromosOpen] = useState(() => selectedPromotionIds.size > 0);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState({ fullName: "", phone: "", email: "" });
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
@@ -1525,10 +1530,30 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       {/* ── Promozioni (08.5) — global, not customer-gated ─────────────────── */}
       {activePromotions.length > 0 && (
         <div className="nad-section ag-packages-section">
-          <div className="ag-active-pkg-header">
+          <button
+            type="button"
+            className="ag-active-pkg-header"
+            onClick={() => setPromosOpen(o => !o)}
+            aria-expanded={promosOpen}
+            style={{ background: "none", border: "none", padding: 0, width: "100%", cursor: "pointer", textAlign: "left" }}
+          >
             <span className="ag-active-pkg-header__icon">🏷️</span>
             <span className="ag-active-pkg-header__label">Promozioni</span>
-          </div>
+            <span style={{ marginLeft: "auto", fontSize: "0.78rem", fontWeight: 500, color: "var(--card-gold-deep, #8c6d3f)" }}>
+              {selectedPromotionIds.size > 0
+                ? `${selectedPromotionIds.size} selezionat${selectedPromotionIds.size === 1 ? "a" : "e"} · `
+                : ""}
+              {activePromotions.length} disponibil{activePromotions.length === 1 ? "e" : "i"}
+            </span>
+            <span
+              aria-hidden="true"
+              style={{ marginLeft: 8, display: "inline-block", transition: "transform 0.15s ease", transform: promosOpen ? "rotate(90deg)" : "none" }}
+            >
+              ▸
+            </span>
+          </button>
+          {promosOpen && (
+            <>
           <div className="d-flex flex-wrap gap-2 mt-1">
             {activePromotions.map(promo => {
               const isSelected = selectedPromotionIds.has(promo.promotionId);
@@ -1567,6 +1592,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           </div>
           {selectedPromotionIds.size > 0 && (
             <div className="nad-help mt-1">Il prezzo della promozione viene applicato automaticamente al salvataggio.</div>
+          )}
+            </>
           )}
         </div>
       )}
