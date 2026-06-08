@@ -25,8 +25,13 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
 
   // Per-row paid state, aligned by index to `items`. Locked rows stay true.
   const [rowsPaid, setRowsPaid] = useState(() => items.map(it => it.locked ? true : it.paid === true));
-  // Bundle: defensive init — empty items must NOT default to "paid".
-  const [bundlePaid, setBundlePaid] = useState(() => items.length > 0 && items.every(it => it.paid));
+  // Bundle: defensive init — empty items must NOT default to "paid". Products (kind
+  // "sale") aren't part of the bundle price (they're settled in the drawer / arretrati),
+  // so the bundle's paid state reflects the non-sale lines only.
+  const [bundlePaid, setBundlePaid] = useState(() => {
+    const nonSale = items.filter(it => it.kind !== "sale");
+    return nonSale.length > 0 && nonSale.every(it => it.paid);
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -60,7 +65,7 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
     // kind→key mapping lives in the shared applySettleLine (also used by the
     // ClientiPage arretrati panel) — customServicePaid is only added when a custom
     // line is present, matching the previous behavior.
-    const payload = { servicePaid: {}, packageSessionPaid: {}, promotionPaid: {}, alsoComplete: true };
+    const payload = { servicePaid: {}, packageSessionPaid: {}, promotionPaid: {}, salePaid: {}, alsoComplete: true };
     items.forEach((it, idx) => {
       if (it.locked) return; // upfront-paid package etc.: backend ignores it
       applySettleLine(payload, it.refKind, it.refId, rowsPaid[idx]);
@@ -99,7 +104,7 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
             <>
               <table className="ag-estimato-table">
                 <tbody>
-                  {items.map((it, idx) => (
+                  {items.filter(it => it.kind !== "sale").map((it, idx) => (
                     <tr key={idx}>
                       <td><span className="ag-muted">{it.label}</span></td>
                       <td className={`ag-estimato-price ag-muted${it.price == null ? " ag-estimato-price--null" : ""}`}>

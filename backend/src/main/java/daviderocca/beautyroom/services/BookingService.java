@@ -2041,6 +2041,20 @@ public class BookingService {
             }
         }
 
+        // Block B: standalone product sales. Flip booking_sales.paid for the given sale
+        // ids, guarded to standalone sales of THIS booking (promotionLinkId == null) —
+        // promo-linked sales settle via promotionPaid and the bundle (markAllPaid) is
+        // services/packages/promos/custom only, so products are never touched there.
+        // Independent of the bundle/markAllPaid branches above: a product is not part of
+        // the manual bundle price. Mirrors the promotionPaid block (fetch-all-by-booking).
+        if (req.salePaid() != null && !req.salePaid().isEmpty()) {
+            for (BookingSale sale : bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)) {
+                if (sale.getPromotionLinkId() != null) continue; // promo line — settled via promotionPaid
+                Boolean v = req.salePaid().get(sale.getId());
+                if (v != null) { sale.setPaid(v); bookingSaleRepository.save(sale); }
+            }
+        }
+
         bookingRepository.save(found);
 
         // alsoComplete — idempotent transition to COMPLETED.

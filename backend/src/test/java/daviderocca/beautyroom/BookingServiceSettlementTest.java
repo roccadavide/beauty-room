@@ -3,6 +3,7 @@ package daviderocca.beautyroom;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.BookingSale;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
@@ -10,6 +11,7 @@ import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.promotions.BookingPromotionLinkRepository;
 import daviderocca.beautyroom.repositories.BookingRepository;
+import daviderocca.beautyroom.repositories.BookingSaleRepository;
 import daviderocca.beautyroom.services.BookingService;
 import daviderocca.beautyroom.services.PackageCreditService;
 import jakarta.persistence.EntityManager;
@@ -51,6 +53,8 @@ class BookingServiceSettlementTest {
     // 08.2 added setAllPromotionLinksPaid(...) to the bundle/mark-all settle branches;
     // @InjectMocks would otherwise leave this null → NPE in those two tests (08.2b).
     @Mock private BookingPromotionLinkRepository bookingPromotionLinkRepository;
+    // M3-3: settleBookingLines now consumes salePaid → flips standalone booking_sales.paid.
+    @Mock private BookingSaleRepository bookingSaleRepository;
     @Mock private EntityManager entityManager;
 
     @InjectMocks private BookingService bookingService;
@@ -208,6 +212,83 @@ class BookingServiceSettlementTest {
 
         // The no-op booking_services UPDATE is replaced by routing the flag to paid_in_store.
         assertThat(booking.isPaidInStore()).isTrue();
+    }
+
+    // =========================================================================
+    // (e)/(f)/(g) Block B (M3-3) — salePaid flips standalone booking_sales.paid,
+    // independently of markAllPaid, never touching promo-linked sales.
+    // =========================================================================
+    @Test
+    @DisplayName("settleBookingLines — (e) salePaid flips a standalone product sale")
+    void settle_salePaid_flipsStandaloneSale() {
+        UUID id = UUID.randomUUID();
+        UUID saleId = UUID.randomUUID();
+        Booking booking = newBooking(id, BookingStatus.CONFIRMED); // non-bundle
+        BookingSale sale = newSale(saleId, id, null, false);       // standalone, unpaid
+        when(bookingRepository.findByIdForUpdate(id)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(id)).thenReturn(List.of(sale));
+
+        Map<UUID, Boolean> salePaid = new LinkedHashMap<>();
+        salePaid.put(saleId, true);
+        SettlementRequestDTO req = new SettlementRequestDTO(null, null, null, null, false, null, salePaid);
+
+        bookingService.settleBookingLines(id, req, admin());
+
+        assertThat(sale.isPaid()).isTrue();
+        verify(bookingSaleRepository).save(sale);
+    }
+
+    @Test
+    @DisplayName("settleBookingLines — (f) salePaid ignores promo-linked sales (guard holds)")
+    void settle_salePaid_ignoresPromoLinkedSale() {
+        UUID id = UUID.randomUUID();
+        UUID saleId = UUID.randomUUID();
+        Booking booking = newBooking(id, BookingStatus.CONFIRMED);
+        BookingSale promoSale = newSale(saleId, id, UUID.randomUUID(), false); // promo-linked
+        when(bookingRepository.findByIdForUpdate(id)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(id)).thenReturn(List.of(promoSale));
+
+        Map<UUID, Boolean> salePaid = new LinkedHashMap<>();
+        salePaid.put(saleId, true);
+        SettlementRequestDTO req = new SettlementRequestDTO(null, null, null, null, false, null, salePaid);
+
+        bookingService.settleBookingLines(id, req, admin());
+
+        // The standalone guard (promotionLinkId == null) skips it — settled via promotionPaid.
+        assertThat(promoSale.isPaid()).isFalse();
+        verify(bookingSaleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("settleBookingLines — (g) markAllPaid (no salePaid) never touches product sales")
+    void settle_markAllPaid_leavesProductsAlone() {
+        UUID id = UUID.randomUUID();
+        Booking booking = newBooking(id, BookingStatus.CONFIRMED);
+        when(bookingRepository.findByIdForUpdate(id)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(id)).thenReturn(List.of());
+        stubNativeQuery();
+
+        // Bulk mark-all, salePaid intentionally null (7th arg).
+        SettlementRequestDTO req = new SettlementRequestDTO(Boolean.TRUE, null, null, null, false, null, null);
+
+        bookingService.settleBookingLines(id, req, admin());
+
+        // The bundle/mark-all path settles services/packages/promos/custom only — products
+        // (booking_sales) are settled exclusively via salePaid, so the repo is never touched.
+        verifyNoInteractions(bookingSaleRepository);
+    }
+
+    /** A BookingSale fixture: promotionLinkId == null → standalone (settled via salePaid). */
+    private BookingSale newSale(UUID saleId, UUID bookingId, UUID promotionLinkId, boolean paid) {
+        BookingSale s = new BookingSale();
+        setFieldReflectively(s, "id", saleId);
+        s.setBookingId(bookingId);
+        s.setPromotionLinkId(promotionLinkId);
+        s.setPaid(paid);
+        return s;
     }
 
     // Reflective setter for private ids (mirrors BookingServiceTest).

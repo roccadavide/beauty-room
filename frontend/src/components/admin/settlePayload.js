@@ -8,6 +8,8 @@
  *   service / legacy → servicePaid        keyed by catalog service_id
  *   package          → packageSessionPaid keyed by ClientPackageAssignment id
  *   custom           → customServicePaid
+ *   promotion        → promotionPaid      keyed by promotion_id
+ *   sale             → salePaid           keyed by booking_sales id
  *   bundle           → markAllPaid (lockstep, enforced server-side)
  */
 
@@ -34,6 +36,11 @@ export function applySettleLine(payload, kind, refId, paid) {
     if (refId != null) {
       if (!payload.promotionPaid) payload.promotionPaid = {};
       payload.promotionPaid[String(refId)] = paid;
+    }
+  } else if (kind === "sale") {
+    if (refId != null) {
+      if (!payload.salePaid) payload.salePaid = {};
+      payload.salePaid[String(refId)] = paid;
     }
   } else if (kind === "bundle") {
     payload.markAllPaid = paid;

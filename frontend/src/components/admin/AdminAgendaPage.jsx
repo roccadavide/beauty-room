@@ -299,12 +299,16 @@ function computeBookingAmountDue(booking, items) {
 // by the caller (false on restore).
 function buildSnapshotPayload(booking, items) {
   if (booking.customTotalPrice != null) {
-    return { markAllPaid: items.length > 0 && items.every(it => it.paid) };
+    // Bundle: markAllPaid reflects the NON-sale lines only (products aren't part of the
+    // bundle; the bundle complete/undo never touches them).
+    const nonSale = items.filter(it => it.kind !== "sale");
+    return { markAllPaid: nonSale.length > 0 && nonSale.every(it => it.paid) };
   }
   const servicePaid = {};
   const packageSessionPaid = {};
   let customServicePaid;
   const promotionPaid = {};
+  const salePaid = {};
   items.forEach(it => {
     if (it.locked) return;
     if (it.refKind === "service" || it.refKind === "legacy") {
@@ -315,10 +319,13 @@ function buildSnapshotPayload(booking, items) {
       customServicePaid = it.paid === true;
     } else if (it.refKind === "promotion") {
       if (it.refId != null) promotionPaid[String(it.refId)] = it.paid === true;
+    } else if (it.refKind === "sale") {
+      if (it.refId != null) salePaid[String(it.refId)] = it.paid === true;
     }
   });
   const snap = { servicePaid, packageSessionPaid };
   if (Object.keys(promotionPaid).length) snap.promotionPaid = promotionPaid;
+  if (Object.keys(salePaid).length) snap.salePaid = salePaid;
   if (customServicePaid !== undefined) snap.customServicePaid = customServicePaid;
   return snap;
 }
