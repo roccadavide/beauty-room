@@ -234,6 +234,25 @@ function buildBreakdownItems(booking, priceMap) {
     });
   });
 
+  // e. Standalone product sales (Block B). booking_sales with promotionLinkId == null
+  // (promo-linked sales are folded into the promotion row above). Each is an individual
+  // priced line settled by its OWN paid flag (salePaid map) — never by paidOnline (admin
+  // adds these in-store) and never by the bundle markAllPaid (kept separate so a single
+  // unpaid product never re-dues the whole bundle — see computeBookingAmountDue).
+  const sales = Array.isArray(booking.linkedSales) ? booking.linkedSales : [];
+  sales.forEach(sale => {
+    const qty = sale.quantity ?? 1;
+    const unit = sale.unitPrice != null ? Number(sale.unitPrice) : null;
+    items.push({
+      label: `🛍️ ${sale.productName || "Prodotto"}${qty > 1 ? ` ×${qty}` : ""}`,
+      price: unit != null ? unit * qty : null,
+      kind: "sale",
+      paid: sale.paid === true,
+      refKind: "sale",
+      refId: sale.saleId,
+    });
+  });
+
   // d. Legacy fallback
   if (items.length === 0) {
     items.push({
@@ -258,10 +277,20 @@ function buildBreakdownItems(booking, priceMap) {
 // "incasso stimato" KPI to keep the two figures consistent.
 function computeBookingAmountDue(booking, items) {
   const isBundle = booking.customTotalPrice != null;
-  const anyUnpaid = items.some(it => !it.paid);
-  return isBundle
-    ? (anyUnpaid ? Number(booking.customTotalPrice) : 0)
-    : items.filter(it => !it.paid).reduce((acc, it) => acc + Number(it.price ?? 0), 0);
+  // Products (kind "sale") are always individual priced rows — never part of the
+  // manual bundle price. Sum their own unpaid rows.
+  const saleDue = items
+    .filter(it => it.kind === "sale" && !it.paid)
+    .reduce((acc, it) => acc + Number(it.price ?? 0), 0);
+  if (!isBundle) {
+    // Non-bundle: every unpaid line (services + products) counts at its own price.
+    return items.filter(it => !it.paid).reduce((acc, it) => acc + Number(it.price ?? 0), 0);
+  }
+  // Bundle: customTotalPrice is the all-or-nothing price for the NON-sale lines only
+  // (services/packages/promos), settled lockstep. Gate it on the non-sale lines so a
+  // single unpaid product never re-triggers the whole bundle, then add unpaid products.
+  const bundleUnpaid = items.some(it => it.kind !== "sale" && !it.paid);
+  return (bundleUnpaid ? Number(booking.customTotalPrice) : 0) + saleDue;
 }
 
 // Snapshot of the CURRENT (pre-completion) paid flags as a /settle-style payload.
@@ -322,8 +351,12 @@ function EstimatoModal({ bookings, services, onClose }) {
         const items = buildBreakdownItems(b, priceMap);
         const isBundle = b.customTotalPrice != null;
         const amountDue = computeBookingAmountDue(b, items);
-        // Display "Totale" row: bundle → gross bundle price; otherwise = da-incassare.
-        const total = isBundle ? Number(b.customTotalPrice) : amountDue;
+        // Display "Totale" row: bundle → manual bundle price + product rows (products are
+        // never folded into the manual price); otherwise = da-incassare.
+        const saleGross = items
+          .filter(it => it.kind === "sale")
+          .reduce((acc, it) => acc + Number(it.price ?? 0), 0);
+        const total = isBundle ? Number(b.customTotalPrice) + saleGross : amountDue;
         return { booking: b, pay: getPaymentLabel(b), items, total, amountDue, isBundle };
       }),
     [active, priceMap],
@@ -2005,8 +2038,9 @@ export default function AdminAgendaPage() {
                                   // booking dropped the custom from the card entirely.
                                   const hasCustom = !!(b.isCustomService && b.customServiceName);
                                   const promos = Array.isArray(b.linkedPromotions) ? b.linkedPromotions : [];
+                                  const sales = Array.isArray(b.linkedSales) ? b.linkedSales : [];
 
-                                  if (itemPkgs.length > 0 || promos.length > 0 || services.length > 0 || hasCustom) {
+                                  if (itemPkgs.length > 0 || promos.length > 0 || services.length > 0 || hasCustom || sales.length > 0) {
                                     // V62 Fix 2: per-line paid pills are ALWAYS visible —
                                     // no special-case branch when the appointment is fully
                                     // settled. Consistency beats the at-a-glance summary.
@@ -2190,6 +2224,25 @@ export default function AdminAgendaPage() {
                                             </span>
                                           </div>
                                         )}
+                                        {/* Block B: standalone product sales — 🛍️ rows after
+                                            services/custom. promo-linked sales (promotionLinkId != null)
+                                            already under the promotion dropdown above. */}
+                                        {sales.map((sale, saleIdx) => {
+                                          const saleQty = sale.quantity ?? 1;
+                                          const salePaid = sale.paid === true;
+                                          return (
+                                            <div className="ag-svc-entries__row" key={`sale-${sale.saleId ?? saleIdx}`}>
+                                              <span className="ag-svc-entries__promo-icon" aria-hidden="true">🛍️</span>
+                                              <span className="ag-svc-entries__name">
+                                                {sale.productName || "Prodotto"}
+                                                {saleQty > 1 ? ` ×${saleQty}` : ""}
+                                              </span>
+                                              <span className={`ag-pill ${salePaid ? "ag-pill--paid" : "ag-pill--unpaid"}`}>
+                                                {salePaid ? "✓ Pagato" : "⏳ Da pagare"}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     );
                                   }
