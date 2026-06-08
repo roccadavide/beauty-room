@@ -19,6 +19,7 @@ import {
 } from "../../api/modules/adminAgenda.api";
 import { createCustomer, getActivePackages, updateCustomer, deleteCustomer } from "../../api/modules/customer.api";
 import { fetchActivePromotions } from "../../api/modules/promotions.api";
+import { fetchProducts } from "../../api/modules/products.api";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import EditPackageModal from "../../components/common/EditPackageModal";
 import PackagesTab from "../../components/admin/PackagesTab";
@@ -161,6 +162,61 @@ function EditServizioModal({ servizio, catalogServices, onSave, onClose }) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+// Block B: one row in the "Servizi selezionati" panel's 🛍️ Prodotti group.
+// unitPrice stays a number in state; this row buffers the price input as a string
+// so typing decimals ("12.50") isn't eaten by the number round-trip, committing a
+// number on blur/Enter. Quantity stepper is clamped to maxQty by the parent handler.
+function SelectedProductRow({ prod, maxQty, isPaidOnline, onQty, onPrice, onPaid, onRemove }) {
+  const [priceDraft, setPriceDraft] = useState(String(prod.unitPrice ?? ""));
+  useEffect(() => {
+    setPriceDraft(String(prod.unitPrice ?? ""));
+  }, [prod.unitPrice]);
+  const commitPrice = () => {
+    const v = parseFloat(priceDraft);
+    onPrice(prod.productId, isNaN(v) || v < 0 ? 0 : v);
+  };
+  const lineTotal = Number(prod.unitPrice || 0) * prod.quantity;
+  const settled = isPaidOnline || prod.paid === true;
+  const stepBtn = {
+    width: 30, height: 30, borderRadius: 8, border: "1px solid var(--card-gold, #b8976a)",
+    background: "#fff", color: "var(--card-gold-deep, #8c6d3f)", fontSize: "1.1rem", lineHeight: 1, cursor: "pointer",
+  };
+  return (
+    <div className="ag-selected-service-row" style={{ background: "rgba(184,151,106,0.05)", flexWrap: "wrap" }}>
+      <span className="ag-selected-service-row__name">🛍️ {prod.name}</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <button type="button" style={stepBtn} onClick={() => onQty(prod.productId, -1)} disabled={prod.quantity <= 1} aria-label="Diminuisci">−</button>
+        <span style={{ minWidth: 20, textAlign: "center", fontWeight: 600 }}>{prod.quantity}</span>
+        <button type="button" style={stepBtn} onClick={() => onQty(prod.productId, 1)} disabled={prod.quantity >= maxQty} aria-label="Aumenta">+</button>
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <span style={{ color: "#8a7a64" }}>€</span>
+        <input
+          type="number" min={0} step={0.5} value={priceDraft} className="ag-edit-svc-input" style={{ width: 72 }}
+          onChange={e => setPriceDraft(e.target.value)}
+          onBlur={commitPrice}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commitPrice(); e.currentTarget.blur(); } }}
+        />
+        <span style={{ fontSize: "0.7rem", color: "#8a7a64" }}>cad.</span>
+      </span>
+      <span className="ag-selected-service-row__dur" style={{ fontWeight: 600 }}>€{lineTotal.toFixed(2)}</span>
+      {isPaidOnline ? (
+        <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>
+      ) : (
+        <button
+          type="button"
+          className={`ag-pill ag-pill--toggle ${settled ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+          title={settled ? "Segna come da pagare" : "Segna come pagato"}
+          onClick={() => onPaid(prod.productId, !settled)}
+        >
+          {settled ? "✓ Pagato" : "⏳ Da pagare"}
+        </button>
+      )}
+      <button type="button" className="ag-selected-service-row__remove" title="Rimuovi prodotto" onClick={() => onRemove(prod.productId)}>✕</button>
+    </div>
   );
 }
 
@@ -395,6 +451,99 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   // selected (edit mode) so the current selection stays visible. Transient UI —
   // deliberately NOT persisted in formDraft (like the package expansion toggles).
   const [promosOpen, setPromosOpen] = useState(() => selectedPromotionIds.size > 0);
+
+  // ── Products (Block B / M2) ────────────────────────────────────────────────
+  // Products are EXTRAS: they add to the booking total (never duration), are sent
+  // as saleEntries on save, and they move stock. selectedProducts is one row per
+  // productId; edit/duplicate seed from editBooking.linkedSales (SaleSummaryDTO).
+  // The catalog is fetched once on mount.
+  const [productCatalog, setProductCatalog] = useState([]);
+  const [selectedProducts, setSelectedProducts] = useState(() => {
+    if (!hasBookingData) return initialDraft?.selectedProducts ?? [];
+    if (Array.isArray(editBooking.linkedSales) && editBooking.linkedSales.length > 0) {
+      return editBooking.linkedSales.map(s => ({
+        productId: s.productId,
+        name: s.productName,
+        unitPrice: s.unitPrice != null ? Number(s.unitPrice) : 0,
+        quantity: s.quantity ?? 1,
+        paid: s.paid === true,
+      }));
+    }
+    return [];
+  });
+
+  // ── Products selector (Block B / M2-2) ─────────────────────────────────────
+  const [itemMode, setItemMode] = useState("servizi"); // "servizi" | "prodotti" — toggles the input. Transient UI (not persisted).
+  const [productSearch, setProductSearch] = useState("");
+  // Active products filtered by the search box.
+  const filteredProducts = useMemo(() => {
+    let list = (productCatalog || []).filter(p => p.active !== false);
+    const needle = productSearch.trim().toLowerCase();
+    if (needle) list = list.filter(p => p.name?.toLowerCase().includes(needle));
+    return list;
+  }, [productCatalog, productSearch]);
+  // Stock already reflects THIS booking's saved sales. Remaining = stock + qty saved
+  // for this booking − qty in the draft, so editing never double-subtracts a saved line.
+  const savedSaleQtyByProduct = useMemo(() => {
+    const m = new Map();
+    if (hasBookingData && Array.isArray(editBooking.linkedSales)) {
+      editBooking.linkedSales.forEach(s => m.set(s.productId, (m.get(s.productId) ?? 0) + (s.quantity ?? 0)));
+    }
+    return m;
+  }, [hasBookingData, editBooking]);
+  const productRemaining = useCallback(
+    p => {
+      const saved = savedSaleQtyByProduct.get(p.productId) ?? 0;
+      const draft = selectedProducts.find(sp => sp.productId === p.productId)?.quantity ?? 0;
+      return Number(p.stock ?? 0) + saved - draft;
+    },
+    [savedSaleQtyByProduct, selectedProducts],
+  );
+  // Tap a product → add (qty 1) or increment, clamped to available stock (no oversell).
+  const addOrIncProduct = useCallback(
+    product => {
+      const pid = product.productId;
+      const max = Number(product.stock ?? 0) + (savedSaleQtyByProduct.get(pid) ?? 0);
+      setSelectedProducts(prev => {
+        const idx = prev.findIndex(sp => sp.productId === pid);
+        if (idx >= 0) {
+          if (prev[idx].quantity >= max) return prev;
+          const next = [...prev];
+          next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+          return next;
+        }
+        if (max <= 0) return prev;
+        return [...prev, { productId: pid, name: product.name, unitPrice: product.price != null ? Number(product.price) : 0, quantity: 1, paid: false }];
+      });
+    },
+    [savedSaleQtyByProduct],
+  );
+  const changeProductQty = useCallback(
+    (productId, delta) => {
+      setSelectedProducts(prev =>
+        prev.map(sp => {
+          if (sp.productId !== productId) return sp;
+          const catalog = productCatalog.find(p => p.productId === productId);
+          const max = catalog ? Number(catalog.stock ?? 0) + (savedSaleQtyByProduct.get(productId) ?? 0) : sp.quantity;
+          return { ...sp, quantity: Math.min(max, Math.max(1, sp.quantity + delta)) };
+        }),
+      );
+    },
+    [productCatalog, savedSaleQtyByProduct],
+  );
+  const setProductUnitPrice = useCallback((productId, value) => {
+    setSelectedProducts(prev => prev.map(sp => (sp.productId === productId ? { ...sp, unitPrice: value } : sp)));
+  }, []);
+  const setProductPaid = useCallback((productId, paid) => {
+    setSelectedProducts(prev => prev.map(sp => (sp.productId === productId ? { ...sp, paid } : sp)));
+  }, []);
+  const removeProduct = useCallback(productId => {
+    setSelectedProducts(prev => prev.filter(sp => sp.productId !== productId));
+  }, []);
+  const productsSubtotal = useMemo(
+    () => selectedProducts.reduce((sum, p) => sum + Number(p.unitPrice || 0) * p.quantity, 0),
+    [selectedProducts],
+  );
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState({ fullName: "", phone: "", email: "" });
   const [customerEditSaving, setCustomerEditSaving] = useState(false);
@@ -848,6 +997,20 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     })();
   }, []);
 
+  // Fetch the product catalog once on mount (Block B). Global like promotions;
+  // used by the Prodotti selector (M2-2) and to resolve stock/price.
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await fetchProducts();
+        setProductCatalog(Array.isArray(list) ? list : (list?.content ?? []));
+      } catch (err) {
+        console.error("Product catalog fetch failed (non-blocking):", err);
+        setProductCatalog([]);
+      }
+    })();
+  }, []);
+
   // ── Slot fetch ────────────────────────────────────────────────────────────
   const fetchSlots = useCallback(async (date, duration, excludeId = null) => {
     if (!date || !duration || duration < 5) return;
@@ -1162,8 +1325,9 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       notes,
       selectedPromotionIds: Array.from(selectedPromotionIds),
       promotionPaid: Array.from(promotionPaid.entries()),
+      selectedProducts,
     }),
-    [selectedServices, serviceItems, selectedPackageIds, packageDurationOverrides, selectedPackageCreditId, packageSessionPaid, customServicePaid, totalDurationOverride, totalPriceOverride, appointmentDate, selectedSlot, customTime, paddingMinutes, notes, selectedPromotionIds, promotionPaid],
+    [selectedServices, serviceItems, selectedPackageIds, packageDurationOverrides, selectedPackageCreditId, packageSessionPaid, customServicePaid, totalDurationOverride, totalPriceOverride, appointmentDate, selectedSlot, customTime, paddingMinutes, notes, selectedPromotionIds, promotionPaid, selectedProducts],
   );
   // Latest snapshot in a ref so the unmount flush captures the final edit even if
   // a passive effect hasn't run yet (fast tab-switch). onDraftChange is undefined
@@ -1240,6 +1404,17 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         // backend no longer derives anything from drawer payloads on this field.
         customServicePaid: customItems.length > 0 ? customServicePaid : false,
         packageSessionPaid: Object.fromEntries(packageSessionPaid),
+        // Block B: standalone product sales (extras). productId-keyed; the backend
+        // reconciles them into booking_sales and moves stock. [] ⇒ remove all
+        // standalone sales (pre-fill from linkedSales prevents wiping quick-add ones).
+        saleEntries: selectedProducts
+          .filter(p => p.productId && p.quantity >= 1)
+          .map(p => ({
+            productId: p.productId,
+            quantity: p.quantity,
+            unitPrice: p.unitPrice,
+            paid: p.paid === true,
+          })),
       };
 
       if (isEditMode) {
@@ -1600,8 +1775,21 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
       {/* ── Section 2: Servizi ─────────────────────────────────────────────── */}
       <div className="nad-section">
-        <div className="nad-section__title">Servizi</div>
+        <div className="nad-section__title">Servizi e prodotti</div>
 
+        {/* Block B: switch the input between the service catalog and the product
+            selector. The "Servizi selezionati" summary below stays visible in both. */}
+        <div className="nad-form__chips" style={{ marginBottom: 10 }}>
+          <button type="button" className={`nad-chip${itemMode === "servizi" ? " is-active" : ""}`} onClick={() => setItemMode("servizi")}>
+            Servizi
+          </button>
+          <button type="button" className={`nad-chip${itemMode === "prodotti" ? " is-active" : ""}`} onClick={() => setItemMode("prodotti")}>
+            🛍️ Prodotti
+          </button>
+        </div>
+
+        {itemMode === "servizi" && (
+          <>
         {/* ── Catalog picker ────────────────────────────────────────────────── */}
         <input
           type="text"
@@ -1762,12 +1950,55 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
             </div>
           </div>
         )}
+          </>
+        )}
+
+        {itemMode === "prodotti" && (
+          <>
+            <input
+              type="text"
+              className="ag-service-search"
+              placeholder="Cerca prodotto…"
+              value={productSearch}
+              onChange={e => setProductSearch(e.target.value)}
+              autoComplete="off"
+            />
+            <div className="ag-service-list">
+              {filteredProducts.length === 0 && (
+                <div className="ag-service-empty">{productSearch.trim() ? "Nessun prodotto trovato." : "Nessun prodotto disponibile."}</div>
+              )}
+              {filteredProducts.map(p => {
+                const inCart = selectedProducts.find(sp => sp.productId === p.productId);
+                const remaining = productRemaining(p);
+                const soldOut = remaining <= 0;
+                return (
+                  <button
+                    key={p.productId}
+                    type="button"
+                    className={`ag-service-item${inCart ? " ag-service-item--selected" : ""}`}
+                    disabled={soldOut}
+                    onClick={() => addOrIncProduct(p)}
+                  >
+                    <span className="ag-service-item__title">{p.name}</span>
+                    <span className="ag-service-item__meta">
+                      {p.price != null ? `€${Number(p.price).toFixed(0)}` : ""}
+                      {" · "}
+                      <span style={{ color: soldOut ? "#c0392b" : undefined }}>{Math.max(0, remaining)} disp.</span>
+                    </span>
+                    {inCart && <span className="ag-service-item__selected-count">×{inCart.quantity}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="nad-help">Tocca un prodotto per aggiungerlo. Quantità, prezzo e rimozione si gestiscono sotto, in "Servizi selezionati".</div>
+          </>
+        )}
 
         {/* ── Selected services panel ───────────────────────────────────────── */}
-        {(selectedPackageIds.size > 0 || selectedPromotionIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0) && (
+        {(selectedPackageIds.size > 0 || selectedPromotionIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0 || selectedProducts.length > 0) && (
           <div className="ag-selected-services">
             <div className="ag-selected-services__label">
-              Servizi selezionati ({selectedPackageIds.size + selectedPromotionIds.size + selectedServices.length + serviceItems.length})
+              Servizi selezionati ({selectedPackageIds.size + selectedPromotionIds.size + selectedServices.length + serviceItems.length + selectedProducts.length})
             </div>
             {/* V62: bulk paid toggle. Counts editable lines (catalog rows +
                 non-paidUpfront packages + custom-service line if present); a
@@ -1781,13 +2012,14 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               });
               const promoIds = Array.from(selectedPromotionIds);
               const hasCustomLine = serviceItems.length > 0;
-              const editableCount = selectedServices.length + editablePkgIds.length + promoIds.length + (hasCustomLine ? 1 : 0);
+              const editableCount = selectedServices.length + editablePkgIds.length + promoIds.length + (hasCustomLine ? 1 : 0) + selectedProducts.length;
               if (editableCount === 0) return null;
               const allSettled =
                 selectedServices.every(ss => ss.paid === true) &&
                 editablePkgIds.every(id => packageSessionPaid.get(id) === true) &&
                 promoIds.every(id => promotionPaid.get(id) === true) &&
-                (!hasCustomLine || customServicePaid);
+                (!hasCustomLine || customServicePaid) &&
+                selectedProducts.every(p => p.paid === true);
               const flip = () => {
                 const next = !allSettled;
                 setSelectedServices(prev => prev.map(s => ({ ...s, paid: next })));
@@ -1802,6 +2034,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                   return m;
                 });
                 if (hasCustomLine) setCustomServicePaid(next);
+                setSelectedProducts(prev => prev.map(p => ({ ...p, paid: next })));
               };
               return (
                 <div className="ag-selected-services__bulk">
@@ -2110,6 +2343,33 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 </div>
               );
             })}
+            {/* 🛍️ Prodotti group (Block B) — products affect price only, never duration. */}
+            {selectedProducts.length > 0 && (
+              <>
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed rgba(184,151,106,0.45)", fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--card-gold-deep, #8c6d3f)" }}>
+                  🛍️ Prodotti
+                </div>
+                {selectedProducts.map(prod => {
+                  const catalog = productCatalog.find(p => p.productId === prod.productId);
+                  const maxQty = catalog ? Number(catalog.stock ?? 0) + (savedSaleQtyByProduct.get(prod.productId) ?? 0) : prod.quantity;
+                  return (
+                    <SelectedProductRow
+                      key={prod.productId}
+                      prod={prod}
+                      maxQty={maxQty}
+                      isPaidOnline={isPaidOnline}
+                      onQty={changeProductQty}
+                      onPrice={setProductUnitPrice}
+                      onPaid={setProductPaid}
+                      onRemove={removeProduct}
+                    />
+                  );
+                })}
+                <div className="ag-selected-services__total">
+                  <span>Subtotale prodotti: <b>€{productsSubtotal.toFixed(2)}</b></span>
+                </div>
+              </>
+            )}
             {(() => {
               const computedTotal = totalDuration;
               const displayTotal = totalDurationOverride ?? computedTotal;
