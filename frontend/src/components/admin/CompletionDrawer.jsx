@@ -73,12 +73,24 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
     return payload;
   };
 
+  // Bundle: the atomic toggle settles the services bundle (markAllPaid); products are
+  // settled individually via salePaid, exactly like the non-bundle path — products are
+  // never part of the manual bundle price (see computeBookingAmountDue).
+  const buildBundlePayload = () => {
+    const payload = { markAllPaid: bundlePaid, alsoComplete: true };
+    items.forEach((it, idx) => {
+      if (it.kind === "sale" && it.refId != null) {
+        if (!payload.salePaid) payload.salePaid = {};
+        payload.salePaid[String(it.refId)] = rowsPaid[idx];
+      }
+    });
+    return payload;
+  };
+
   const handleConfirm = async () => {
     setSaving(true);
     try {
-      const payload = isBundle
-        ? { markAllPaid: bundlePaid, alsoComplete: true }
-        : buildNormalPayload();
+      const payload = isBundle ? buildBundlePayload() : buildNormalPayload();
       await onConfirm(payload);
     } finally {
       setSaving(false);
@@ -127,6 +139,42 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
                   {bundlePaid ? "✓ Pagato in totale" : "⏳ Pagato in totale"}
                 </button>
               </div>
+              {/* Products are NOT part of the manual bundle price — settle them
+                  individually here so a bundle appointment is completed in one place
+                  (otherwise an unpaid product would silently land in arretrati). */}
+              {items.some(it => it.kind === "sale") && (
+                <>
+                  <p style={{ padding: "0.75rem 1rem 0.25rem", margin: 0, fontSize: "0.8rem", fontWeight: 600, color: "#8c6d3f" }}>
+                    🛍️ Prodotti (a parte)
+                  </p>
+                  <table className="ag-estimato-table">
+                    <tbody>
+                      {items.map((it, idx) =>
+                        it.kind === "sale" ? (
+                          <tr key={idx} className={rowsPaid[idx] ? "ag-estimato-row--paid" : ""}>
+                            <td>
+                              <span style={rowsPaid[idx] ? { textDecoration: "line-through", opacity: 0.55 } : undefined}>{it.label}</span>
+                            </td>
+                            <td className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}>
+                              {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={`ag-pill ag-pill--toggle ${rowsPaid[idx] ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                                onClick={() => toggleRow(idx)}
+                                title={rowsPaid[idx] ? "Segna come da pagare" : "Segna come pagato"}
+                              >
+                                {rowsPaid[idx] ? "✓ Pagato" : "⏳ Da pagare"}
+                              </button>
+                            </td>
+                          </tr>
+                        ) : null,
+                      )}
+                    </tbody>
+                  </table>
+                </>
+              )}
             </>
           ) : (
             <table className="ag-estimato-table">

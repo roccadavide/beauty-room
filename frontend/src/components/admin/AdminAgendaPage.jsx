@@ -299,10 +299,17 @@ function computeBookingAmountDue(booking, items) {
 // by the caller (false on restore).
 function buildSnapshotPayload(booking, items) {
   if (booking.customTotalPrice != null) {
-    // Bundle: markAllPaid reflects the NON-sale lines only (products aren't part of the
-    // bundle; the bundle complete/undo never touches them).
+    // Bundle: markAllPaid reflects the NON-sale lines (services). Products are settled
+    // individually (salePaid) even in bundle mode (CompletionDrawer products section), so
+    // capture their pre-completion paid state too for a faithful undo.
     const nonSale = items.filter(it => it.kind !== "sale");
-    return { markAllPaid: nonSale.length > 0 && nonSale.every(it => it.paid) };
+    const snap = { markAllPaid: nonSale.length > 0 && nonSale.every(it => it.paid) };
+    const salePaid = {};
+    items.forEach(it => {
+      if (it.kind === "sale" && it.refId != null) salePaid[String(it.refId)] = it.paid === true;
+    });
+    if (Object.keys(salePaid).length) snap.salePaid = salePaid;
+    return snap;
   }
   const servicePaid = {};
   const packageSessionPaid = {};
