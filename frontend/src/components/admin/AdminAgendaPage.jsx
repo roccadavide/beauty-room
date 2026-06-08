@@ -19,7 +19,6 @@ import {
 } from "../../api/modules/adminAgenda.api";
 import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../utils/reminders";
 import BookingModal from "./BookingModal";
-import BookingSalePanel from "./BookingSalePanel";
 import CompletionDrawer from "./CompletionDrawer";
 import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
 import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
@@ -931,7 +930,6 @@ export default function AdminAgendaPage() {
   const [completedUndo, setCompletedUndo] = useState({});
   const [closuresDrawerOpen, setClosuresDrawerOpen] = useState(false);
   const [closures, setClosures] = useState([]);
-  const [openSalePanel, setOpenSalePanel] = useState(null);
   const [paddingEditing, setPaddingEditing] = useState(null); // bookingId in edit
   const [paddingSaving, setPaddingSaving] = useState(null); // bookingId in saving
   const [paddingDraft, setPaddingDraft] = useState(0); // valore locale mentre si edita
@@ -2533,13 +2531,6 @@ export default function AdminAgendaPage() {
                             <Button className="ag-btn ag-btn--danger" size="sm" onClick={() => askDelete(b)}>
                               Elimina
                             </Button>
-                            <Button
-                              className="ag-btn ag-btn--soft"
-                              size="sm"
-                              onClick={() => setOpenSalePanel(openSalePanel === b.bookingId ? null : b.bookingId)}
-                            >
-                              🛍️ Prodotto
-                            </Button>
                           </div>
 
                           {/* Arretrati dropdown — expands the item below the actions (NOT the
@@ -2662,8 +2653,6 @@ export default function AdminAgendaPage() {
                                 </div>
                               );
                             })()}
-
-                          {openSalePanel === b.bookingId && <BookingSalePanel bookingId={b.bookingId} onClose={() => setOpenSalePanel(null)} />}
                         </div>
                       );
                     })}
