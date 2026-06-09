@@ -26,6 +26,7 @@ import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
 import ClosuresDrawer from "../../features/admin/ClosuresDrawer";
 import ConfirmDialog from "../common/ConfirmDialog";
 import WeeklyCalendar from "./WeeklyCalendar";
+import { VerifiedBadge, OnlineBadge } from "./AgendaBadges";
 import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
 import DateTimeField from "../common/DateTimeField";
@@ -654,7 +655,10 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
         {booking && tier === "tiny" && <div className="ag-tl-booking__label ag-tl-booking__label--tiny">{slot.start}</div>}
         {booking && tier === "compact" && (
           <div className="ag-tl-booking__label">
-            <div className="ag-tl-booking__customer">{shortCustomerName(booking.customerName)}</div>
+            <div className="ag-tl-booking__customer">
+              {shortCustomerName(booking.customerName)}
+              {booking.customerVerified && <VerifiedBadge size={12} />}
+            </div>
             <div className="ag-tl-booking__service">{serviceName}</div>
           </div>
         )}
@@ -663,11 +667,13 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
             <div className="ag-tl-booking__service">{serviceName}</div>
             <div className="ag-tl-booking__customer">
               {shortCustomerName(booking.customerName)}
+              {booking.customerVerified && <VerifiedBadge />}
               {booking.sessionsRemaining === 1 && (
                 <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
                   ⚠
                 </span>
               )}
+              {!booking.createdByAdmin && !booking.paidOnline && <OnlineBadge />}
             </div>
           </div>
         )}
@@ -2016,6 +2022,7 @@ export default function AdminAgendaPage() {
                             <div className="ag-item__main">
                               <div className="ag-item__name">
                                 {b.customerName}
+                                {b.customerVerified && <VerifiedBadge />}
                                 {b.hasOutstanding && (
                                   <button
                                     type="button"
@@ -2334,6 +2341,7 @@ export default function AdminAgendaPage() {
 
                             <div className="ag-item__timecol">
                               <div className="ag-item__pills">
+                                {!b.createdByAdmin && !b.paidOnline && <OnlineBadge />}
                                 <StatusPill status={b.status} />
                                 {/* V62 Fix 2: top-right "Pagato" pill removed in favour of
                                     always-visible per-line pills below. Refund keeps its

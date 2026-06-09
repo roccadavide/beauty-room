@@ -3986,3 +3986,31 @@ button.ag-pill:hover,
     justify-content: center;
   }
 }
+
+/* feat/online-pay-in-store — agenda badges (Editorial Beauty) */
+.ag-verified {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  color: var(--card-gold, #b8976a);
+  line-height: 0;
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+.ag-verified svg { display: block; }
+
+.ag-badge-online {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--card-gold-deep, #8c6d3f);
+  background: rgba(184, 151, 106, 0.12);
+  border: 1px solid rgba(184, 151, 106, 0.4);
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.3;
+}
