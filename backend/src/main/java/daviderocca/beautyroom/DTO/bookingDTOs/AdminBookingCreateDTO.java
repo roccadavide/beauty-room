@@ -114,5 +114,10 @@ public record AdminBookingCreateDTO(
         List<UUID> promotionIds,
 
         // V65 (08.1): per-promotion paid toggle, keyed by promotionId (mirrors packageSessionPaid).
-        Map<UUID, Boolean> promotionPaid
+        Map<UUID, Boolean> promotionPaid,
+
+        // BE-2 (scope A, Option A): standalone product sales riding along in the booking
+        // payload, reconciled like packages/promos. Unused until BE-3 — present only to grow
+        // the payload shape. Appended last so Jackson name-based deserialization stays safe.
+        List<SaleEntryDTO> saleEntries
 ) {}

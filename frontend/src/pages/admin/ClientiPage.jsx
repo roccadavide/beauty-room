@@ -10,6 +10,7 @@ import { fetchAllUsers, patchUserVerified } from "../../api/modules/users.api";
 import { markLatestNoShowForUser } from "../../api/modules/bookings.api";
 import SEO from "../../components/common/SEO";
 import { buildArretratoSettlePayload } from "../../components/admin/settlePayload";
+import { formatEuro } from "../../utils/formatEuro";
 
 const STATUS_META = {
   PENDING: { label: "In attesa", tone: "pending" },
@@ -485,7 +486,7 @@ function ClientSummary({ customer, loading, error, onNotesChange, onSettle }) {
                           <span className="cli-save-ok">Saldato ✓</span>
                         ) : (
                           <>
-                            <span>{a.price == null ? "—" : `€${Number(a.price).toFixed(0)}`}</span>
+                            <span>{formatEuro(a.price)}</span>
                             <button
                               type="button"
                               className="cli-btn cli-btn--sm"
@@ -522,7 +523,7 @@ function ClientSummary({ customer, loading, error, onNotesChange, onSettle }) {
         title="Salda arretrato"
         message={
           confirmArretrato
-            ? `Confermi di saldare questo arretrato? ${confirmArretrato.label} del ${formatDateTimeIT(confirmArretrato.occurredAt)} — ${confirmArretrato.price == null ? "—" : `€${Number(confirmArretrato.price).toFixed(0)}`}`
+            ? `Confermi di saldare questo arretrato? ${confirmArretrato.label} del ${formatDateTimeIT(confirmArretrato.occurredAt)} — ${formatEuro(confirmArretrato.price)}`
             : ""
         }
         confirmLabel="Salda"

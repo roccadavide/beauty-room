@@ -277,10 +277,20 @@ public class CustomerService {
      *  source of truth for the row shape — used by getSummary AND getArretratiForBooking,
      *  so the two never drift in column order/coercion. */
     private ArretratoLineDTO toArretrato(Object[] r) {
+        // Emoji live HERE, not in the native @Query — Spring Data's QuotationMap mishandles
+        // astral-plane chars (UTF-16 surrogate pairs), unbalancing quote tracking and breaking
+        // repository creation at boot. Sales → 🛍️, promotions → 🏷️; other kinds keep the plain label.
+        String kind = (String) r[4];
+        String rawLabel = (String) r[2];
+        String label = switch (kind) {
+            case "sale" -> "🛍️ " + rawLabel;
+            case "promotion" -> "🏷️ " + rawLabel;
+            default -> rawLabel;
+        };
         return new ArretratoLineDTO(
                 asUuid(r[0]),
                 asDateTime(r[1]),
-                (String) r[2],
+                label,
                 asBigDecimal(r[3]),
                 (String) r[4],
                 asUuid(r[5]));

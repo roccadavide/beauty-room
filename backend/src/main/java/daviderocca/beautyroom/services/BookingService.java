@@ -14,12 +14,14 @@ import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WorkingHours;
 import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCreateDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoLineSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.SaleSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
@@ -73,8 +75,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -885,6 +889,9 @@ public class BookingService {
             buildAndPersistPromotionLink(saved, promo, dto);
         }
 
+        // ── Block B: reconcile standalone product sales (promotion_link_id IS NULL) ──
+        reconcileStandaloneSales(saved.getBookingId(), dto);
+
         // ── Step 7: auto account-linking ──────────────────────────────────────
         try {
             LinkingOutcome outcome = userLookupService.tryLink(saved.getCustomerName());
@@ -1241,6 +1248,10 @@ public class BookingService {
         BookingStatus promoSt = found.getBookingStatus();
         if (promoSt == BookingStatus.PENDING_PAYMENT || promoSt == BookingStatus.CONFIRMED) {
             restorePromoStockForBooking(found.getBookingId());
+            // Block B: restore standalone-sale stock under the IDENTICAL held-only guard. A booking
+            // already CANCELLED (stock restored on cancel) is excluded here → no double-restore. The
+            // standalone rows themselves vanish with the booking via the booking_sales FK cascade (V15).
+            restoreStandaloneSaleStock(found.getBookingId());
         }
         deleteAllPromoArtifactsForBooking(found.getBookingId());
         entityManager.flush();
@@ -1826,6 +1837,9 @@ public class BookingService {
             }
         }
 
+        // ── Block B: reconcile standalone product sales (promotion_link_id IS NULL) ──
+        reconcileStandaloneSales(bookingId, dto);
+
         // Back-compat: when the booking has exactly one link and the request resolves
         // to that same single package, honor dto.currentSession as a direct session-number
         // override (Phase 4 behaviour). With multiple links this is intentionally ignored.
@@ -1877,6 +1891,8 @@ public class BookingService {
             // 08.2: restore promo-product stock on the transition into CANCELLED.
             // old == CANCELLED already threw above (~:1726) → this never double-restores.
             restorePromoStockForBooking(bookingId);
+            // Block B: same transition-guarded restore for standalone sales (rows kept).
+            restoreStandaloneSaleStock(bookingId);
         }
         if (newStatus == BookingStatus.NO_SHOW) {
             found.setCanceledAt(LocalDateTime.now());
@@ -2022,6 +2038,20 @@ public class BookingService {
             if (legacyPrincipal && req.servicePaid() != null) {
                 Boolean v = req.servicePaid().get(found.getService().getServiceId());
                 if (v != null) found.setPaidInStore(v);
+            }
+        }
+
+        // Block B: standalone product sales. Flip booking_sales.paid for the given sale
+        // ids, guarded to standalone sales of THIS booking (promotionLinkId == null) —
+        // promo-linked sales settle via promotionPaid and the bundle (markAllPaid) is
+        // services/packages/promos/custom only, so products are never touched there.
+        // Independent of the bundle/markAllPaid branches above: a product is not part of
+        // the manual bundle price. Mirrors the promotionPaid block (fetch-all-by-booking).
+        if (req.salePaid() != null && !req.salePaid().isEmpty()) {
+            for (BookingSale sale : bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)) {
+                if (sale.getPromotionLinkId() != null) continue; // promo line — settled via promotionPaid
+                Boolean v = req.salePaid().get(sale.getId());
+                if (v != null) { sale.setPaid(v); bookingSaleRepository.save(sale); }
             }
         }
 
@@ -2263,6 +2293,16 @@ public class BookingService {
         }
     }
 
+    /** Block B: restore Product.stock for this booking's STANDALONE sales (promotion_link_id IS NULL).
+     *  Promo product-lines are left to restorePromoStockForBooking. Idempotency is the caller's job —
+     *  wired under the SAME guard as the promo restore so cancel-then-delete restores once, never twice. */
+    private void restoreStandaloneSaleStock(UUID bookingId) {
+        for (BookingSale s : bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)) {
+            if (s.getPromotionLinkId() != null) continue; // promo line → owned by restorePromoStockForBooking
+            adjustProductStock(s.getProductId(), s.getQuantity(), false); // restore; tolerate missing product
+        }
+    }
+
     /** 08.2b reconcile-remove: restore +qty stock for ONE promo link's product-sales, delete those
      *  sales, then delete the link (items cascade via orphanRemoval + DB FK). */
     private void detachPromotionLink(java.util.UUID bookingId, BookingPromotionLink link) {
@@ -2277,6 +2317,91 @@ public class BookingService {
             }
         }
         bookingPromotionLinkRepository.delete(link);
+    }
+
+    /**
+     * Block B: reconcile STANDALONE product sales (promotion_link_id IS NULL) so they
+     * match dto.saleEntries(), keyed by productId, adjusting Product.stock by the qty
+     * delta. Promo product-lines are never touched here (the promo reconcile, which runs
+     * before this, owns their stock). Runs inline in the booking's transaction — a plain
+     * private method, never REQUIRES_NEW, so it sees the still-uncommitted booking.
+     *
+     * null saleEntries() -> no-op (caller omitted products; leave existing standalone
+     * sales, including quick-add ones, untouched). Empty list -> remove all standalone.
+     */
+    private void reconcileStandaloneSales(UUID bookingId, AdminBookingCreateDTO dto) {
+        if (dto.saleEntries() == null) return;
+
+        // Desired set, merged by productId (defensive against duplicate lines).
+        Map<UUID, SaleEntryDTO> desired = new LinkedHashMap<>();
+        for (SaleEntryDTO e : dto.saleEntries()) {
+            if (e == null || e.productId() == null) continue;
+            int qty = Math.max(1, e.quantity());
+            SaleEntryDTO prev = desired.get(e.productId());
+            desired.put(e.productId(), prev == null
+                    ? new SaleEntryDTO(e.productId(), qty, e.unitPrice(), e.paid())
+                    : new SaleEntryDTO(e.productId(), prev.quantity() + qty, e.unitPrice(), e.paid()));
+        }
+
+        // Existing STANDALONE sales, grouped by productId (promo lines excluded).
+        Map<UUID, List<BookingSale>> existing = bookingSaleRepository
+                .findByBookingIdOrderByAddedAtDesc(bookingId).stream()
+                .filter(s -> s.getPromotionLinkId() == null)
+                .collect(Collectors.groupingBy(BookingSale::getProductId, LinkedHashMap::new, Collectors.toList()));
+
+        // 1) Products no longer desired -> restore stock, delete rows.
+        for (Map.Entry<UUID, List<BookingSale>> en : existing.entrySet()) {
+            if (desired.containsKey(en.getKey())) continue;
+            for (BookingSale s : en.getValue()) {
+                adjustProductStock(s.getProductId(), s.getQuantity(), false); // restore; tolerate missing product
+                bookingSaleRepository.delete(s);
+            }
+        }
+
+        // 2) Desired products -> create (decrement) or update (adjust by oldTotal - new).
+        LocalDateTime now = LocalDateTime.now();
+        for (SaleEntryDTO want : desired.values()) {
+            List<BookingSale> rows = existing.getOrDefault(want.productId(), List.of());
+            if (rows.isEmpty()) {
+                Product product = productRepository.findById(want.productId())
+                        .orElseThrow(() -> new IllegalArgumentException("Prodotto non trovato: " + want.productId()));
+                product.setStock(product.getStock() - want.quantity());
+                productRepository.save(product);
+
+                BookingSale s = new BookingSale();
+                s.setBookingId(bookingId);
+                s.setProductId(want.productId());
+                s.setProductName(product.getName());
+                s.setQuantity(want.quantity());
+                s.setUnitPrice(want.unitPrice());
+                s.setPaid(want.paid());
+                s.setAddedAt(now);
+                // promotionLinkId / originalUnitPrice stay null -> standalone, no discount tracking.
+                bookingSaleRepository.save(s);
+            } else {
+                BookingSale keep = rows.get(0);
+                int oldTotal = rows.stream().mapToInt(BookingSale::getQuantity).sum();
+                for (int i = 1; i < rows.size(); i++) bookingSaleRepository.delete(rows.get(i)); // fold duplicates
+                int delta = oldTotal - want.quantity(); // >0 restore, <0 decrement
+                if (delta != 0) adjustProductStock(want.productId(), delta, true);
+                keep.setQuantity(want.quantity());
+                keep.setUnitPrice(want.unitPrice());
+                keep.setPaid(want.paid());
+                bookingSaleRepository.save(keep);
+            }
+        }
+    }
+
+    /** delta > 0 restores stock, delta < 0 decrements. failIfMissing=false tolerates a deleted product (removal path). */
+    private void adjustProductStock(UUID productId, int delta, boolean failIfMissing) {
+        Optional<Product> opt = productRepository.findById(productId);
+        if (opt.isEmpty()) {
+            if (failIfMissing) throw new IllegalArgumentException("Prodotto non trovato: " + productId);
+            return;
+        }
+        Product p = opt.get();
+        p.setStock(p.getStock() + delta);
+        productRepository.save(p);
     }
 
     /** Delete promo artifacts: sales FIRST (while promotion_link_id still identifies them), then links. */
@@ -2357,6 +2482,8 @@ public class BookingService {
         // 08.2: restore promo-product stock on cancel. Already-CANCELLED returned at the
         // top of this method (~:1978) → this runs at most once per booking.
         restorePromoStockForBooking(bookingId);
+        // Block B: same once-per-booking guard restores standalone-sale stock (rows kept).
+        restoreStandaloneSaleStock(bookingId);
         log.info("Booking cancelled: id={} reason={}", bookingId, found.getCancelReason());
 
         if (!admin) {
@@ -2570,14 +2697,23 @@ public class BookingService {
             log.warn("Could not resolve linkedPackages for booking {}: {}", b.getBookingId(), e.getMessage());
         }
 
+        // BE-2: fetch the booking's sales ONCE. Standalone sales (promotionLinkId == null)
+        // become linkedSales; promo-tagged sales feed the linkedPromotions grouping below.
+        List<BookingSale> allSales = bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(b.getBookingId());
+        List<SaleSummaryDTO> linkedSales = allSales.stream()
+                .filter(s -> s.getPromotionLinkId() == null)   // standalone only; promo product-lines stay inside linkedPromotions
+                .map(s -> new SaleSummaryDTO(
+                        s.getId(), s.getProductId(), s.getProductName(),
+                        s.getQuantity(), s.getUnitPrice(), s.isPaid()))
+                .toList();
+
         // Phase 08.3: expose promotions frozen onto this booking (snapshot + tagged product-sales).
         List<PromoSummaryDTO> linkedPromotions = List.of();
         try {
             List<BookingPromotionLink> promoLinks = bookingPromotionLinkRepository
                     .findAllByBookingBookingIdWithPromotion(b.getBookingId());
             if (!promoLinks.isEmpty()) {
-                Map<UUID, List<BookingSale>> salesByLink = bookingSaleRepository
-                        .findByBookingIdOrderByAddedAtDesc(b.getBookingId()).stream()
+                Map<UUID, List<BookingSale>> salesByLink = allSales.stream()
                         .filter(s -> s.getPromotionLinkId() != null)
                         .collect(Collectors.groupingBy(BookingSale::getPromotionLinkId));
                 linkedPromotions = promoLinks.stream()
@@ -2655,7 +2791,8 @@ public class BookingService {
                 refundable,
                 b.getReminderSentAt(),
                 hasOutstanding,
-                linkedPromotions
+                linkedPromotions,
+                linkedSales
         );
     }
 
