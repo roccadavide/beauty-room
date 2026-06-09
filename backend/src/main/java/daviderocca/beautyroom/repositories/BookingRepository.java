@@ -246,6 +246,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                  OR (b.is_custom_service = true AND b.custom_service_paid = false)
                  OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
                        AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
+                 OR EXISTS (SELECT 1 FROM booking_sales sl
+                             WHERE sl.booking_id = b.booking_id
+                               AND sl.promotion_link_id IS NULL AND sl.paid = false)
               )
         )
         """, nativeQuery = true)
@@ -283,6 +286,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
              OR (b.is_custom_service = true AND b.custom_service_paid = false)
              OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
                    AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
+             OR EXISTS (SELECT 1 FROM booking_sales sl
+                         WHERE sl.booking_id = b.booking_id
+                           AND sl.promotion_link_id IS NULL AND sl.paid = false)
           )
         """, nativeQuery = true)
     List<String> findPhonesWithOutstanding(@Param("phones") Collection<String> phones);
@@ -385,6 +391,21 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
              OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
                    AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
           )
+
+        UNION ALL
+        -- Block B (M3-4): standalone unpaid product sale (promotion_link_id IS NULL).
+        -- Products are additive extras — NO custom_total_price guard, so a sale surfaces
+        -- independently even on a bundle booking (settled on its own via salePaid).
+        SELECT b.booking_id, b.start_time,
+               '🛍️ ' || sl.product_name || CASE WHEN sl.quantity > 1 THEN ' ×' || sl.quantity::text ELSE '' END,
+               sl.unit_price * sl.quantity,
+               'sale'::text, sl.id
+        FROM booking_sales sl
+        JOIN bookings b ON b.booking_id = sl.booking_id
+        WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
+          AND sl.promotion_link_id IS NULL AND sl.paid = false
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
 
         ORDER BY occurred_at DESC
         """, nativeQuery = true)
