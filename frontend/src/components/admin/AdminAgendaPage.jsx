@@ -2266,13 +2266,23 @@ export default function AdminAgendaPage() {
                                       </div>
                                     );
                                   }
-                                  if (b.serviceTitle)
+                                  if (b.serviceTitle) {
+                                    const principalPaid =
+                                      b.paidOnline || b.paidInStore || isBookingPackageCreditBacked(b);
                                     return (
-                                      <span className="ag-service">
-                                        {b.serviceTitle}
-                                        {b.optionName ? ` · ${b.optionName}` : ""}
-                                      </span>
+                                      <div className="ag-svc-entries">
+                                        <div className="ag-svc-entries__row">
+                                          <span className="ag-svc-entries__name">
+                                            {b.serviceTitle}
+                                            {b.optionName ? ` · ${b.optionName}` : ""}
+                                          </span>
+                                          <span className={`ag-pill ${principalPaid ? "ag-pill--paid" : "ag-pill--unpaid"}`}>
+                                            {principalPaid ? "✓ Pagato" : "⏳ Da pagare"}
+                                          </span>
+                                        </div>
+                                      </div>
                                     );
+                                  }
                                   return <span className="ag-service">—</span>;
                                 })()}
                                 {/* Legacy session pills: only when the booking is NOT linked to any
