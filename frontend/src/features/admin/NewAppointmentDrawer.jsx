@@ -5,6 +5,7 @@ import DateTimeField from "../../components/common/DateTimeField";
 import DurationField from "../../components/common/DurationField";
 import TimePicker from "../../components/common/TimePicker";
 import formatDuration from "../../utils/formatDuration";
+import { formatEuro } from "../../utils/formatEuro";
 import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
 import {
   cancelPackageAssignment,
@@ -202,7 +203,7 @@ function SelectedProductRow({ prod, maxQty, isPaidOnline, onQty, onPrice, onPaid
         />
         <span style={{ fontSize: "0.7rem", color: "#8a7a64" }}>cad.</span>
       </span>
-      <span className="ag-selected-service-row__dur" style={{ fontWeight: 600 }}>€{lineTotal.toFixed(2)}</span>
+      <span className="ag-selected-service-row__dur" style={{ fontWeight: 600 }}>{formatEuro(lineTotal)}</span>
       {isPaidOnline ? (
         <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>
       ) : (
@@ -1981,7 +1982,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                   >
                     <span className="ag-service-item__title">{p.name}</span>
                     <span className="ag-service-item__meta">
-                      {p.price != null ? `€${Number(p.price).toFixed(0)}` : ""}
+                      {p.price != null ? formatEuro(p.price) : ""}
                       {" · "}
                       <span style={{ color: soldOut ? "#c0392b" : undefined }}>{Math.max(0, remaining)} disp.</span>
                     </span>
@@ -2366,7 +2367,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                   );
                 })}
                 <div className="ag-selected-services__total">
-                  <span>Subtotale prodotti: <b>€{productsSubtotal.toFixed(2)}</b></span>
+                  <span>Subtotale prodotti: <b>{formatEuro(productsSubtotal)}</b></span>
                 </div>
               </>
             )}

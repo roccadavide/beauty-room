@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
 import { applySettleLine } from "./settlePayload";
+import { formatEuro } from "../../utils/formatEuro";
 
 /**
  * Completion drawer for the agenda "Completa" button (per-line settle path).
@@ -120,14 +121,14 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
                     <tr key={idx}>
                       <td><span className="ag-muted">{it.label}</span></td>
                       <td className={`ag-estimato-price ag-muted${it.price == null ? " ag-estimato-price--null" : ""}`}>
-                        {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
+                        {formatEuro(it.price)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <p style={{ padding: "0.75rem 1rem 0", margin: 0, fontSize: "0.85rem" }}>
-                <strong>Prezzo totale concordato: €{bundleTotal.toFixed(0)}</strong>
+                <strong>Prezzo totale concordato: {formatEuro(bundleTotal)}</strong>
                 <span className="ag-muted"> — impostato manualmente. I prezzi per riga sopra sono solo indicativi.</span>
               </p>
               <div style={{ display: "flex", justifyContent: "center", marginTop: "0.75rem" }}>
@@ -156,7 +157,7 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
                               <span style={rowsPaid[idx] ? { textDecoration: "line-through", opacity: 0.55 } : undefined}>{it.label}</span>
                             </td>
                             <td className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}>
-                              {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
+                              {formatEuro(it.price)}
                             </td>
                             <td>
                               <button
@@ -185,7 +186,7 @@ export default function CompletionDrawer({ booking, items, onClose, onConfirm })
                       <span style={rowsPaid[idx] ? { textDecoration: "line-through", opacity: 0.55 } : undefined}>{it.label}</span>
                     </td>
                     <td className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}>
-                      {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
+                      {formatEuro(it.price)}
                     </td>
                     <td>
                       {it.locked ? (

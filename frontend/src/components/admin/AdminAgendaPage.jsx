@@ -18,6 +18,7 @@ import {
   fetchArretratiForBooking,
 } from "../../api/modules/adminAgenda.api";
 import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../utils/reminders";
+import { formatEuro } from "../../utils/formatEuro";
 import BookingModal from "./BookingModal";
 import CompletionDrawer from "./CompletionDrawer";
 import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
@@ -433,7 +434,7 @@ function EstimatoModal({ bookings, services, onClose }) {
                         className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}
                         style={it.paid ? { textDecoration: "line-through", opacity: 0.55 } : undefined}
                       >
-                        {it.price == null ? "—" : `€${Number(it.price).toFixed(0)}`}
+                        {formatEuro(it.price)}
                       </td>
                       <td>
                         {isBundle ? (
@@ -462,7 +463,7 @@ function EstimatoModal({ bookings, services, onClose }) {
                             <td></td>
                             <td style={{ fontWeight: 500, fontStyle: "italic", color: "#888" }}>{isBundle ? "Totale (prezzo bundle)" : "Totale"}</td>
                             <td className="ag-estimato-price" style={{ fontWeight: 600, borderTop: "1px solid #ddd" }}>
-                              €{total.toFixed(0)}
+                              {formatEuro(total)}
                             </td>
                             <td></td>
                           </tr>,
@@ -482,7 +483,7 @@ function EstimatoModal({ bookings, services, onClose }) {
         </div>
 
         <div className="ag-estimato-footer">
-          <div className="ag-estimato-total">Totale stimato (da incassare): €{totals.total.toFixed(0)}</div>
+          <div className="ag-estimato-total">Totale stimato (da incassare): {formatEuro(totals.total)}</div>
         </div>
       </div>
     </div>,
@@ -1614,7 +1615,7 @@ export default function AdminAgendaPage() {
               onClick={() => kpi.revenueKnown && setShowEstimatoModal(true)}
               title={kpi.revenueKnown ? "Dettaglio incasso" : undefined}
             >
-              <span className="ag-compact-kpi__value">{kpi.revenueKnown ? `€${kpi.incassoStimato.toFixed(0)}` : "—"}</span>
+              <span className="ag-compact-kpi__value">{kpi.revenueKnown ? formatEuro(kpi.incassoStimato) : "—"}</span>
               <span className="ag-compact-kpi__label">incasso</span>
             </span>
             {kpi.openMin > 0 && (
@@ -1843,7 +1844,7 @@ export default function AdminAgendaPage() {
                   title={kpi.revenueKnown ? "Clicca per vedere il dettaglio" : undefined}
                 >
                   <div className="ag-kpi__label">Incasso stimato</div>
-                  <div className="ag-kpi__value">{kpi.revenueKnown ? `€${kpi.incassoStimato.toFixed(0)}` : "—"}</div>
+                  <div className="ag-kpi__value">{kpi.revenueKnown ? formatEuro(kpi.incassoStimato) : "—"}</div>
                 </div>
                 <div className="ag-kpi__item">
                   <div className="ag-kpi__label">Giornata</div>
@@ -2571,7 +2572,7 @@ export default function AdminAgendaPage() {
                                       </div>
                                     </div>
                                     <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
-                                      {a.price == null ? "—" : `€${Number(a.price).toFixed(0)}`}
+                                      {formatEuro(a.price)}
                                     </span>
                                     <button
                                       type="button"
@@ -2847,7 +2848,7 @@ export default function AdminAgendaPage() {
         title="Salda arretrato"
         message={
           confirmArretrato
-            ? `Confermi di saldare questo arretrato? ${confirmArretrato.a.label} del ${new Date(confirmArretrato.a.occurredAt).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })} — ${confirmArretrato.a.price == null ? "—" : `€${Number(confirmArretrato.a.price).toFixed(0)}`}`
+            ? `Confermi di saldare questo arretrato? ${confirmArretrato.a.label} del ${new Date(confirmArretrato.a.occurredAt).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })} — ${formatEuro(confirmArretrato.a.price)}`
             : ""
         }
         confirmLabel="Salda"
