@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "react-bootstrap";
 import { getBookingsRange, getPersonalAppointmentsWeek } from "../../api/modules/adminAgenda.api";
+import { VerifiedBadge } from "./AgendaBadges";
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -345,7 +346,10 @@ export default function WeeklyCalendar({ anchorDate, onDayClick, onBookingClick,
                     tabIndex={0}
                     onKeyDown={e => e.key === "Enter" && onBookingClick?.(b)}
                   >
-                    <div className="ag-week-block__name">{b.customerName || "—"}</div>
+                    <div className="ag-week-block__name">
+                      {b.customerName || "—"}
+                      {b.customerVerified && <VerifiedBadge size={12} />}
+                    </div>
                     {heightPx >= 50 && (
                       <>
                         <div className="ag-week-block__service">{b.serviceTitle ? (b.optionName ? `${b.serviceTitle} · ${b.optionName}` : b.serviceTitle) : ""}</div>
