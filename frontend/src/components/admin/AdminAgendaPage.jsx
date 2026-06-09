@@ -2345,7 +2345,14 @@ export default function AdminAgendaPage() {
                                   )}
                                 </span>
                                 <span className="ag-item__contact-divider" aria-hidden="true" />
-                                <span className="ag-item__contact-item">✉ {b.customerEmail}</span>
+                                <span className="ag-item__contact-item">
+                                  <span aria-hidden="true">✉</span>
+                                  {b.customerEmail && (
+                                    <a className="ag-item__email-link" href={`mailto:${b.customerEmail}`}>
+                                      {b.customerEmail}
+                                    </a>
+                                  )}
+                                </span>
                               </div>
                             </div>
 

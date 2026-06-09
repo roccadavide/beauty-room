@@ -798,6 +798,22 @@ body.modal-open {
   gap: 5px;
 }
 
+/* Explicit mailto link: the recipient comes from href (full email), not from
+   iOS data-detector guessing the visible text — so it never truncates on wrap
+   and the ✉ glyph (outside the anchor) stays out of the link. */
+.ag-item__email-link {
+  min-width: 0;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.ag-item__email-link:hover,
+.ag-item__email-link:focus {
+  color: var(--ag-mocha);
+}
+
 .ag-item__contact-divider {
   display: inline-block;
   width: 1px;
