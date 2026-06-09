@@ -97,6 +97,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     LEFT JOIN FETCH b.service s
     LEFT JOIN FETCH b.serviceOption so
     LEFT JOIN FETCH b.packageCredit pc
+    LEFT JOIN FETCH b.user
+    LEFT JOIN FETCH b.linkedUser
     WHERE b.startTime < :to
       AND b.endTime   > :from
     ORDER BY b.startTime ASC
