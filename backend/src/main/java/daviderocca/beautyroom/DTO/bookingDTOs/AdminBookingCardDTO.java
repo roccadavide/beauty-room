@@ -70,5 +70,13 @@ public record AdminBookingCardDTO(
         List<PromoSummaryDTO> linkedPromotions,
         // BE-2 (scope A): standalone product sales on this booking (promotion_link_id IS NULL).
         // Promo product-lines stay inside linkedPromotions. Empty when none.
-        List<SaleSummaryDTO> linkedSales
+        List<SaleSummaryDTO> linkedSales,
+        // feat/online-pay-in-store: true when Michela created the appointment; false when
+        // the customer booked it online (Stripe or pay-in-store). Combined with stripeSessionId,
+        // the agenda tells a "prenotato online" pay-in-store booking from an admin-made one.
+        boolean createdByAdmin,
+        // true when the booking's account is a verified ("trusted") customer. Derived in
+        // toAdminCard as user.isVerified || linkedUser.isVerified (online bookings carry the
+        // account in user; Michela-created auto-linked ones in linkedUser).
+        boolean customerVerified
 ) {}

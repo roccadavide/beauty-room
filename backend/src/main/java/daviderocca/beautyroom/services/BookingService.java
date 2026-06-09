@@ -2792,7 +2792,12 @@ public class BookingService {
                 b.getReminderSentAt(),
                 hasOutstanding,
                 linkedPromotions,
-                linkedSales
+                linkedSales,
+                b.isCreatedByAdmin(),
+                // Verified account: online bookings carry it in user, Michela-created
+                // auto-linked ones in linkedUser — the OR covers both.
+                (b.getUser() != null && b.getUser().isVerified())
+                        || (b.getLinkedUser() != null && b.getLinkedUser().isVerified())
         );
     }
 
