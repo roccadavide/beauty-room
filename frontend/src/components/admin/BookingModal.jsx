@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Col, Form, Row, Spinner } from "react-bootstrap";
 import { getAvailSlotsForServiceDay } from "../../api/modules/adminAgenda.api";
 import { getCustomerSummary } from "../../api/modules/customer.api";
+import { DAYPARTS, groupSlotsByDaypart } from "../../utils/slotDaypart";
 import CustomSelect from "../common/CustomSelect";
 import DateTimeField from "../common/DateTimeField";
 import UnifiedDrawer from "../common/UnifiedDrawer";
@@ -260,6 +261,9 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
 
   // ── Padding preset handler ───────────────────────────────────────────────
   const setPadding = v => setForm(f => ({ ...f, paddingMinutes: v }));
+
+  // Daypart grouping of the (capped) slot list — display-only.
+  const slotGroups = groupSlotsByDaypart(slots.slice(0, 30));
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -588,23 +592,32 @@ export default function BookingModal({ show, onHide, mode = "create", initial, s
               {!!slots.length && (
                 <div className="ag-slots mt-2">
                   <div className="ag-help mb-1">Click su uno slot per impostare l'orario:</div>
-                  <div className="ag-slots__grid">
-                    {slots.slice(0, 30).map((s, i) => (
-                      <button
-                        key={`${s.start}-${i}`}
-                        className={`ag-slot ${s.available === false ? "ag-slot--occupied" : ""}`}
-                        type="button"
-                        disabled={s.available === false}
-                        onClick={() => {
-                          const dateISO = form.startTime.slice(0, 10);
-                          onChange("startTime", `${dateISO}T${s.start}`);
-                        }}
-                      >
-                        {s.available === false ? "🔒 " : ""}
-                        {s.start} – {s.end}
-                      </button>
-                    ))}
-                  </div>
+                  {DAYPARTS.map(({ key, label }) => {
+                    const bucket = slotGroups[key];
+                    if (bucket.length === 0) return null;
+                    return (
+                      <div className="ag-slot-group" key={key}>
+                        <div className="ag-slot-group__label">{label}</div>
+                        <div className="ag-slots__grid">
+                          {bucket.map((s, i) => (
+                            <button
+                              key={`${s.start}-${i}`}
+                              className={`ag-slot ${s.available === false ? "ag-slot--occupied" : ""}`}
+                              type="button"
+                              disabled={s.available === false}
+                              onClick={() => {
+                                const dateISO = form.startTime.slice(0, 10);
+                                onChange("startTime", `${dateISO}T${s.start}`);
+                              }}
+                            >
+                              {s.available === false ? "🔒 " : ""}
+                              {s.start} – {s.end}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                   {slots.length > 30 && <div className="ag-help mt-1">Mostro i primi 30 per comodità.</div>}
                 </div>
               )}

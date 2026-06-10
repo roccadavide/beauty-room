@@ -7,6 +7,7 @@ import TimePicker from "../../components/common/TimePicker";
 import formatDuration from "../../utils/formatDuration";
 import { formatEuro } from "../../utils/formatEuro";
 import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
+import { DAYPARTS, groupSlotsByDaypart } from "../../utils/slotDaypart";
 import {
   cancelPackageAssignment,
   createMultiServiceBooking,
@@ -1432,6 +1433,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const slotGroups = groupSlotsByDaypart(slots);
+
   return (
     <form onSubmit={handleSubmit} className="nad-form" noValidate>
       {isDuplicate && (
@@ -2558,22 +2561,33 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
             {!slotsLoading && !slotsError && slots.length === 0 && <div className="nad-help">Nessuno slot libero per questa data e durata.</div>}
 
             {!slotsLoading && slots.length > 0 && (
-              <div className="nad-slots-grid">
-                {slots.map(slot => (
-                  <button
-                    key={slot}
-                    type="button"
-                    className={`nad-slot${selectedSlot === slot && !customTime ? " is-selected" : ""}`}
-                    onClick={() => {
-                      setSelectedSlot(selectedSlot === slot ? "" : slot);
-                      setCustomTime("");
-                      setNextSlotResult(null);
-                      lastSuggestedSlotRef.current = null;
-                    }}
-                  >
-                    {slot}
-                  </button>
-                ))}
+              <div className="nad-slot-groups">
+                {DAYPARTS.map(({ key, label }) => {
+                  const bucket = slotGroups[key];
+                  if (bucket.length === 0) return null;
+                  return (
+                    <div className="nad-slot-group" key={key}>
+                      <div className="nad-slot-group__label">{label}</div>
+                      <div className="nad-slots-grid">
+                        {bucket.map(slot => (
+                          <button
+                            key={slot}
+                            type="button"
+                            className={`nad-slot${selectedSlot === slot && !customTime ? " is-selected" : ""}`}
+                            onClick={() => {
+                              setSelectedSlot(selectedSlot === slot ? "" : slot);
+                              setCustomTime("");
+                              setNextSlotResult(null);
+                              lastSuggestedSlotRef.current = null;
+                            }}
+                          >
+                            {slot}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

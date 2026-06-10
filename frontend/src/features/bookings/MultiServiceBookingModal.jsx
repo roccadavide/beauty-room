@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { createMultiServiceBookingCheckout } from "../../api/modules/stripe.api";
 import { fetchCombinedAvailabilities } from "../../api/modules/availabilities.api";
 import { BOOKING_MAX_ADVANCE_DAYS, BRAND_WHATSAPP } from "../../utils/constants";
+import { DAYPARTS, groupSlotsByDaypart } from "../../utils/slotDaypart";
 import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
 import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
@@ -247,6 +248,8 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
     </>
   );
 
+  const slotGroups = groupSlotsByDaypart(slots);
+
   return (
     <Shell
       show={show}
@@ -314,23 +317,34 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
             </div>
           )}
           {slotsError && <div className="bm-alert">{slotsError}</div>}
-          <div className="bm-slots">
-            {slots.map(s => {
-              const isOccupied = s.available === false;
+          <div className="bm-slot-groups">
+            {DAYPARTS.map(({ key, label }) => {
+              const bucket = slotGroups[key];
+              if (bucket.length === 0) return null;
               return (
-                <button
-                  key={s.start}
-                  type="button"
-                  className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
-                  onClick={() => { if (!isOccupied) setSlot(s); }}
-                  disabled={isOccupied}
-                  title={isOccupied ? "Slot occupato" : undefined}
-                >
-                  {isOccupied ? "🔒 " : ""}
-                  {s.start}
-                  <span className="bm-slot__end">– {s.end}</span>
-                  {isOccupied && <span className="bm-slot__occupied-hint">Occupato</span>}
-                </button>
+                <div className="bm-slot-group" key={key}>
+                  <div className="bm-slot-group__label">{label}</div>
+                  <div className="bm-slots">
+                    {bucket.map(s => {
+                      const isOccupied = s.available === false;
+                      return (
+                        <button
+                          key={s.start}
+                          type="button"
+                          className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
+                          onClick={() => { if (!isOccupied) setSlot(s); }}
+                          disabled={isOccupied}
+                          title={isOccupied ? "Slot occupato" : undefined}
+                        >
+                          {isOccupied ? "🔒 " : ""}
+                          {s.start}
+                          <span className="bm-slot__end">– {s.end}</span>
+                          {isOccupied && <span className="bm-slot__occupied-hint">Occupato</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
           </div>
