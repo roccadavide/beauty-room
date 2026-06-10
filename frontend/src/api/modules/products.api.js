@@ -73,7 +73,6 @@ export const deleteProduct = async productId => {
   }
 };
 
-
 // -------------------------- PRODUCT OPTIONS --------------------------
 
 export const createProductOption = async (productId, optionPayload) => {
@@ -113,10 +112,7 @@ export const deleteProductOption = async optionId => {
 // -------------------------- STOCK ALERT --------------------------
 export const subscribeStockAlert = async (productId, email, customerName) => {
   try {
-    const { data } = await http.post(
-      `${PRODUCT_ENDPOINTS.BY_ID(productId)}/stock-alerts`,
-      { email, customerName }
-    );
+    const { data } = await http.post(`${PRODUCT_ENDPOINTS.BY_ID(productId)}/stock-alerts`, { email, customerName });
     return data;
   } catch (error) {
     if (error.response?.status === 409) {

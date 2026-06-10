@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { createMultiServiceBookingCheckout, fetchAvailableSlots } from "../../api/modules/stripe.api";
+import { createMultiServiceBookingCheckout } from "../../api/modules/stripe.api";
+import { fetchCombinedAvailabilities } from "../../api/modules/availabilities.api";
 import { BOOKING_MAX_ADVANCE_DAYS, BRAND_WHATSAPP } from "../../utils/constants";
 import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
 import NextSlotBanner from "../../components/common/NextSlotBanner";
@@ -28,12 +29,6 @@ const formatDuration = mins => {
   if (h > 0 && m > 0) return `${h}h ${m}min`;
   if (h > 0) return `${h}h`;
   return `${m}min`;
-};
-
-const addMinutes = (timeStr, mins) => {
-  const [h, m] = timeStr.split(":").map(Number);
-  const total = h * 60 + m + mins;
-  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 };
 
 // MultiServiceBookingFlow = the SAME multi-service flow rendered in both modes;
@@ -137,14 +132,18 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
         setLoadingSlots(true);
         setSlotsError(null);
         const day = date.toLocaleDateString("sv-SE");
-        const rawSlots = await fetchAvailableSlots(day, totalDuration);
-        const slotObjects = (rawSlots || []).map(s => ({ start: s, end: addMinutes(s, totalDuration) }));
-        setSlots(slotObjects);
-        if (slotObjects.length === 0) {
+        const data = await fetchCombinedAvailabilities(day, totalDuration);
+        const loaded = data.slots || [];
+        setSlots(loaded);
+        // Empty list == truly closed day (mirror BookingModal). An open-but-fully-booked
+        // day now returns a non-empty list of available=false slots, so it must NOT be
+        // disabled in the calendar — this is what fixes the false "Chiuso".
+        if (loaded.length === 0) {
           setEmptySlotDates(prev => (prev.includes(day) ? prev : [...prev, day]));
         }
+        // Auto-select a free slot pre-chosen via NextSlotBanner (never an occupied one).
         if (pendingSlotStartRef.current) {
-          const auto = slotObjects.find(s => s.start === pendingSlotStartRef.current);
+          const auto = loaded.find(s => s.start === pendingSlotStartRef.current && s.available !== false);
           if (auto) setSlot(auto);
           pendingSlotStartRef.current = null;
         }
@@ -316,17 +315,24 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
           )}
           {slotsError && <div className="bm-alert">{slotsError}</div>}
           <div className="bm-slots">
-            {slots.map(s => (
-              <button
-                key={s.start}
-                type="button"
-                className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""}`}
-                onClick={() => setSlot(s)}
-              >
-                {s.start}
-                <span className="bm-slot__end">– {s.end}</span>
-              </button>
-            ))}
+            {slots.map(s => {
+              const isOccupied = s.available === false;
+              return (
+                <button
+                  key={s.start}
+                  type="button"
+                  className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
+                  onClick={() => { if (!isOccupied) setSlot(s); }}
+                  disabled={isOccupied}
+                  title={isOccupied ? "Slot occupato" : undefined}
+                >
+                  {isOccupied ? "🔒 " : ""}
+                  {s.start}
+                  <span className="bm-slot__end">– {s.end}</span>
+                  {isOccupied && <span className="bm-slot__occupied-hint">Occupato</span>}
+                </button>
+              );
+            })}
           </div>
           {slots.length === 0 && !loadingSlots && !slotsError && (
             <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>

@@ -126,6 +126,7 @@ public class SecConfig {
                                 "/results/**",
                                 "/availabilities/services/**",
                                 "/availabilities/available-slots",
+                                "/availabilities/combined-slots",
                                 "/categories/**",
                                 "/promotions/**"
                         ).permitAll()

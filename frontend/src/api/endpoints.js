@@ -84,6 +84,7 @@ export const PRODUCT_ENDPOINTS = {
 export const AVAILABILITY_ENDPOINTS = {
   BASE: "/availabilities",
   SERVICE_DAY: (serviceId, date) => `/availabilities/services/${serviceId}?date=${date}`,
+  COMBINED_SLOTS: "/availabilities/combined-slots",
 };
 
 // ---- STRIPE ----

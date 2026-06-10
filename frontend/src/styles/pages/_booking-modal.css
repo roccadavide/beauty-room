@@ -593,6 +593,30 @@
   text-transform: uppercase;
 }
 
+/* Multi-service (cart) flow: occupied slots are SHOWN but disabled — there is no
+   waitlist join here. These rules target ONLY disabled .bm-slot buttons, so the
+   single-service waitlist-clickable occupied slots (not disabled) are unaffected. */
+.bm-slot:disabled {
+  cursor: default;
+  transform: none;
+}
+.bm-slot--occupied:disabled,
+.bm-slot--occupied:disabled:hover {
+  background: #f9f3ee;
+  border-color: #e0d5cb;
+  color: #a08070;
+  transform: none;
+}
+.bm-slot__occupied-hint {
+  display: block;
+  font-size: 0.65rem;
+  color: #a08070;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 /* ── WaitlistModal ── */
 .wl-slot-info {
   background: #fef7ef;
