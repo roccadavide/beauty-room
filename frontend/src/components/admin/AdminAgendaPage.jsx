@@ -26,7 +26,7 @@ import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
 import ClosuresDrawer from "../../features/admin/ClosuresDrawer";
 import ConfirmDialog from "../common/ConfirmDialog";
 import WeeklyCalendar from "./WeeklyCalendar";
-import { VerifiedBadge, OnlineBadge } from "./AgendaBadges";
+import { VerifiedBadge, OnlineBadge, PaidOnlineBadge } from "./AgendaBadges";
 import { createAdminBooking } from "../../api/modules/bookings.api";
 import { fetchServices } from "../../api/modules/services.api";
 import DateTimeField from "../common/DateTimeField";
@@ -673,7 +673,11 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
                   ⚠
                 </span>
               )}
-              {!booking.createdByAdmin && !booking.paidOnline && <OnlineBadge />}
+              {!booking.createdByAdmin && (
+                booking.paidOnline
+                  ? (booking.status !== "REFUNDED" && <PaidOnlineBadge />)
+                  : <OnlineBadge />
+              )}
             </div>
           </div>
         )}
@@ -2358,7 +2362,11 @@ export default function AdminAgendaPage() {
 
                             <div className="ag-item__timecol">
                               <div className="ag-item__pills">
-                                {!b.createdByAdmin && !b.paidOnline && <OnlineBadge />}
+                                {!b.createdByAdmin && (
+                                  b.paidOnline
+                                    ? (b.status !== "REFUNDED" && <PaidOnlineBadge />)
+                                    : <OnlineBadge />
+                                )}
                                 <StatusPill status={b.status} />
                                 {/* V62 Fix 2: top-right "Pagato" pill removed in favour of
                                     always-visible per-line pills below. Refund keeps its
