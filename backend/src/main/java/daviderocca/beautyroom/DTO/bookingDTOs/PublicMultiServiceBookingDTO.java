@@ -47,5 +47,10 @@ public record PublicMultiServiceBookingDTO(
 
         // 08.4: when present, this is a promotion booking — services come from the promo,
         // not from serviceIds (which may be empty). Mutually exclusive with serviceIds in practice.
-        UUID promotionId
+        UUID promotionId,
+
+        // Fix 3 (mixed cart): products the customer is buying alongside the services. Optional —
+        // null/empty for service-only or promo carts. No price/paid from the client; the server
+        // resolves both from the Product entity. Added as the LAST field (Jackson binds by name).
+        List<ProductEntryDTO> products
 ) {}

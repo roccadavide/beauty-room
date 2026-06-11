@@ -13,6 +13,7 @@ import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.NotificationType;
 import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
@@ -22,6 +23,7 @@ import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.BookingSaleRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
+import daviderocca.beautyroom.services.AdminNotificationService;
 import daviderocca.beautyroom.services.BookingService;
 import daviderocca.beautyroom.packages.ClientPackageService;
 import daviderocca.beautyroom.services.CustomerService;
@@ -77,6 +79,10 @@ class BookingServiceTest {
     private BookingSaleRepository bookingSaleRepository;
     @Mock
     private ProductRepository productRepository;
+    // Fix 3: createOnlineProductSales notifies the admin on missing-product / short-stock. BookingService
+    // declares it as a final dep; without this mock @InjectMocks injects null and the notify path NPEs.
+    @Mock
+    private AdminNotificationService notificationService;
     // BE-5: hardDeleteBooking touches these two — promo-artifact cleanup + the JPQL package-link delete.
     @Mock
     private BookingPromotionLinkRepository bookingPromotionLinkRepository;
@@ -479,6 +485,96 @@ class BookingServiceTest {
         return admin;
     }
 
+    // =========================================================================
+    // Fix 3: createOnlineProductSales — online-paid products of a mixed cart.
+    // Mirrors the create branch of reconcileStandaloneSales, but post-payment it
+    // NEVER rejects (missing product / short stock -> notify admin, honour the sale).
+    // =========================================================================
+    @Test
+    @DisplayName("Fix 3: online product sale — decrements stock and saves a paid standalone sale")
+    void createOnlineProductSales_create_decrementsStockAndSavesPaidSale() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        Product product = new Product();
+        setFieldReflectively(product, "productId", productId);
+        product.setName("Crema Viso");
+        product.setStock(5);
+
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        invokeCreateOnlineProductSales(bookingId, List.of(
+                new SaleEntryDTO(productId, 2, new BigDecimal("19.90"), true)));
+
+        ArgumentCaptor<Product> pc = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(pc.capture());
+        assertThat(pc.getValue().getStock()).isEqualTo(3); // 5 - 2
+
+        ArgumentCaptor<BookingSale> sc = ArgumentCaptor.forClass(BookingSale.class);
+        verify(bookingSaleRepository).save(sc.capture());
+        BookingSale saved = sc.getValue();
+        assertThat(saved.getBookingId()).isEqualTo(bookingId);
+        assertThat(saved.getProductId()).isEqualTo(productId);
+        assertThat(saved.getProductName()).isEqualTo("Crema Viso");
+        assertThat(saved.getQuantity()).isEqualTo(2);
+        assertThat(saved.getUnitPrice()).isEqualByComparingTo(new BigDecimal("19.90")); // == charged cents
+        assertThat(saved.isPaid()).isTrue();
+        assertThat(saved.getPromotionLinkId()).isNull();   // standalone online sale, never a promo line
+        assertThat(saved.getOriginalUnitPrice()).isNull();
+        verifyNoInteractions(notificationService);          // no stock issue -> no admin notification
+    }
+
+    @Test
+    @DisplayName("Fix 3: online product sale — insufficient stock still records the sale (stock goes negative) and notifies admin")
+    void createOnlineProductSales_insufficientStock_recordsSaleGoesNegative_andNotifies() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        Product product = new Product();
+        setFieldReflectively(product, "productId", productId);
+        product.setName("Siero");
+        product.setStock(1);
+
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        invokeCreateOnlineProductSales(bookingId, List.of(
+                new SaleEntryDTO(productId, 3, new BigDecimal("30.00"), true)));
+
+        ArgumentCaptor<Product> pc = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(pc.capture());
+        assertThat(pc.getValue().getStock()).isEqualTo(-2); // 1 - 3, honoured (customer already paid)
+
+        verify(bookingSaleRepository).save(any(BookingSale.class)); // sale still created, no throw
+        verify(notificationService).create(
+                eq(NotificationType.BOOKING_STOCK_WARNING), anyString(), anyString(), eq(bookingId), eq("BOOKING"));
+    }
+
+    @Test
+    @DisplayName("Fix 3: online product sale — a missing product is skipped (no sale, no stock change) and admin notified")
+    void createOnlineProductSales_productNotFound_skipsAndNotifies() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        when(productRepository.findById(productId)).thenReturn(Optional.empty());
+
+        invokeCreateOnlineProductSales(bookingId, List.of(
+                new SaleEntryDTO(productId, 1, new BigDecimal("10.00"), true)));
+
+        verify(productRepository, never()).save(any());
+        verify(bookingSaleRepository, never()).save(any());
+        verify(notificationService).create(
+                eq(NotificationType.BOOKING_STOCK_WARNING), anyString(), anyString(), eq(bookingId), eq("BOOKING"));
+    }
+
+    @Test
+    @DisplayName("Fix 3: online product sale — empty list is a no-op (service-only & promo carts)")
+    void createOnlineProductSales_emptyList_isNoOp() {
+        invokeCreateOnlineProductSales(UUID.randomUUID(), List.of());
+        verifyNoInteractions(productRepository);
+        verifyNoInteractions(bookingSaleRepository);
+        verifyNoInteractions(notificationService);
+    }
+
     private static BookingSale standaloneSale(UUID bookingId, UUID productId, int qty) {
         BookingSale s = new BookingSale();
         s.setBookingId(bookingId);
@@ -506,6 +602,22 @@ class BookingServiceTest {
             throw new RuntimeException(cause);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("invokeReconcile failed", e);
+        }
+    }
+
+    // Invokes the private createOnlineProductSales on the @InjectMocks instance (mirrors invokeReconcile).
+    private void invokeCreateOnlineProductSales(UUID bookingId, List<SaleEntryDTO> sales) {
+        try {
+            var m = BookingService.class.getDeclaredMethod(
+                    "createOnlineProductSales", UUID.class, List.class);
+            m.setAccessible(true);
+            m.invoke(bookingService, bookingId, sales);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException re) throw re;
+            throw new RuntimeException(cause);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("invokeCreateOnlineProductSales failed", e);
         }
     }
 
