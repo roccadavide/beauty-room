@@ -41,6 +41,15 @@ public class AvailabilityService {
 
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
 
+    /**
+     * Fixed candidate-start grid (minutes) for COMBINED multi-service availability.
+     * NOT the combined duration: the salon's service durations are all multiples of
+     * 10, so a 10-minute grid hides no valid start and creates no artificial gap,
+     * while surfacing at least as many starts as the single-service step==duration
+     * grid (so the cart is never MORE restrictive than "Prenota ora"). Tunable here.
+     */
+    private static final int SLOT_STEP_MINUTES = 10;
+
     @Value("${app.booking.max-advance-days:150}")
     private int maxAdvanceDays;
 
@@ -101,10 +110,75 @@ public class AvailabilityService {
         // Pre-compute effective blocked intervals (booking range + optional paddingMinutes)
         List<TimeRange> blockedIntervals = toEffectiveBlockedIntervals(blockingBookings, date);
 
-        // Generate all slots and mark each available/unavailable
-        List<AvailabilitySlotDTO> slots = generateAllSlots(openRanges, durationMin, blockedIntervals, date);
+        // Generate all slots and mark each available/unavailable.
+        // step == duration keeps the single-service grid byte-identical to before.
+        List<AvailabilitySlotDTO> slots = generateAllSlots(openRanges, durationMin, durationMin, blockedIntervals, date);
 
         return new AvailabilityResponseDTO(serviceId, date, durationMin, slots);
+    }
+
+    // ==========================================================================
+    // 1b) CLIENT AVAILABILITY — combined (multi-service) slots for a total duration
+    // ==========================================================================
+
+    /**
+     * Combined availability for the public multi-service (cart) flow. Returns the
+     * SAME shape as {@link #getServiceAvailabilities}: ALL candidate slots, each
+     * flagged available=true/false, and an EMPTY list ONLY when the day is truly
+     * closed or has no open ranges. An open-but-fully-booked day returns a NON-empty
+     * list of slots all flagged available=false — so the calendar never mistakes
+     * "full" for "closed" (the bug this fix targets).
+     *
+     * Differences from the single-service method, by design:
+     *  - duration is the caller-supplied combined total (sum of service durations);
+     *  - candidate starts sit on a fixed {@link #SLOT_STEP_MINUTES}-minute grid, not
+     *    the duration, so the cart surfaces at least as many starts and is never MORE
+     *    restrictive than "Prenota ora"; the whole block must still fit one open range;
+     *  - personal appointments block too — identical to the /available-slots endpoint
+     *    this replaces, so a customer can never book over Michela's personal time.
+     */
+    @Transactional(readOnly = true)
+    public AvailabilityResponseDTO getCombinedAvailabilities(LocalDate date, int durationMinutes) {
+        log.info("CombinedAvailability | date={} durationMinutes={}", date, durationMinutes);
+
+        if (date == null) throw new BadRequestException("date obbligatoria.");
+        if (date.isBefore(LocalDate.now(BUSINESS_ZONE)))
+            throw new BadRequestException("Non è possibile richiedere disponibilità per date passate.");
+        if (durationMinutes < 1) throw new BadRequestException("Durata non valida.");
+
+        WorkingHours wh = workingHoursRepository.findByDayOfWeek(date.getDayOfWeek())
+                .orElseThrow(() -> new BadRequestException(
+                        "Orari non configurati per " + date.getDayOfWeek()));
+
+        if (wh.isClosed()) {
+            return new AvailabilityResponseDTO(null, date, SLOT_STEP_MINUTES, List.of());
+        }
+
+        List<TimeRange> openRanges = buildOpenRanges(wh, closureRepository.findOverlappingDate(date));
+        if (openRanges.isEmpty()) {
+            return new AvailabilityResponseDTO(null, date, SLOT_STEP_MINUTES, List.of());
+        }
+
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime to   = date.plusDays(1).atStartOfDay();
+
+        // Same blockers as the /available-slots endpoint this replaces: client bookings
+        // (with admin padding) + Michela's personal appointments.
+        List<Booking> blockingBookings = bookingRepository
+                .findBookingsByStatusesIntersectingRange(from, to, BLOCKING_STATUSES);
+        List<TimeRange> blockedIntervals = new ArrayList<>(toEffectiveBlockedIntervals(blockingBookings, date));
+        personalAppointmentRepository.findByAppointmentDateOrderByStartTime(date)
+                .forEach(pa -> {
+                    LocalTime paEnd = pa.getStartTime().plusMinutes(pa.getDurationMinutes());
+                    if (pa.getStartTime().isBefore(paEnd)) {
+                        blockedIntervals.add(new TimeRange(pa.getStartTime(), paEnd));
+                    }
+                });
+
+        List<AvailabilitySlotDTO> slots =
+                generateAllSlots(openRanges, durationMinutes, SLOT_STEP_MINUTES, blockedIntervals, date);
+
+        return new AvailabilityResponseDTO(null, date, SLOT_STEP_MINUTES, slots);
     }
 
     // ==========================================================================
@@ -276,8 +350,12 @@ public class AvailabilityService {
     // ==========================================================================
 
     /**
-     * Generates ALL slots that fit inside openRanges with the given duration.
-     * Each slot is individually checked for overlap against blockedIntervals.
+     * Generates ALL slots that fit inside openRanges. Each slot is {@code durationMin}
+     * wide and individually checked for overlap against blockedIntervals; candidate
+     * start times advance by {@code stepMin}. Single-service callers pass
+     * {@code stepMin == durationMin} (non-overlapping blocks — output byte-identical to
+     * before); the combined multi-service caller passes a finer fixed grid
+     * ({@link #SLOT_STEP_MINUTES}) while still requiring the full block to fit a range.
      *
      * This replaces the old "subtract bookings → generate free slots → append raw
      * booking ranges" approach, which produced slots of inconsistent width and
@@ -286,6 +364,7 @@ public class AvailabilityService {
     private List<AvailabilitySlotDTO> generateAllSlots(
             List<TimeRange> openRanges,
             int durationMin,
+            int stepMin,
             List<TimeRange> blockedIntervals,
             LocalDate requestedDate) {
 
@@ -303,7 +382,7 @@ public class AvailabilityService {
                 if (slotEnd.isAfter(window.end())) break;
 
                 if (cursor.isBefore(earliestStart)) {
-                    cursor = cursor.plusMinutes(durationMin);
+                    cursor = cursor.plusMinutes(stepMin);
                     continue;
                 }
 
@@ -316,7 +395,7 @@ public class AvailabilityService {
                         !occupied
                 ));
 
-                cursor = cursor.plusMinutes(durationMin); // step == duration (single operator)
+                cursor = cursor.plusMinutes(stepMin); // step grid (== duration for single-service)
             }
         }
 

@@ -60,6 +60,23 @@ public class AvailabilityController {
         return ResponseEntity.ok(availabilityService.getAvailableSlots(date, durationMinutes));
     }
 
+    // PUBLIC — combined availability for a total duration (multi-service cart flow).
+    // Same contract as /services/{serviceId}: ALL slots flagged available=true/false,
+    // empty ONLY when the day is truly closed (an open-but-full day returns occupied slots).
+    // Whitelisted in SecConfig alongside the other public availability endpoints.
+    @GetMapping("/combined-slots")
+    public ResponseEntity<AvailabilityResponseDTO> getCombinedSlots(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam int durationMinutes
+    ) {
+        if (date == null) throw new BadRequestException("La data richiesta non può essere nulla.");
+        if (date.isBefore(LocalDate.now(AvailabilityService.BUSINESS_ZONE)))
+            throw new BadRequestException("Non è possibile richiedere disponibilità per date passate.");
+        if (date.isAfter(LocalDate.now(AvailabilityService.BUSINESS_ZONE).plusDays(maxAdvanceDays)))
+            throw new BadRequestException("Non è possibile prenotare con più di " + maxAdvanceDays + " giorni di anticipo.");
+        return ResponseEntity.ok(availabilityService.getCombinedAvailabilities(date, durationMinutes));
+    }
+
     // ADMIN - TIMELINE DAY
     @GetMapping("/admin/timeline/day")
     @PreAuthorize("hasRole('ADMIN')")

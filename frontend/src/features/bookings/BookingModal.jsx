@@ -5,6 +5,7 @@ import { fetchAvailabilities } from "../../api/modules/availabilities.api";
 import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest, createBookingPayInStore } from "../../api/modules/stripe.api";
 import { fetchCancellationPolicy } from "../../api/modules/users.api";
 import { BOOKING_MAX_ADVANCE_DAYS, BRAND_WHATSAPP } from "../../utils/constants";
+import { DAYPARTS, groupSlotsByDaypart } from "../../utils/slotDaypart";
 import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
 import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
@@ -316,6 +317,8 @@ export const BookingFlow = ({
     </div>
   );
 
+  const slotGroups = groupSlotsByDaypart(slots);
+
   return (
     <>
       <Shell show={show} layout="side" onHide={handleClose} eyebrow="PRENOTAZIONE ✦" title={service?.title} subtitle={metaSubtitle} topSlot={stepsSlot} size="sm">
@@ -394,25 +397,36 @@ export const BookingFlow = ({
                 <Spinner size="sm" animation="border" /> Carico slot…
               </div>
             )}
-            <div className="bm-slots">
-              {slots.map(s => {
-                const isOccupied = s.available === false;
+            <div className="bm-slot-groups">
+              {DAYPARTS.map(({ key, label }) => {
+                const bucket = slotGroups[key];
+                if (bucket.length === 0) return null;
                 return (
-                  <button
-                    key={s.start}
-                    type="button"
-                    className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
-                    onClick={() => {
-                      if (isOccupied) setWaitlistSlot(s);
-                      else setSlot(s);
-                    }}
-                    title={isOccupied ? "Slot occupato — clicca per lista d'attesa" : undefined}
-                  >
-                    {isOccupied ? "🔒 " : ""}
-                    {s.start}
-                    <span className="bm-slot__end">– {s.end}</span>
-                    {isOccupied && <span className="bm-slot__waitlist-hint">Lista d'attesa</span>}
-                  </button>
+                  <div className="bm-slot-group" key={key}>
+                    <div className="bm-slot-group__label">{label}</div>
+                    <div className="bm-slots">
+                      {bucket.map(s => {
+                        const isOccupied = s.available === false;
+                        return (
+                          <button
+                            key={s.start}
+                            type="button"
+                            className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
+                            onClick={() => {
+                              if (isOccupied) setWaitlistSlot(s);
+                              else setSlot(s);
+                            }}
+                            title={isOccupied ? "Slot occupato — clicca per lista d'attesa" : undefined}
+                          >
+                            {isOccupied ? "🔒 " : ""}
+                            {s.start}
+                            <span className="bm-slot__end">– {s.end}</span>
+                            {isOccupied && <span className="bm-slot__waitlist-hint">Lista d'attesa</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
             </div>
