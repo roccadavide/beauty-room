@@ -924,7 +924,8 @@ public class BookingService {
             String customerPhone,
             String notes,
             String stripeSessionId,
-            UUID promotionId
+            UUID promotionId,
+            List<SaleEntryDTO> productSales
     ) {
         LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
@@ -964,6 +965,11 @@ public class BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Multi-service webhook booking created: id={} duration={}min services={}",
                 saved.getBookingId(), totalDurationMinutes, services.size());
+
+        // Fix 3 (mixed cart): persist the online-paid products on the freshly-saved booking, inside
+        // THIS SERIALIZABLE transaction (the bookingId now exists). Promo bookings carry no products,
+        // so this is a no-op for them.
+        createOnlineProductSales(saved.getBookingId(), productSales);
 
         // 08.4: promo-only online booking — attach the frozen promo snapshot (paid online), exactly
         // like the admin path. The promo carries its services in the link snapshot, not booking_services.
@@ -2402,6 +2408,65 @@ public class BookingService {
         Product p = opt.get();
         p.setStock(p.getStock() + delta);
         productRepository.save(p);
+    }
+
+    /**
+     * Fix 3 (mixed cart): persists the online-paid products of a webhook booking as standalone
+     * {@link BookingSale} rows and decrements {@link Product#getStock()} — mirroring the create branch
+     * of {@link #reconcileStandaloneSales}. PLAIN private method (NOT @Transactional / REQUIRES_NEW):
+     * it shares the caller's SERIALIZABLE transaction, so it can see the just-saved (uncommitted)
+     * booking. Post-payment it NEVER rejects: a missing product or short stock is honoured (stock may
+     * go negative in a race) and the admin is notified instead.
+     */
+    private void createOnlineProductSales(UUID bookingId, List<SaleEntryDTO> sales) {
+        if (sales == null || sales.isEmpty()) return;
+        for (SaleEntryDTO entry : sales) {
+            if (entry == null || entry.productId() == null) continue;
+            int qty = Math.max(1, entry.quantity());
+
+            Optional<Product> opt = productRepository.findById(entry.productId());
+            if (opt.isEmpty()) {
+                log.warn("Online product sale: prodotto {} non trovato per booking {} — riga saltata",
+                        entry.productId(), bookingId);
+                notifyProductStockIssue(bookingId,
+                        "Prodotto online non trovato",
+                        "Un prodotto pagato online non esiste più a catalogo (id " + entry.productId()
+                                + "). Riga non registrata — verifica l'ordine.");
+                continue;
+            }
+
+            Product product = opt.get();
+            if (product.getStock() < qty) {
+                log.warn("Online product sale: stock insufficiente per '{}' (richiesti {}, disponibili {}) booking {}",
+                        product.getName(), qty, product.getStock(), bookingId);
+                notifyProductStockIssue(bookingId,
+                        "⚠ Stock insufficiente su prodotto pagato online",
+                        product.getName() + " · richiesti " + qty + ", disponibili " + product.getStock()
+                                + " — verifica il magazzino.");
+            }
+
+            product.setStock(product.getStock() - qty);
+            productRepository.save(product);
+
+            BookingSale sale = new BookingSale();
+            sale.setBookingId(bookingId);
+            sale.setProductId(entry.productId());
+            sale.setProductName(product.getName());
+            sale.setQuantity(qty);
+            sale.setUnitPrice(entry.unitPrice());
+            sale.setPaid(true);
+            // promotionLinkId / originalUnitPrice stay null -> standalone online sale, no discount tracking.
+            bookingSaleRepository.save(sale);
+        }
+    }
+
+    /** Best-effort admin notification for an online product-sale stock issue (mirrors the closure-conflict notify). */
+    private void notifyProductStockIssue(UUID bookingId, String title, String body) {
+        try {
+            notificationService.create(NotificationType.BOOKING_STOCK_WARNING, title, body, bookingId, "BOOKING");
+        } catch (Exception e) {
+            log.warn("Stock-warning notification failed for booking {}: {}", bookingId, e.getMessage());
+        }
     }
 
     /** Delete promo artifacts: sales FIRST (while promotion_link_id still identifies them), then links. */

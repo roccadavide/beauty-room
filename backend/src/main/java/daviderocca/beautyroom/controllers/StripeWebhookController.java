@@ -9,6 +9,7 @@ import com.stripe.param.RefundCreateParams;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.ApiResource;
 import com.stripe.net.Webhook;
+import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Order;
@@ -29,9 +30,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -300,6 +303,11 @@ public class StripeWebhookController {
         String customerPhone      = metadata.getOrDefault("customerPhone", "");
         String notes              = metadata.getOrDefault("notes", null);
 
+        // Fix 3 (mixed cart): optional products bought alongside the services. Robust parse — the
+        // customer already paid, so a malformed/missing entry is skipped (logged), never thrown.
+        // Promo sessions carry no "products" key, so this is naturally empty for them.
+        List<SaleEntryDTO> productSales = parseProductsMetadata(metadata.getOrDefault("products", ""));
+
         // PROMO booking carries no serviceIds (services live in the promo snapshot) — require them
         // only for the non-promo path; date/startTime are required for both.
         if ((promotionId == null && serviceIdsRaw.isBlank()) || dateStr.isBlank() || startTimeStr.isBlank()) {
@@ -340,7 +348,7 @@ public class StripeWebhookController {
         try {
             saved = bookingService.createMultiServiceBookingFromWebhook(
                     serviceIds, date, startTime, totalDurationMinutes,
-                    customerName, customerEmail, customerPhone, notes, session.getId(), promotionId
+                    customerName, customerEmail, customerPhone, notes, session.getId(), promotionId, productSales
             );
         } catch (daviderocca.beautyroom.exceptions.BadRequestException bex) {
             if ("CONFLICT".equals(bex.getMessage())) {
@@ -377,6 +385,37 @@ public class StripeWebhookController {
 
         log.info("MULTI booking confermato: bookingId={} sessionId={} servizi={} cliente={}",
                 saved.getBookingId(), session.getId(), serviceIds.size(), customerEmail);
+    }
+
+    /**
+     * Fix 3: parses the "products" metadata ({@code "<productId>:<qty>:<unitAmountCents>,..."}) into
+     * sale carriers (paid = true). Robust by design — the customer has already paid, so a malformed
+     * entry is skipped (logged), never thrown; a missing/blank input yields an empty list. The
+     * unitPrice is reconstructed from the cents that were ACTUALLY charged at session creation, so it
+     * never re-resolves against a possibly-changed catalog price. Package-private for unit testing.
+     */
+    static List<SaleEntryDTO> parseProductsMetadata(String raw) {
+        List<SaleEntryDTO> out = new ArrayList<>();
+        if (raw == null || raw.isBlank()) return out;
+        for (String token : raw.split(",")) {
+            String t = token.trim();
+            if (t.isEmpty()) continue;
+            String[] parts = t.split(":");
+            if (parts.length != 3) {
+                log.warn("MULTI booking: voce prodotto malformata, skip: '{}'", t);
+                continue;
+            }
+            try {
+                UUID productId = UUID.fromString(parts[0].trim());
+                int quantity = Math.max(1, Integer.parseInt(parts[1].trim()));
+                long cents = Long.parseLong(parts[2].trim());
+                BigDecimal unitPrice = BigDecimal.valueOf(cents).movePointLeft(2);
+                out.add(new SaleEntryDTO(productId, quantity, unitPrice, true));
+            } catch (Exception e) {
+                log.warn("MULTI booking: voce prodotto non parsabile, skip: '{}' ({})", t, e.getMessage());
+            }
+        }
+        return out;
     }
 
     // Fulfillment promo SOLO prodotti (checkout session-only del prompt 05): crea l'ordine

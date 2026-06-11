@@ -7,8 +7,10 @@ import com.stripe.param.checkout.SessionCreateParams;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingResponseDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.BookingSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.ProductEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PublicMultiServiceBookingDTO;
 import daviderocca.beautyroom.repositories.BookingRepository;
+import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.Promotion;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
@@ -291,6 +293,61 @@ public class BookingCheckoutController {
                             )
                             .build()
             );
+        }
+
+        // Fix 3 (mixed cart): charge the cart's products through the SAME Stripe session and carry
+        // them to the webhook via metadata. Price/stock come from the Product entity (never the
+        // client). The charged unit amount (cents) is echoed into the metadata so the webhook records
+        // EXACTLY what was charged — no drift if the catalog price changes mid-checkout. Promo carts
+        // never reach here (the promo early-return above handles them), so products stay non-promo.
+        if (payload.products() != null && !payload.products().isEmpty()) {
+            StringBuilder productsMeta = new StringBuilder();
+            for (ProductEntryDTO entry : payload.products()) {
+                if (entry == null || entry.productId() == null) continue;
+                int qty = Math.max(1, entry.quantity());
+                Product product = productRepository.findById(entry.productId())
+                        .orElseThrow(() -> new BadRequestException("Prodotto non trovato."));
+                if (!product.isActive()) {
+                    throw new BadRequestException("Il prodotto '" + product.getName() + "' non è disponibile.");
+                }
+                if (product.getPrice() == null || product.getPrice().signum() <= 0) {
+                    throw new BadRequestException("Il prodotto '" + product.getName() + "' non ha un prezzo valido.");
+                }
+                if (product.getStock() < qty) {
+                    throw new BadRequestException(
+                            "Prodotto '" + product.getName() + "' non disponibile nella quantità richiesta.");
+                }
+                long unitAmountCents = product.getPrice().movePointRight(2).longValueExact();
+
+                builder.addLineItem(
+                        SessionCreateParams.LineItem.builder()
+                                .setQuantity((long) qty)
+                                .setPriceData(
+                                        SessionCreateParams.LineItem.PriceData.builder()
+                                                .setCurrency("eur")
+                                                .setUnitAmount(unitAmountCents)
+                                                .setProductData(
+                                                        SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                                                .setName(product.getName())
+                                                                .build()
+                                                )
+                                                .build()
+                                )
+                                .build()
+                );
+
+                if (productsMeta.length() > 0) productsMeta.append(",");
+                productsMeta.append(entry.productId()).append(":").append(qty).append(":").append(unitAmountCents);
+            }
+            // Stripe metadata values cap at 500 chars. A token is ~48 chars (uuid:qty:cents), so ~10
+            // products fit — far beyond a real cart. Reject rather than silently truncate (would drop a
+            // paid product from the agenda).
+            if (productsMeta.length() > 480) {
+                throw new BadRequestException("Troppi prodotti nel carrello per il checkout online.");
+            }
+            if (productsMeta.length() > 0) {
+                builder.putMetadata("products", productsMeta.toString());
+            }
         }
 
         Session session = Session.create(builder.build());
