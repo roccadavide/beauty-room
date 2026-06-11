@@ -9,7 +9,7 @@ import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeF
 import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import { useClosedDays } from "../../hooks/useClosedDays";
-import { useNextSlot } from "../../hooks/useNextSlot";
+import { useNextCombinedSlot } from "../../hooks/useNextCombinedSlot";
 import "./MultiServiceBookingModal.css";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,7 +36,6 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
   const { closedDates, closedWeekdays, isClosed } = useClosedDays();
   const [emptySlotDates, setEmptySlotDates] = useState([]);
 
-  const primaryServiceId = services[0]?.serviceId ?? null;
   const totalDuration = services.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
   const servicesTotal = services.reduce((sum, s) => sum + (s.price || 0), 0);
   const productsTotal = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
@@ -63,8 +62,8 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
   const [consentLaser, setConsentLaser] = useState(false);
   const [consentPmu, setConsentPmu] = useState(false);
 
-  // ── next slot ──
-  const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } = useNextSlot(primaryServiceId);
+  // ── next slot ── (combined: sized to the full cart duration, not the first service)
+  const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } = useNextCombinedSlot(totalDuration);
   const pendingSlotStartRef = useRef(null);
 
   const maxBookingDate = useMemo(() => {
@@ -87,9 +86,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
 
   // Find next slot on open
   useEffect(() => {
-    if (show && primaryServiceId) findNext();
+    if (show && totalDuration) findNext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, primaryServiceId]);
+  }, [show, totalDuration]);
 
   // Pre-fill customer when reaching step 3
   useEffect(() => {
@@ -225,7 +224,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
           )}
         </div>
         <div className="msb-cart-header__meta">
-          {totalDuration > 0 && <span>{formatDuration(totalDuration)}</span>}
+          {totalDuration > 0 && (
+            <span className="msb-cart-header__duration">⏱ Durata totale · {formatDuration(totalDuration)}</span>
+          )}
           <span className="msb-cart-header__price">{totalPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
         </div>
       </div>
@@ -308,6 +309,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
       {step === 2 && (
         <div className="bm-step-content">
           <div className="bm-date-recap">📅 {date.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</div>
+          {totalDuration > 0 && <div className="msb-slot-duration-hint">Slot da {formatDuration(totalDuration)}</div>}
           {loadingSlots && (
             <div className="bm-loading">
               <Spinner size="sm" animation="border" /> Carico slot…
