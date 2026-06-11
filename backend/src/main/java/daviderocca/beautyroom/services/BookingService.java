@@ -925,7 +925,9 @@ public class BookingService {
             String notes,
             String stripeSessionId,
             UUID promotionId,
-            List<SaleEntryDTO> productSales
+            List<SaleEntryDTO> productSales,
+            boolean consentLaser,
+            boolean consentPmu
     ) {
         LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
@@ -946,6 +948,10 @@ public class BookingService {
         Booking booking = new Booking(name, email, phone, start, end, notes, primary, null, null);
         if (!services.isEmpty()) booking.setServices(new ArrayList<>(services));
         booking.setDurationMinutes(totalDurationMinutes);
+        // Fix 9: persist the laser/PMU consent acknowledgment from the cart flow (was dropped before).
+        booking.setConsentLaser(consentLaser);
+        booking.setConsentPmu(consentPmu);
+        if (consentLaser || consentPmu) booking.setConsentAt(LocalDateTime.now());
         booking.setBookingStatus(BookingStatus.CONFIRMED);
         booking.setPaidAt(LocalDateTime.now());
         booking.setCreatedByAdmin(false);

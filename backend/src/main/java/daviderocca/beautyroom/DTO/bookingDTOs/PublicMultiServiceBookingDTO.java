@@ -52,5 +52,11 @@ public record PublicMultiServiceBookingDTO(
         // Fix 3 (mixed cart): products the customer is buying alongside the services. Optional —
         // null/empty for service-only or promo carts. No price/paid from the client; the server
         // resolves both from the Product entity. Added as the LAST field (Jackson binds by name).
-        List<ProductEntryDTO> products
+        List<ProductEntryDTO> products,
+
+        // Fix 9 (consent persistence): the laser/PMU informed-consent acknowledgment the customer
+        // ticked in the cart flow. The FE already sends these; previously dropped (no field here).
+        // Appended last (Jackson binds by name). Stored only — no UI surfacing in this pass.
+        boolean consentLaser,
+        boolean consentPmu
 ) {}
