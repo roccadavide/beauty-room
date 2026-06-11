@@ -14,14 +14,11 @@ import "./MultiServiceBookingModal.css";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
-const LASER_KEYWORDS = ["laser", "epilazione", "hiled", "diodo", "luce pulsata"];
-const PMU_KEYWORDS = [
-  "trucco permanente", "pmu", "microblading", "micropigmentazione",
-  "pelo pelo", "labbra permanente", "eyeliner permanente",
-];
+const LASER_KEYWORDS = ["laser", "hiled", "diodo", "luce pulsata"];
+const PMU_KEYWORDS = ["trucco permanente", "pmu", "microblading", "micropigmentazione", "pelo pelo", "labbra permanente", "eyeliner permanente"];
 
 const needsLaserConsent = title => LASER_KEYWORDS.some(k => title?.toLowerCase().includes(k));
-const needsPmuConsent  = title => PMU_KEYWORDS.some(k => title?.toLowerCase().includes(k));
+const needsPmuConsent = title => PMU_KEYWORDS.some(k => title?.toLowerCase().includes(k));
 
 const formatDuration = mins => {
   if (!mins) return "";
@@ -40,15 +37,15 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
   const [emptySlotDates, setEmptySlotDates] = useState([]);
 
   const primaryServiceId = services[0]?.serviceId ?? null;
-  const totalDuration   = services.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
-  const servicesTotal   = services.reduce((sum, s) => sum + (s.price || 0), 0);
-  const productsTotal   = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
-  const totalPrice      = servicesTotal + productsTotal;
+  const totalDuration = services.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
+  const servicesTotal = services.reduce((sum, s) => sum + (s.price || 0), 0);
+  const productsTotal = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+  const totalPrice = servicesTotal + productsTotal;
 
   const hasLaserConsent = services.some(s => needsLaserConsent(s.name));
-  const hasPmuConsent   = services.some(s => needsPmuConsent(s.name));
-  const hasConsentStep  = hasLaserConsent || hasPmuConsent;
-  const summaryStep     = hasConsentStep ? 5 : 4;
+  const hasPmuConsent = services.some(s => needsPmuConsent(s.name));
+  const hasConsentStep = hasLaserConsent || hasPmuConsent;
+  const summaryStep = hasConsentStep ? 5 : 4;
 
   // ── state ──
   const [step, setStep] = useState(1);
@@ -67,8 +64,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
   const [consentPmu, setConsentPmu] = useState(false);
 
   // ── next slot ──
-  const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } =
-    useNextSlot(primaryServiceId);
+  const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } = useNextSlot(primaryServiceId);
   const pendingSlotStartRef = useRef(null);
 
   const maxBookingDate = useMemo(() => {
@@ -98,12 +94,10 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
   // Pre-fill customer when reaching step 3
   useEffect(() => {
     if (!show || step !== 3 || !accessToken || !user) return;
-    const fullName = user.name && user.surname
-      ? `${user.name} ${user.surname}`.trim()
-      : (user.name || "").trim();
+    const fullName = user.name && user.surname ? `${user.name} ${user.surname}`.trim() : (user.name || "").trim();
     setCustomer(prev => ({
       ...prev,
-      name:  prev.name.trim()  ? prev.name  : fullName,
+      name: prev.name.trim() ? prev.name : fullName,
       email: prev.email.trim() ? prev.email : (user.email || "").trim(),
       phone: prev.phone.trim() ? prev.phone : (user.phone || "").trim(),
     }));
@@ -164,15 +158,18 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
 
   const validate = () => {
     const err = {};
-    if (!customer.name.trim())              err.name  = "Il nome è obbligatorio";
-    if (!emailRegex.test(customer.email))   err.email = "Email non valida";
-    if (!phoneRegex.test(customer.phone))   err.phone = "Numero di telefono non valido";
+    if (!customer.name.trim()) err.name = "Il nome è obbligatorio";
+    if (!emailRegex.test(customer.email)) err.email = "Email non valida";
+    if (!phoneRegex.test(customer.phone)) err.phone = "Numero di telefono non valido";
     return err;
   };
 
   const goToNext = () => {
     const validationErrors = validate();
-    if (Object.keys(validationErrors).length) { setErrors(validationErrors); return; }
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors);
+      return;
+    }
     setStep(hasConsentStep ? 4 : summaryStep);
   };
 
@@ -183,25 +180,27 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
     try {
       const day = date.toLocaleDateString("sv-SE");
       const payload = {
-        customerName:          customer.name.trim(),
-        customerEmail:         customer.email.trim().toLowerCase(),
-        customerPhone:         customer.phone.trim(),
-        notes:                 customer.notes.trim() || null,
-        date:                  day,
-        startTime:             slot.start,
-        serviceIds:            services.map(s => s.serviceId),
-        totalDurationMinutes:  totalDuration,
+        customerName: customer.name.trim(),
+        customerEmail: customer.email.trim().toLowerCase(),
+        customerPhone: customer.phone.trim(),
+        notes: customer.notes.trim() || null,
+        date: day,
+        startTime: slot.start,
+        serviceIds: services.map(s => s.serviceId),
+        totalDurationMinutes: totalDuration,
         consentLaser,
         consentPmu,
         ...(products.length > 0 && {
           products: products.map(p => ({
-            productId:  p.productId,
-            quantity:   p.quantity || 1,
+            productId: p.productId,
+            quantity: p.quantity || 1,
             pickupDate: day,
           })),
         }),
       };
       const { url } = await createMultiServiceBookingCheckout(payload);
+      // Mark this as a cart checkout so the confirmation page clears the cart on PAID.
+      sessionStorage.setItem("br_cart_checkout", "1");
       window.location.href = url;
     } catch (err) {
       setCheckoutError(err.message || "Errore durante la prenotazione. Riprova.");
@@ -215,7 +214,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
       <div className="msb-cart-header">
         <div className="msb-cart-header__pills">
           {services.map(s => (
-            <span key={s.id} className="msb-cart-header__pill">{s.name}</span>
+            <span key={s.id} className="msb-cart-header__pill">
+              {s.name}
+            </span>
           ))}
           {products.length > 0 && (
             <span className="msb-cart-header__pill msb-cart-header__pill--product">
@@ -225,9 +226,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
         </div>
         <div className="msb-cart-header__meta">
           {totalDuration > 0 && <span>{formatDuration(totalDuration)}</span>}
-          <span className="msb-cart-header__price">
-            {totalPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-          </span>
+          <span className="msb-cart-header__price">{totalPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
         </div>
       </div>
 
@@ -236,11 +235,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
           <div key={s} className={`bm-step ${step === s ? "active" : step > s ? "done" : ""}`}>
             <div className="bm-step__dot">{step > s ? "✓" : s}</div>
             <span className="bm-step__label">
-              {s === 1 ? "Data"
-               : s === 2 ? "Orario"
-               : s === 3 ? "Dati"
-               : hasConsentStep && s === 4 ? "Consenso"
-               : "Riepilogo"}
+              {s === 1 ? "Data" : s === 2 ? "Orario" : s === 3 ? "Dati" : hasConsentStep && s === 4 ? "Consenso" : "Riepilogo"}
             </span>
           </div>
         ))}
@@ -280,14 +275,19 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
                 }
               }}
             />
-            <div className="bm-or-divider"><span>oppure scegli una data</span></div>
+            <div className="bm-or-divider">
+              <span>oppure scegli una data</span>
+            </div>
             <DateTimeField
               variant="inline"
               mode="date"
               value={toISODateLocal(date)}
               onChange={iso => {
                 const d = new Date(`${iso}T12:00:00`);
-                if (!Number.isNaN(d.getTime())) { setDate(d); setSlot(null); }
+                if (!Number.isNaN(d.getTime())) {
+                  setDate(d);
+                  setSlot(null);
+                }
               }}
               minDate={new Date()}
               maxDate={maxBookingDate}
@@ -307,10 +307,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
       {/* ── STEP 2: Orario ── */}
       {step === 2 && (
         <div className="bm-step-content">
-          <div className="bm-date-recap">
-            📅{" "}
-            {date.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
-          </div>
+          <div className="bm-date-recap">📅 {date.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</div>
           {loadingSlots && (
             <div className="bm-loading">
               <Spinner size="sm" animation="border" /> Carico slot…
@@ -332,7 +329,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
                           key={s.start}
                           type="button"
                           className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
-                          onClick={() => { if (!isOccupied) setSlot(s); }}
+                          onClick={() => {
+                            if (!isOccupied) setSlot(s);
+                          }}
                           disabled={isOccupied}
                           title={isOccupied ? "Slot occupato" : undefined}
                         >
@@ -348,11 +347,16 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
               );
             })}
           </div>
-          {slots.length === 0 && !loadingSlots && !slotsError && (
-            <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>
-          )}
+          {slots.length === 0 && !loadingSlots && !slotsError && <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>}
           <div className="bm-nav">
-            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => { setSlot(null); setStep(1); }}>
+            <button
+              className="bm-btn bm-btn--ghost"
+              type="button"
+              onClick={() => {
+                setSlot(null);
+                setStep(1);
+              }}
+            >
               ← Indietro
             </button>
             <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(3)} disabled={!slot}>
@@ -414,7 +418,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
             </Form.Group>
           </Form>
           <div className="bm-nav">
-            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(2)}>← Indietro</button>
+            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(2)}>
+              ← Indietro
+            </button>
             <button className="bm-btn bm-btn--primary" type="button" onClick={goToNext}>
               {hasConsentStep ? "Consenso →" : "Riepilogo →"}
             </button>
@@ -428,9 +434,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
           <div className="bm-consent__header">
             <span className="bm-consent__icon">📋</span>
             <h3 className="bm-consent__title">Informativa e consenso</h3>
-            <p className="bm-consent__subtitle">
-              Leggi le informazioni sul trattamento e conferma la presa visione.
-            </p>
+            <p className="bm-consent__subtitle">Leggi le informazioni sul trattamento e conferma la presa visione.</p>
           </div>
 
           {hasLaserConsent && (
@@ -438,7 +442,10 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
               <h4 className="bm-consent__box-title">Epilazione laser</h4>
               <div className="bm-consent__text">
                 <p>Il trattamento utilizza laser a diodo 818nm (fototermolisi selettiva). Sono necessarie mediamente 10-12 sedute.</p>
-                <p><strong>Controindicazioni principali:</strong> farmaci fotosensibilizzanti, malattie autoimmuni, lesioni cutanee, gravidanza/allattamento, esposizione solare nei 3/4 giorni precedenti/successivi.</p>
+                <p>
+                  <strong>Controindicazioni principali:</strong> farmaci fotosensibilizzanti, malattie autoimmuni, lesioni cutanee, gravidanza/allattamento,
+                  esposizione solare nei 3/4 giorni precedenti/successivi.
+                </p>
                 <p className="bm-consent__note">⚠️ Alla prima seduta firmerai il consenso informato completo in studio.</p>
               </div>
               <label className="bm-consent__check">
@@ -453,7 +460,10 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
               <h4 className="bm-consent__box-title">Trucco permanente (PMU)</h4>
               <div className="bm-consent__text">
                 <p>Tecnica di micropigmentazione intradermica con pigmenti certificati. Tempi di guarigione: 7-14 giorni.</p>
-                <p><strong>Controindicazioni principali:</strong> gravidanza/allattamento, diabete, coagulopatie, allergie a pigmenti/anestetici, malattie cutanee nella zona interessata, cicatrici recenti o cheloidi.</p>
+                <p>
+                  <strong>Controindicazioni principali:</strong> gravidanza/allattamento, diabete, coagulopatie, allergie a pigmenti/anestetici, malattie
+                  cutanee nella zona interessata, cicatrici recenti o cheloidi.
+                </p>
                 <p className="bm-consent__note">⚠️ Alla prima seduta firmerai il modulo di consenso completo in studio.</p>
               </div>
               <label className="bm-consent__check">
@@ -464,7 +474,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
           )}
 
           <div className="bm-nav">
-            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>← Indietro</button>
+            <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>
+              ← Indietro
+            </button>
             <button
               className="bm-btn bm-btn--primary"
               type="button"
@@ -487,7 +499,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
             </div>
             <div className="bm-summary__row">
               <span>Orario</span>
-              <strong>{slot?.start} – {slot?.end}</strong>
+              <strong>
+                {slot?.start} – {slot?.end}
+              </strong>
             </div>
             <div className="bm-summary__row">
               <span>Durata totale</span>
@@ -506,12 +520,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
                 {products.map(p => (
                   <div key={p.id} className="bm-summary__row">
                     <span>
-                      {p.name} ×{p.quantity || 1}{" "}
-                      <span style={{ fontSize: "0.72rem", color: "#b8976a" }}>ritiro stesso giorno</span>
+                      {p.name} ×{p.quantity || 1} <span style={{ fontSize: "0.72rem", color: "#b8976a" }}>ritiro stesso giorno</span>
                     </span>
-                    <strong>
-                      {(p.price * (p.quantity || 1)).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </strong>
+                    <strong>{(p.price * (p.quantity || 1)).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
                   </div>
                 ))}
               </>
@@ -519,9 +530,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
             <div className="bm-summary__divider" />
             <div className="bm-summary__row">
               <span style={{ fontWeight: 600, color: "#2e2118" }}>Totale</span>
-              <strong style={{ fontSize: "1.1rem" }}>
-                {totalPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-              </strong>
+              <strong style={{ fontSize: "1.1rem" }}>{totalPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
             </div>
             <div className="bm-summary__divider" />
             <div className="bm-summary__row">
@@ -543,31 +552,32 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
               </div>
             )}
             {(consentLaser || consentPmu) && (
-              <div className="bm-summary__consent-note">
-                📋 Ricordati di firmare il consenso informato completo in studio alla prima seduta.
-              </div>
+              <div className="bm-summary__consent-note">📋 Ricordati di firmare il consenso informato completo in studio alla prima seduta.</div>
             )}
           </div>
 
-          {checkoutError && <div className="bm-alert" style={{ marginTop: "1rem" }}>{checkoutError}</div>}
+          {checkoutError && (
+            <div className="bm-alert" style={{ marginTop: "1rem" }}>
+              {checkoutError}
+            </div>
+          )}
 
           <div className="bm-nav bm-nav--col">
             <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(hasConsentStep ? 4 : 3)}>
               ← Modifica
             </button>
             <button className="bm-btn bm-btn--cta" type="button" onClick={handleConfirm} disabled={paying}>
-              {paying
-                ? <><Spinner size="sm" animation="border" /> Reindirizzamento…</>
-                : "💳 Paga ora con carta"}
+              {paying ? (
+                <>
+                  <Spinner size="sm" animation="border" /> Reindirizzamento…
+                </>
+              ) : (
+                "💳 Paga ora con carta"
+              )}
             </button>
           </div>
           <div className="bm-whatsapp-footer">
-            <a
-              href={`https://wa.me/${BRAND_WHATSAPP}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bm-whatsapp-link"
-            >
+            <a href={`https://wa.me/${BRAND_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="bm-whatsapp-link">
               Hai bisogno di aiuto? → WhatsApp
             </a>
           </div>
