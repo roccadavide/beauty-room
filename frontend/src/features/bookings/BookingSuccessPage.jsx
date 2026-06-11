@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
 import { useSearchParams, Link } from "react-router-dom";
 import { Spinner } from "react-bootstrap";
 import { fetchBookingSummary } from "../../api/modules/stripe.api";
 import { fetchServiceById } from "../../api/modules/services.api";
+import { clearCart } from "../cart/slices/cart.slice";
 import SEO from "../../components/common/SEO";
 
 const BOOKING_SUMMARY_ERROR_MESSAGE = "Non è stato possibile recuperare i dettagli della prenotazione. Controlla la tua email per la conferma.";
 const INVALID_SESSION_MESSAGE = "Sessione di pagamento non valida o mancante.";
 
 const BookingSuccessPage = () => {
+  const dispatch = useDispatch();
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
 
@@ -92,6 +95,16 @@ const BookingSuccessPage = () => {
       alive = false;
     };
   }, [data]);
+
+  // Clear the cart once a cart checkout is confirmed PAID. The marker (set before the
+  // Stripe redirect) scopes this to cart checkouts — a single-service "Prenota ora"
+  // never sets it. The PAID guard keeps the cart intact on a failed/cancelled payment.
+  useEffect(() => {
+    if (data?.paymentStatus === "PAID" && sessionStorage.getItem("br_cart_checkout")) {
+      dispatch(clearCart());
+      sessionStorage.removeItem("br_cart_checkout");
+    }
+  }, [data, dispatch]);
 
   if (loading) {
     return (
