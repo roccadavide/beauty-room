@@ -3074,6 +3074,15 @@ public class BookingService {
             log.warn("Could not resolve package summary for booking {}: {}", booking.getBookingId(), e.getMessage());
         }
 
+        // Standalone product sales (promotionLinkId == null), same mapping the agenda card uses.
+        // Promo product-lines stay inside their promotion grouping, not here.
+        List<SaleSummaryDTO> sales = bookingSaleRepository
+                .findByBookingIdOrderByAddedAtDesc(booking.getBookingId()).stream()
+                .filter(s -> s.getPromotionLinkId() == null)
+                .map(s -> new SaleSummaryDTO(s.getId(), s.getProductId(), s.getProductName(),
+                        s.getQuantity(), s.getUnitPrice(), s.isPaid()))
+                .toList();
+
         return new BookingResponseDTO(
                 booking.getBookingId(),
                 booking.getCustomerName(),
@@ -3098,7 +3107,8 @@ public class BookingService {
                 booking.getTotalSessions(),
                 booking.getLinkingStatus() != null ? booking.getLinkingStatus().name() : null,
                 linkedPackage,
-                booking.isPaidInStore()
+                booking.isPaidInStore(),
+                sales
         );
     }
 

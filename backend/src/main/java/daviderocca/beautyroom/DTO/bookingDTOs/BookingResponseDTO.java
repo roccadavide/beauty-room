@@ -34,5 +34,7 @@ public record BookingResponseDTO(
         Integer totalSessions,
         String linkingStatus,
         PackageSummaryDTO linkedPackage,
-        boolean paidInStore
+        boolean paidInStore,
+        // Standalone product sales attached to this booking (online-paid cart products).
+        List<SaleSummaryDTO> sales
 ) {}

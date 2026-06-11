@@ -30,7 +30,6 @@ const ServicePage = lazy(() => import("./features/services/ServicePage"));
 const ServiceDetail = lazy(() => import("./features/services/ServiceDetails"));
 const AboutDescription = lazy(() => import("./features/about/AboutDescription"));
 const MyProfile = lazy(() => import("./features/profile/MyProfile"));
-const BookingSuccessPage = lazy(() => import("./features/bookings/BookingSuccessPage"));
 const MyArea = lazy(() => import("./pages/user/MyArea"));
 const ResultsPage = lazy(() => import("./features/results/ResultsPage"));
 const OccasioniPage = lazy(() => import("./features/occasioni/OccasioniPage"));
