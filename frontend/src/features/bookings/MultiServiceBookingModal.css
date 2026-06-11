@@ -306,11 +306,34 @@
   color: #9e8272;
 }
 
+.msb-cart-header__duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #7a5c30;
+  background: rgba(184, 151, 106, 0.15);
+  border-radius: 20px;
+  padding: 0.2rem 0.6rem;
+  white-space: nowrap;
+}
+
 .msb-cart-header__price {
   font-family: "SaolDisplay-Light", serif;
   font-size: 1rem;
   font-weight: 300;
   color: #2a1b15;
+}
+
+/* Step 2 — block-size hint next to the date recap (why slots are N-long) */
+.msb-slot-duration-hint {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #9e8272;
 }
 
 /* ── Footer ── */

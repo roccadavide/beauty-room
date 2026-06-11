@@ -268,7 +268,10 @@ public class BookingCheckoutController {
                 .putMetadata("startTime", payload.startTime().toString())
                 .putMetadata("totalDurationMinutes", String.valueOf(payload.totalDurationMinutes()))
                 .putMetadata("customerName", payload.customerName())
-                .putMetadata("customerPhone", payload.customerPhone() != null ? payload.customerPhone() : "");
+                .putMetadata("customerPhone", payload.customerPhone() != null ? payload.customerPhone() : "")
+                // Fix 9: laser/PMU consent acknowledgment (two booleans → trivial vs the 500-char cap).
+                .putMetadata("consentLaser", String.valueOf(payload.consentLaser()))
+                .putMetadata("consentPmu", String.valueOf(payload.consentPmu()));
 
         if (payload.notes() != null && !payload.notes().isBlank()) {
             String notes = payload.notes().length() > 490

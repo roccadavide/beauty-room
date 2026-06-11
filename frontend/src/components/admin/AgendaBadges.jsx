@@ -1,6 +1,7 @@
 // Small presentational badges for the admin agenda (Editorial Beauty).
-// VerifiedBadge — gold "trusted customer" checkmark, shown next to a customer name.
-// OnlineBadge   — "Prenotato online" pill for customer-made pay-in-store bookings.
+// VerifiedBadge    — gold "trusted customer" checkmark, shown next to a customer name.
+// OnlineBadge      — "Prenotato online" pill for customer-made pay-in-store bookings.
+// PaidOnlineBadge  — "Pagato online" pill for customer-made bookings paid via Stripe.
 
 export function VerifiedBadge({ size = 14, className = "" }) {
   return (
@@ -27,4 +28,8 @@ export function VerifiedBadge({ size = 14, className = "" }) {
 
 export function OnlineBadge({ className = "" }) {
   return <span className={`ag-badge-online ${className}`.trim()}>Prenotato online</span>;
+}
+
+export function PaidOnlineBadge({ className = "" }) {
+  return <span className={`ag-badge-paid-online ${className}`.trim()}>💳 Pagato online</span>;
 }

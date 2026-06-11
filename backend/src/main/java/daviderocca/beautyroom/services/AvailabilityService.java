@@ -229,6 +229,50 @@ public class AvailabilityService {
         return Optional.empty();
     }
 
+    /**
+     * Cerca il primo slot COMBINATO disponibile per una durata totale arbitraria
+     * (somma delle durate dei servizi nel carrello), a partire da fromDate.
+     * Mirror esatto di {@link #findNextAvailableSlotForService}: stesso ciclo in avanti
+     * (start clampato a >= oggi), stesso filtro fromTime applicato solo al giorno 0,
+     * stesso try/catch per saltare i giorni chiusi/non configurati — ma la chiamata
+     * per-giorno è {@link #getCombinedAvailabilities(LocalDate, int)} così lo slot
+     * candidato è dimensionato sul blocco combinato (end == start + durationMinutes),
+     * non sulla durata del primo servizio.
+     */
+    @Transactional(readOnly = true)
+    public Optional<PublicNextSlotDTO> findNextAvailableCombinedSlot(int durationMinutes, LocalDate fromDate, String fromTime) {
+        LocalDate start = (fromDate != null && !fromDate.isBefore(LocalDate.now(BUSINESS_ZONE)))
+                ? fromDate
+                : LocalDate.now(BUSINESS_ZONE);
+
+        // Parsing fromTime — null se assente o malformato
+        LocalTime afterTime = null;
+        if (fromTime != null && fromTime.matches("\\d{2}:\\d{2}")) {
+            afterTime = LocalTime.parse(fromTime, HHMM);
+        }
+        final LocalTime afterTimeFinal = afterTime;
+
+        for (int i = 0; i < maxAdvanceDays; i++) {
+            LocalDate day = start.plusDays(i);
+            // Il filtro orario si applica solo al primo giorno
+            final boolean applyTimeFilter = (i == 0 && afterTimeFinal != null);
+            try {
+                AvailabilityResponseDTO resp = getCombinedAvailabilities(day, durationMinutes);
+                Optional<AvailabilitySlotDTO> first = resp.slots().stream()
+                        .filter(AvailabilitySlotDTO::available)
+                        .filter(s -> !applyTimeFilter ||
+                                LocalTime.parse(s.start(), HHMM).isAfter(afterTimeFinal))
+                        .findFirst();
+                if (first.isPresent()) {
+                    return Optional.of(new PublicNextSlotDTO(day, first.get().start(), first.get().end()));
+                }
+            } catch (BadRequestException e) {
+                // giorno chiuso o non configurato: prosegui
+            }
+        }
+        return Optional.empty();
+    }
+
     // ==========================================================================
     // 3) ADMIN DAY TIMELINE
     // ==========================================================================

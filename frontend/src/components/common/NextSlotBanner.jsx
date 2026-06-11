@@ -47,7 +47,7 @@ export default function NextSlotBanner({ slot, loading, notFound, onFind, onNext
           <span className="nsb__label">Prossimo disponibile</span>
         </div>
         <p className="nsb__empty">
-          Nessun orario libero nei prossimi 60 giorni. Scegli una data qui sotto.
+          Nessun orario libero nel periodo prenotabile. Scegli una data qui sotto.
         </p>
       </div>
     );

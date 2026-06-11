@@ -15,7 +15,7 @@ import { useNextSlot } from "../../hooks/useNextSlot";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
-const LASER_KEYWORDS = ["laser", "epilazione", "hiled", "diodo", "luce pulsata"];
+const LASER_KEYWORDS = ["laser", "hiled", "diodo", "luce pulsata"];
 const PMU_KEYWORDS = ["trucco permanente", "pmu", "microblading", "micropigmentazione", "pelo pelo", "labbra permanente", "eyeliner permanente"];
 
 const needsLaserConsent = title => LASER_KEYWORDS.some(k => title?.toLowerCase().includes(k));
@@ -321,7 +321,16 @@ export const BookingFlow = ({
 
   return (
     <>
-      <Shell show={show} layout="side" onHide={handleClose} eyebrow="PRENOTAZIONE ✦" title={service?.title} subtitle={metaSubtitle} topSlot={stepsSlot} size="sm">
+      <Shell
+        show={show}
+        layout="side"
+        onHide={handleClose}
+        eyebrow="PRENOTAZIONE ✦"
+        title={service?.title}
+        subtitle={metaSubtitle}
+        topSlot={stepsSlot}
+        size="sm"
+      >
         {mode === "route" && waitlistSlot ? (
           <div className="br-waitlist">
             <div className="br-waitlist__bar">
@@ -332,413 +341,415 @@ export const BookingFlow = ({
             <WaitlistContent service={service} date={date} slot={waitlistSlot} onClose={() => setWaitlistSlot(null)} />
           </div>
         ) : (
-        <>
-        {error && <div className="bm-alert">{error}</div>}
+          <>
+            {error && <div className="bm-alert">{error}</div>}
 
-        {step === 1 && (
-          <div className="bm-step-content">
-            <div className="bm-step1-grid">
-              <NextSlotBanner
-                slot={nextSlot}
-                loading={nextLoading}
-                notFound={nextNotFound}
-                onFind={findNext}
-                onNext={findNextAgain}
-                onSelect={bannerSlot => {
-                  const d = new Date(bannerSlot.date + "T12:00:00");
-                  if (!Number.isNaN(d.getTime())) {
-                    setDate(d);
-                    pendingSlotStartRef.current = bannerSlot.startTime;
-                    setStep(2);
-                  }
-                }}
-              />
-              <div className="bm-or-divider">
-                <span>oppure scegli una data</span>
-              </div>
-              <DateTimeField
-                variant="inline"
-                mode="date"
-                value={toISODateLocal(date)}
-                onChange={iso => {
-                  const d = new Date(`${iso}T12:00:00`);
-                  if (!Number.isNaN(d.getTime())) {
-                    setDate(d);
-                    setSlot(null);
-                  }
-                }}
-                minDate={new Date()}
-                maxDate={maxBookingDate}
-                disabledDates={disabledDates}
-                placeholder="Scegli un giorno"
-              />
-            </div>
-            <div className="bm-nav">
-              <span />
-              <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(2)}>
-                Scegli orario →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="bm-step-content">
-            <div className="bm-date-recap">
-              📅{" "}
-              {date.toLocaleDateString("it-IT", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })}
-            </div>
-            {loadingSlots && (
-              <div className="bm-loading">
-                <Spinner size="sm" animation="border" /> Carico slot…
-              </div>
-            )}
-            <div className="bm-slot-groups">
-              {DAYPARTS.map(({ key, label }) => {
-                const bucket = slotGroups[key];
-                if (bucket.length === 0) return null;
-                return (
-                  <div className="bm-slot-group" key={key}>
-                    <div className="bm-slot-group__label">{label}</div>
-                    <div className="bm-slots">
-                      {bucket.map(s => {
-                        const isOccupied = s.available === false;
-                        return (
-                          <button
-                            key={s.start}
-                            type="button"
-                            className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
-                            onClick={() => {
-                              if (isOccupied) setWaitlistSlot(s);
-                              else setSlot(s);
-                            }}
-                            title={isOccupied ? "Slot occupato — clicca per lista d'attesa" : undefined}
-                          >
-                            {isOccupied ? "🔒 " : ""}
-                            {s.start}
-                            <span className="bm-slot__end">– {s.end}</span>
-                            {isOccupied && <span className="bm-slot__waitlist-hint">Lista d'attesa</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {slots.length === 0 && !loadingSlots && <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>}
-            <div className="bm-nav">
-              <button
-                className="bm-btn bm-btn--ghost"
-                type="button"
-                onClick={() => {
-                  setSlot(null);
-                  setStep(1);
-                }}
-              >
-                ← Indietro
-              </button>
-              <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(3)} disabled={!slot}>
-                Continua →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="bm-step-content">
-            <Form className="bm-form">
-              <Form.Group className="bm-form-group">
-                <Form.Label>Nome e Cognome *</Form.Label>
-                <Form.Control
-                  value={customer.name}
-                  onChange={e => handleCustomerChange("name", e.target.value)}
-                  isInvalid={!!errors.name}
-                  placeholder="Es. Mario Rossi"
-                  className="bm-input"
-                />
-                <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
-              </Form.Group>
-              <Form.Group className="bm-form-group">
-                <Form.Label>Email *</Form.Label>
-                <Form.Control
-                  type="email"
-                  value={customer.email}
-                  onChange={e => handleCustomerChange("email", e.target.value)}
-                  isInvalid={!!errors.email}
-                  placeholder="nome@email.com"
-                  className="bm-input"
-                />
-                <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
-              </Form.Group>
-              <Form.Group className="bm-form-group">
-                <Form.Label>Telefono *</Form.Label>
-                <Form.Control
-                  value={customer.phone}
-                  onChange={e => handleCustomerChange("phone", e.target.value)}
-                  isInvalid={!!errors.phone}
-                  placeholder="+39 333 1234567"
-                  className="bm-input"
-                />
-                <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
-              </Form.Group>
-              <Form.Group className="bm-form-group">
-                <Form.Label>Note (opzionale)</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={customer.notes}
-                  onChange={e => handleCustomerChange("notes", e.target.value)}
-                  placeholder="Allergie, preferenze, domande…"
-                  className="bm-input"
-                />
-              </Form.Group>
-            </Form>
-            <div className="bm-nav">
-              <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(2)}>
-                ← Indietro
-              </button>
-              <button className="bm-btn bm-btn--primary" type="button" onClick={goToSummary}>
-                {hasConsentStep ? "Consenso →" : "Riepilogo →"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 4 && hasConsentStep && (
-          <div className="bm-step-content bm-consent">
-            <div className="bm-consent__header">
-              <span className="bm-consent__icon">📋</span>
-              <h3 className="bm-consent__title">Informativa e consenso</h3>
-              <p className="bm-consent__subtitle">Leggi le informazioni sul trattamento e conferma la presa visione.</p>
-            </div>
-
-            {needsLaserConsent(service?.title) && (
-              <div className="bm-consent__box">
-                <h4 className="bm-consent__box-title">Epilazione laser</h4>
-                <div className="bm-consent__text">
-                  <p>Il trattamento utilizza laser a diodo 818nm (fototermolisi selettiva). Sono necessarie mediamente 10-12 sedute.</p>
-                  <p>
-                    <strong>Controindicazioni principali:</strong> farmaci fotosensibilizzanti, malattie autoimmuni, lesioni cutanee, gravidanza/allattamento,
-                    esposizione solare nei 3/4 giorni precedenti/successivi.
-                  </p>
-                  <p className="bm-consent__note">⚠️ Alla prima seduta firmerai il consenso informato completo in studio.</p>
-                </div>
-                <label className="bm-consent__check">
-                  <input type="checkbox" checked={consentLaser} onChange={e => setConsentLaser(e.target.checked)} />
-                  <span>Ho letto le informazioni, dichiaro di non avere controindicazioni e sono consapevole che firmero il documento completo in studio.</span>
-                </label>
-              </div>
-            )}
-
-            {showPmuConsent && (
-              <div className="bm-consent__box">
-                <h4 className="bm-consent__box-title">Trucco permanente (PMU)</h4>
-                <div className="bm-consent__text">
-                  <p>Tecnica di micropigmentazione intradermica con pigmenti certificati. Tempi di guarigione: 7-14 giorni.</p>
-                  <p>
-                    <strong>Controindicazioni principali:</strong> gravidanza/allattamento, diabete, coagulopatie, allergie a pigmenti/anestetici, malattie
-                    cutanee nella zona interessata, cicatrici recenti o cheloidi.
-                  </p>
-                  <p className="bm-consent__note">⚠️ Alla prima seduta firmerai il modulo di consenso completo in studio.</p>
-                </div>
-                <label className="bm-consent__check">
-                  <input type="checkbox" checked={consentPmu} onChange={e => setConsentPmu(e.target.checked)} />
-                  <span>Ho letto le informazioni, dichiaro di non avere controindicazioni e sono consapevole che firmero il documento completo in studio.</span>
-                </label>
-              </div>
-            )}
-
-            <div className="bm-nav">
-              <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>
-                ← Indietro
-              </button>
-              <button
-                className="bm-btn bm-btn--primary"
-                type="button"
-                onClick={() => setStep(summaryStep)}
-                disabled={(needsLaserConsent(service?.title) && !consentLaser) || (showPmuConsent && !consentPmu)}
-              >
-                Continua →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === summaryStep && (
-          <div className="bm-step-content">
-            <div className="bm-summary">
-              <div className="bm-summary__row">
-                <span>Servizio</span>
-                <strong>{service?.title}</strong>
-              </div>
-              <div className="bm-summary__row">
-                <span>Durata</span>
-                <strong>{effectiveDuration} min</strong>
-              </div>
-              {promoPrice != null && promoOriginal != null ? (
-                <>
-                  <div className="bm-summary__row">
-                    <span>{service?.title}</span>
-                    <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
-                  </div>
-
-                  {promoProducts.map(p => (
-                    <div key={p.productId} className="bm-summary__row">
-                      <span>
-                        {p.name} <span style={{ fontSize: "0.72rem", color: "#b8976a" }}>incluso</span>
-                      </span>
-                      <strong>{Number(p.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
-                    </div>
-                  ))}
-
-                  <div className="bm-summary__row" style={{ marginTop: "4px" }}>
-                    <span style={{ fontWeight: 600, color: "#2e2118" }}>Totale listino</span>
-                    <strong style={{ textDecoration: "line-through", color: "#b0a09a" }}>
-                      {promoOriginal.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </strong>
-                  </div>
-
-                  <div className="bm-summary__divider" />
-
-                  <div className="bm-summary__row">
-                    <span style={{ fontWeight: 700, color: "#2e2118" }}>Prezzo promozione</span>
-                    <strong style={{ fontSize: "1.1rem", color: "#2e2118" }}>
-                      {promoPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </strong>
-                  </div>
-
-                  <div className="bm-summary__row">
-                    <span style={{ fontSize: "0.8rem", color: "#8c6d3f" }}>Risparmi</span>
-                    <span
-                      style={{
-                        fontSize: "0.78rem",
-                        background: "rgba(184,151,106,0.13)",
-                        color: "#8c6d3f",
-                        padding: "0.15rem 0.55rem",
-                        borderRadius: "999px",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {(promoOriginal - promoPrice).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="bm-summary__row">
-                  <span>Prezzo</span>
-                  <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
-                </div>
-              )}
-              {promoProducts.length > 0 && (
-                <>
-                  <div className="bm-summary__divider" />
-                  <div className="bm-summary__row bm-summary__row--highlight">
-                    <span>Prodotto incluso</span>
-                    <strong>{promoProducts.map(p => p.name).join(", ")}</strong>
-                  </div>
-                  <div className="bm-summary__row">
-                    <span style={{ fontSize: "0.78rem", color: "#9c8880" }}>Consegna</span>
-                    <span style={{ fontSize: "0.78rem", color: "#9c8880", textAlign: "right" }}>Il giorno del trattamento</span>
-                  </div>
-                </>
-              )}
-              <div className="bm-summary__divider" />
-              <div className="bm-summary__row">
-                <span>Data</span>
-                <strong>{date.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" })}</strong>
-              </div>
-              <div className="bm-summary__row">
-                <span>Orario</span>
-                <strong>
-                  {slot?.start} – {slot?.end}
-                </strong>
-              </div>
-              <div className="bm-summary__divider" />
-              <div className="bm-summary__row">
-                <span>Cliente</span>
-                <strong>{customer.name}</strong>
-              </div>
-              <div className="bm-summary__row">
-                <span>Email</span>
-                <strong>{customer.email}</strong>
-              </div>
-              <div className="bm-summary__row">
-                <span>Telefono</span>
-                <strong>{customer.phone}</strong>
-              </div>
-              {customer.notes && (
-                <div className="bm-summary__row">
-                  <span>Note</span>
-                  <strong>{customer.notes}</strong>
-                </div>
-              )}
-              {(consentLaser || consentPmu) && (
-                <div className="bm-summary__consent-note">📋 Ricordati di firmare il consenso informato completo in studio alla prima seduta.</div>
-              )}
-            </div>
-            <div className="bm-nav bm-nav--col">
-              <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(hasConsentStep ? 4 : 3)}>
-                ← Modifica
-              </button>
-              <div className="recesso-checkbox-wrapper">
-                <label className="recesso-label">
-                  <input
-                    type="checkbox"
-                    checked={recessoAccettato}
-                    onChange={e => {
-                      setRecessoAccettato(e.target.checked);
-                      if (e.target.checked) setRecessoError(false);
+            {step === 1 && (
+              <div className="bm-step-content">
+                <div className="bm-step1-grid">
+                  <NextSlotBanner
+                    slot={nextSlot}
+                    loading={nextLoading}
+                    notFound={nextNotFound}
+                    onFind={findNext}
+                    onNext={findNextAgain}
+                    onSelect={bannerSlot => {
+                      const d = new Date(bannerSlot.date + "T12:00:00");
+                      if (!Number.isNaN(d.getTime())) {
+                        setDate(d);
+                        pendingSlotStartRef.current = bannerSlot.startTime;
+                        setStep(2);
+                      }
                     }}
-                    className="recesso-input"
                   />
-                  <span>
-                    Acconsento all'esecuzione immediata del servizio e comprendo che, una volta avviato il trattamento, perderò il dircesso ai sensi dell'art.
-                    59 lett. a) del Codice del Consumo.
-                  </span>
-                </label>
+                  <div className="bm-or-divider">
+                    <span>oppure scegli una data</span>
+                  </div>
+                  <DateTimeField
+                    variant="inline"
+                    mode="date"
+                    value={toISODateLocal(date)}
+                    onChange={iso => {
+                      const d = new Date(`${iso}T12:00:00`);
+                      if (!Number.isNaN(d.getTime())) {
+                        setDate(d);
+                        setSlot(null);
+                      }
+                    }}
+                    minDate={new Date()}
+                    maxDate={maxBookingDate}
+                    disabledDates={disabledDates}
+                    placeholder="Scegli un giorno"
+                  />
+                </div>
+                <div className="bm-nav">
+                  <span />
+                  <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(2)}>
+                    Scegli orario →
+                  </button>
+                </div>
               </div>
-              {recessoError && <p className="recesso-error">⚠️ Devi accettare il consenso prima di procedere al pagamento.</p>}
-              {/* FIX-9: disabled durante redirect Stripe */}
-              <button className="bm-btn bm-btn--cta" type="button" onClick={confirm} disabled={paying}>
-                {paying ? (
-                  <>
-                    <Spinner size="sm" animation="border" /> Reindirizzamento…
-                  </>
-                ) : (
-                  "💳 Paga ora con carta"
-                )}
-              </button>
-              {user?.isVerified && !paying && (
-                <button className="bm-btn bm-btn--pay-in-store" type="button" onClick={confirmPayInStore}>
-                  🏠 Paga in loco (Cliente di Fiducia)
-                </button>
-              )}
-            </div>
-            {cancellationHours !== null && (
-              <p className="bm-policy-note">
-                In caso di imprevisto puoi spostare o annullare contattando Michela su WhatsApp entro <strong>{cancellationHours} ore</strong>{" "}
-                dall&apos;appuntamento. I rimborsi vengono elaborati entro 5-7 giorni lavorativi.
-              </p>
             )}
-            <div className="bm-whatsapp-footer">
-              <a href={`https://wa.me/${BRAND_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="bm-whatsapp-link">
-                Hai bisogno di aiuto? → WhatsApp
-              </a>
-            </div>
-          </div>
-        )}
-        </>
+
+            {step === 2 && (
+              <div className="bm-step-content">
+                <div className="bm-date-recap">
+                  📅{" "}
+                  {date.toLocaleDateString("it-IT", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  })}
+                </div>
+                {loadingSlots && (
+                  <div className="bm-loading">
+                    <Spinner size="sm" animation="border" /> Carico slot…
+                  </div>
+                )}
+                <div className="bm-slot-groups">
+                  {DAYPARTS.map(({ key, label }) => {
+                    const bucket = slotGroups[key];
+                    if (bucket.length === 0) return null;
+                    return (
+                      <div className="bm-slot-group" key={key}>
+                        <div className="bm-slot-group__label">{label}</div>
+                        <div className="bm-slots">
+                          {bucket.map(s => {
+                            const isOccupied = s.available === false;
+                            return (
+                              <button
+                                key={s.start}
+                                type="button"
+                                className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
+                                onClick={() => {
+                                  if (isOccupied) setWaitlistSlot(s);
+                                  else setSlot(s);
+                                }}
+                                title={isOccupied ? "Slot occupato — clicca per lista d'attesa" : undefined}
+                              >
+                                {isOccupied ? "🔒 " : ""}
+                                {s.start}
+                                <span className="bm-slot__end">– {s.end}</span>
+                                {isOccupied && <span className="bm-slot__waitlist-hint">Lista d'attesa</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {slots.length === 0 && !loadingSlots && <p className="bm-empty">Nessuno slot disponibile. Prova un altro giorno.</p>}
+                <div className="bm-nav">
+                  <button
+                    className="bm-btn bm-btn--ghost"
+                    type="button"
+                    onClick={() => {
+                      setSlot(null);
+                      setStep(1);
+                    }}
+                  >
+                    ← Indietro
+                  </button>
+                  <button className="bm-btn bm-btn--primary" type="button" onClick={() => setStep(3)} disabled={!slot}>
+                    Continua →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="bm-step-content">
+                <Form className="bm-form">
+                  <Form.Group className="bm-form-group">
+                    <Form.Label>Nome e Cognome *</Form.Label>
+                    <Form.Control
+                      value={customer.name}
+                      onChange={e => handleCustomerChange("name", e.target.value)}
+                      isInvalid={!!errors.name}
+                      placeholder="Es. Mario Rossi"
+                      className="bm-input"
+                    />
+                    <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
+                  </Form.Group>
+                  <Form.Group className="bm-form-group">
+                    <Form.Label>Email *</Form.Label>
+                    <Form.Control
+                      type="email"
+                      value={customer.email}
+                      onChange={e => handleCustomerChange("email", e.target.value)}
+                      isInvalid={!!errors.email}
+                      placeholder="nome@email.com"
+                      className="bm-input"
+                    />
+                    <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+                  </Form.Group>
+                  <Form.Group className="bm-form-group">
+                    <Form.Label>Telefono *</Form.Label>
+                    <Form.Control
+                      value={customer.phone}
+                      onChange={e => handleCustomerChange("phone", e.target.value)}
+                      isInvalid={!!errors.phone}
+                      placeholder="+39 333 1234567"
+                      className="bm-input"
+                    />
+                    <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
+                  </Form.Group>
+                  <Form.Group className="bm-form-group">
+                    <Form.Label>Note (opzionale)</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={2}
+                      value={customer.notes}
+                      onChange={e => handleCustomerChange("notes", e.target.value)}
+                      placeholder="Allergie, preferenze, domande…"
+                      className="bm-input"
+                    />
+                  </Form.Group>
+                </Form>
+                <div className="bm-nav">
+                  <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(2)}>
+                    ← Indietro
+                  </button>
+                  <button className="bm-btn bm-btn--primary" type="button" onClick={goToSummary}>
+                    {hasConsentStep ? "Consenso →" : "Riepilogo →"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 4 && hasConsentStep && (
+              <div className="bm-step-content bm-consent">
+                <div className="bm-consent__header">
+                  <span className="bm-consent__icon">📋</span>
+                  <h3 className="bm-consent__title">Informativa e consenso</h3>
+                  <p className="bm-consent__subtitle">Leggi le informazioni sul trattamento e conferma la presa visione.</p>
+                </div>
+
+                {needsLaserConsent(service?.title) && (
+                  <div className="bm-consent__box">
+                    <h4 className="bm-consent__box-title">Epilazione laser</h4>
+                    <div className="bm-consent__text">
+                      <p>Il trattamento utilizza laser a diodo 818nm (fototermolisi selettiva). Sono necessarie mediamente 10-12 sedute.</p>
+                      <p>
+                        <strong>Controindicazioni principali:</strong> farmaci fotosensibilizzanti, malattie autoimmuni, lesioni cutanee,
+                        gravidanza/allattamento, esposizione solare nei 3/4 giorni precedenti/successivi.
+                      </p>
+                      <p className="bm-consent__note">⚠️ Alla prima seduta firmerai il consenso informato completo in studio.</p>
+                    </div>
+                    <label className="bm-consent__check">
+                      <input type="checkbox" checked={consentLaser} onChange={e => setConsentLaser(e.target.checked)} />
+                      <span>
+                        Ho letto le informazioni, dichiaro di non avere controindicazioni e sono consapevole che firmero il documento completo in studio.
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                {showPmuConsent && (
+                  <div className="bm-consent__box">
+                    <h4 className="bm-consent__box-title">Trucco permanente (PMU)</h4>
+                    <div className="bm-consent__text">
+                      <p>Tecnica di micropigmentazione intradermica con pigmenti certificati. Tempi di guarigione: 7-14 giorni.</p>
+                      <p>
+                        <strong>Controindicazioni principali:</strong> gravidanza/allattamento, diabete, coagulopatie, allergie a pigmenti/anestetici, malattie
+                        cutanee nella zona interessata, cicatrici recenti o cheloidi.
+                      </p>
+                      <p className="bm-consent__note">⚠️ Alla prima seduta firmerai il modulo di consenso completo in studio.</p>
+                    </div>
+                    <label className="bm-consent__check">
+                      <input type="checkbox" checked={consentPmu} onChange={e => setConsentPmu(e.target.checked)} />
+                      <span>
+                        Ho letto le informazioni, dichiaro di non avere controindicazioni e sono consapevole che firmero il documento completo in studio.
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                <div className="bm-nav">
+                  <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(3)}>
+                    ← Indietro
+                  </button>
+                  <button
+                    className="bm-btn bm-btn--primary"
+                    type="button"
+                    onClick={() => setStep(summaryStep)}
+                    disabled={(needsLaserConsent(service?.title) && !consentLaser) || (showPmuConsent && !consentPmu)}
+                  >
+                    Continua →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === summaryStep && (
+              <div className="bm-step-content">
+                <div className="bm-summary">
+                  <div className="bm-summary__row">
+                    <span>Servizio</span>
+                    <strong>{service?.title}</strong>
+                  </div>
+                  <div className="bm-summary__row">
+                    <span>Durata</span>
+                    <strong>{effectiveDuration} min</strong>
+                  </div>
+                  {promoPrice != null && promoOriginal != null ? (
+                    <>
+                      <div className="bm-summary__row">
+                        <span>{service?.title}</span>
+                        <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                      </div>
+
+                      {promoProducts.map(p => (
+                        <div key={p.productId} className="bm-summary__row">
+                          <span>
+                            {p.name} <span style={{ fontSize: "0.72rem", color: "#b8976a" }}>incluso</span>
+                          </span>
+                          <strong>{Number(p.price).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                        </div>
+                      ))}
+
+                      <div className="bm-summary__row" style={{ marginTop: "4px" }}>
+                        <span style={{ fontWeight: 600, color: "#2e2118" }}>Totale listino</span>
+                        <strong style={{ textDecoration: "line-through", color: "#b0a09a" }}>
+                          {promoOriginal.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                        </strong>
+                      </div>
+
+                      <div className="bm-summary__divider" />
+
+                      <div className="bm-summary__row">
+                        <span style={{ fontWeight: 700, color: "#2e2118" }}>Prezzo promozione</span>
+                        <strong style={{ fontSize: "1.1rem", color: "#2e2118" }}>
+                          {promoPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                        </strong>
+                      </div>
+
+                      <div className="bm-summary__row">
+                        <span style={{ fontSize: "0.8rem", color: "#8c6d3f" }}>Risparmi</span>
+                        <span
+                          style={{
+                            fontSize: "0.78rem",
+                            background: "rgba(184,151,106,0.13)",
+                            color: "#8c6d3f",
+                            padding: "0.15rem 0.55rem",
+                            borderRadius: "999px",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {(promoOriginal - promoPrice).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="bm-summary__row">
+                      <span>Prezzo</span>
+                      <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                    </div>
+                  )}
+                  {promoProducts.length > 0 && (
+                    <>
+                      <div className="bm-summary__divider" />
+                      <div className="bm-summary__row bm-summary__row--highlight">
+                        <span>Prodotto incluso</span>
+                        <strong>{promoProducts.map(p => p.name).join(", ")}</strong>
+                      </div>
+                      <div className="bm-summary__row">
+                        <span style={{ fontSize: "0.78rem", color: "#9c8880" }}>Consegna</span>
+                        <span style={{ fontSize: "0.78rem", color: "#9c8880", textAlign: "right" }}>Il giorno del trattamento</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="bm-summary__divider" />
+                  <div className="bm-summary__row">
+                    <span>Data</span>
+                    <strong>{date.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" })}</strong>
+                  </div>
+                  <div className="bm-summary__row">
+                    <span>Orario</span>
+                    <strong>
+                      {slot?.start} – {slot?.end}
+                    </strong>
+                  </div>
+                  <div className="bm-summary__divider" />
+                  <div className="bm-summary__row">
+                    <span>Cliente</span>
+                    <strong>{customer.name}</strong>
+                  </div>
+                  <div className="bm-summary__row">
+                    <span>Email</span>
+                    <strong>{customer.email}</strong>
+                  </div>
+                  <div className="bm-summary__row">
+                    <span>Telefono</span>
+                    <strong>{customer.phone}</strong>
+                  </div>
+                  {customer.notes && (
+                    <div className="bm-summary__row">
+                      <span>Note</span>
+                      <strong>{customer.notes}</strong>
+                    </div>
+                  )}
+                  {(consentLaser || consentPmu) && (
+                    <div className="bm-summary__consent-note">📋 Ricordati di firmare il consenso informato completo in studio alla prima seduta.</div>
+                  )}
+                </div>
+                <div className="bm-nav bm-nav--col">
+                  <button className="bm-btn bm-btn--ghost" type="button" onClick={() => setStep(hasConsentStep ? 4 : 3)}>
+                    ← Modifica
+                  </button>
+                  <div className="recesso-checkbox-wrapper">
+                    <label className="recesso-label">
+                      <input
+                        type="checkbox"
+                        checked={recessoAccettato}
+                        onChange={e => {
+                          setRecessoAccettato(e.target.checked);
+                          if (e.target.checked) setRecessoError(false);
+                        }}
+                        className="recesso-input"
+                      />
+                      <span>
+                        Acconsento all'esecuzione immediata del servizio e comprendo che, una volta avviato il trattamento, perderò il dircesso ai sensi
+                        dell'art. 59 lett. a) del Codice del Consumo.
+                      </span>
+                    </label>
+                  </div>
+                  {recessoError && <p className="recesso-error">⚠️ Devi accettare il consenso prima di procedere al pagamento.</p>}
+                  {/* FIX-9: disabled durante redirect Stripe */}
+                  <button className="bm-btn bm-btn--cta" type="button" onClick={confirm} disabled={paying}>
+                    {paying ? (
+                      <>
+                        <Spinner size="sm" animation="border" /> Reindirizzamento…
+                      </>
+                    ) : (
+                      "💳 Paga ora con carta"
+                    )}
+                  </button>
+                  {user?.isVerified && !paying && (
+                    <button className="bm-btn bm-btn--pay-in-store" type="button" onClick={confirmPayInStore}>
+                      🏠 Paga in loco (Cliente di Fiducia)
+                    </button>
+                  )}
+                </div>
+                {cancellationHours !== null && (
+                  <p className="bm-policy-note">
+                    In caso di imprevisto puoi spostare o annullare contattando Michela su WhatsApp entro <strong>{cancellationHours} ore</strong>{" "}
+                    dall&apos;appuntamento. I rimborsi vengono elaborati entro 5-7 giorni lavorativi.
+                  </p>
+                )}
+                <div className="bm-whatsapp-footer">
+                  <a href={`https://wa.me/${BRAND_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="bm-whatsapp-link">
+                    Hai bisogno di aiuto? → WhatsApp
+                  </a>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Shell>
 
-      {mode !== "route" && (
-        <WaitlistModal show={!!waitlistSlot} onHide={() => setWaitlistSlot(null)} service={service} date={date} slot={waitlistSlot} />
-      )}
+      {mode !== "route" && <WaitlistModal show={!!waitlistSlot} onHide={() => setWaitlistSlot(null)} service={service} date={date} slot={waitlistSlot} />}
     </>
   );
 };

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { useDispatch } from "react-redux";
 import { useSearchParams, Link } from "react-router-dom";
 import { Container, Row, Col, Spinner } from "react-bootstrap";
 import { fetchBookingSummary } from "../../api/modules/stripe.api";
 import { fetchServiceById } from "../../api/modules/services.api";
+import { clearCart } from "../cart/slices/cart.slice";
 import "../../styles/pages/_confirmation.css";
 import SEO from "../../components/common/SEO";
 
@@ -57,6 +59,7 @@ function Steps({ items }) {
 /* ── Main component ─────────────────────────────── */
 
 export default function BookingConfirmation() {
+  const dispatch = useDispatch();
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
   const payInStore = params.get("payInStore") === "1";
@@ -104,7 +107,7 @@ export default function BookingConfirmation() {
         const data = await fetchBookingSummary(sessionId);
         if (!alive || stopped) return;
 
-        if (data?.status === "ERROR") {
+        if (data?.paymentStatus?.startsWith("ERROR")) {
           setError(data.message || "Impossibile caricare la prenotazione.");
           setLoading(false);
           stopped = true;
@@ -116,14 +119,16 @@ export default function BookingConfirmation() {
         setLoading(false);
 
         const bs = data?.booking?.bookingStatus;
-        if (bs === "FAILED" || data?.status === "FAILED") {
+        if (bs === "FAILED" || data?.paymentStatus === "FAILED") {
           setError("Il pagamento non è andato a buon fine. Riprova o contatta l'assistenza.");
           stopped = true;
           clearInterval(iv);
           return;
         }
 
-        const isPaid = data?.status === "PAID" || bs === "CONFIRMED" || bs === "COMPLETED" || Boolean(data?.booking?.paidAt);
+        // Stop polling only once the booking row exists and is confirmed — paymentStatus
+        // can read "PAID" from Stripe before the webhook has created the booking.
+        const isPaid = bs === "CONFIRMED" || bs === "COMPLETED";
 
         if (isPaid) {
           stopped = true;
@@ -145,11 +150,11 @@ export default function BookingConfirmation() {
     };
   }, [sessionId]);
 
-  /* fetch service */
+  /* fetch service — single-service bookings only (multi renders plain rows from booking.services) */
   useEffect(() => {
     let alive = true;
     const serviceId = summary?.booking?.serviceId;
-    if (!serviceId) return;
+    if (!serviceId || (summary?.booking?.services?.length || 0) > 1) return;
     fetchServiceById(serviceId)
       .then(s => {
         if (alive) setService(s);
@@ -158,7 +163,16 @@ export default function BookingConfirmation() {
     return () => {
       alive = false;
     };
-  }, [summary?.booking?.serviceId]);
+  }, [summary?.booking?.serviceId, summary?.booking?.services?.length]);
+
+  /* Fix 4: clear the cart once a cart checkout is confirmed PAID. The marker is set before
+     the Stripe redirect in MultiServiceBookingModal, so "Prenota ora" never triggers this. */
+  useEffect(() => {
+    if (summary?.paymentStatus === "PAID" && sessionStorage.getItem("br_cart_checkout")) {
+      dispatch(clearCart());
+      sessionStorage.removeItem("br_cart_checkout");
+    }
+  }, [summary, dispatch]);
 
   /* reveal */
   useEffect(() => {
@@ -181,8 +195,8 @@ export default function BookingConfirmation() {
   const b = summary?.booking;
 
   const paid = useMemo(
-    () => summary?.status === "PAID" || b?.bookingStatus === "CONFIRMED" || b?.bookingStatus === "COMPLETED" || Boolean(b?.paidAt),
-    [summary?.status, b?.bookingStatus, b?.paidAt],
+    () => Boolean(b) && (summary?.paymentStatus === "PAID" || b?.bookingStatus === "CONFIRMED" || b?.bookingStatus === "COMPLETED"),
+    [summary?.paymentStatus, b],
   );
 
   const shortCode = useMemo(() => {
@@ -192,8 +206,8 @@ export default function BookingConfirmation() {
 
   const stepsData = [
     { label: "Pagamento", done: paid, active: !paid },
-    { label: "Prenotazione", done: false, active: paid },
-    { label: "Appuntamento", done: false, active: false },
+    { label: "Prenotazione", done: paid, active: false },
+    { label: "Appuntamento", done: false, active: paid },
   ];
 
   /* ── Pay-in-store success screen ── */
@@ -316,29 +330,62 @@ export default function BookingConfirmation() {
                 <p className="conf-card__header-title">Dettagli prenotazione</p>
               </div>
               <div className="conf-card__body">
-                {/* Servizio */}
-                <div className="conf-detail-row">
-                  <span className="conf-detail-label">Trattamento</span>
-                  <div className="conf-service-block">
-                    {service?.images?.[0] && (
-                      <div className="conf-service-thumb">
-                        <img src={service.images[0]} alt={service.title} />
-                      </div>
-                    )}
-                    <div>
-                      <div className="conf-service-name">{service?.title || b?.serviceId || "–"}</div>
-                      {service?.durationMin != null && service?.price != null && (
-                        <div className="conf-service-meta">
-                          {service.durationMin} min ·{" "}
-                          {service.price.toLocaleString("it-IT", {
-                            style: "currency",
-                            currency: "EUR",
-                          })}
+                {/* Servizi — multi: una riga per trattamento; single ("Prenota ora"): blocco con thumbnail */}
+                {b?.services?.length ? (
+                  b.services.map((s, i) => (
+                    <div key={s.id} className="conf-detail-row">
+                      <span className="conf-detail-label">{i === 0 ? (b.services.length > 1 ? "Trattamenti" : "Trattamento") : ""}</span>
+                      <span className="conf-detail-value">
+                        {s.name}
+                        {(s.durationMinutes != null || s.price != null) && (
+                          <>
+                            {" — "}
+                            {s.durationMinutes != null ? `${s.durationMinutes} min` : ""}
+                            {s.durationMinutes != null && s.price != null ? " · " : ""}
+                            {s.price != null ? s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" }) : ""}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="conf-detail-row">
+                    <span className="conf-detail-label">Trattamento</span>
+                    <div className="conf-service-block">
+                      {service?.images?.[0] && (
+                        <div className="conf-service-thumb">
+                          <img src={service.images[0]} alt={service.title} />
                         </div>
                       )}
+                      <div>
+                        <div className="conf-service-name">{service?.title || b?.serviceId || "–"}</div>
+                        {service?.durationMin != null && service?.price != null && (
+                          <div className="conf-service-meta">
+                            {service.durationMin} min ·{" "}
+                            {service.price.toLocaleString("it-IT", {
+                              style: "currency",
+                              currency: "EUR",
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* Prodotti — sale standalone pagate online */}
+                {b?.sales?.length > 0 &&
+                  b.sales.map((p, i) => (
+                    <div key={p.saleId} className="conf-detail-row">
+                      <span className="conf-detail-label">{i === 0 ? "Prodotti" : ""}</span>
+                      <span className="conf-detail-value">
+                        {p.productName} ×{p.quantity}
+                        {p.unitPrice != null
+                          ? ` · ${(p.unitPrice * p.quantity).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}`
+                          : ""}
+                      </span>
+                    </div>
+                  ))}
 
                 {/* Inizio */}
                 <div className="conf-detail-row">

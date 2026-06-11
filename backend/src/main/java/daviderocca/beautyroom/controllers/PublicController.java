@@ -101,4 +101,33 @@ public class PublicController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    // ==========================================================================
+    // ENDPOINT PUBBLICO NEXT AVAILABLE COMBINED SLOT (carrello multi-servizio)
+    // GET /api/public/slots/next-combined?durationMinutes={int}&fromDate={yyyy-MM-dd}&fromTime={HH:mm}
+    // ==========================================================================
+
+    /**
+     * Restituisce il prossimo slot disponibile dimensionato sulla durata combinata
+     * (somma delle durate dei servizi nel carrello), cercando a partire da fromDate.
+     * Sibling di /slots/next: stessa risposta {@link PublicNextSlotDTO}, ma lo slot
+     * fitta l'intero blocco combinato anziché il solo primo servizio.
+     *
+     * Risposta 200: { "date": "2025-04-15", "startTime": "13:00", "endTime": "15:00" }
+     * Risposta 404: nessuno slot trovato nel periodo prenotabile
+     */
+    @GetMapping("/slots/next-combined")
+    public ResponseEntity<PublicNextSlotDTO> getNextAvailableCombinedSlot(
+            @RequestParam int durationMinutes,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) String fromTime
+    ) {
+        log.info("PUBLIC | next combined slot | durationMinutes={} fromDate={} fromTime={}", durationMinutes, fromDate, fromTime);
+
+        Optional<PublicNextSlotDTO> result = availabilityService.findNextAvailableCombinedSlot(durationMinutes, fromDate, fromTime);
+
+        return result
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 }

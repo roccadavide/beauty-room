@@ -303,6 +303,11 @@ public class StripeWebhookController {
         String customerPhone      = metadata.getOrDefault("customerPhone", "");
         String notes              = metadata.getOrDefault("notes", null);
 
+        // Fix 9: laser/PMU consent acknowledgment from the cart flow. Absent keys → false (promo MULTI
+        // sessions carry no consent keys and simply get false).
+        boolean consentLaser = "true".equals(metadata.getOrDefault("consentLaser", "false"));
+        boolean consentPmu   = "true".equals(metadata.getOrDefault("consentPmu", "false"));
+
         // Fix 3 (mixed cart): optional products bought alongside the services. Robust parse — the
         // customer already paid, so a malformed/missing entry is skipped (logged), never thrown.
         // Promo sessions carry no "products" key, so this is naturally empty for them.
@@ -348,7 +353,8 @@ public class StripeWebhookController {
         try {
             saved = bookingService.createMultiServiceBookingFromWebhook(
                     serviceIds, date, startTime, totalDurationMinutes,
-                    customerName, customerEmail, customerPhone, notes, session.getId(), promotionId, productSales
+                    customerName, customerEmail, customerPhone, notes, session.getId(), promotionId, productSales,
+                    consentLaser, consentPmu
             );
         } catch (daviderocca.beautyroom.exceptions.BadRequestException bex) {
             if ("CONFLICT".equals(bex.getMessage())) {

@@ -277,8 +277,9 @@ class BookingServiceSettlementTest {
         bookingService.settleBookingLines(id, req, admin());
 
         // The bundle/mark-all path settles services/packages/promos/custom only — products
-        // (booking_sales) are settled exclusively via salePaid, so the repo is never touched.
-        verifyNoInteractions(bookingSaleRepository);
+        // (booking_sales) are settled exclusively via salePaid, so they are never SAVED here.
+        // (The response mapping may READ sales to render them, which is not a settlement.)
+        verify(bookingSaleRepository, never()).save(any());
     }
 
     /** A BookingSale fixture: promotionLinkId == null → standalone (settled via salePaid). */

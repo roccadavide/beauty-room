@@ -925,7 +925,9 @@ public class BookingService {
             String notes,
             String stripeSessionId,
             UUID promotionId,
-            List<SaleEntryDTO> productSales
+            List<SaleEntryDTO> productSales,
+            boolean consentLaser,
+            boolean consentPmu
     ) {
         LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
@@ -946,6 +948,10 @@ public class BookingService {
         Booking booking = new Booking(name, email, phone, start, end, notes, primary, null, null);
         if (!services.isEmpty()) booking.setServices(new ArrayList<>(services));
         booking.setDurationMinutes(totalDurationMinutes);
+        // Fix 9: persist the laser/PMU consent acknowledgment from the cart flow (was dropped before).
+        booking.setConsentLaser(consentLaser);
+        booking.setConsentPmu(consentPmu);
+        if (consentLaser || consentPmu) booking.setConsentAt(LocalDateTime.now());
         booking.setBookingStatus(BookingStatus.CONFIRMED);
         booking.setPaidAt(LocalDateTime.now());
         booking.setCreatedByAdmin(false);
@@ -3074,6 +3080,15 @@ public class BookingService {
             log.warn("Could not resolve package summary for booking {}: {}", booking.getBookingId(), e.getMessage());
         }
 
+        // Standalone product sales (promotionLinkId == null), same mapping the agenda card uses.
+        // Promo product-lines stay inside their promotion grouping, not here.
+        List<SaleSummaryDTO> sales = bookingSaleRepository
+                .findByBookingIdOrderByAddedAtDesc(booking.getBookingId()).stream()
+                .filter(s -> s.getPromotionLinkId() == null)
+                .map(s -> new SaleSummaryDTO(s.getId(), s.getProductId(), s.getProductName(),
+                        s.getQuantity(), s.getUnitPrice(), s.isPaid()))
+                .toList();
+
         return new BookingResponseDTO(
                 booking.getBookingId(),
                 booking.getCustomerName(),
@@ -3098,7 +3113,8 @@ public class BookingService {
                 booking.getTotalSessions(),
                 booking.getLinkingStatus() != null ? booking.getLinkingStatus().name() : null,
                 linkedPackage,
-                booking.isPaidInStore()
+                booking.isPaidInStore(),
+                sales
         );
     }
 

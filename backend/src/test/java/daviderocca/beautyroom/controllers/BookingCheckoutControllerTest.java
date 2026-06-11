@@ -70,7 +70,7 @@ class BookingCheckoutControllerTest {
                 "Mario Rossi", "mario@test.it", "3331234567", null,
                 LocalDate.now().plusDays(1), LocalTime.of(10, 0),
                 List.of(serviceId), 60, null,
-                List.of(new ProductEntryDTO(productId, 3))); // wants 3, only 1 in stock
+                List.of(new ProductEntryDTO(productId, 3)), false, false); // wants 3, only 1 in stock
 
         assertThatThrownBy(() -> controller.createSessionMulti(payload))
                 .isInstanceOf(BadRequestException.class)
