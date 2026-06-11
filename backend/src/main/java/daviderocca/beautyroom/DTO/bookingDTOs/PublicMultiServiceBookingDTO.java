@@ -58,5 +58,12 @@ public record PublicMultiServiceBookingDTO(
         // ticked in the cart flow. The FE already sends these; previously dropped (no field here).
         // Appended last (Jackson binds by name). Stored only — no UI surfacing in this pass.
         boolean consentLaser,
-        boolean consentPmu
+        boolean consentPmu,
+
+        // Fix 11 (option pricing): per-service selected option ids, INDEX-ALIGNED to serviceIds
+        // (built from the same FE .map(), so position i is the option for serviceIds[i]; null where
+        // the service has no option). The server prices each line from option.getPrice() when present
+        // — never from a client-sent price. Null/short list ⇒ treat every service as option-less.
+        // Appended last (Jackson binds by name); positional callers must add it last too.
+        List<UUID> serviceOptionIds
 ) {}

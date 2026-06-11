@@ -349,12 +349,25 @@ public class StripeWebhookController {
             return;
         }
 
+        // Fix 11: option-aware services subtotal (cents) — present only when the cart used a service
+        // option. Recorded as the appointment's customTotalPrice so the agenda shows the right total.
+        BigDecimal customTotalPrice = null;
+        String servicesTotalCentsRaw = metadata.getOrDefault("servicesTotalCents", "");
+        if (!servicesTotalCentsRaw.isBlank()) {
+            try {
+                customTotalPrice = new BigDecimal(servicesTotalCentsRaw.trim()).movePointLeft(2);
+            } catch (Exception e) {
+                log.warn("MULTI booking: servicesTotalCents non parsabile '{}': {}",
+                        servicesTotalCentsRaw, e.getMessage());
+            }
+        }
+
         daviderocca.beautyroom.entities.Booking saved;
         try {
             saved = bookingService.createMultiServiceBookingFromWebhook(
                     serviceIds, date, startTime, totalDurationMinutes,
                     customerName, customerEmail, customerPhone, notes, session.getId(), promotionId, productSales,
-                    consentLaser, consentPmu
+                    consentLaser, consentPmu, customTotalPrice
             );
         } catch (daviderocca.beautyroom.exceptions.BadRequestException bex) {
             if ("CONFLICT".equals(bex.getMessage())) {

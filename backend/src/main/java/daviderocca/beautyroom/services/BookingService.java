@@ -927,7 +927,8 @@ public class BookingService {
             UUID promotionId,
             List<SaleEntryDTO> productSales,
             boolean consentLaser,
-            boolean consentPmu
+            boolean consentPmu,
+            BigDecimal customTotalPrice
     ) {
         LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
@@ -948,6 +949,13 @@ public class BookingService {
         Booking booking = new Booking(name, email, phone, start, end, notes, primary, null, null);
         if (!services.isEmpty()) booking.setServices(new ArrayList<>(services));
         booking.setDurationMinutes(totalDurationMinutes);
+        // Fix 11: option-aware appointment total (services only; products are separate booking_sales).
+        // Set only when the cart used at least one service option — the booking then renders as a
+        // priced "bundle" at the correct total instead of re-deriving wrong base per-line prices.
+        // Null for all-base carts (and promos) → behaviour unchanged.
+        if (customTotalPrice != null) {
+            booking.setCustomTotalPrice(customTotalPrice);
+        }
         // Fix 9: persist the laser/PMU consent acknowledgment from the cart flow (was dropped before).
         booking.setConsentLaser(consentLaser);
         booking.setConsentPmu(consentPmu);

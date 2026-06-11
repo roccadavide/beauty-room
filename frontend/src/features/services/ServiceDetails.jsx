@@ -222,6 +222,8 @@ const ServiceDetail = () => {
         price: displayPrice ?? 0,
         durationMinutes: displayDuration ?? service.durationMin ?? 0,
         serviceId: service.serviceId,
+        // Fix 11: keep the chosen option's id so the cart can charge its price (not the base).
+        serviceOptionId: selectedOption?.optionId ?? null,
         image: service.images?.[0] ?? null,
         quantity: 1,
       }),

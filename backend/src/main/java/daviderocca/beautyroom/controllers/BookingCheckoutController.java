@@ -238,20 +238,42 @@ public class BookingCheckoutController {
             throw new BadRequestException("Seleziona almeno un servizio.");
         }
 
-        // Resolve and validate all services
+        // Resolve and validate all services. Fix 11: price each line from the SELECTED OPTION
+        // (option.getPrice()) when one was chosen, else the base service price. serviceOptionIds is
+        // INDEX-ALIGNED to serviceIds (same FE .map()); a null/short entry means "no option".
+        List<UUID> serviceIds = payload.serviceIds();
+        List<UUID> serviceOptionIds = payload.serviceOptionIds();
         List<ServiceItem> services = new ArrayList<>();
-        BigDecimal total = BigDecimal.ZERO;
-        for (UUID sid : payload.serviceIds()) {
+        List<ServiceOption> lineOptions = new ArrayList<>(); // parallel to services; null = no option
+        BigDecimal servicesTotal = BigDecimal.ZERO;
+        boolean anyOption = false;
+        for (int i = 0; i < serviceIds.size(); i++) {
+            UUID sid = serviceIds.get(i);
             ServiceItem svc = serviceItemService.findServiceItemById(sid);
             serviceItemService.assertServiceActive(svc);
-            if (svc.getPrice() == null || svc.getPrice().signum() <= 0) {
+
+            UUID optId = (serviceOptionIds != null && i < serviceOptionIds.size())
+                    ? serviceOptionIds.get(i) : null;
+            ServiceOption option = null;
+            if (optId != null) {
+                // Validate-by-query so we never lazy-load the option's service (OSIV is off):
+                // empty ⇒ option missing OR not owned by this service → reject with a clear 400.
+                option = serviceOptionRepository.findByOptionIdAndService_ServiceId(optId, sid)
+                        .orElseThrow(() -> new BadRequestException(
+                                "L'opzione selezionata non appartiene al servizio '" + svc.getTitle() + "'."));
+                anyOption = true;
+            }
+
+            BigDecimal unitPrice = (option != null) ? option.getPrice() : svc.getPrice();
+            if (unitPrice == null || unitPrice.signum() <= 0) {
                 throw new BadRequestException("Il servizio '" + svc.getTitle() + "' non ha un prezzo valido.");
             }
             services.add(svc);
-            total = total.add(svc.getPrice());
+            lineOptions.add(option);
+            servicesTotal = servicesTotal.add(unitPrice);
         }
 
-        total = total.setScale(2, RoundingMode.HALF_UP);
+        servicesTotal = servicesTotal.setScale(2, RoundingMode.HALF_UP);
 
         // Build line items (one per service)
         SessionCreateParams.Builder builder = SessionCreateParams.builder()
@@ -279,17 +301,29 @@ public class BookingCheckoutController {
             builder.putMetadata("notes", notes);
         }
 
-        for (ServiceItem svc : services) {
+        // Fix 11: when any line used an option, hand the webhook the option-aware services subtotal
+        // (cents) so it records the correct appointment total via Booking.customTotalPrice — no schema,
+        // no re-resolving options. Omitted for all-base carts → those stay byte-identical to before.
+        if (anyOption) {
+            builder.putMetadata("servicesTotalCents",
+                    String.valueOf(servicesTotal.movePointRight(2).longValueExact()));
+        }
+
+        for (int i = 0; i < services.size(); i++) {
+            ServiceItem svc = services.get(i);
+            ServiceOption option = lineOptions.get(i);
+            BigDecimal unitPrice = (option != null) ? option.getPrice() : svc.getPrice();
+            String lineName = svc.getTitle() + (option != null ? " — " + option.getName() : "");
             builder.addLineItem(
                     SessionCreateParams.LineItem.builder()
                             .setQuantity(1L)
                             .setPriceData(
                                     SessionCreateParams.LineItem.PriceData.builder()
                                             .setCurrency("eur")
-                                            .setUnitAmount(svc.getPrice().movePointRight(2).longValueExact())
+                                            .setUnitAmount(unitPrice.movePointRight(2).longValueExact())
                                             .setProductData(
                                                     SessionCreateParams.LineItem.PriceData.ProductData.builder()
-                                                            .setName(svc.getTitle())
+                                                            .setName(lineName)
                                                             .build()
                                             )
                                             .build()

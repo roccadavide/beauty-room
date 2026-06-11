@@ -186,6 +186,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
         date: day,
         startTime: slot.start,
         serviceIds: services.map(s => s.serviceId),
+        // Fix 11: index-aligned to serviceIds (same .map() order) — server prices each line from the
+        // option when present. `?? null` keeps pre-existing carts (no option id stored) on base pricing.
+        serviceOptionIds: services.map(s => s.serviceOptionId ?? null),
         totalDurationMinutes: totalDuration,
         consentLaser,
         consentPmu,

@@ -70,11 +70,37 @@ class BookingCheckoutControllerTest {
                 "Mario Rossi", "mario@test.it", "3331234567", null,
                 LocalDate.now().plusDays(1), LocalTime.of(10, 0),
                 List.of(serviceId), 60, null,
-                List.of(new ProductEntryDTO(productId, 3)), false, false); // wants 3, only 1 in stock
+                List.of(new ProductEntryDTO(productId, 3)), false, false,
+                null); // serviceOptionIds null → base pricing; wants 3, only 1 in stock
 
         assertThatThrownBy(() -> controller.createSessionMulti(payload))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Smalto");
+    }
+
+    @Test
+    @DisplayName("Fix 11: createSessionMulti rejects an option that does not belong to its service")
+    void createSessionMulti_rejectsOptionNotBelongingToService() {
+        UUID serviceId = UUID.randomUUID();
+        UUID optionId  = UUID.randomUUID();
+
+        ServiceItem svc = mock(ServiceItem.class);
+        when(svc.getTitle()).thenReturn("Manicure");
+        when(serviceItemService.findServiceItemById(serviceId)).thenReturn(svc);
+        // Option id not owned by this service → the validate-by-query finder returns empty.
+        when(serviceOptionRepository.findByOptionIdAndService_ServiceId(optionId, serviceId))
+                .thenReturn(Optional.empty());
+
+        PublicMultiServiceBookingDTO payload = new PublicMultiServiceBookingDTO(
+                "Mario Rossi", "mario@test.it", "3331234567", null,
+                LocalDate.now().plusDays(1), LocalTime.of(10, 0),
+                List.of(serviceId), 30, null,
+                null, false, false,
+                List.of(optionId)); // serviceOptionIds index-aligned to serviceIds
+
+        assertThatThrownBy(() -> controller.createSessionMulti(payload))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("non appartiene");
     }
 
     private static void setField(Object target, String name, Object value) {
