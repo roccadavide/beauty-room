@@ -96,6 +96,10 @@ export const BookingFlow = ({
   const showPmuConsent = service?.consentRequired === true || needsPmuConsent(service?.title);
   const summaryStep = hasConsentStep ? 5 : 4;
   const effectiveDuration = initialOption?.durationMin ?? service?.durationMin;
+  // Fix 12: display the SELECTED OPTION's price (mirrors effectiveDuration). Derived from the prop on
+  // every render, so the headline/summary refresh live when the option changes. Falls back to the base
+  // "from" price for option-less services. The charge is already option-aware server-side — display only.
+  const effectivePrice = initialOption?.price ?? service?.price;
 
   // Fetch cancellation policy on first open
   useEffect(() => {
@@ -286,7 +290,8 @@ export const BookingFlow = ({
     reset();
   };
 
-  const promoOriginal = promoPrice != null ? Number(service?.price || 0) + promoProducts.reduce((sum, p) => sum + Number(p?.price || 0), 0) : null;
+  // Fix 12: when an option is selected, the promo's "listino" reference is the option price, not the base.
+  const promoOriginal = promoPrice != null ? Number(effectivePrice || 0) + promoProducts.reduce((sum, p) => sum + Number(p?.price || 0), 0) : null;
 
   const metaSubtitle =
     service?.durationMin || service?.price != null ? (
@@ -294,11 +299,11 @@ export const BookingFlow = ({
         {effectiveDuration && <span className="bm-meta-pill">⏱ {effectiveDuration} min</span>}
         {promoPrice != null ? (
           <>
-            <span className="bm-meta-pill bm-meta-pill--orig">{service.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+            <span className="bm-meta-pill bm-meta-pill--orig">{effectivePrice?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
             <span className="bm-meta-pill bm-meta-pill--promo">{promoPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
           </>
-        ) : service.price != null ? (
-          <span className="bm-meta-pill">{service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+        ) : effectivePrice != null ? (
+          <span className="bm-meta-pill">{effectivePrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
         ) : null}
         {promoProducts.length > 0 && <div className="bm-meta-pill bm-meta-pill--product">🎁 {promoProducts.map(p => p.name).join(", ")} incluso</div>}
       </div>
@@ -597,7 +602,7 @@ export const BookingFlow = ({
                     <>
                       <div className="bm-summary__row">
                         <span>{service?.title}</span>
-                        <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                        <strong>{effectivePrice?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
                       </div>
 
                       {promoProducts.map(p => (
@@ -644,7 +649,7 @@ export const BookingFlow = ({
                   ) : (
                     <div className="bm-summary__row">
                       <span>Prezzo</span>
-                      <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                      <strong>{effectivePrice?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
                     </div>
                   )}
                   {promoProducts.length > 0 && (
