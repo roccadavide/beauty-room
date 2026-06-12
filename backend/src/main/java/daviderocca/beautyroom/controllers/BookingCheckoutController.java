@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/checkout/bookings")
@@ -307,6 +308,14 @@ public class BookingCheckoutController {
         if (anyOption) {
             builder.putMetadata("servicesTotalCents",
                     String.valueOf(servicesTotal.movePointRight(2).longValueExact()));
+            // Fix 15: per-line option ids, index-aligned to serviceIds (empty token = no option on that
+            // line, e.g. "optA,,optC"). The webhook persists each as booking_services.option_id so the
+            // same service added with different options stays distinguishable. Emitted only alongside
+            // servicesTotalCents (option carts) → all-base carts stay byte-identical (no extra key).
+            builder.putMetadata("serviceOptionIds",
+                    lineOptions.stream()
+                            .map(o -> o == null ? "" : o.getOptionId().toString())
+                            .collect(Collectors.joining(",")));
         }
 
         for (int i = 0; i < services.size(); i++) {

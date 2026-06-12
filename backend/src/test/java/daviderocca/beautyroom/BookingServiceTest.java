@@ -687,6 +687,80 @@ class BookingServiceTest {
         verifyNoInteractions(notificationService);
     }
 
+    // =========================================================================
+    // Fix 15: the webhook (online cart) path writes one booking_services row per
+    // (service, option) via native INSERT — so the SAME service added with two
+    // different options yields two distinct, distinguishable rows. The @ManyToMany
+    // (which only knows (booking_id, service_id)) is suppressed, and customTotalPrice
+    // (Fix 11) stays the authoritative frozen total.
+    // =========================================================================
+    @Test
+    @DisplayName("Fix 15: webhook writes a booking_services row per (service, option) with option_id + 0-based sort_order; @ManyToMany suppressed; customTotalPrice unchanged")
+    void createMultiServiceBookingFromWebhook_repeatedService_writesPerRowOptionId() {
+        UUID serviceA = UUID.randomUUID();
+        UUID opt1 = UUID.randomUUID();
+        UUID opt2 = UUID.randomUUID();
+
+        ServiceItem svcA = new ServiceItem();
+        setFieldReflectively(svcA, "serviceId", serviceA);
+        svcA.setDurationMin(30);
+        svcA.setTitle("Laser");
+        svcA.setActive(true);
+        when(serviceItemService.findServiceItemById(serviceA)).thenReturn(svcA);
+
+        ServiceOption o1 = new ServiceOption();
+        o1.setOptionId(opt1);
+        o1.setService(svcA);
+        when(serviceOptionRepository.findById(opt1)).thenReturn(Optional.of(o1)); // primary = first non-null
+
+        when(bookingRepository.lockOverlappingBookingsByStatuses(any(), any(), anyList()))
+                .thenReturn(List.of()); // no slot conflict
+        when(customerService.findOrCreate(anyString(), anyString(), anyString(), any()))
+                .thenReturn(new Customer());
+
+        UUID bookingId = UUID.randomUUID();
+        when(bookingRepository.save(any())).thenAnswer(inv -> {
+            Booking b = inv.getArgument(0);
+            setFieldReflectively(b, "bookingId", bookingId);
+            return b;
+        });
+
+        // Native INSERT chain — booking_services has no JPA entity (mirror the existing native-query
+        // mocking). @InjectMocks uses constructor injection, so wire the EntityManager field by hand.
+        Query insertQ = mock(Query.class);
+        when(entityManager.createNativeQuery(anyString())).thenReturn(insertQ);
+        when(insertQ.setParameter(anyString(), any())).thenReturn(insertQ);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
+
+        // serviceIds = [A, A], serviceOptionIds = [opt1, opt2] → two distinct rows for service A.
+        bookingService.createMultiServiceBookingFromWebhook(
+                List.of(serviceA, serviceA),
+                LocalDate.now().plusDays(1), LocalTime.of(10, 0), 60,
+                "Mario Rossi", "mario@test.it", "+390000000", "note", "sess_123",
+                null,                       // promotionId
+                List.of(),                  // productSales
+                false, false,               // consentLaser, consentPmu
+                new BigDecimal("80.00"),    // customTotalPrice (Fix 11 frozen total)
+                List.of(opt1, opt2)         // serviceOptionIds (index-aligned)
+        );
+
+        // Two booking_services rows, each carrying its own option_id and 0-based sort_order.
+        verify(entityManager, times(2)).createNativeQuery(contains("INSERT INTO booking_services"));
+        verify(insertQ, times(2)).setParameter(eq("serviceId"), eq(serviceA));
+        verify(insertQ).setParameter("optionId", opt1);
+        verify(insertQ).setParameter("optionId", opt2);
+        verify(insertQ).setParameter("sortOrder", 0);
+        verify(insertQ).setParameter("sortOrder", 1);
+
+        // @ManyToMany suppressed (no option-less rows) + Fix 11 total preserved + primary option mirrored.
+        ArgumentCaptor<Booking> bc = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository, atLeastOnce()).save(bc.capture());
+        Booking persisted = bc.getValue();
+        assertThat(persisted.getServices()).isEmpty();
+        assertThat(persisted.getCustomTotalPrice()).isEqualByComparingTo(new BigDecimal("80.00"));
+        assertThat(persisted.getServiceOption()).isEqualTo(o1);
+    }
+
     private static BookingSale standaloneSale(UUID bookingId, UUID productId, int qty) {
         BookingSale s = new BookingSale();
         s.setBookingId(bookingId);

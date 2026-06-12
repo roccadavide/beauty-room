@@ -362,12 +362,17 @@ public class StripeWebhookController {
             }
         }
 
+        // Fix 15: per-line option ids, index-aligned to serviceIds (empty token = no option on that
+        // line). Absent for all-base carts and promo sessions → empty list (every line resolves to no
+        // option, exactly as before). split(",", -1) inside keeps a trailing null in its position.
+        List<UUID> serviceOptionIds = parseServiceOptionIds(metadata.getOrDefault("serviceOptionIds", ""));
+
         daviderocca.beautyroom.entities.Booking saved;
         try {
             saved = bookingService.createMultiServiceBookingFromWebhook(
                     serviceIds, date, startTime, totalDurationMinutes,
                     customerName, customerEmail, customerPhone, notes, session.getId(), promotionId, productSales,
-                    consentLaser, consentPmu, customTotalPrice
+                    consentLaser, consentPmu, customTotalPrice, serviceOptionIds
             );
         } catch (daviderocca.beautyroom.exceptions.BadRequestException bex) {
             if ("CONFLICT".equals(bex.getMessage())) {
@@ -404,6 +409,34 @@ public class StripeWebhookController {
 
         log.info("MULTI booking confermato: bookingId={} sessionId={} servizi={} cliente={}",
                 saved.getBookingId(), session.getId(), serviceIds.size(), customerEmail);
+    }
+
+    /**
+     * Fix 15: decodes the index-aligned {@code serviceOptionIds} metadata into a list parallel to the
+     * parsed {@code serviceIds} — one entry per line, an empty token meaning "no option on that line"
+     * (e.g. {@code "optA,,optC"}). Split with limit {@code -1} so trailing empty tokens are preserved:
+     * a null option on the LAST line must not shorten the list and shift alignment. Robust by design —
+     * the customer has already paid, so a malformed token degrades that single line to no-option (null)
+     * rather than throwing. Blank/absent input → empty list. Package-private for unit testing.
+     */
+    static List<UUID> parseServiceOptionIds(String raw) {
+        if (raw == null || raw.isBlank()) return List.of();
+        String[] tokens = raw.split(",", -1);
+        List<UUID> out = new ArrayList<>(tokens.length);
+        for (String token : tokens) {
+            String s = token == null ? "" : token.trim();
+            if (s.isEmpty()) {
+                out.add(null);
+                continue;
+            }
+            try {
+                out.add(UUID.fromString(s));
+            } catch (IllegalArgumentException e) {
+                log.warn("MULTI booking: serviceOptionId non valido '{}' — riga trattata come senza opzione", s);
+                out.add(null);
+            }
+        }
+        return out;
     }
 
     /**

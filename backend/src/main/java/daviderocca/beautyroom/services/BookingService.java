@@ -915,6 +915,13 @@ public class BookingService {
      * Creates a CONFIRMED booking for a multi-service Stripe checkout after payment succeeds.
      * Called from the webhook — runs at SERIALIZABLE isolation to detect slot conflicts atomically.
      *
+     * Fix 15: {@code serviceOptionIds} is index-aligned to {@code serviceIds} (a null/short entry =
+     * no option for that line). Each booking_services row is written via native INSERT carrying its
+     * own option_id (the @ManyToMany is suppressed), so the same service added with different options
+     * persists as distinct, distinguishable rows. {@code customTotalPrice} (Fix 11) stays the
+     * authoritative frozen total; per-row override_duration_min / price_override stay NULL (the render
+     * resolves so.price / so.duration_min via option_id).
+     *
      * @throws BadRequestException with message "CONFLICT" if the slot is already taken.
      */
     @Transactional(isolation = Isolation.SERIALIZABLE)
@@ -932,7 +939,8 @@ public class BookingService {
             List<SaleEntryDTO> productSales,
             boolean consentLaser,
             boolean consentPmu,
-            BigDecimal customTotalPrice
+            BigDecimal customTotalPrice,
+            List<UUID> serviceOptionIds
     ) {
         LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
@@ -950,8 +958,23 @@ public class BookingService {
         String email = customerEmail != null ? customerEmail.trim().toLowerCase() : "";
         String phone = customerPhone != null ? customerPhone.trim() : "";
 
-        Booking booking = new Booking(name, email, phone, start, end, notes, primary, null, null);
-        if (!services.isEmpty()) booking.setServices(new ArrayList<>(services));
+        // Fix 15: primary option = first non-null entry, mirrored onto bookings.service_option_id for
+        // single-line render coherence. Defensive lookup — the customer already paid, so a miss
+        // degrades to null instead of throwing.
+        ServiceOption primaryOption = null;
+        if (serviceOptionIds != null) {
+            for (UUID oid : serviceOptionIds) {
+                if (oid != null) {
+                    primaryOption = serviceOptionRepository.findById(oid).orElse(null);
+                    break;
+                }
+            }
+        }
+
+        Booking booking = new Booking(name, email, phone, start, end, notes, primary, primaryOption, null);
+        // Fix 15: suppress the @ManyToMany — it only knows (booking_id, service_id) and would write
+        // option-less rows. booking_services is populated below via native INSERT carrying option_id.
+        booking.setServices(new ArrayList<>());
         booking.setDurationMinutes(totalDurationMinutes);
         // Fix 11: option-aware appointment total (services only; products are separate booking_sales).
         // Set only when the cart used at least one service option — the booking then renders as a
@@ -983,6 +1006,31 @@ public class BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Multi-service webhook booking created: id={} duration={}min services={}",
                 saved.getBookingId(), totalDurationMinutes, services.size());
+
+        // Fix 15: persist per-row option_id in booking_services via native INSERT (mirrors the admin
+        // path — booking_services has no JPA entity). The @ManyToMany was suppressed above, so these
+        // are the only rows. Repeated serviceIds with distinct option_id therefore produce distinct,
+        // distinguishable rows. override_duration_min / price_override stay NULL (the render resolves
+        // so.price / so.duration_min via option_id); online cart → every line is paid.
+        if (!serviceIds.isEmpty()) {
+            entityManager.flush(); // booking row must exist before the FK insert
+            for (int i = 0; i < serviceIds.size(); i++) {
+                UUID optionId = (serviceOptionIds != null && i < serviceOptionIds.size())
+                        ? serviceOptionIds.get(i) : null;
+                entityManager.createNativeQuery("""
+                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order, override_duration_min, price_override, paid)
+                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder, :overrideDurationMin, :priceOverride, :paid)
+                        """)
+                        .setParameter("bookingId", saved.getBookingId())
+                        .setParameter("serviceId", serviceIds.get(i))
+                        .setParameter("optionId", optionId)
+                        .setParameter("sortOrder", i)
+                        .setParameter("overrideDurationMin", null)
+                        .setParameter("priceOverride", null)
+                        .setParameter("paid", true)
+                        .executeUpdate();
+            }
+        }
 
         // Fix 3 (mixed cart): persist the online-paid products on the freshly-saved booking, inside
         // THIS SERIALIZABLE transaction (the bookingId now exists). Promo bookings carry no products,
