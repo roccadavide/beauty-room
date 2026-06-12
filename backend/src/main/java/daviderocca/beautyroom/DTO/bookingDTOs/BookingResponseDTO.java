@@ -19,6 +19,8 @@ public record BookingResponseDTO(
         LocalDateTime createdAt,
         UUID serviceId,
         UUID serviceOptionId,
+        // FIX-22: option name to avoid showing the raw option UUID on the confirmation page
+        String serviceOptionName,
         UUID userId,
         // FIX-18: titolo del servizio per evitare di mostrare UUID grezzo in BookingSuccessPage
         String serviceTitle,

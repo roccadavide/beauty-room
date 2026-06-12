@@ -407,10 +407,10 @@ export default function BookingConfirmation() {
                 )}
 
                 {/* Opzione */}
-                {b?.serviceOptionId && (
+                {b?.serviceOptionName && (
                   <div className="conf-detail-row">
                     <span className="conf-detail-label">Opzione</span>
-                    <span className="conf-detail-value">{b.serviceOptionId}</span>
+                    <span className="conf-detail-value">{b.serviceOptionName}</span>
                   </div>
                 )}
 

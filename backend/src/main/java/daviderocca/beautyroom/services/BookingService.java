@@ -3181,6 +3181,7 @@ public class BookingService {
                 booking.getCreatedAt(),
                 booking.getService() != null ? booking.getService().getServiceId() : null,
                 booking.getServiceOption() != null ? booking.getServiceOption().getOptionId() : null,
+                booking.getServiceOption() != null ? booking.getServiceOption().getName() : null,
                 booking.getUser() != null ? booking.getUser().getUserId() : null,
                 serviceTitle,
                 services,
