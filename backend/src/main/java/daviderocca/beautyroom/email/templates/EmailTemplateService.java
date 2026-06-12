@@ -17,7 +17,7 @@ import java.util.Locale;
 @Service
 public class EmailTemplateService {
 
-    @Value("${app.front.url:http://localhost:5173}")
+    @Value("${app.frontend.url:https://beauty-room.it}")
     private String frontUrl;
 
     @Value("${app.brand.logoUrl:http://localhost:5173/logo-email.png}")
@@ -85,7 +85,7 @@ public class EmailTemplateService {
                 ? "Da pagare in studio il giorno dell'appuntamento" + (priceStr != null ? ": " + priceStr : "")
                 : "Pagamento online ricevuto" + (priceStr != null ? ": " + priceStr : "");
 
-        String viewUrl = frontUrl + "/prenotazioni";
+        String viewUrl = frontUrl + "/area-personale";
 
         String body = """
   <h1 style="%s">Prenotazione confermata</h1>

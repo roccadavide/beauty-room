@@ -51,7 +51,7 @@ public class EmailOutboxWorker {
     private final MailgunSender         mailgunSender;
     private final EmailTemplateService  templates;
 
-    @Value("${app.front.url:http://localhost:5173}")
+    @Value("${app.frontend.url:https://beauty-room.it}")
     private String frontUrl;
 
     private final String lockOwner = resolveLockOwner();

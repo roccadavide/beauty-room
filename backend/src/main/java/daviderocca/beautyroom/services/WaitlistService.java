@@ -30,7 +30,7 @@ public class WaitlistService {
     private final ServiceItemService    serviceItemService;
     private final EmailOutboxService    emailOutboxService;
 
-    @Value("${app.front.url:http://localhost:5173}")
+    @Value("${app.frontend.url:https://beauty-room.it}")
     private String frontUrl;
 
     private static final int TOKEN_EXPIRE_HOURS = 2;
