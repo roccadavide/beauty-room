@@ -159,6 +159,39 @@ public class BookingService {
         return convertToDTO(booking);
     }
 
+    /**
+     * Audit K / Fix 23: rejection outcome for the confirmation page, by bookingId (single flow).
+     * Reads the entity because {@code cancelReason} is intentionally NOT on {@link BookingResponseDTO}.
+     * Returns null when the booking is absent or not a paid-conflict rejection.
+     */
+    @Transactional(readOnly = true)
+    public String rejectionOutcomeForBooking(UUID bookingId) {
+        return rejectionOutcome(bookingRepository.findById(bookingId).orElse(null));
+    }
+
+    /**
+     * Audit K / Fix 23: rejection outcome by Stripe session id (MULTI flow — the conflict tombstone
+     * is keyed on the session). Returns null when no row exists yet (still processing) or it isn't a
+     * paid-conflict rejection.
+     */
+    @Transactional(readOnly = true)
+    public String rejectionOutcomeForSession(String stripeSessionId) {
+        return rejectionOutcome(bookingRepository.findByStripeSessionId(stripeSessionId).orElse(null));
+    }
+
+    /**
+     * A booking is a "rejected" paid booking only when it is CANCELLED with a PAID_CONFLICT* reason —
+     * NOT for ordinary cancellations/expiries (which must keep the normal confirmation behaviour).
+     * {@code "PAID_CONFLICT_REFUND_FAILED"} maps to REJECTED_REFUND_PENDING so the UI can soften the
+     * refund wording when the automatic refund itself errored.
+     */
+    private static String rejectionOutcome(Booking b) {
+        if (b == null || b.getBookingStatus() != BookingStatus.CANCELLED) return null;
+        String reason = b.getCancelReason();
+        if (reason == null || !reason.startsWith("PAID_CONFLICT")) return null;
+        return "PAID_CONFLICT_REFUND_FAILED".equals(reason) ? "REJECTED_REFUND_PENDING" : "REJECTED";
+    }
+
     @Transactional(readOnly = true)
     public List<BookingResponseDTO> findBookingsForCurrentUser(User currentUser) {
         if (currentUser == null || currentUser.getUserId() == null) {
@@ -1092,6 +1125,64 @@ public class BookingService {
             log.warn("Account linking failed for webhook booking {}: {}", saved.getBookingId(), e.getMessage());
         }
 
+        return saved;
+    }
+
+    /**
+     * Audit K / Fix 23: persist a minimal CANCELLED tombstone for a MULTI booking that was paid but
+     * rejected by the webhook (slot taken — booking-overlap race or personal-time block). The
+     * SERIALIZABLE attempt in {@link #createMultiServiceBookingFromWebhook} already rolled back leaving
+     * no row, so this runs in its OWN fresh transaction (committed independently). The tombstone is what
+     * makes the rejection observable to the confirmation page via {@code findByStripeSessionId}.
+     *
+     * <p>Idempotent per Stripe session: if a row already exists for {@code stripeSessionId} (e.g. a
+     * webhook retry) it is returned unchanged — no duplicate. The caller relies on the same check to
+     * avoid issuing a second refund.</p>
+     *
+     * <p>Minimal by design: no services, no customer-registry upsert, no notifications. {@code CANCELLED}
+     * means it is excluded from availability/overlap ({@code BLOCKING}), arretrati (COMPLETED-only) and
+     * the active agenda timeline — exactly like the single flow's existing PAID_CONFLICT rows.</p>
+     *
+     * @param refundSucceeded whether the automatic Stripe refund went through — drives the cancelReason
+     *                        ({@code "PAID_CONFLICT"} vs {@code "PAID_CONFLICT_REFUND_FAILED"}).
+     */
+    @Transactional
+    public Booking recordMultiServiceConflictTombstone(
+            LocalDate date,
+            LocalTime startTime,
+            int totalDurationMinutes,
+            String customerName,
+            String customerEmail,
+            String customerPhone,
+            String stripeSessionId,
+            boolean refundSucceeded
+    ) {
+        // Idempotent: a row already exists for this session (retry) → no duplicate, no second refund.
+        Optional<Booking> existing = bookingRepository.findByStripeSessionId(stripeSessionId);
+        if (existing.isPresent()) {
+            log.info("Conflict tombstone già presente per sessionId={}, skip", stripeSessionId);
+            return existing.get();
+        }
+
+        LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
+        LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
+        String name  = customerName  != null ? customerName.trim() : "";
+        String email = customerEmail != null ? customerEmail.trim().toLowerCase() : "";
+        String phone = customerPhone != null ? customerPhone.trim() : "";
+
+        Booking tombstone = new Booking(name, email, phone, start, end, null, null, null, null);
+        tombstone.setServices(new ArrayList<>());
+        tombstone.setDurationMinutes(totalDurationMinutes);
+        tombstone.setBookingStatus(BookingStatus.CANCELLED);
+        tombstone.setCancelReason(refundSucceeded ? "PAID_CONFLICT" : "PAID_CONFLICT_REFUND_FAILED");
+        tombstone.setStripeSessionId(stripeSessionId);
+        tombstone.setCanceledAt(LocalDateTime.now());
+        tombstone.setExpiresAt(null);
+        tombstone.setCreatedByAdmin(false);
+
+        Booking saved = bookingRepository.save(tombstone);
+        log.info("Conflict tombstone CANCELLED persistito: id={} sessionId={} reason={}",
+                saved.getBookingId(), stripeSessionId, saved.getCancelReason());
         return saved;
     }
 

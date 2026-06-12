@@ -499,18 +499,25 @@ public class BookingCheckoutController {
         String bookingType  = meta != null ? meta.get("bookingType") : null;
 
         BookingResponseDTO booking;
+        // Audit K / Fix 23: definitive rejection signal (slot taken → refunded) so the confirmation page
+        // can stop polling and show a clear outcome instead of a misleading pending/confirmed state.
+        String outcome;
         if (bookingIdStr != null) {
             UUID bookingId = UUID.fromString(bookingIdStr);
             booking = bookingService.findBookingByIdAndConvert(bookingId);
+            outcome = bookingService.rejectionOutcomeForBooking(bookingId);
         } else if ("MULTI".equals(bookingType)) {
             // Multi-service: no pre-hold, booking created by webhook — look up by stripeSessionId
             booking = bookingRepository.findByStripeSessionId(session.getId())
                     .map(b -> bookingService.findBookingByIdAndConvert(b.getBookingId()))
                     .orElse(null);
             if (booking == null) {
-                // Webhook may not have fired yet; return a pending placeholder
-                return ResponseEntity.ok(new BookingSummaryDTO(null, isPaid ? "PAID" : "PENDING", session.getCustomerDetails() != null ? session.getCustomerDetails().getEmail() : null));
+                // Webhook may not have fired yet; return a pending placeholder (no row → still processing,
+                // never a rejection: a MULTI conflict persists a CANCELLED tombstone found just above).
+                return ResponseEntity.ok(new BookingSummaryDTO(null, isPaid ? "PAID" : "PENDING",
+                        session.getCustomerDetails() != null ? session.getCustomerDetails().getEmail() : null, null));
             }
+            outcome = bookingService.rejectionOutcomeForSession(session.getId());
         } else {
             return ResponseEntity.status(400).body(BookingSummaryDTO.error("bookingId assente nei metadata della sessione"));
         }
@@ -527,7 +534,8 @@ public class BookingCheckoutController {
         BookingSummaryDTO dto = new BookingSummaryDTO(
                 booking,
                 isPaid ? "PAID" : "PENDING",
-                email
+                email,
+                outcome
         );
 
         return ResponseEntity.ok(dto);

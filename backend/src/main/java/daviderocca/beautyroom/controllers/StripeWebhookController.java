@@ -376,7 +376,17 @@ public class StripeWebhookController {
             );
         } catch (daviderocca.beautyroom.exceptions.BadRequestException bex) {
             if ("CONFLICT".equals(bex.getMessage())) {
+                // Audit K / Fix 23: the SERIALIZABLE attempt rolled back (no booking row). Idempotently
+                // refund + persist a CANCELLED tombstone so the confirmation page can show a definitive
+                // "slot taken, refunded" outcome instead of spinning. A retry finds the tombstone, so we
+                // neither refund twice nor create a duplicate.
+                if (bookingRepository.findByStripeSessionId(session.getId()).isPresent()) {
+                    log.info("MULTI PAID_CONFLICT: tombstone già presente per sessionId={}, skip (idempotent)", session.getId());
+                    return;
+                }
+
                 log.error("MULTI PAID_CONFLICT: slot già occupato, sessionId={} — avvio rimborso automatico.", session.getId());
+                boolean refundOk = false;
                 try {
                     Stripe.apiKey = stripeSecretKey;
                     String paymentIntentId = session.getPaymentIntent();
@@ -385,12 +395,27 @@ public class StripeWebhookController {
                                 .setPaymentIntent(paymentIntentId)
                                 .build();
                         Refund.create(refundParams);
+                        refundOk = true;
                         log.info("MULTI PAID_CONFLICT: rimborso Stripe creato per sessionId={}", session.getId());
                     } else {
                         log.error("MULTI PAID_CONFLICT: payment_intent assente — rimborso manuale necessario. sessionId={}", session.getId());
                     }
                 } catch (StripeException ex) {
                     log.error("MULTI PAID_CONFLICT: errore rimborso Stripe sessionId={}: {}", session.getId(), ex.getMessage());
+                }
+
+                // Tombstone in its own fresh transaction (the conflict tx already rolled back). cancelReason
+                // reflects the refund outcome so the confirmation page can soften the wording if needed.
+                try {
+                    Booking tombstone = bookingService.recordMultiServiceConflictTombstone(
+                            date, startTime, totalDurationMinutes,
+                            customerName, customerEmail, customerPhone,
+                            session.getId(), refundOk);
+                    log.info("MULTI PAID_CONFLICT: tombstone bookingId={} sessionId={} reason={}",
+                            tombstone.getBookingId(), session.getId(), tombstone.getCancelReason());
+                } catch (Exception ex) {
+                    log.error("MULTI PAID_CONFLICT: impossibile persistere tombstone sessionId={}: {}",
+                            session.getId(), ex.getMessage(), ex);
                 }
             } else {
                 log.error("MULTI booking: errore creazione per sessionId={}: {}", session.getId(), bex.getMessage());

@@ -761,6 +761,129 @@ class BookingServiceTest {
         assertThat(persisted.getServiceOption()).isEqualTo(o1);
     }
 
+    // =========================================================================
+    // Fix 23 (Audit K): paid-but-rejected MULTI booking → CANCELLED tombstone +
+    // a definitive "REJECTED" outcome the confirmation page can observe.
+    // =========================================================================
+    @Test
+    @DisplayName("Fix 23: MULTI conflict tombstone — fresh session persists a CANCELLED row with sessionId + PAID_CONFLICT")
+    void recordMultiServiceConflictTombstone_fresh_persistsCancelledTombstone() {
+        when(bookingRepository.findByStripeSessionId("sess_X")).thenReturn(Optional.empty());
+        UUID id = UUID.randomUUID();
+        when(bookingRepository.save(any())).thenAnswer(inv -> {
+            Booking b = inv.getArgument(0);
+            setFieldReflectively(b, "bookingId", id);
+            return b;
+        });
+
+        Booking result = bookingService.recordMultiServiceConflictTombstone(
+                LocalDate.now().plusDays(1), LocalTime.of(10, 0), 60,
+                "Mario Rossi", "Mario@Test.IT", "+390000000", "sess_X", true);
+
+        ArgumentCaptor<Booking> bc = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository).save(bc.capture());
+        Booking saved = bc.getValue();
+        assertThat(saved.getBookingStatus()).isEqualTo(BookingStatus.CANCELLED);
+        assertThat(saved.getStripeSessionId()).isEqualTo("sess_X");
+        assertThat(saved.getCancelReason()).isEqualTo("PAID_CONFLICT");
+        assertThat(saved.getServices()).isEmpty();
+        assertThat(saved.getDurationMinutes()).isEqualTo(60);
+        assertThat(saved.getCustomerEmail()).isEqualTo("mario@test.it"); // trimmed + lowercased
+        assertThat(saved.getCanceledAt()).isNotNull();
+        assertThat(result.getBookingStatus()).isEqualTo(BookingStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("Fix 23: MULTI conflict tombstone — refund failure records PAID_CONFLICT_REFUND_FAILED")
+    void recordMultiServiceConflictTombstone_refundFailed_setsRefundPendingReason() {
+        when(bookingRepository.findByStripeSessionId("sess_Y")).thenReturn(Optional.empty());
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        bookingService.recordMultiServiceConflictTombstone(
+                LocalDate.now().plusDays(1), LocalTime.of(9, 0), 30,
+                "Lucia", "lucia@test.it", "", "sess_Y", false);
+
+        ArgumentCaptor<Booking> bc = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository).save(bc.capture());
+        assertThat(bc.getValue().getCancelReason()).isEqualTo("PAID_CONFLICT_REFUND_FAILED");
+    }
+
+    @Test
+    @DisplayName("Fix 23: MULTI conflict tombstone — existing session is idempotent (no duplicate row, no second write)")
+    void recordMultiServiceConflictTombstone_existing_isIdempotent() {
+        // The controller gates the refund on this same findByStripeSessionId check, so an idempotent
+        // service return (existing row, no save) is what guarantees "no duplicate / no second refund".
+        Booking existing = new Booking();
+        setFieldReflectively(existing, "bookingId", UUID.randomUUID());
+        existing.setBookingStatus(BookingStatus.CANCELLED);
+        existing.setStripeSessionId("sess_Z");
+        when(bookingRepository.findByStripeSessionId("sess_Z")).thenReturn(Optional.of(existing));
+
+        Booking result = bookingService.recordMultiServiceConflictTombstone(
+                LocalDate.now().plusDays(1), LocalTime.of(10, 0), 60,
+                "Mario", "mario@test.it", "+390000000", "sess_Z", true);
+
+        assertThat(result).isSameAs(existing);
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcomeForSession — CANCELLED + PAID_CONFLICT → REJECTED (MULTI summary)")
+    void rejectionOutcomeForSession_paidConflict_returnsRejected() {
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CANCELLED);
+        b.setCancelReason("PAID_CONFLICT");
+        when(bookingRepository.findByStripeSessionId("sess_R")).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForSession("sess_R")).isEqualTo("REJECTED");
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcomeForBooking — CANCELLED + PAID_CONFLICT → REJECTED (single summary)")
+    void rejectionOutcomeForBooking_paidConflict_returnsRejected() {
+        UUID id = UUID.randomUUID();
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CANCELLED);
+        b.setCancelReason("PAID_CONFLICT");
+        when(bookingRepository.findById(id)).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForBooking(id)).isEqualTo("REJECTED");
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcome — refund-failed reason → REJECTED_REFUND_PENDING")
+    void rejectionOutcomeForSession_refundFailed_returnsRefundPending() {
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CANCELLED);
+        b.setCancelReason("PAID_CONFLICT_REFUND_FAILED");
+        when(bookingRepository.findByStripeSessionId("sess_P")).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForSession("sess_P")).isEqualTo("REJECTED_REFUND_PENDING");
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcome — confirmed booking → null (normal confirmation unchanged)")
+    void rejectionOutcomeForSession_confirmed_returnsNull() {
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CONFIRMED);
+        when(bookingRepository.findByStripeSessionId("sess_OK")).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForSession("sess_OK")).isNull();
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcome — CANCELLED for a non-conflict reason → null (ordinary cancellation/expiry)")
+    void rejectionOutcomeForSession_otherCancelReason_returnsNull() {
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CANCELLED);
+        b.setCancelReason("STRIPE_SESSION_EXPIRED");
+        when(bookingRepository.findByStripeSessionId("sess_EXP")).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForSession("sess_EXP")).isNull();
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcomeForSession — no row yet → null (still processing, not rejected)")
+    void rejectionOutcomeForSession_noRow_returnsNull() {
+        when(bookingRepository.findByStripeSessionId("sess_NONE")).thenReturn(Optional.empty());
+        assertThat(bookingService.rejectionOutcomeForSession("sess_NONE")).isNull();
+    }
+
     private static BookingSale standaloneSale(UUID bookingId, UUID productId, int qty) {
         BookingSale s = new BookingSale();
         s.setBookingId(bookingId);
