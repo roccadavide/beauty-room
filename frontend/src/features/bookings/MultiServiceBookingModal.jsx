@@ -200,9 +200,11 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
           })),
         }),
       };
-      const { url } = await createMultiServiceBookingCheckout(payload);
-      // Mark this as a cart checkout so the confirmation page clears the cart on PAID.
-      sessionStorage.setItem("br_cart_checkout", "1");
+      const { url, sessionId } = await createMultiServiceBookingCheckout(payload);
+      // Fix 21: store THIS Stripe session id as the cart-clear marker. The confirmation page clears
+      // the cart only when a confirmed booking for the same session_id loads — a stale marker from
+      // an abandoned/other checkout can't match, so it can't wrongly clear the cart.
+      sessionStorage.setItem("br_cart_checkout", sessionId);
       window.location.href = url;
     } catch (err) {
       setCheckoutError(err.message || "Errore durante la prenotazione. Riprova.");

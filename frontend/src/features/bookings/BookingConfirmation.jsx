@@ -165,14 +165,19 @@ export default function BookingConfirmation() {
     };
   }, [summary?.booking?.serviceId, summary?.booking?.services?.length]);
 
-  /* Fix 4: clear the cart once a cart checkout is confirmed PAID. The marker is set before
-     the Stripe redirect in MultiServiceBookingModal, so "Prenota ora" never triggers this. */
+  /* Fix 21: clear the cart strictly when THIS session's order is truly completed — a confirmed
+     booking (CONFIRMED/COMPLETED, not a bare PAID read which Stripe can report before the webhook
+     creates the booking) whose Stripe session id matches the marker stored at checkout. A stale
+     marker from an abandoned or unrelated checkout (e.g. a single "Prenota ora") won't match the
+     current session_id, so it can never wrongly clear the cart. */
   useEffect(() => {
-    if (summary?.paymentStatus === "PAID" && sessionStorage.getItem("br_cart_checkout")) {
+    const bs = summary?.booking?.bookingStatus;
+    const confirmed = bs === "CONFIRMED" || bs === "COMPLETED";
+    if (confirmed && sessionId && sessionStorage.getItem("br_cart_checkout") === sessionId) {
       dispatch(clearCart());
       sessionStorage.removeItem("br_cart_checkout");
     }
-  }, [summary, dispatch]);
+  }, [summary, sessionId, dispatch]);
 
   /* reveal */
   useEffect(() => {

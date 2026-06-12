@@ -400,6 +400,9 @@ public class BookingCheckoutController {
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("url", session.getUrl());
+        // Fix 21: echo the Stripe session id so the cart can store a session-specific clear marker —
+        // the confirmation page clears the cart only when THIS session's order completes.
+        resp.put("sessionId", session.getId());
         return resp;
     }
 
@@ -462,6 +465,9 @@ public class BookingCheckoutController {
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("url", session.getUrl());
+        // Fix 21: echo the Stripe session id (mirrors createSessionMulti) for the session-specific
+        // cart-clear marker.
+        resp.put("sessionId", session.getId());
         return resp;
     }
 
