@@ -8,6 +8,7 @@ import com.stripe.model.Refund;
 import com.stripe.param.RefundCreateParams;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.ApiResource;
+import com.stripe.net.RequestOptions;
 import com.stripe.net.Webhook;
 import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
@@ -191,7 +192,13 @@ public class StripeWebhookController {
                                 RefundCreateParams refundParams = RefundCreateParams.builder()
                                         .setPaymentIntent(paymentIntentId)
                                         .build();
-                                Refund.create(refundParams);
+                                // Fix 24: deterministic idempotency key — a Stripe webhook retry of the same
+                                // logical refund reuses this key, so Stripe returns the existing refund
+                                // instead of creating a second one (closes the double-refund window).
+                                RequestOptions refundOptions = RequestOptions.builder()
+                                        .setIdempotencyKey("refund:" + paymentIntentId)
+                                        .build();
+                                Refund.create(refundParams, refundOptions);
                                 log.info("PAID_CONFLICT: rimborso Stripe creato per bookingId={} pi={}",
                                         bookingId, paymentIntentId);
                             } else {
@@ -394,7 +401,12 @@ public class StripeWebhookController {
                         RefundCreateParams refundParams = RefundCreateParams.builder()
                                 .setPaymentIntent(paymentIntentId)
                                 .build();
-                        Refund.create(refundParams);
+                        // Fix 24: deterministic idempotency key — see the single-booking site above. A
+                        // webhook retry reuses this key, so Stripe de-duplicates to a single refund.
+                        RequestOptions refundOptions = RequestOptions.builder()
+                                .setIdempotencyKey("refund:" + paymentIntentId)
+                                .build();
+                        Refund.create(refundParams, refundOptions);
                         refundOk = true;
                         log.info("MULTI PAID_CONFLICT: rimborso Stripe creato per sessionId={}", session.getId());
                     } else {

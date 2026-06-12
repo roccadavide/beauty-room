@@ -58,6 +58,7 @@ import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Refund;
 import com.stripe.model.checkout.Session;
+import com.stripe.net.RequestOptions;
 import com.stripe.param.RefundCreateParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -1521,7 +1522,12 @@ public class BookingService {
 
         // CASE 6 — StripeException is caught in the catch block below; DB not updated on failure
         try {
-            Refund.create(Map.of("payment_intent", paymentIntentId));
+            // Fix 24: deterministic idempotency key so a re-issued refund (retry/double-click) returns
+            // the same Stripe refund instead of creating a second one.
+            RequestOptions refundOptions = RequestOptions.builder()
+                    .setIdempotencyKey("refund:" + paymentIntentId)
+                    .build();
+            Refund.create(Map.of("payment_intent", paymentIntentId), refundOptions);
         } catch (StripeException e) {
             log.error("Stripe refund failed for bookingId={} paymentIntent={}: {}", bookingId, paymentIntentId, e.getMessage(), e);
             throw new BadRequestException(

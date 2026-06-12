@@ -4,6 +4,7 @@ import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Refund;
 import com.stripe.model.checkout.Session;
+import com.stripe.net.RequestOptions;
 import daviderocca.beautyroom.DTO.orderDTOs.NewOrderDTO;
 import daviderocca.beautyroom.DTO.orderDTOs.OrderResponseDTO;
 import daviderocca.beautyroom.DTO.orderItemDTOs.NewOrderItemDTO;
@@ -393,7 +394,12 @@ public class OrderService {
             throw new BadRequestException("Impossibile recuperare il PaymentIntent dalla sessione Stripe.");
         }
 
-        Refund.create(Map.of("payment_intent", paymentIntentId));
+        // Fix 24: deterministic idempotency key so a re-issued refund (retry/double-click) returns the
+        // same Stripe refund instead of creating a second one.
+        RequestOptions refundOptions = RequestOptions.builder()
+                .setIdempotencyKey("refund:" + paymentIntentId)
+                .build();
+        Refund.create(Map.of("payment_intent", paymentIntentId), refundOptions);
 
         order.setOrderStatus(OrderStatus.REFUNDED);
         orderRepository.save(order);
