@@ -9,6 +9,7 @@ import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
+import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.promotions.BookingPromotionLinkRepository;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.BookingSaleRepository;
@@ -56,6 +57,9 @@ class BookingServiceSettlementTest {
     // M3-3: settleBookingLines now consumes salePaid → flips standalone booking_sales.paid.
     @Mock private BookingSaleRepository bookingSaleRepository;
     @Mock private EntityManager entityManager;
+    // Fix 14: BookingService now constructor-injects this. Settlement paths never hit
+    // the overlap check, but @InjectMocks would pass null without a matching @Mock.
+    @Mock private PersonalAppointmentRepository personalAppointmentRepository;
 
     @InjectMocks private BookingService bookingService;
 

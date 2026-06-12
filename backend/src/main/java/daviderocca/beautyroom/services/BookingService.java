@@ -35,6 +35,7 @@ import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
 import daviderocca.beautyroom.packages.ClientPackageService;
+import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.exceptions.UnauthorizedException;
@@ -107,6 +108,9 @@ public class BookingService {
     private final BookingSaleRepository bookingSaleRepository;
     private final ProductRepository productRepository;
     private final PromotionRepository promotionRepository;
+    // Fix 14: the shared overlap check must also reject Michela's personal time
+    // (mirrors the availability layer — personal_appointments, no padding, no lock).
+    private final PersonalAppointmentRepository personalAppointmentRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -2897,7 +2901,25 @@ public class BookingService {
             int pad = (b.getPaddingMinutes() != null && b.getPaddingMinutes() > 0) ? b.getPaddingMinutes() : 0;
             LocalDateTime effectiveEnd = b.getEndTime().plusMinutes(pad);
             return b.getStartTime().isBefore(end) && effectiveEnd.isAfter(start);
-        });
+        }) || overlapsPersonalAppointment(start, end);
+    }
+
+    /**
+     * Fix 14 — personal-time overlap. Mirrors the availability predicate exactly
+     * (AvailabilityService.getCombinedAvailabilities / getAvailableSlots): half-open
+     * overlap, NO padding (personal time has none), single-day query keyed on the
+     * booking's start date. No pessimistic lock: personal appointments are
+     * admin-managed and not part of the customer-checkout race the booking lock guards.
+     */
+    private boolean overlapsPersonalAppointment(LocalDateTime start, LocalDateTime end) {
+        return personalAppointmentRepository
+                .findByAppointmentDateOrderByStartTime(start.toLocalDate())
+                .stream()
+                .anyMatch(pa -> {
+                    LocalDateTime paStart = pa.getAppointmentDate().atTime(pa.getStartTime());
+                    LocalDateTime paEnd   = paStart.plusMinutes(pa.getDurationMinutes());
+                    return paStart.isBefore(end) && start.isBefore(paEnd);
+                });
     }
 
     /**
@@ -2911,7 +2933,9 @@ public class BookingService {
             int pad = (b.getPaddingMinutes() != null && b.getPaddingMinutes() > 0) ? b.getPaddingMinutes() : 0;
             LocalDateTime effectiveEnd = b.getEndTime().plusMinutes(pad);
             return b.getStartTime().isBefore(end) && effectiveEnd.isAfter(start);
-        });
+        }) || overlapsPersonalAppointment(start, end);
+        // No exclusion needed for personal time: a PersonalAppointment is never the
+        // Booking being rescheduled, so the reschedule twin reuses the same probe.
     }
 
     private LocalDateTime normalizeStart(LocalDateTime startTime) {

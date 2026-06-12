@@ -18,7 +18,10 @@ import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
+import daviderocca.beautyroom.personalappointments.PersonalAppointment;
+import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.promotions.BookingPromotionLinkRepository;
+import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.BookingSaleRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
@@ -50,6 +53,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -88,6 +92,11 @@ class BookingServiceTest {
     private BookingPromotionLinkRepository bookingPromotionLinkRepository;
     @Mock
     private EntityManager entityManager;
+    // Fix 14: shared overlap check now also queries personal_appointments. Without this
+    // mock @InjectMocks injects null and every create/reschedule path NPEs; default mock
+    // returns an empty list, so existing tests see no phantom personal time.
+    @Mock
+    private PersonalAppointmentRepository personalAppointmentRepository;
 
     @InjectMocks
     private BookingService bookingService;
@@ -186,6 +195,109 @@ class BookingServiceTest {
         ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(captor.capture());
         assertThat(captor.getValue().getCustomer()).isEqualTo(mockCustomer);
+    }
+
+    // =========================================================================
+    // Fix 14: the shared overlap check now also rejects Michela's personal time.
+    // A synchronous create must be refused (same behavior as a booking overlap)
+    // when a personal appointment overlaps the requested slot, and must proceed
+    // when the personal appointment does not overlap.
+    // =========================================================================
+    @Test
+    @DisplayName("Fix 14: create rejected when a personal appointment overlaps the slot")
+    void createBooking_rejectedWhenOverlapsPersonalAppointment() {
+        UUID serviceId = UUID.randomUUID();
+
+        ServiceItem svc = new ServiceItem();
+        setFieldReflectively(svc, "serviceId", serviceId);
+        svc.setDurationMin(30);
+        svc.setTitle("Test Service");
+        svc.setActive(true);
+
+        // Requested slot: 10:00–10:30
+        LocalDateTime start = LocalDateTime.of(2030, 1, 15, 10, 0);
+
+        // Personal appointment 10:15–10:45 overlaps the slot.
+        PersonalAppointment pa = new PersonalAppointment();
+        pa.setTitle("Dentista");
+        pa.setAppointmentDate(start.toLocalDate());
+        pa.setStartTime(LocalTime.of(10, 15));
+        pa.setDurationMinutes(30);
+
+        NewBookingDTO payload = new NewBookingDTO(
+                "Mario Rossi", "mario.rossi@test.it", "+391234567890",
+                start, "Note test", serviceId,
+                null,    // serviceIds
+                null,    // serviceOptionId
+                null,    // packageCreditId
+                false, false, null, null, null, false
+        );
+
+        when(serviceItemService.findServiceItemById(serviceId)).thenReturn(svc);
+        // No client booking conflicts — only personal time blocks here.
+        when(bookingRepository.lockOverlappingBookingsByStatuses(any(), any(), anyList()))
+                .thenReturn(java.util.List.of());
+        when(personalAppointmentRepository.findByAppointmentDateOrderByStartTime(start.toLocalDate()))
+                .thenReturn(java.util.List.of(pa));
+
+        User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
+        admin.setRole(Role.ADMIN);
+
+        assertThatThrownBy(() -> bookingService.createManualConfirmedBookingAsAdmin(payload, admin))
+                .isInstanceOf(BadRequestException.class);
+
+        // Same hard-reject behavior as a booking overlap: nothing is persisted.
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Fix 14: create proceeds when the personal appointment does not overlap")
+    void createBooking_proceedsWhenPersonalAppointmentDoesNotOverlap() {
+        UUID serviceId = UUID.randomUUID();
+
+        ServiceItem svc = new ServiceItem();
+        setFieldReflectively(svc, "serviceId", serviceId);
+        svc.setDurationMin(30);
+        svc.setTitle("Test Service");
+        svc.setActive(true);
+
+        // Requested slot: 10:00–10:30
+        LocalDateTime start = LocalDateTime.of(2030, 1, 15, 10, 0);
+
+        // Personal appointment 08:00–08:30 does NOT overlap the slot.
+        PersonalAppointment pa = new PersonalAppointment();
+        pa.setTitle("Palestra");
+        pa.setAppointmentDate(start.toLocalDate());
+        pa.setStartTime(LocalTime.of(8, 0));
+        pa.setDurationMinutes(30);
+
+        NewBookingDTO payload = new NewBookingDTO(
+                "Mario Rossi", "mario.rossi@test.it", "+391234567890",
+                start, "Note test", serviceId,
+                null,    // serviceIds
+                null,    // serviceOptionId
+                null,    // packageCreditId
+                false, false, null, null, null, false
+        );
+
+        when(serviceItemService.findServiceItemById(serviceId)).thenReturn(svc);
+        when(bookingRepository.lockOverlappingBookingsByStatuses(any(), any(), anyList()))
+                .thenReturn(java.util.List.of());
+        when(personalAppointmentRepository.findByAppointmentDateOrderByStartTime(start.toLocalDate()))
+                .thenReturn(java.util.List.of(pa));
+        when(customerService.findOrCreate(anyString(), anyString(), anyString(), any()))
+                .thenReturn(new Customer());
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(bookingRepository.findByIdWithDetails(any()))
+                .thenAnswer(inv -> Optional.of(invocationBookingWithId(inv.getArgument(0))));
+
+        User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
+        admin.setRole(Role.ADMIN);
+
+        // Non-overlapping personal time must NOT block the booking.
+        bookingService.createManualConfirmedBookingAsAdmin(payload, admin);
+
+        verify(bookingRepository, atLeastOnce()).save(any());
     }
 
     // =========================================================================

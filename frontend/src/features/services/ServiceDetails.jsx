@@ -476,7 +476,7 @@ const ServiceDetail = () => {
 
             {(hasZoneGroups || hasZoneOptions) && (
               <p className="so-pkg-note" style={{ marginBottom: "1rem" }}>
-                Per prenotare più zone selezionale separatamente — ogni zona è una prenotazione indipendente.
+                Per prenotare più zone aggiungile al carrello — altrimenti prenota una sola zona.
               </p>
             )}
 
