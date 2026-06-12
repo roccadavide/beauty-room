@@ -1,5 +1,4 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { logout } from "../../auth/slices/auth.slice";
 
 function recalc(items) {
   const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
@@ -59,14 +58,10 @@ const cartSlice = createSlice({
       state.totalPrice = 0;
     },
   },
-
-  extraReducers: builder => {
-    builder.addCase(logout, state => {
-      state.items = [];
-      state.totalQuantity = 0;
-      state.totalPrice = 0;
-    });
-  },
+  // Cart-clearing is intentionally NOT tied to the `logout` action: automatic logouts
+  // (guest boot refresh-fail, 401, PrivateRoute) must keep the cart intact. The cart is
+  // cleared only by an explicit clearCart() — on real checkout completion and on the
+  // explicit NavBar logout.
 });
 
 export const { addToCart, removeFromCart, updateCartQuantity, clearCart } = cartSlice.actions;
