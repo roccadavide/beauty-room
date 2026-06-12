@@ -37,13 +37,18 @@ const migrations = {
       totalPrice: state.cart?.totalPrice ?? 0,
     },
   }),
+  // v4: service cart ids became composite `service-${serviceId}-${optionId}` (multiple options of the
+  // same service per cart). Pre-v4 items lack a reliable serviceOptionId → reusing them would send
+  // optionId=null at checkout and undercharge (the bug just fixed). CLEAR the cart so every item after
+  // the deploy carries its option. Money-safe over rewriting old ids.
+  4: state => ({ ...state, cart: { ...state?.cart, items: [], totalQuantity: 0, totalPrice: 0 } }),
 };
 
 const persistConfig = {
   key: "root",
   storage,
   whitelist: ["cart"],
-  version: 3,
+  version: 4,
   migrate: createMigrate(migrations, { debug: false }),
 };
 

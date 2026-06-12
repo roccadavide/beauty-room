@@ -13,7 +13,7 @@ import RelatedCarousel from "../../components/common/RelatedCarousel";
 import ImageGallery from "../../components/common/ImageGallery";
 import SEO from "../../components/common/SEO";
 import WishlistHeart from "../../components/common/WishlistHeart";
-import { addToCart } from "../cart/slices/cart.slice";
+import { addToCart, removeFromCart } from "../cart/slices/cart.slice";
 import { useLike } from "../../hooks/useLike";
 import LikePill from "../../components/common/LikePill";
 import LikeBurst from "../../components/common/LikeBurst";
@@ -205,7 +205,10 @@ const ServiceDetail = () => {
 
   const needsZoneSelection = (hasZoneGroups || hasZoneOptions) && selectedOption === null;
 
-  const isInCart = cartItems.some(i => i.id === `service-${service?.serviceId}`);
+  // Composite cart id per (service, option) so the same service can sit in the cart once per option
+  // (e.g. multiple laser zones). Optional-chained: this runs at render time before the !service guard.
+  const cartId = optId => `service-${service?.serviceId}-${optId ?? "base"}`;
+  const isInCart = cartItems.some(i => i.id === cartId(selectedOption?.optionId));
 
   const handleAddToCart = () => {
     if (!service) return;
@@ -216,12 +219,16 @@ const ServiceDetail = () => {
     }
     dispatch(
       addToCart({
-        id: `service-${service.serviceId}`,
+        id: cartId(selectedOption?.optionId),
         type: "service",
         name: service.title,
         price: displayPrice ?? 0,
         durationMinutes: displayDuration ?? service.durationMin ?? 0,
         serviceId: service.serviceId,
+        // Fix 11: keep the chosen option's id so the cart can charge its price (not the base).
+        serviceOptionId: selectedOption?.optionId ?? null,
+        // Fix 16: option label for the cart line (Commit 3 renders it to distinguish same-service rows).
+        optionName: selectedOption?.name ?? null,
         image: service.images?.[0] ?? null,
         quantity: 1,
       }),
@@ -377,18 +384,47 @@ const ServiceDetail = () => {
                   <div className="so-options">
                     <span className="so-label">Seleziona opzione:</span>
                     <div className="so-option-list">
-                      {visibleZoneOptions.map(opt => (
-                        <button
-                          key={opt.optionId}
-                          type="button"
-                          className={`so-option-card${selectedOption?.optionId === opt.optionId ? " so-option-card--selected" : ""}`}
-                          onClick={() => setSelectedOption(opt)}
-                        >
-                          <span className="so-option-name">{opt.name.replace(/\s*—\s*(Donna|Uomo)$/i, "")}</span>
-                          <span className="so-option-price">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                          {opt.durationMin && <span className="so-option-dur">{opt.durationMin} min</span>}
-                        </button>
-                      ))}
+                      {visibleZoneOptions.map(opt => {
+                        // Derived from cart state → the badge persists across zone/group/gender switches and reloads.
+                        const optInCart = cartItems.some(i => i.id === cartId(opt.optionId));
+                        return (
+                          <button
+                            key={opt.optionId}
+                            type="button"
+                            className={`so-option-card${selectedOption?.optionId === opt.optionId ? " so-option-card--selected" : ""}${optInCart ? " so-option-card--in-cart" : ""}`}
+                            onClick={() => setSelectedOption(opt)}
+                          >
+                            <span className="so-option-name">{opt.name.replace(/\s*—\s*(Donna|Uomo)$/i, "")}</span>
+                            <span className="so-option-price">{opt.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                            {opt.durationMin && <span className="so-option-dur">{opt.durationMin} min</span>}
+                            {optInCart && (
+                              <span className="so-option-incart">
+                                <span className="so-option-incart-label">✓ Nel carrello</span>
+                                {/* Separate element (not a nested <button>): removes only this option in place. */}
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className="so-option-incart-remove"
+                                  aria-label="Rimuovi questa opzione dal carrello"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    dispatch(removeFromCart(cartId(opt.optionId)));
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      dispatch(removeFromCart(cartId(opt.optionId)));
+                                    }
+                                  }}
+                                >
+                                  ✕
+                                </span>
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -474,7 +510,7 @@ const ServiceDetail = () => {
 
             {(hasZoneGroups || hasZoneOptions) && (
               <p className="so-pkg-note" style={{ marginBottom: "1rem" }}>
-                Per prenotare più zone selezionale separatamente — ogni zona è una prenotazione indipendente.
+                Per prenotare più zone aggiungile al carrello — altrimenti prenota una sola zona.
               </p>
             )}
 

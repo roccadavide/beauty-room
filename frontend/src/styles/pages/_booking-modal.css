@@ -186,7 +186,9 @@
 }
 
 .bm-step.done .bm-step__dot {
-  background: rgba(184, 151, 106, 0.18);
+  background:
+    linear-gradient(rgba(184, 151, 106, 0.18), rgba(184, 151, 106, 0.18)),
+    #fffdf8;
   border-color: rgba(184, 151, 106, 0.6);
   color: #8c6d3f;
 }
@@ -910,8 +912,11 @@
   .bm-step-content .dtf--inline {
     max-width: clamp(320px, 70%, 380px);
   }
+  .bm-step-content .dtf-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
   .bm-step-content .dtf-day {
-    min-width: 44px;
+    min-width: 0;
   }
 }
 

@@ -35,6 +35,7 @@ import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
 import daviderocca.beautyroom.packages.ClientPackageService;
+import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.exceptions.UnauthorizedException;
@@ -57,6 +58,7 @@ import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Refund;
 import com.stripe.model.checkout.Session;
+import com.stripe.net.RequestOptions;
 import com.stripe.param.RefundCreateParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -107,6 +109,9 @@ public class BookingService {
     private final BookingSaleRepository bookingSaleRepository;
     private final ProductRepository productRepository;
     private final PromotionRepository promotionRepository;
+    // Fix 14: the shared overlap check must also reject Michela's personal time
+    // (mirrors the availability layer — personal_appointments, no padding, no lock).
+    private final PersonalAppointmentRepository personalAppointmentRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -153,6 +158,39 @@ public class BookingService {
         Booking booking = bookingRepository.findByIdWithDetails(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException(bookingId));
         return convertToDTO(booking);
+    }
+
+    /**
+     * Audit K / Fix 23: rejection outcome for the confirmation page, by bookingId (single flow).
+     * Reads the entity because {@code cancelReason} is intentionally NOT on {@link BookingResponseDTO}.
+     * Returns null when the booking is absent or not a paid-conflict rejection.
+     */
+    @Transactional(readOnly = true)
+    public String rejectionOutcomeForBooking(UUID bookingId) {
+        return rejectionOutcome(bookingRepository.findById(bookingId).orElse(null));
+    }
+
+    /**
+     * Audit K / Fix 23: rejection outcome by Stripe session id (MULTI flow — the conflict tombstone
+     * is keyed on the session). Returns null when no row exists yet (still processing) or it isn't a
+     * paid-conflict rejection.
+     */
+    @Transactional(readOnly = true)
+    public String rejectionOutcomeForSession(String stripeSessionId) {
+        return rejectionOutcome(bookingRepository.findByStripeSessionId(stripeSessionId).orElse(null));
+    }
+
+    /**
+     * A booking is a "rejected" paid booking only when it is CANCELLED with a PAID_CONFLICT* reason —
+     * NOT for ordinary cancellations/expiries (which must keep the normal confirmation behaviour).
+     * {@code "PAID_CONFLICT_REFUND_FAILED"} maps to REJECTED_REFUND_PENDING so the UI can soften the
+     * refund wording when the automatic refund itself errored.
+     */
+    private static String rejectionOutcome(Booking b) {
+        if (b == null || b.getBookingStatus() != BookingStatus.CANCELLED) return null;
+        String reason = b.getCancelReason();
+        if (reason == null || !reason.startsWith("PAID_CONFLICT")) return null;
+        return "PAID_CONFLICT_REFUND_FAILED".equals(reason) ? "REJECTED_REFUND_PENDING" : "REJECTED";
     }
 
     @Transactional(readOnly = true)
@@ -911,6 +949,13 @@ public class BookingService {
      * Creates a CONFIRMED booking for a multi-service Stripe checkout after payment succeeds.
      * Called from the webhook — runs at SERIALIZABLE isolation to detect slot conflicts atomically.
      *
+     * Fix 15: {@code serviceOptionIds} is index-aligned to {@code serviceIds} (a null/short entry =
+     * no option for that line). Each booking_services row is written via native INSERT carrying its
+     * own option_id (the @ManyToMany is suppressed), so the same service added with different options
+     * persists as distinct, distinguishable rows. {@code customTotalPrice} (Fix 11) stays the
+     * authoritative frozen total; per-row override_duration_min / price_override stay NULL (the render
+     * resolves so.price / so.duration_min via option_id).
+     *
      * @throws BadRequestException with message "CONFLICT" if the slot is already taken.
      */
     @Transactional(isolation = Isolation.SERIALIZABLE)
@@ -927,7 +972,9 @@ public class BookingService {
             UUID promotionId,
             List<SaleEntryDTO> productSales,
             boolean consentLaser,
-            boolean consentPmu
+            boolean consentPmu,
+            BigDecimal customTotalPrice,
+            List<UUID> serviceOptionIds
     ) {
         LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
@@ -945,9 +992,31 @@ public class BookingService {
         String email = customerEmail != null ? customerEmail.trim().toLowerCase() : "";
         String phone = customerPhone != null ? customerPhone.trim() : "";
 
-        Booking booking = new Booking(name, email, phone, start, end, notes, primary, null, null);
-        if (!services.isEmpty()) booking.setServices(new ArrayList<>(services));
+        // Fix 15: primary option = first non-null entry, mirrored onto bookings.service_option_id for
+        // single-line render coherence. Defensive lookup — the customer already paid, so a miss
+        // degrades to null instead of throwing.
+        ServiceOption primaryOption = null;
+        if (serviceOptionIds != null) {
+            for (UUID oid : serviceOptionIds) {
+                if (oid != null) {
+                    primaryOption = serviceOptionRepository.findById(oid).orElse(null);
+                    break;
+                }
+            }
+        }
+
+        Booking booking = new Booking(name, email, phone, start, end, notes, primary, primaryOption, null);
+        // Fix 15: suppress the @ManyToMany — it only knows (booking_id, service_id) and would write
+        // option-less rows. booking_services is populated below via native INSERT carrying option_id.
+        booking.setServices(new ArrayList<>());
         booking.setDurationMinutes(totalDurationMinutes);
+        // Fix 11: option-aware appointment total (services only; products are separate booking_sales).
+        // Set only when the cart used at least one service option — the booking then renders as a
+        // priced "bundle" at the correct total instead of re-deriving wrong base per-line prices.
+        // Null for all-base carts (and promos) → behaviour unchanged.
+        if (customTotalPrice != null) {
+            booking.setCustomTotalPrice(customTotalPrice);
+        }
         // Fix 9: persist the laser/PMU consent acknowledgment from the cart flow (was dropped before).
         booking.setConsentLaser(consentLaser);
         booking.setConsentPmu(consentPmu);
@@ -971,6 +1040,31 @@ public class BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Multi-service webhook booking created: id={} duration={}min services={}",
                 saved.getBookingId(), totalDurationMinutes, services.size());
+
+        // Fix 15: persist per-row option_id in booking_services via native INSERT (mirrors the admin
+        // path — booking_services has no JPA entity). The @ManyToMany was suppressed above, so these
+        // are the only rows. Repeated serviceIds with distinct option_id therefore produce distinct,
+        // distinguishable rows. override_duration_min / price_override stay NULL (the render resolves
+        // so.price / so.duration_min via option_id); online cart → every line is paid.
+        if (!serviceIds.isEmpty()) {
+            entityManager.flush(); // booking row must exist before the FK insert
+            for (int i = 0; i < serviceIds.size(); i++) {
+                UUID optionId = (serviceOptionIds != null && i < serviceOptionIds.size())
+                        ? serviceOptionIds.get(i) : null;
+                entityManager.createNativeQuery("""
+                        INSERT INTO booking_services (id, booking_id, service_id, option_id, sort_order, override_duration_min, price_override, paid)
+                        VALUES (gen_random_uuid(), :bookingId, :serviceId, :optionId, :sortOrder, :overrideDurationMin, :priceOverride, :paid)
+                        """)
+                        .setParameter("bookingId", saved.getBookingId())
+                        .setParameter("serviceId", serviceIds.get(i))
+                        .setParameter("optionId", optionId)
+                        .setParameter("sortOrder", i)
+                        .setParameter("overrideDurationMin", null)
+                        .setParameter("priceOverride", null)
+                        .setParameter("paid", true)
+                        .executeUpdate();
+            }
+        }
 
         // Fix 3 (mixed cart): persist the online-paid products on the freshly-saved booking, inside
         // THIS SERIALIZABLE transaction (the bookingId now exists). Promo bookings carry no products,
@@ -1032,6 +1126,64 @@ public class BookingService {
             log.warn("Account linking failed for webhook booking {}: {}", saved.getBookingId(), e.getMessage());
         }
 
+        return saved;
+    }
+
+    /**
+     * Audit K / Fix 23: persist a minimal CANCELLED tombstone for a MULTI booking that was paid but
+     * rejected by the webhook (slot taken — booking-overlap race or personal-time block). The
+     * SERIALIZABLE attempt in {@link #createMultiServiceBookingFromWebhook} already rolled back leaving
+     * no row, so this runs in its OWN fresh transaction (committed independently). The tombstone is what
+     * makes the rejection observable to the confirmation page via {@code findByStripeSessionId}.
+     *
+     * <p>Idempotent per Stripe session: if a row already exists for {@code stripeSessionId} (e.g. a
+     * webhook retry) it is returned unchanged — no duplicate. The caller relies on the same check to
+     * avoid issuing a second refund.</p>
+     *
+     * <p>Minimal by design: no services, no customer-registry upsert, no notifications. {@code CANCELLED}
+     * means it is excluded from availability/overlap ({@code BLOCKING}), arretrati (COMPLETED-only) and
+     * the active agenda timeline — exactly like the single flow's existing PAID_CONFLICT rows.</p>
+     *
+     * @param refundSucceeded whether the automatic Stripe refund went through — drives the cancelReason
+     *                        ({@code "PAID_CONFLICT"} vs {@code "PAID_CONFLICT_REFUND_FAILED"}).
+     */
+    @Transactional
+    public Booking recordMultiServiceConflictTombstone(
+            LocalDate date,
+            LocalTime startTime,
+            int totalDurationMinutes,
+            String customerName,
+            String customerEmail,
+            String customerPhone,
+            String stripeSessionId,
+            boolean refundSucceeded
+    ) {
+        // Idempotent: a row already exists for this session (retry) → no duplicate, no second refund.
+        Optional<Booking> existing = bookingRepository.findByStripeSessionId(stripeSessionId);
+        if (existing.isPresent()) {
+            log.info("Conflict tombstone già presente per sessionId={}, skip", stripeSessionId);
+            return existing.get();
+        }
+
+        LocalDateTime start = date.atTime(startTime).truncatedTo(ChronoUnit.MINUTES);
+        LocalDateTime end   = start.plusMinutes(Math.max(totalDurationMinutes, 15));
+        String name  = customerName  != null ? customerName.trim() : "";
+        String email = customerEmail != null ? customerEmail.trim().toLowerCase() : "";
+        String phone = customerPhone != null ? customerPhone.trim() : "";
+
+        Booking tombstone = new Booking(name, email, phone, start, end, null, null, null, null);
+        tombstone.setServices(new ArrayList<>());
+        tombstone.setDurationMinutes(totalDurationMinutes);
+        tombstone.setBookingStatus(BookingStatus.CANCELLED);
+        tombstone.setCancelReason(refundSucceeded ? "PAID_CONFLICT" : "PAID_CONFLICT_REFUND_FAILED");
+        tombstone.setStripeSessionId(stripeSessionId);
+        tombstone.setCanceledAt(LocalDateTime.now());
+        tombstone.setExpiresAt(null);
+        tombstone.setCreatedByAdmin(false);
+
+        Booking saved = bookingRepository.save(tombstone);
+        log.info("Conflict tombstone CANCELLED persistito: id={} sessionId={} reason={}",
+                saved.getBookingId(), stripeSessionId, saved.getCancelReason());
         return saved;
     }
 
@@ -1370,7 +1522,12 @@ public class BookingService {
 
         // CASE 6 — StripeException is caught in the catch block below; DB not updated on failure
         try {
-            Refund.create(Map.of("payment_intent", paymentIntentId));
+            // Fix 24: deterministic idempotency key so a re-issued refund (retry/double-click) returns
+            // the same Stripe refund instead of creating a second one.
+            RequestOptions refundOptions = RequestOptions.builder()
+                    .setIdempotencyKey("refund:" + paymentIntentId)
+                    .build();
+            Refund.create(Map.of("payment_intent", paymentIntentId), refundOptions);
         } catch (StripeException e) {
             log.error("Stripe refund failed for bookingId={} paymentIntent={}: {}", bookingId, paymentIntentId, e.getMessage(), e);
             throw new BadRequestException(
@@ -2889,7 +3046,25 @@ public class BookingService {
             int pad = (b.getPaddingMinutes() != null && b.getPaddingMinutes() > 0) ? b.getPaddingMinutes() : 0;
             LocalDateTime effectiveEnd = b.getEndTime().plusMinutes(pad);
             return b.getStartTime().isBefore(end) && effectiveEnd.isAfter(start);
-        });
+        }) || overlapsPersonalAppointment(start, end);
+    }
+
+    /**
+     * Fix 14 — personal-time overlap. Mirrors the availability predicate exactly
+     * (AvailabilityService.getCombinedAvailabilities / getAvailableSlots): half-open
+     * overlap, NO padding (personal time has none), single-day query keyed on the
+     * booking's start date. No pessimistic lock: personal appointments are
+     * admin-managed and not part of the customer-checkout race the booking lock guards.
+     */
+    private boolean overlapsPersonalAppointment(LocalDateTime start, LocalDateTime end) {
+        return personalAppointmentRepository
+                .findByAppointmentDateOrderByStartTime(start.toLocalDate())
+                .stream()
+                .anyMatch(pa -> {
+                    LocalDateTime paStart = pa.getAppointmentDate().atTime(pa.getStartTime());
+                    LocalDateTime paEnd   = paStart.plusMinutes(pa.getDurationMinutes());
+                    return paStart.isBefore(end) && start.isBefore(paEnd);
+                });
     }
 
     /**
@@ -2903,7 +3078,9 @@ public class BookingService {
             int pad = (b.getPaddingMinutes() != null && b.getPaddingMinutes() > 0) ? b.getPaddingMinutes() : 0;
             LocalDateTime effectiveEnd = b.getEndTime().plusMinutes(pad);
             return b.getStartTime().isBefore(end) && effectiveEnd.isAfter(start);
-        });
+        }) || overlapsPersonalAppointment(start, end);
+        // No exclusion needed for personal time: a PersonalAppointment is never the
+        // Booking being rescheduled, so the reschedule twin reuses the same probe.
     }
 
     private LocalDateTime normalizeStart(LocalDateTime startTime) {
@@ -3101,6 +3278,7 @@ public class BookingService {
                 booking.getCreatedAt(),
                 booking.getService() != null ? booking.getService().getServiceId() : null,
                 booking.getServiceOption() != null ? booking.getServiceOption().getOptionId() : null,
+                booking.getServiceOption() != null ? booking.getServiceOption().getName() : null,
                 booking.getUser() != null ? booking.getUser().getUserId() : null,
                 serviceTitle,
                 services,

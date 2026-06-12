@@ -18,7 +18,10 @@ import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
+import daviderocca.beautyroom.personalappointments.PersonalAppointment;
+import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.promotions.BookingPromotionLinkRepository;
+import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.BookingSaleRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
@@ -50,6 +53,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -88,6 +92,11 @@ class BookingServiceTest {
     private BookingPromotionLinkRepository bookingPromotionLinkRepository;
     @Mock
     private EntityManager entityManager;
+    // Fix 14: shared overlap check now also queries personal_appointments. Without this
+    // mock @InjectMocks injects null and every create/reschedule path NPEs; default mock
+    // returns an empty list, so existing tests see no phantom personal time.
+    @Mock
+    private PersonalAppointmentRepository personalAppointmentRepository;
 
     @InjectMocks
     private BookingService bookingService;
@@ -186,6 +195,109 @@ class BookingServiceTest {
         ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(captor.capture());
         assertThat(captor.getValue().getCustomer()).isEqualTo(mockCustomer);
+    }
+
+    // =========================================================================
+    // Fix 14: the shared overlap check now also rejects Michela's personal time.
+    // A synchronous create must be refused (same behavior as a booking overlap)
+    // when a personal appointment overlaps the requested slot, and must proceed
+    // when the personal appointment does not overlap.
+    // =========================================================================
+    @Test
+    @DisplayName("Fix 14: create rejected when a personal appointment overlaps the slot")
+    void createBooking_rejectedWhenOverlapsPersonalAppointment() {
+        UUID serviceId = UUID.randomUUID();
+
+        ServiceItem svc = new ServiceItem();
+        setFieldReflectively(svc, "serviceId", serviceId);
+        svc.setDurationMin(30);
+        svc.setTitle("Test Service");
+        svc.setActive(true);
+
+        // Requested slot: 10:00–10:30
+        LocalDateTime start = LocalDateTime.of(2030, 1, 15, 10, 0);
+
+        // Personal appointment 10:15–10:45 overlaps the slot.
+        PersonalAppointment pa = new PersonalAppointment();
+        pa.setTitle("Dentista");
+        pa.setAppointmentDate(start.toLocalDate());
+        pa.setStartTime(LocalTime.of(10, 15));
+        pa.setDurationMinutes(30);
+
+        NewBookingDTO payload = new NewBookingDTO(
+                "Mario Rossi", "mario.rossi@test.it", "+391234567890",
+                start, "Note test", serviceId,
+                null,    // serviceIds
+                null,    // serviceOptionId
+                null,    // packageCreditId
+                false, false, null, null, null, false
+        );
+
+        when(serviceItemService.findServiceItemById(serviceId)).thenReturn(svc);
+        // No client booking conflicts — only personal time blocks here.
+        when(bookingRepository.lockOverlappingBookingsByStatuses(any(), any(), anyList()))
+                .thenReturn(java.util.List.of());
+        when(personalAppointmentRepository.findByAppointmentDateOrderByStartTime(start.toLocalDate()))
+                .thenReturn(java.util.List.of(pa));
+
+        User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
+        admin.setRole(Role.ADMIN);
+
+        assertThatThrownBy(() -> bookingService.createManualConfirmedBookingAsAdmin(payload, admin))
+                .isInstanceOf(BadRequestException.class);
+
+        // Same hard-reject behavior as a booking overlap: nothing is persisted.
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Fix 14: create proceeds when the personal appointment does not overlap")
+    void createBooking_proceedsWhenPersonalAppointmentDoesNotOverlap() {
+        UUID serviceId = UUID.randomUUID();
+
+        ServiceItem svc = new ServiceItem();
+        setFieldReflectively(svc, "serviceId", serviceId);
+        svc.setDurationMin(30);
+        svc.setTitle("Test Service");
+        svc.setActive(true);
+
+        // Requested slot: 10:00–10:30
+        LocalDateTime start = LocalDateTime.of(2030, 1, 15, 10, 0);
+
+        // Personal appointment 08:00–08:30 does NOT overlap the slot.
+        PersonalAppointment pa = new PersonalAppointment();
+        pa.setTitle("Palestra");
+        pa.setAppointmentDate(start.toLocalDate());
+        pa.setStartTime(LocalTime.of(8, 0));
+        pa.setDurationMinutes(30);
+
+        NewBookingDTO payload = new NewBookingDTO(
+                "Mario Rossi", "mario.rossi@test.it", "+391234567890",
+                start, "Note test", serviceId,
+                null,    // serviceIds
+                null,    // serviceOptionId
+                null,    // packageCreditId
+                false, false, null, null, null, false
+        );
+
+        when(serviceItemService.findServiceItemById(serviceId)).thenReturn(svc);
+        when(bookingRepository.lockOverlappingBookingsByStatuses(any(), any(), anyList()))
+                .thenReturn(java.util.List.of());
+        when(personalAppointmentRepository.findByAppointmentDateOrderByStartTime(start.toLocalDate()))
+                .thenReturn(java.util.List.of(pa));
+        when(customerService.findOrCreate(anyString(), anyString(), anyString(), any()))
+                .thenReturn(new Customer());
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(bookingRepository.findByIdWithDetails(any()))
+                .thenAnswer(inv -> Optional.of(invocationBookingWithId(inv.getArgument(0))));
+
+        User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
+        admin.setRole(Role.ADMIN);
+
+        // Non-overlapping personal time must NOT block the booking.
+        bookingService.createManualConfirmedBookingAsAdmin(payload, admin);
+
+        verify(bookingRepository, atLeastOnce()).save(any());
     }
 
     // =========================================================================
@@ -573,6 +685,203 @@ class BookingServiceTest {
         verifyNoInteractions(productRepository);
         verifyNoInteractions(bookingSaleRepository);
         verifyNoInteractions(notificationService);
+    }
+
+    // =========================================================================
+    // Fix 15: the webhook (online cart) path writes one booking_services row per
+    // (service, option) via native INSERT — so the SAME service added with two
+    // different options yields two distinct, distinguishable rows. The @ManyToMany
+    // (which only knows (booking_id, service_id)) is suppressed, and customTotalPrice
+    // (Fix 11) stays the authoritative frozen total.
+    // =========================================================================
+    @Test
+    @DisplayName("Fix 15: webhook writes a booking_services row per (service, option) with option_id + 0-based sort_order; @ManyToMany suppressed; customTotalPrice unchanged")
+    void createMultiServiceBookingFromWebhook_repeatedService_writesPerRowOptionId() {
+        UUID serviceA = UUID.randomUUID();
+        UUID opt1 = UUID.randomUUID();
+        UUID opt2 = UUID.randomUUID();
+
+        ServiceItem svcA = new ServiceItem();
+        setFieldReflectively(svcA, "serviceId", serviceA);
+        svcA.setDurationMin(30);
+        svcA.setTitle("Laser");
+        svcA.setActive(true);
+        when(serviceItemService.findServiceItemById(serviceA)).thenReturn(svcA);
+
+        ServiceOption o1 = new ServiceOption();
+        o1.setOptionId(opt1);
+        o1.setService(svcA);
+        when(serviceOptionRepository.findById(opt1)).thenReturn(Optional.of(o1)); // primary = first non-null
+
+        when(bookingRepository.lockOverlappingBookingsByStatuses(any(), any(), anyList()))
+                .thenReturn(List.of()); // no slot conflict
+        when(customerService.findOrCreate(anyString(), anyString(), anyString(), any()))
+                .thenReturn(new Customer());
+
+        UUID bookingId = UUID.randomUUID();
+        when(bookingRepository.save(any())).thenAnswer(inv -> {
+            Booking b = inv.getArgument(0);
+            setFieldReflectively(b, "bookingId", bookingId);
+            return b;
+        });
+
+        // Native INSERT chain — booking_services has no JPA entity (mirror the existing native-query
+        // mocking). @InjectMocks uses constructor injection, so wire the EntityManager field by hand.
+        Query insertQ = mock(Query.class);
+        when(entityManager.createNativeQuery(anyString())).thenReturn(insertQ);
+        when(insertQ.setParameter(anyString(), any())).thenReturn(insertQ);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
+
+        // serviceIds = [A, A], serviceOptionIds = [opt1, opt2] → two distinct rows for service A.
+        bookingService.createMultiServiceBookingFromWebhook(
+                List.of(serviceA, serviceA),
+                LocalDate.now().plusDays(1), LocalTime.of(10, 0), 60,
+                "Mario Rossi", "mario@test.it", "+390000000", "note", "sess_123",
+                null,                       // promotionId
+                List.of(),                  // productSales
+                false, false,               // consentLaser, consentPmu
+                new BigDecimal("80.00"),    // customTotalPrice (Fix 11 frozen total)
+                List.of(opt1, opt2)         // serviceOptionIds (index-aligned)
+        );
+
+        // Two booking_services rows, each carrying its own option_id and 0-based sort_order.
+        verify(entityManager, times(2)).createNativeQuery(contains("INSERT INTO booking_services"));
+        verify(insertQ, times(2)).setParameter(eq("serviceId"), eq(serviceA));
+        verify(insertQ).setParameter("optionId", opt1);
+        verify(insertQ).setParameter("optionId", opt2);
+        verify(insertQ).setParameter("sortOrder", 0);
+        verify(insertQ).setParameter("sortOrder", 1);
+
+        // @ManyToMany suppressed (no option-less rows) + Fix 11 total preserved + primary option mirrored.
+        ArgumentCaptor<Booking> bc = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository, atLeastOnce()).save(bc.capture());
+        Booking persisted = bc.getValue();
+        assertThat(persisted.getServices()).isEmpty();
+        assertThat(persisted.getCustomTotalPrice()).isEqualByComparingTo(new BigDecimal("80.00"));
+        assertThat(persisted.getServiceOption()).isEqualTo(o1);
+    }
+
+    // =========================================================================
+    // Fix 23 (Audit K): paid-but-rejected MULTI booking → CANCELLED tombstone +
+    // a definitive "REJECTED" outcome the confirmation page can observe.
+    // =========================================================================
+    @Test
+    @DisplayName("Fix 23: MULTI conflict tombstone — fresh session persists a CANCELLED row with sessionId + PAID_CONFLICT")
+    void recordMultiServiceConflictTombstone_fresh_persistsCancelledTombstone() {
+        when(bookingRepository.findByStripeSessionId("sess_X")).thenReturn(Optional.empty());
+        UUID id = UUID.randomUUID();
+        when(bookingRepository.save(any())).thenAnswer(inv -> {
+            Booking b = inv.getArgument(0);
+            setFieldReflectively(b, "bookingId", id);
+            return b;
+        });
+
+        Booking result = bookingService.recordMultiServiceConflictTombstone(
+                LocalDate.now().plusDays(1), LocalTime.of(10, 0), 60,
+                "Mario Rossi", "Mario@Test.IT", "+390000000", "sess_X", true);
+
+        ArgumentCaptor<Booking> bc = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository).save(bc.capture());
+        Booking saved = bc.getValue();
+        assertThat(saved.getBookingStatus()).isEqualTo(BookingStatus.CANCELLED);
+        assertThat(saved.getStripeSessionId()).isEqualTo("sess_X");
+        assertThat(saved.getCancelReason()).isEqualTo("PAID_CONFLICT");
+        assertThat(saved.getServices()).isEmpty();
+        assertThat(saved.getDurationMinutes()).isEqualTo(60);
+        assertThat(saved.getCustomerEmail()).isEqualTo("mario@test.it"); // trimmed + lowercased
+        assertThat(saved.getCanceledAt()).isNotNull();
+        assertThat(result.getBookingStatus()).isEqualTo(BookingStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("Fix 23: MULTI conflict tombstone — refund failure records PAID_CONFLICT_REFUND_FAILED")
+    void recordMultiServiceConflictTombstone_refundFailed_setsRefundPendingReason() {
+        when(bookingRepository.findByStripeSessionId("sess_Y")).thenReturn(Optional.empty());
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        bookingService.recordMultiServiceConflictTombstone(
+                LocalDate.now().plusDays(1), LocalTime.of(9, 0), 30,
+                "Lucia", "lucia@test.it", "", "sess_Y", false);
+
+        ArgumentCaptor<Booking> bc = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository).save(bc.capture());
+        assertThat(bc.getValue().getCancelReason()).isEqualTo("PAID_CONFLICT_REFUND_FAILED");
+    }
+
+    @Test
+    @DisplayName("Fix 23: MULTI conflict tombstone — existing session is idempotent (no duplicate row, no second write)")
+    void recordMultiServiceConflictTombstone_existing_isIdempotent() {
+        // The controller gates the refund on this same findByStripeSessionId check, so an idempotent
+        // service return (existing row, no save) is what guarantees "no duplicate / no second refund".
+        Booking existing = new Booking();
+        setFieldReflectively(existing, "bookingId", UUID.randomUUID());
+        existing.setBookingStatus(BookingStatus.CANCELLED);
+        existing.setStripeSessionId("sess_Z");
+        when(bookingRepository.findByStripeSessionId("sess_Z")).thenReturn(Optional.of(existing));
+
+        Booking result = bookingService.recordMultiServiceConflictTombstone(
+                LocalDate.now().plusDays(1), LocalTime.of(10, 0), 60,
+                "Mario", "mario@test.it", "+390000000", "sess_Z", true);
+
+        assertThat(result).isSameAs(existing);
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcomeForSession — CANCELLED + PAID_CONFLICT → REJECTED (MULTI summary)")
+    void rejectionOutcomeForSession_paidConflict_returnsRejected() {
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CANCELLED);
+        b.setCancelReason("PAID_CONFLICT");
+        when(bookingRepository.findByStripeSessionId("sess_R")).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForSession("sess_R")).isEqualTo("REJECTED");
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcomeForBooking — CANCELLED + PAID_CONFLICT → REJECTED (single summary)")
+    void rejectionOutcomeForBooking_paidConflict_returnsRejected() {
+        UUID id = UUID.randomUUID();
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CANCELLED);
+        b.setCancelReason("PAID_CONFLICT");
+        when(bookingRepository.findById(id)).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForBooking(id)).isEqualTo("REJECTED");
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcome — refund-failed reason → REJECTED_REFUND_PENDING")
+    void rejectionOutcomeForSession_refundFailed_returnsRefundPending() {
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CANCELLED);
+        b.setCancelReason("PAID_CONFLICT_REFUND_FAILED");
+        when(bookingRepository.findByStripeSessionId("sess_P")).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForSession("sess_P")).isEqualTo("REJECTED_REFUND_PENDING");
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcome — confirmed booking → null (normal confirmation unchanged)")
+    void rejectionOutcomeForSession_confirmed_returnsNull() {
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CONFIRMED);
+        when(bookingRepository.findByStripeSessionId("sess_OK")).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForSession("sess_OK")).isNull();
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcome — CANCELLED for a non-conflict reason → null (ordinary cancellation/expiry)")
+    void rejectionOutcomeForSession_otherCancelReason_returnsNull() {
+        Booking b = new Booking();
+        b.setBookingStatus(BookingStatus.CANCELLED);
+        b.setCancelReason("STRIPE_SESSION_EXPIRED");
+        when(bookingRepository.findByStripeSessionId("sess_EXP")).thenReturn(Optional.of(b));
+        assertThat(bookingService.rejectionOutcomeForSession("sess_EXP")).isNull();
+    }
+
+    @Test
+    @DisplayName("Fix 23: rejectionOutcomeForSession — no row yet → null (still processing, not rejected)")
+    void rejectionOutcomeForSession_noRow_returnsNull() {
+        when(bookingRepository.findByStripeSessionId("sess_NONE")).thenReturn(Optional.empty());
+        assertThat(bookingService.rejectionOutcomeForSession("sess_NONE")).isNull();
     }
 
     private static BookingSale standaloneSale(UUID bookingId, UUID productId, int qty) {

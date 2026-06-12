@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Spinner } from "react-bootstrap";
 import { useSelector } from "react-redux";
-import { fetchAvailabilities } from "../../api/modules/availabilities.api";
+import { fetchCombinedAvailabilities } from "../../api/modules/availabilities.api";
 import { createBookingCheckoutSessionAuth, createBookingCheckoutSessionGuest, createBookingPayInStore } from "../../api/modules/stripe.api";
 import { fetchCancellationPolicy } from "../../api/modules/users.api";
 import { BOOKING_MAX_ADVANCE_DAYS, BRAND_WHATSAPP } from "../../utils/constants";
@@ -11,7 +11,7 @@ import NextSlotBanner from "../../components/common/NextSlotBanner";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import WaitlistModal, { WaitlistContent } from "../../components/common/WaitlistModal";
 import { useClosedDays } from "../../hooks/useClosedDays";
-import { useNextSlot } from "../../hooks/useNextSlot";
+import { useNextCombinedSlot } from "../../hooks/useNextCombinedSlot";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[0-9]{7,15}$/;
@@ -63,15 +63,19 @@ export const BookingFlow = ({
     return Array.from(new Set([...dates, ...emptySlotDates]));
   }, [closedDates, closedWeekdays, isClosed, emptySlotDates]);
 
-  const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } = useNextSlot(service?.serviceId);
+  // Fix 13: size the slot grid + next-slot to the SELECTED OPTION's duration (mirrors the cart),
+  // not the base service duration. Declared here so the next-slot hook below can key on it.
+  const effectiveDuration = initialOption?.durationMin ?? service?.durationMin;
+
+  const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } = useNextCombinedSlot(effectiveDuration);
   // Ref used to auto-select a slot after slots are loaded (set by NextSlotBanner → onSelect)
   const pendingSlotStartRef = useRef(null);
 
-  // Cerca il prossimo slot non appena il modale si apre con un servizio valido
+  // Cerca il prossimo slot non appena il modale si apre con una durata valida
   useEffect(() => {
-    if (show && service?.serviceId) findNext();
+    if (show && effectiveDuration) findNext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, service?.serviceId]);
+  }, [show, effectiveDuration]);
 
   const [step, setStep] = useState(1);
   const [date, setDate] = useState(new Date());
@@ -95,7 +99,10 @@ export const BookingFlow = ({
   // Il blocco PMU si mostra se consentRequired=true (qualunque categoria PMU) o keyword match
   const showPmuConsent = service?.consentRequired === true || needsPmuConsent(service?.title);
   const summaryStep = hasConsentStep ? 5 : 4;
-  const effectiveDuration = initialOption?.durationMin ?? service?.durationMin;
+  // Fix 12: display the SELECTED OPTION's price (mirrors effectiveDuration). Derived from the prop on
+  // every render, so the headline/summary refresh live when the option changes. Falls back to the base
+  // "from" price for option-less services. The charge is already option-aware server-side — display only.
+  const effectivePrice = initialOption?.price ?? service?.price;
 
   // Fetch cancellation policy on first open
   useEffect(() => {
@@ -137,7 +144,7 @@ export const BookingFlow = ({
   };
 
   useEffect(() => {
-    if (step === 2 && service) {
+    if (step === 2 && effectiveDuration) {
       const loadSlots = async () => {
         try {
           setLoadingSlots(true);
@@ -148,7 +155,10 @@ export const BookingFlow = ({
           }
 
           const day = date.toLocaleDateString("sv-SE");
-          const data = await fetchAvailabilities(service.serviceId, day);
+          // Fix 13: combined availability sized to the option's effective duration (same source as the
+          // cart) — grid end-times + blocking now match the real booking, and Michela's personal
+          // appointments are excluded too (the old service-only path did not block them).
+          const data = await fetchCombinedAvailabilities(day, effectiveDuration);
           const loaded = data.slots || [];
           setSlots(loaded);
           if (loaded.length === 0) {
@@ -170,7 +180,7 @@ export const BookingFlow = ({
 
       loadSlots();
     }
-  }, [step, service, date]);
+  }, [step, date, effectiveDuration]);
 
   const handleCustomerChange = (field, value) => {
     setCustomer(prev => ({ ...prev, [field]: value }));
@@ -286,7 +296,8 @@ export const BookingFlow = ({
     reset();
   };
 
-  const promoOriginal = promoPrice != null ? Number(service?.price || 0) + promoProducts.reduce((sum, p) => sum + Number(p?.price || 0), 0) : null;
+  // Fix 12: when an option is selected, the promo's "listino" reference is the option price, not the base.
+  const promoOriginal = promoPrice != null ? Number(effectivePrice || 0) + promoProducts.reduce((sum, p) => sum + Number(p?.price || 0), 0) : null;
 
   const metaSubtitle =
     service?.durationMin || service?.price != null ? (
@@ -294,11 +305,11 @@ export const BookingFlow = ({
         {effectiveDuration && <span className="bm-meta-pill">⏱ {effectiveDuration} min</span>}
         {promoPrice != null ? (
           <>
-            <span className="bm-meta-pill bm-meta-pill--orig">{service.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+            <span className="bm-meta-pill bm-meta-pill--orig">{effectivePrice?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
             <span className="bm-meta-pill bm-meta-pill--promo">{promoPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
           </>
-        ) : service.price != null ? (
-          <span className="bm-meta-pill">{service.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+        ) : effectivePrice != null ? (
+          <span className="bm-meta-pill">{effectivePrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
         ) : null}
         {promoProducts.length > 0 && <div className="bm-meta-pill bm-meta-pill--product">🎁 {promoProducts.map(p => p.name).join(", ")} incluso</div>}
       </div>
@@ -326,7 +337,7 @@ export const BookingFlow = ({
         layout="side"
         onHide={handleClose}
         eyebrow="PRENOTAZIONE ✦"
-        title={service?.title}
+        title={initialOption ? `${service?.title} · ${initialOption.name}` : service?.title}
         subtitle={metaSubtitle}
         topSlot={stepsSlot}
         size="sm"
@@ -587,7 +598,7 @@ export const BookingFlow = ({
                 <div className="bm-summary">
                   <div className="bm-summary__row">
                     <span>Servizio</span>
-                    <strong>{service?.title}</strong>
+                    <strong>{initialOption ? `${service?.title} · ${initialOption.name}` : service?.title}</strong>
                   </div>
                   <div className="bm-summary__row">
                     <span>Durata</span>
@@ -597,7 +608,7 @@ export const BookingFlow = ({
                     <>
                       <div className="bm-summary__row">
                         <span>{service?.title}</span>
-                        <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                        <strong>{effectivePrice?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
                       </div>
 
                       {promoProducts.map(p => (
@@ -644,7 +655,7 @@ export const BookingFlow = ({
                   ) : (
                     <div className="bm-summary__row">
                       <span>Prezzo</span>
-                      <strong>{service?.price?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+                      <strong>{effectivePrice?.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
                     </div>
                   )}
                   {promoProducts.length > 0 && (

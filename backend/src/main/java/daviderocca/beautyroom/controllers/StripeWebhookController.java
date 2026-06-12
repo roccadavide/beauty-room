@@ -8,6 +8,7 @@ import com.stripe.model.Refund;
 import com.stripe.param.RefundCreateParams;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.ApiResource;
+import com.stripe.net.RequestOptions;
 import com.stripe.net.Webhook;
 import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
@@ -191,7 +192,13 @@ public class StripeWebhookController {
                                 RefundCreateParams refundParams = RefundCreateParams.builder()
                                         .setPaymentIntent(paymentIntentId)
                                         .build();
-                                Refund.create(refundParams);
+                                // Fix 24: deterministic idempotency key — a Stripe webhook retry of the same
+                                // logical refund reuses this key, so Stripe returns the existing refund
+                                // instead of creating a second one (closes the double-refund window).
+                                RequestOptions refundOptions = RequestOptions.builder()
+                                        .setIdempotencyKey("refund:" + paymentIntentId)
+                                        .build();
+                                Refund.create(refundParams, refundOptions);
                                 log.info("PAID_CONFLICT: rimborso Stripe creato per bookingId={} pi={}",
                                         bookingId, paymentIntentId);
                             } else {
@@ -349,16 +356,44 @@ public class StripeWebhookController {
             return;
         }
 
+        // Fix 11: option-aware services subtotal (cents) — present only when the cart used a service
+        // option. Recorded as the appointment's customTotalPrice so the agenda shows the right total.
+        BigDecimal customTotalPrice = null;
+        String servicesTotalCentsRaw = metadata.getOrDefault("servicesTotalCents", "");
+        if (!servicesTotalCentsRaw.isBlank()) {
+            try {
+                customTotalPrice = new BigDecimal(servicesTotalCentsRaw.trim()).movePointLeft(2);
+            } catch (Exception e) {
+                log.warn("MULTI booking: servicesTotalCents non parsabile '{}': {}",
+                        servicesTotalCentsRaw, e.getMessage());
+            }
+        }
+
+        // Fix 15: per-line option ids, index-aligned to serviceIds (empty token = no option on that
+        // line). Absent for all-base carts and promo sessions → empty list (every line resolves to no
+        // option, exactly as before). split(",", -1) inside keeps a trailing null in its position.
+        List<UUID> serviceOptionIds = parseServiceOptionIds(metadata.getOrDefault("serviceOptionIds", ""));
+
         daviderocca.beautyroom.entities.Booking saved;
         try {
             saved = bookingService.createMultiServiceBookingFromWebhook(
                     serviceIds, date, startTime, totalDurationMinutes,
                     customerName, customerEmail, customerPhone, notes, session.getId(), promotionId, productSales,
-                    consentLaser, consentPmu
+                    consentLaser, consentPmu, customTotalPrice, serviceOptionIds
             );
         } catch (daviderocca.beautyroom.exceptions.BadRequestException bex) {
             if ("CONFLICT".equals(bex.getMessage())) {
+                // Audit K / Fix 23: the SERIALIZABLE attempt rolled back (no booking row). Idempotently
+                // refund + persist a CANCELLED tombstone so the confirmation page can show a definitive
+                // "slot taken, refunded" outcome instead of spinning. A retry finds the tombstone, so we
+                // neither refund twice nor create a duplicate.
+                if (bookingRepository.findByStripeSessionId(session.getId()).isPresent()) {
+                    log.info("MULTI PAID_CONFLICT: tombstone già presente per sessionId={}, skip (idempotent)", session.getId());
+                    return;
+                }
+
                 log.error("MULTI PAID_CONFLICT: slot già occupato, sessionId={} — avvio rimborso automatico.", session.getId());
+                boolean refundOk = false;
                 try {
                     Stripe.apiKey = stripeSecretKey;
                     String paymentIntentId = session.getPaymentIntent();
@@ -366,13 +401,33 @@ public class StripeWebhookController {
                         RefundCreateParams refundParams = RefundCreateParams.builder()
                                 .setPaymentIntent(paymentIntentId)
                                 .build();
-                        Refund.create(refundParams);
+                        // Fix 24: deterministic idempotency key — see the single-booking site above. A
+                        // webhook retry reuses this key, so Stripe de-duplicates to a single refund.
+                        RequestOptions refundOptions = RequestOptions.builder()
+                                .setIdempotencyKey("refund:" + paymentIntentId)
+                                .build();
+                        Refund.create(refundParams, refundOptions);
+                        refundOk = true;
                         log.info("MULTI PAID_CONFLICT: rimborso Stripe creato per sessionId={}", session.getId());
                     } else {
                         log.error("MULTI PAID_CONFLICT: payment_intent assente — rimborso manuale necessario. sessionId={}", session.getId());
                     }
                 } catch (StripeException ex) {
                     log.error("MULTI PAID_CONFLICT: errore rimborso Stripe sessionId={}: {}", session.getId(), ex.getMessage());
+                }
+
+                // Tombstone in its own fresh transaction (the conflict tx already rolled back). cancelReason
+                // reflects the refund outcome so the confirmation page can soften the wording if needed.
+                try {
+                    Booking tombstone = bookingService.recordMultiServiceConflictTombstone(
+                            date, startTime, totalDurationMinutes,
+                            customerName, customerEmail, customerPhone,
+                            session.getId(), refundOk);
+                    log.info("MULTI PAID_CONFLICT: tombstone bookingId={} sessionId={} reason={}",
+                            tombstone.getBookingId(), session.getId(), tombstone.getCancelReason());
+                } catch (Exception ex) {
+                    log.error("MULTI PAID_CONFLICT: impossibile persistere tombstone sessionId={}: {}",
+                            session.getId(), ex.getMessage(), ex);
                 }
             } else {
                 log.error("MULTI booking: errore creazione per sessionId={}: {}", session.getId(), bex.getMessage());
@@ -391,6 +446,34 @@ public class StripeWebhookController {
 
         log.info("MULTI booking confermato: bookingId={} sessionId={} servizi={} cliente={}",
                 saved.getBookingId(), session.getId(), serviceIds.size(), customerEmail);
+    }
+
+    /**
+     * Fix 15: decodes the index-aligned {@code serviceOptionIds} metadata into a list parallel to the
+     * parsed {@code serviceIds} — one entry per line, an empty token meaning "no option on that line"
+     * (e.g. {@code "optA,,optC"}). Split with limit {@code -1} so trailing empty tokens are preserved:
+     * a null option on the LAST line must not shorten the list and shift alignment. Robust by design —
+     * the customer has already paid, so a malformed token degrades that single line to no-option (null)
+     * rather than throwing. Blank/absent input → empty list. Package-private for unit testing.
+     */
+    static List<UUID> parseServiceOptionIds(String raw) {
+        if (raw == null || raw.isBlank()) return List.of();
+        String[] tokens = raw.split(",", -1);
+        List<UUID> out = new ArrayList<>(tokens.length);
+        for (String token : tokens) {
+            String s = token == null ? "" : token.trim();
+            if (s.isEmpty()) {
+                out.add(null);
+                continue;
+            }
+            try {
+                out.add(UUID.fromString(s));
+            } catch (IllegalArgumentException e) {
+                log.warn("MULTI booking: serviceOptionId non valido '{}' — riga trattata come senza opzione", s);
+                out.add(null);
+            }
+        }
+        return out;
     }
 
     /**

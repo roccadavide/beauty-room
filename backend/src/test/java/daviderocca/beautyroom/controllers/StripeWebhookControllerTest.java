@@ -59,4 +59,34 @@ class StripeWebhookControllerTest {
         assertThat(out.get(0).quantity()).isEqualTo(1);
         assertThat(out.get(0).unitPrice()).isEqualByComparingTo(new BigDecimal("5.00")); // 500 cents
     }
+
+    @Test
+    @DisplayName("Fix 15: parseServiceOptionIds keeps index alignment — an empty middle token is a null option")
+    void parseServiceOptionIds_alignedWithNullInTheMiddle() {
+        UUID o1 = UUID.randomUUID();
+        UUID o3 = UUID.randomUUID();
+        // line 2 has no option: "o1,,o3"
+        List<UUID> out = StripeWebhookController.parseServiceOptionIds(o1 + ",," + o3);
+
+        assertThat(out).containsExactly(o1, null, o3);
+    }
+
+    @Test
+    @DisplayName("Fix 15: parseServiceOptionIds preserves a TRAILING null option (split limit -1)")
+    void parseServiceOptionIds_preservesTrailingNull() {
+        UUID o1 = UUID.randomUUID();
+        // "o1," — the default split() would drop the trailing empty and misalign the list; the
+        // limit -1 keeps it, so a null option on the LAST line stays at its index.
+        List<UUID> out = StripeWebhookController.parseServiceOptionIds(o1 + ",");
+
+        assertThat(out).containsExactly(o1, null);
+    }
+
+    @Test
+    @DisplayName("Fix 15: parseServiceOptionIds returns empty for null / blank (all-base & promo carts)")
+    void parseServiceOptionIds_emptyForBlank() {
+        assertThat(StripeWebhookController.parseServiceOptionIds(null)).isEmpty();
+        assertThat(StripeWebhookController.parseServiceOptionIds("")).isEmpty();
+        assertThat(StripeWebhookController.parseServiceOptionIds("   ")).isEmpty();
+    }
 }

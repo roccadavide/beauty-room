@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/checkout/bookings")
@@ -238,20 +239,42 @@ public class BookingCheckoutController {
             throw new BadRequestException("Seleziona almeno un servizio.");
         }
 
-        // Resolve and validate all services
+        // Resolve and validate all services. Fix 11: price each line from the SELECTED OPTION
+        // (option.getPrice()) when one was chosen, else the base service price. serviceOptionIds is
+        // INDEX-ALIGNED to serviceIds (same FE .map()); a null/short entry means "no option".
+        List<UUID> serviceIds = payload.serviceIds();
+        List<UUID> serviceOptionIds = payload.serviceOptionIds();
         List<ServiceItem> services = new ArrayList<>();
-        BigDecimal total = BigDecimal.ZERO;
-        for (UUID sid : payload.serviceIds()) {
+        List<ServiceOption> lineOptions = new ArrayList<>(); // parallel to services; null = no option
+        BigDecimal servicesTotal = BigDecimal.ZERO;
+        boolean anyOption = false;
+        for (int i = 0; i < serviceIds.size(); i++) {
+            UUID sid = serviceIds.get(i);
             ServiceItem svc = serviceItemService.findServiceItemById(sid);
             serviceItemService.assertServiceActive(svc);
-            if (svc.getPrice() == null || svc.getPrice().signum() <= 0) {
+
+            UUID optId = (serviceOptionIds != null && i < serviceOptionIds.size())
+                    ? serviceOptionIds.get(i) : null;
+            ServiceOption option = null;
+            if (optId != null) {
+                // Validate-by-query so we never lazy-load the option's service (OSIV is off):
+                // empty ⇒ option missing OR not owned by this service → reject with a clear 400.
+                option = serviceOptionRepository.findByOptionIdAndService_ServiceId(optId, sid)
+                        .orElseThrow(() -> new BadRequestException(
+                                "L'opzione selezionata non appartiene al servizio '" + svc.getTitle() + "'."));
+                anyOption = true;
+            }
+
+            BigDecimal unitPrice = (option != null) ? option.getPrice() : svc.getPrice();
+            if (unitPrice == null || unitPrice.signum() <= 0) {
                 throw new BadRequestException("Il servizio '" + svc.getTitle() + "' non ha un prezzo valido.");
             }
             services.add(svc);
-            total = total.add(svc.getPrice());
+            lineOptions.add(option);
+            servicesTotal = servicesTotal.add(unitPrice);
         }
 
-        total = total.setScale(2, RoundingMode.HALF_UP);
+        servicesTotal = servicesTotal.setScale(2, RoundingMode.HALF_UP);
 
         // Build line items (one per service)
         SessionCreateParams.Builder builder = SessionCreateParams.builder()
@@ -279,17 +302,37 @@ public class BookingCheckoutController {
             builder.putMetadata("notes", notes);
         }
 
-        for (ServiceItem svc : services) {
+        // Fix 11: when any line used an option, hand the webhook the option-aware services subtotal
+        // (cents) so it records the correct appointment total via Booking.customTotalPrice — no schema,
+        // no re-resolving options. Omitted for all-base carts → those stay byte-identical to before.
+        if (anyOption) {
+            builder.putMetadata("servicesTotalCents",
+                    String.valueOf(servicesTotal.movePointRight(2).longValueExact()));
+            // Fix 15: per-line option ids, index-aligned to serviceIds (empty token = no option on that
+            // line, e.g. "optA,,optC"). The webhook persists each as booking_services.option_id so the
+            // same service added with different options stays distinguishable. Emitted only alongside
+            // servicesTotalCents (option carts) → all-base carts stay byte-identical (no extra key).
+            builder.putMetadata("serviceOptionIds",
+                    lineOptions.stream()
+                            .map(o -> o == null ? "" : o.getOptionId().toString())
+                            .collect(Collectors.joining(",")));
+        }
+
+        for (int i = 0; i < services.size(); i++) {
+            ServiceItem svc = services.get(i);
+            ServiceOption option = lineOptions.get(i);
+            BigDecimal unitPrice = (option != null) ? option.getPrice() : svc.getPrice();
+            String lineName = svc.getTitle() + (option != null ? " — " + option.getName() : "");
             builder.addLineItem(
                     SessionCreateParams.LineItem.builder()
                             .setQuantity(1L)
                             .setPriceData(
                                     SessionCreateParams.LineItem.PriceData.builder()
                                             .setCurrency("eur")
-                                            .setUnitAmount(svc.getPrice().movePointRight(2).longValueExact())
+                                            .setUnitAmount(unitPrice.movePointRight(2).longValueExact())
                                             .setProductData(
                                                     SessionCreateParams.LineItem.PriceData.ProductData.builder()
-                                                            .setName(svc.getTitle())
+                                                            .setName(lineName)
                                                             .build()
                                             )
                                             .build()
@@ -357,6 +400,9 @@ public class BookingCheckoutController {
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("url", session.getUrl());
+        // Fix 21: echo the Stripe session id so the cart can store a session-specific clear marker —
+        // the confirmation page clears the cart only when THIS session's order completes.
+        resp.put("sessionId", session.getId());
         return resp;
     }
 
@@ -419,6 +465,9 @@ public class BookingCheckoutController {
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("url", session.getUrl());
+        // Fix 21: echo the Stripe session id (mirrors createSessionMulti) for the session-specific
+        // cart-clear marker.
+        resp.put("sessionId", session.getId());
         return resp;
     }
 
@@ -450,18 +499,25 @@ public class BookingCheckoutController {
         String bookingType  = meta != null ? meta.get("bookingType") : null;
 
         BookingResponseDTO booking;
+        // Audit K / Fix 23: definitive rejection signal (slot taken → refunded) so the confirmation page
+        // can stop polling and show a clear outcome instead of a misleading pending/confirmed state.
+        String outcome;
         if (bookingIdStr != null) {
             UUID bookingId = UUID.fromString(bookingIdStr);
             booking = bookingService.findBookingByIdAndConvert(bookingId);
+            outcome = bookingService.rejectionOutcomeForBooking(bookingId);
         } else if ("MULTI".equals(bookingType)) {
             // Multi-service: no pre-hold, booking created by webhook — look up by stripeSessionId
             booking = bookingRepository.findByStripeSessionId(session.getId())
                     .map(b -> bookingService.findBookingByIdAndConvert(b.getBookingId()))
                     .orElse(null);
             if (booking == null) {
-                // Webhook may not have fired yet; return a pending placeholder
-                return ResponseEntity.ok(new BookingSummaryDTO(null, isPaid ? "PAID" : "PENDING", session.getCustomerDetails() != null ? session.getCustomerDetails().getEmail() : null));
+                // Webhook may not have fired yet; return a pending placeholder (no row → still processing,
+                // never a rejection: a MULTI conflict persists a CANCELLED tombstone found just above).
+                return ResponseEntity.ok(new BookingSummaryDTO(null, isPaid ? "PAID" : "PENDING",
+                        session.getCustomerDetails() != null ? session.getCustomerDetails().getEmail() : null, null));
             }
+            outcome = bookingService.rejectionOutcomeForSession(session.getId());
         } else {
             return ResponseEntity.status(400).body(BookingSummaryDTO.error("bookingId assente nei metadata della sessione"));
         }
@@ -478,7 +534,8 @@ public class BookingCheckoutController {
         BookingSummaryDTO dto = new BookingSummaryDTO(
                 booking,
                 isPaid ? "PAID" : "PENDING",
-                email
+                email,
+                outcome
         );
 
         return ResponseEntity.ok(dto);

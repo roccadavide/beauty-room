@@ -6,6 +6,7 @@ import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import CartIcon from "../../features/cart/CartIcon";
 import { persistor } from "../../app/store";
 import { logout } from "../../features/auth/slices/auth.slice";
+import { clearCart } from "../../features/cart/slices/cart.slice";
 import { clearAccessToken } from "../../utils/token";
 import { logoutUser } from "../../api/modules/auth.api";
 import { invalidateCache } from "../../api/apiCache";
@@ -157,6 +158,7 @@ export default function NavBar() {
     clearAccessToken();
     invalidateCache("services", "services_admin", "products", "products_admin");
     dispatch(logout());
+    dispatch(clearCart()); // explicit user logout still empties the cart (logout no longer does it implicitly)
     persistor.purge();
     navigate("/");
     setShowLogoutModal(false);
