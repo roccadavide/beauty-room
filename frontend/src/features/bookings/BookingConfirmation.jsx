@@ -5,6 +5,7 @@ import { Container, Row, Col, Spinner } from "react-bootstrap";
 import { fetchBookingSummary } from "../../api/modules/stripe.api";
 import { fetchServiceById } from "../../api/modules/services.api";
 import { clearCart } from "../cart/slices/cart.slice";
+import { BRAND_WHATSAPP } from "../../utils/constants";
 import "../../styles/pages/_confirmation.css";
 import SEO from "../../components/common/SEO";
 
@@ -68,6 +69,9 @@ export default function BookingConfirmation() {
   const [error, setError] = useState(null);
   const [summary, setSummary] = useState(null);
   const [service, setService] = useState(null);
+  // Audit K / Fix 23: definitive rejection (slot taken → refunded). Holds the backend `outcome`
+  // variant ("REJECTED" | "REJECTED_REFUND_PENDING") so we stop polling and show a clear result.
+  const [rejected, setRejected] = useState(null);
 
   /* pay-in-store: no Stripe session needed */
   useEffect(() => {
@@ -117,6 +121,15 @@ export default function BookingConfirmation() {
 
         setSummary(data);
         setLoading(false);
+
+        // Audit K / Fix 23: the paid booking was rejected (slot taken) and refunded. Resolve to a
+        // definitive outcome immediately — never wait out the timeout, never show a (false) confirmed UI.
+        if (data?.outcome === "REJECTED" || data?.outcome === "REJECTED_REFUND_PENDING") {
+          setRejected(data.outcome);
+          stopped = true;
+          clearInterval(iv);
+          return;
+        }
 
         const bs = data?.booking?.bookingStatus;
         if (bs === "FAILED" || data?.paymentStatus === "FAILED") {
@@ -199,10 +212,13 @@ export default function BookingConfirmation() {
 
   const b = summary?.booking;
 
-  const paid = useMemo(
-    () => Boolean(b) && (summary?.paymentStatus === "PAID" || b?.bookingStatus === "CONFIRMED" || b?.bookingStatus === "COMPLETED"),
-    [summary?.paymentStatus, b],
-  );
+  const paid = useMemo(() => {
+    if (!b) return false;
+    // Audit K / Fix 23: a terminal-failed booking is NEVER "paid", even if Stripe still reports
+    // paymentStatus = "PAID" — otherwise a rejected+refunded single booking renders the confirmed screen.
+    if (b.bookingStatus === "CANCELLED" || b.bookingStatus === "FAILED") return false;
+    return summary?.paymentStatus === "PAID" || b.bookingStatus === "CONFIRMED" || b.bookingStatus === "COMPLETED";
+  }, [summary?.paymentStatus, b]);
 
   const shortCode = useMemo(() => {
     const id = b?.bookingId || "";
@@ -237,6 +253,58 @@ export default function BookingConfirmation() {
         </section>
       </div>
     );
+
+  /* ── Rejected screen (Audit K / Fix 23): slot taken while paying → booking refused + refunded ── */
+  if (rejected) {
+    const refundPending = rejected === "REJECTED_REFUND_PENDING";
+    // Flow-aware retry: the single ("Prenota ora") rejected hold carries its serviceId → back to that
+    // service; the MULTI tombstone has no serviceId → back to the cart (items are preserved on rejection).
+    const retryTo = b?.serviceId ? `/trattamenti/${b.serviceId}` : "/carrello";
+    const retryLabel = b?.serviceId ? "Scegli un altro orario" : "Torna al carrello";
+    return (
+      <>
+        <SEO title="Orario non più disponibile" noindex={true} />
+        <div className="conf-page">
+          <div className="conf-error conf-reveal conf-reveal--visible">
+            <span className="conf-spark">✦</span>
+            <h1 className="conf-title">Questo orario non è più disponibile</h1>
+            <div className="conf-divider" />
+            <p className="conf-subtitle">
+              {refundPending
+                ? "Questo orario è appena stato prenotato da qualcun altro e non siamo riusciti a completare la tua prenotazione. C'è stato un problema con il rimborso automatico: scrivici e lo sistemiamo subito."
+                : "Questo orario è appena stato prenotato da qualcun altro mentre completavi il pagamento. Abbiamo annullato la prenotazione e rimborsato l'intero importo: lo vedrai tornare sul tuo metodo di pagamento entro pochi giorni lavorativi."}
+            </p>
+            <div className="conf-cta-wrap" style={{ marginTop: "2rem" }}>
+              {refundPending ? (
+                <>
+                  <a
+                    href={`https://wa.me/${BRAND_WHATSAPP}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="conf-btn-primary"
+                  >
+                    Scrivici su WhatsApp
+                  </a>
+                  <Link to={retryTo} className="conf-btn-ghost">
+                    {retryLabel}
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to={retryTo} className="conf-btn-primary">
+                    {retryLabel}
+                  </Link>
+                  <Link to="/" className="conf-btn-ghost">
+                    Torna alla Home
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   /* ── States ── */
   if (loading)
