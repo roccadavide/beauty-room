@@ -2,6 +2,7 @@ package daviderocca.beautyroom.email.templates;
 
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.Order;
+import daviderocca.beautyroom.entities.OrderItem;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.entities.WaitlistEntry;
 import daviderocca.beautyroom.enums.PaymentMethod;
@@ -11,17 +12,24 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
+/**
+ * Transactional email templates — presentation layer (v2).
+ * Visual spec: email-design-reference.html (approved). Light is the inline default;
+ * dark mode is delivered via the prefers-color-scheme @media block in HEAD, so every
+ * coloured element carries BOTH an inline light value AND a class for the dark override.
+ * Pure white/black are avoided (Apple Mail inverts them).
+ */
 @Service
 public class EmailTemplateService {
 
     @Value("${app.frontend.url:https://beauty-room.it}")
     private String frontUrl;
-
-    @Value("${app.brand.logoUrl:http://localhost:5173/logo-email.png}")
-    private String logoUrl;
 
     // Dati brand configurabili
     @Value("${app.brand.name:Beauty Room}")
@@ -51,329 +59,213 @@ public class EmailTemplateService {
     @Value("${app.google.review.url:https://g.page/r/PLACEHOLDER/review}")
     private String googleReviewUrl;
 
+    private static final String SERIF = "'Cormorant Garamond','Petrona',Georgia,'Times New Roman',serif";
+    private static final String SANS  = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
     private static final DateTimeFormatter IT_DT =
             DateTimeFormatter.ofPattern("EEE dd MMM yyyy, HH:mm", Locale.ITALY);
-
-    private static final String BG = "#F6F1EA";
-    private static final String CARD = "#FFFFFF";
-    private static final String TEXT = "#3B2F2A";   // marrone caldo
-    private static final String MUTED = "#7A6A61";  // taupe
-    private static final String BORDER = "#E7D9CC"; // beige
-    private static final String GOLD = "#C8A46A";   // oro soft
-    private static final String SAND = "#F3E7DC";   // sabbia
+    private static final DateTimeFormatter IT_DATE =
+            DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.ITALY);
+    private static final DateTimeFormatter IT_DATE_SHORT =
+            DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALY);
+    private static final DateTimeFormatter IT_TIME =
+            DateTimeFormatter.ofPattern("HH:mm", Locale.ITALY);
 
     // ===================== BOOKING CONFIRMED =====================
     public EmailContent bookingConfirmed(Booking b) {
-        String subject = "Prenotazione confermata - " + brandName;
+        String subject = "Prenotazione confermata · " + brandName;
+        String preheader = "Ti confermo il tuo appuntamento da Beauty Room ✦";
 
-        String when = (b.getStartTime() != null) ? b.getStartTime().format(IT_DT) : "-";
-        String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
         String customerName = safe(b.getCustomerName());
+        String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
+        String customerEmail = safe(b.getCustomerEmail());
 
-        // Prezzo: da opzione se presente, altrimenti dal servizio base
+        String dateStr = "-", timeStr = "-";
+        if (b.getStartTime() != null) {
+            dateStr = cap(b.getStartTime().format(IT_DATE));
+            timeStr = b.getStartTime().format(IT_TIME);
+        }
+
         BigDecimal price = null;
         if (b.getServiceOption() != null && b.getServiceOption().getPrice() != null) {
             price = b.getServiceOption().getPrice();
         } else if (b.getService() != null && b.getService().getPrice() != null) {
             price = b.getService().getPrice();
         }
-        String priceStr = price != null ? "€\u00a0" + price.setScale(2, RoundingMode.HALF_UP).toPlainString() : null;
+        String priceStr = price != null ? euro(price) : "—";
 
         boolean isPis = b.getPaymentMethod() == PaymentMethod.PAY_IN_STORE;
-        String paymentLabel = isPis ? "Pagamento in studio" : "Pagamento ricevuto";
-        String paymentValue = isPis
-                ? "Da pagare in studio il giorno dell'appuntamento" + (priceStr != null ? ": " + priceStr : "")
-                : "Pagamento online ricevuto" + (priceStr != null ? ": " + priceStr : "");
+        String totalLabel = isPis ? "Da saldare in studio" : "Pagato online";
 
         String viewUrl = frontUrl + "/area-personale";
 
-        String body = """
-  <h1 style="%s">Prenotazione confermata</h1>
+        String items = itemRow(serviceTitle, null, priceStr, true);
 
-  <p style="%s">Ciao <b>%s</b>,</p>
-  <p style="%s">la tua prenotazione è stata confermata. Ti aspettiamo in <b>%s</b>.</p>
+        String inner = heroRow("La tua prenotazione", "Confermata")
+                + introRow("Ciao " + inkB(customerName) + ", ti confermo il tuo appuntamento da Beauty&nbsp;Room. "
+                        + "Ti aspetto: qui sotto trovi tutti i dettagli.")
+                + ornamentRow()
+                + whenRow(dateStr, timeStr)
+                + panelRow("22px 40px 0", "Trattamento", items, totalLabel, priceStr)
+                + labeledLineRow("Dove", brandAddress, false)
+                + kvRow("Email di conferma", customerEmail)
+                + buttonRow("Visualizza prenotazione", viewUrl)
+                + helperRow("Devi spostare o modificare l'appuntamento? Scrivimi, ci penso io.")
+                + contactPillsRow()
+                + signoffRow("Grazie di avermi scelto.<br>Non vedo l'ora di prendermi cura di te.");
 
-  %s
-
-  <div style="margin-top:18px;">
-    %s
-  </div>
-
-  <p style="%s; margin-top:16px;">
-    Vuoi <b>modificare</b> o <b>posticipare</b> la prenotazione? Scrivici su WhatsApp e ti aiutiamo noi.
-  </p>
-
-  <div style="margin-top:10px;">
-    %s
-    %s
-    %s
-  </div>
-
-  <p style="font-family:Arial,sans-serif; font-size:13px; color:%s; text-align:center; margin-top:24px; padding-top:16px; border-top:1px solid %s;">
-    Grazie per aver scelto %s. Non vediamo l'ora di prenderci cura di te ✦
-  </p>
-""".formatted(
-                h1Style(),
-                pStyle(),
-                esc(customerName),
-                pStyle(),
-                esc(brandAddress),
-                detailsBox(new String[][]{
-                        {"Servizio", serviceTitle},
-                        {"Quando", when},
-                        {paymentLabel, paymentValue},
-                        {"Email", safe(b.getCustomerEmail())}
-                }),
-                button("Visualizza prenotazione", viewUrl),
-                smallStyle(),
-                miniLink("WhatsApp", "https://wa.me/" + brandPhoneE164.replace("+","")),
-                miniLink("Chiama", "tel:" + brandPhoneE164),
-                miniLink("Email", "mailto:" + brandEmail),
-                MUTED, BORDER, esc(brandName)
-        );
-
-        String html = wrap(body);
+        String html = wrap(preheader, inner);
 
         String text = """
-                Prenotazione confermata - %s
-                Ciao %s,
-                La tua prenotazione è stata confermata. Ti aspettiamo in %s.
+                Prenotazione confermata · %s
 
-                Servizio: %s
-                Quando: %s
+                Ciao %s, ti confermo il tuo appuntamento da Beauty Room. Ti aspetto.
+
+                Quando: %s, ore %s
+                Trattamento: %s
                 %s: %s
+                Dove: %s
+                Email di conferma: %s
 
-                Visualizza: %s
-                WhatsApp: https://wa.me/%s
+                Visualizza la prenotazione: %s
+                Scrivimi su WhatsApp: https://wa.me/%s
 
-                Grazie per aver scelto %s. Non vediamo l'ora di prenderci cura di te.
+                Grazie di avermi scelto. Non vedo l'ora di prendermi cura di te.
                 """.formatted(
-                brandName, customerName, brandAddress, serviceTitle, when,
-                paymentLabel, paymentValue,
-                viewUrl, brandPhoneE164.replace("+",""),
-                brandName
-        );
+                brandName, customerName, dateStr, timeStr, serviceTitle,
+                totalLabel, price != null ? euroPlain(price) : "-",
+                brandAddress, customerEmail, viewUrl, waNum());
 
         return new EmailContent(subject, html, text);
     }
 
     // ===================== BOOKING REMINDER =====================
     public EmailContent bookingReminder(Booking b) {
-        String subject = "Promemoria prenotazione - " + brandName;
+        String subject = "Promemoria appuntamento · " + brandName;
+        String preheader = "Promemoria appuntamento da Beauty Room ✦";
 
-        String when = (b.getStartTime() != null) ? b.getStartTime().format(IT_DT) : "-";
-        String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
         String customerName = safe(b.getCustomerName());
+        String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
 
-        String body = """
-            <h1 style="%s">Promemoria prenotazione</h1>
+        String dateStr = "-", timeStr = "-";
+        if (b.getStartTime() != null) {
+            dateStr = cap(b.getStartTime().format(IT_DATE));
+            timeStr = b.getStartTime().format(IT_TIME);
+        }
 
-            <p style="%s">Ciao <b>%s</b>,</p>
-            <p style="%s">ti ricordiamo la tua prenotazione. Ti aspettiamo in <b>%s</b>.</p>
+        String inner = heroRow("Promemoria", "Ti aspetto")
+                + introRow("Ciao " + inkB(customerName) + ", ti ricordo il tuo appuntamento da Beauty&nbsp;Room.")
+                + ornamentRow()
+                + whenRow(dateStr, timeStr)
+                + labeledLineRow("Trattamento", serviceTitle, true)
+                + labeledLineRow("Dove", brandAddress, false)
+                + helperRow("Hai un imprevisto e vuoi spostare? Scrivimi il prima possibile.")
+                + contactPillsRow()
+                + signoffRow("Grazie di avermi scelto.<br>Non vedo l'ora di prendermi cura di te.");
 
-            %s
-
-            <p style="%s; margin-top:16px;">
-                      Se hai imprevisti e vuoi posticipare, scrivici su WhatsApp il prima possibile.
-                    </p>
-
-            <div style="margin-top:10px;">
-              %s
-            </div>
-        """.formatted(
-                h1Style(),
-                pStyle(),
-                esc(customerName),
-                pStyle(),
-                esc(brandAddress),
-                detailsBox(new String[][]{
-                        {"Servizio", serviceTitle},
-                        {"Quando", when}
-                }),
-                smallStyle(),
-                miniLink("WhatsApp", "https://wa.me/" + brandPhoneE164.replace("+",""))
-        );
-
-        String html = wrap(body);
+        String html = wrap(preheader, inner);
 
         String text = """
-                Promemoria prenotazione - %s
-                Ciao %s,
-                Servizio: %s
-                Quando: %s
+                Promemoria appuntamento · %s
+
+                Ciao %s, ti ricordo il tuo appuntamento da Beauty Room.
+
+                Quando: %s, ore %s
+                Trattamento: %s
                 Dove: %s
-                """.formatted(brandName, customerName, serviceTitle, when, brandAddress);
+
+                Hai un imprevisto e vuoi spostare? Scrivimi il prima possibile.
+                WhatsApp: https://wa.me/%s
+                """.formatted(brandName, customerName, dateStr, timeStr, serviceTitle, brandAddress, waNum());
 
         return new EmailContent(subject, html, text);
     }
 
     // ===================== ORDER PAID =====================
     public EmailContent orderPaid(Order o) {
-        String subject = "✨ Il tuo ordine è confermato — " + brandName;
+        String subject = "Ordine confermato · " + brandName;
+        String preheader = "Ordine confermato: ti aspetto per il ritiro ✦";
 
         String firstName = (o.getCustomerName() != null && !o.getCustomerName().isBlank())
-                ? o.getCustomerName().split(" ")[0]
+                ? o.getCustomerName().trim().split("\\s+")[0]
                 : "cara cliente";
-
-        String fullName = (safe(o.getCustomerName()) + " " + safe(o.getCustomerSurname())).trim();
-        if (fullName.equals("- -")) fullName = firstName;
-
-        // Calcolo totale e righe articoli
-        BigDecimal total = BigDecimal.ZERO;
-        StringBuilder itemsHtml = new StringBuilder();
-        StringBuilder itemsText = new StringBuilder();
-
-        if (o.getOrderItems() != null && !o.getOrderItems().isEmpty()) {
-            for (var item : o.getOrderItems()) {
-                if (item == null || item.getPrice() == null || item.getProduct() == null) continue;
-
-                BigDecimal lineTotal = item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
-                total = total.add(lineTotal);
-
-                String productName = safe(item.getProduct().getName());
-                String lineTotalStr = lineTotal.setScale(2, RoundingMode.HALF_UP).toPlainString();
-                String unitStr = item.getPrice().setScale(2, RoundingMode.HALF_UP).toPlainString();
-
-                itemsHtml.append("""
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start;
-                                padding:10px 0; border-bottom:1px solid %s;">
-                      <div>
-                        <div style="font-family:Arial,sans-serif; font-size:14px; font-weight:700; color:%s;">%s</div>
-                        <div style="font-family:Arial,sans-serif; font-size:12px; color:%s; margin-top:2px;">
-                          Qt. %d · €&nbsp;%s cad.
-                        </div>
-                      </div>
-                      <div style="font-family:Arial,sans-serif; font-size:14px; font-weight:700;
-                                  color:%s; white-space:nowrap; padding-left:12px;">
-                        €&nbsp;%s
-                      </div>
-                    </div>
-                """.formatted(BORDER, TEXT, esc(productName), MUTED,
-                        item.getQuantity(), unitStr, GOLD, lineTotalStr));
-
-                itemsText.append("  - ").append(productName)
-                        .append(" x").append(item.getQuantity())
-                        .append(" = € ").append(lineTotalStr).append("\n");
-            }
-        }
-
-        String totalStr = total.setScale(2, RoundingMode.HALF_UP).toPlainString();
-        String whenPaid = (o.getPaidAt() != null) ? o.getPaidAt().format(IT_DT) : "-";
-        String orderId  = (o.getOrderId() != null) ? o.getOrderId().toString().toUpperCase().substring(0, 8) : "-";
+        String fullName = ((o.getCustomerName() == null ? "" : o.getCustomerName()) + " "
+                + (o.getCustomerSurname() == null ? "" : o.getCustomerSurname())).trim();
+        if (fullName.isBlank()) fullName = firstName;
 
         boolean isPis = o.getPaymentMethod() == PaymentMethod.PAY_IN_STORE;
-        String orderIntroHtml = isPis
-                ? "il tuo ordine è confermato. Pagherai <b>€\u00a0" + totalStr + "</b> direttamente al ritiro in <b>" + esc(brandAddress) + "</b>."
-                : "il pagamento è andato a buon fine e il tuo ordine è confermato. Ti contatteremo appena sarà pronto per il ritiro in <b>" + esc(brandAddress) + "</b>.";
-        String totalLabel = isPis ? "Da pagare al ritiro" : "Totale pagato";
+
+        // Righe articoli + totale (dati correnti: getOrderItems)
+        BigDecimal total = BigDecimal.ZERO;
+        StringBuilder items = new StringBuilder();
+        StringBuilder itemsText = new StringBuilder();
+        List<OrderItem> valid = new ArrayList<>();
+        if (o.getOrderItems() != null) {
+            for (OrderItem it : o.getOrderItems()) {
+                if (it != null && it.getPrice() != null && it.getProduct() != null) valid.add(it);
+            }
+        }
+        for (int i = 0; i < valid.size(); i++) {
+            OrderItem it = valid.get(i);
+            BigDecimal line = it.getPrice().multiply(BigDecimal.valueOf(it.getQuantity()));
+            total = total.add(line);
+            String name = safe(it.getProduct().getName());
+            String meta = "Qt. " + it.getQuantity() + " · " + euro(it.getPrice()) + " cad.";
+            items.append(itemRow(name, meta, euro(line), i == valid.size() - 1));
+            itemsText.append("  - ").append(name).append(" x").append(it.getQuantity())
+                    .append(" = ").append(euroPlain(line)).append("\n");
+        }
+
+        String totalLabel = isPis ? "Da saldare al ritiro" : "Totale pagato";
+        String whenPaid = (o.getPaidAt() != null) ? o.getPaidAt().format(IT_DT) : "-";
+        String orderId = (o.getOrderId() != null)
+                ? "#" + o.getOrderId().toString().toUpperCase().substring(0, 8) : "-";
 
         String pickupNote = (o.getPickupNote() != null && !o.getPickupNote().isBlank())
                 ? o.getPickupNote() : null;
+        String ritiroMain = pickupNote != null
+                ? pickupNote
+                : (isPis ? "Ritiro e pagamento in studio" : "Ti avviso appena è pronto per il ritiro");
 
-        String body = """
-            <h1 style="%s">Ordine confermato ✦</h1>
+        String inner = heroRow("Il tuo ordine", "Confermato")
+                + introRow("Ciao " + inkB(firstName) + ", ho ricevuto il tuo ordine. "
+                        + "Ecco cosa hai scelto e quando potrai ritirarlo.")
+                + ornamentRow()
+                + panelRow("14px 40px 0", "Articoli", items.toString(), totalLabel, euro(total))
+                + ritiroRow(ritiroMain, brandAddress)
+                + kvRow("Numero ordine", orderId)
+                + kvRow(isPis ? "Consegna" : "Pagato il", isPis ? "Al ritiro" : whenPaid)
+                + kvRow("Email di conferma", safe(o.getCustomerEmail()))
+                + buttonRow("I miei ordini", frontUrl + "/ordini")
+                + helperRow("Vuoi sapere quando è pronto? Scrivimi su WhatsApp.")
+                + contactPillsRow()
+                + signoffRow("Grazie di avermi scelto.<br>Non vedo l'ora di prendermi cura di te.");
 
-            <p style="%s">Ciao <b>%s</b>,</p>
-            <p style="%s">%s</p>
-
-            <!-- Riepilogo articoli -->
-            <div style="margin-top:18px; background:#FFFDFB; border:1px solid %s;
-                        border-radius:14px; padding:4px 14px;">
-              <div style="font-family:Arial,sans-serif; font-size:11px; font-weight:700;
-                          letter-spacing:0.12em; text-transform:uppercase; color:%s;
-                          padding:10px 0 6px;">
-                Articoli
-              </div>
-              %s
-              <!-- Totale -->
-              <div style="display:flex; justify-content:space-between; align-items:center;
-                          padding:12px 0; margin-top:4px;">
-                <div style="font-family:Arial,sans-serif; font-size:11px; font-weight:700;
-                            letter-spacing:0.12em; text-transform:uppercase; color:%s;">
-                  %s
-                </div>
-                <div style="font-family:Arial,sans-serif; font-size:20px; font-weight:700; color:%s;">
-                  €&nbsp;%s
-                </div>
-              </div>
-            </div>
-
-            <!-- Dettagli ordine -->
-            %s
-
-            %s
-
-            <p style="%s; margin-top:16px;">
-              Vuoi sapere quando è pronto il tuo ordine? Scrivici su WhatsApp.
-            </p>
-
-            <div style="margin-top:10px;">
-              %s
-              %s
-              %s
-            </div>
-
-            <p style="font-family:Arial,sans-serif; font-size:13px; color:%s; text-align:center; margin-top:24px; padding-top:16px; border-top:1px solid %s;">
-              Grazie per aver scelto %s. Non vediamo l'ora di prenderci cura di te ✦
-            </p>
-        """.formatted(
-                h1Style(),
-                pStyle(), esc(firstName),
-                pStyle(), orderIntroHtml,
-                BORDER,
-                GOLD,
-                itemsHtml,
-                GOLD, totalLabel, TEXT, totalStr,
-                detailsBox(new String[][]{
-                        {"Numero ordine", "#" + orderId},
-                        {isPis ? "Consegna" : "Pagato il", isPis ? "Al ritiro" : whenPaid},
-                        {"Email di conferma", safe(o.getCustomerEmail())}
-                }),
-                pickupNote != null
-                    ? ("<div style=\"margin-top:14px; background:rgba(200,164,106,0.1); border:1px solid "
-                       + BORDER + "; border-radius:12px; padding:12px 14px;\">"
-                       + "<div style=\"font-family:Arial,sans-serif; font-size:11px; font-weight:700; "
-                       + "letter-spacing:0.12em; text-transform:uppercase; color:" + GOLD + "; margin-bottom:4px;\">Nota ritiro</div>"
-                       + "<div style=\"font-family:Arial,sans-serif; font-size:14px; color:" + TEXT + ";\">"
-                       + esc(pickupNote) + "</div></div>")
-                    : "",
-                smallStyle(),
-                miniLink("WhatsApp", "https://wa.me/" + brandPhoneE164.replace("+", "")),
-                miniLink("Chiama", "tel:" + brandPhoneE164),
-                miniLink("Email", "mailto:" + brandEmail),
-                MUTED, BORDER, esc(brandName)
-        );
-
-        String html = wrap(body);
+        String html = wrap(preheader, inner);
 
         String text = """
-                Ordine confermato — %s
-                Ciao %s, il tuo ordine è confermato!
+                Ordine confermato · %s
 
-                Numero ordine: #%s
+                Ciao %s (%s), ho ricevuto il tuo ordine.
+
+                Numero ordine: %s
                 %s: %s
 
                 Articoli:
                 %s
-                Totale: € %s
+                %s: %s
 
-                Ritiro presso: %s
+                Ritiro: %s
                 %s
                 WhatsApp: https://wa.me/%s
 
-                Grazie per aver scelto %s. Non vediamo l'ora di prenderci cura di te.
+                Grazie di avermi scelto. Non vedo l'ora di prendermi cura di te.
                 """.formatted(
-                brandName, firstName,
+                brandName, firstName, fullName,
                 orderId,
-                isPis ? "Da pagare al ritiro" : "Pagato il",
-                isPis ? "Al momento del ritiro" : whenPaid,
-                itemsText,
-                totalStr,
-                brandAddress,
-                pickupNote != null ? "Nota ritiro: " + pickupNote + "\n" : "",
-                brandPhoneE164.replace("+", ""),
-                brandName
-        );
+                isPis ? "Consegna" : "Pagato il", isPis ? "Al ritiro" : whenPaid,
+                itemsText, totalLabel, euroPlain(total),
+                ritiroMain, brandAddress, waNum());
 
         return new EmailContent(subject, html, text);
     }
@@ -381,43 +273,31 @@ public class EmailTemplateService {
     // ===================== PAID CONFLICT ALERT (ADMIN) =====================
     public EmailContent paidConflictAlert(Booking b, String stripeSessionId) {
         String subject = "⚠️ PAID_CONFLICT — Prenotazione pagata su slot già occupato";
+        String preheader = "Azione richiesta: rimborso manuale su Stripe";
 
         String when = (b.getStartTime() != null) ? b.getStartTime().format(IT_DT) : "-";
         String customerName = safe(b.getCustomerName());
         String bookingId = b.getBookingId() != null ? b.getBookingId().toString() : "-";
         String sessionId = (stripeSessionId != null && !stripeSessionId.isBlank()) ? stripeSessionId : "-";
 
-        String body = """
-            <h1 style="%s">⚠️ Pagamento su slot occupato</h1>
-
-            <p style="%s">
-              Si è verificato un <b>PAID_CONFLICT</b> su una prenotazione pagata con Stripe.
-            </p>
-
-            %s
-
-            <p style="%s; margin-top:16px;">
-              <b>Azione richiesta:</b> effettua manualmente il rimborso su Stripe
-              e contatta la cliente per fissare un nuovo appuntamento.
-            </p>
-        """.formatted(
-                h1Style(),
-                pStyle(),
-                detailsBox(new String[][]{
+        String inner = heroRow("Avviso interno", "Slot occupato")
+                + introRow("Si è verificato un " + inkB("PAID_CONFLICT")
+                        + " su una prenotazione pagata con Stripe.")
+                + detailsPanelRow(new String[][]{
                         {"Booking ID", bookingId},
                         {"Cliente", customerName},
-                        {"Data/ora", when},
+                        {"Data / ora", when},
                         {"Stripe Session", sessionId}
-                }),
-                smallStyle()
-        );
+                })
+                + helperRow("Azione richiesta: effettua manualmente il rimborso su Stripe e "
+                        + "contatta la cliente per fissare un nuovo appuntamento.");
 
-        String html = wrap(body);
+        String html = wrap(preheader, inner);
 
         String text = """
                 ⚠️ PAID_CONFLICT — Prenotazione pagata su slot già occupato
 
-                Prenotazione ID: %s
+                Booking ID: %s
                 Cliente: %s
                 Data/ora: %s
                 Stripe Session: %s
@@ -431,385 +311,152 @@ public class EmailTemplateService {
 
     // ===================== BOOKING REFUNDED (FIX-6) =====================
     public EmailContent bookingRefunded(Booking b) {
-        String subject = "Rimborso in arrivo - " + brandName;
+        String subject = "Rimborso in arrivo · " + brandName;
+        String preheader = "La tua prenotazione non è stata confermata · rimborso in arrivo";
 
         String when = (b.getStartTime() != null) ? b.getStartTime().format(IT_DT) : "-";
         String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
         String customerName = safe(b.getCustomerName());
+        String customerEmail = safe(b.getCustomerEmail());
 
-        String body = """
-  <h1 style="%s">Rimborso in arrivo</h1>
+        String inner = heroRow("La tua prenotazione", "Non confermata")
+                + introRow("Ciao " + inkB(customerName) + ", mi dispiace dirti che la tua prenotazione non è stata "
+                        + "confermata: lo slot era già stato occupato. Il pagamento verrà rimborsato "
+                        + "automaticamente entro 5–10 giorni lavorativi.")
+                + detailsPanelRow(new String[][]{
+                        {"Trattamento", serviceTitle},
+                        {"Data / ora prenotata", when},
+                        {"Email", customerEmail}
+                })
+                + helperRow("Scrivimi per fissare un nuovo appuntamento, mi spiace per l'inconveniente.")
+                + contactPillsRow();
 
-  <p style="%s">Ciao <b>%s</b>,</p>
-  <p style="%s">
-    ci dispiace informarti che la tua prenotazione non è stata confermata perché
-    lo slot era già stato occupato da un'altra cliente nel frattempo.
-    Il pagamento che hai effettuato su Stripe verrà <b>rimborsato automaticamente</b>
-    entro 5-10 giorni lavorativi.
-  </p>
-
-  %s
-
-  <p style="%s; margin-top:16px;">
-    Contattaci su WhatsApp o per email per concordare un nuovo appuntamento:
-    siamo spiacenti per l'inconveniente.
-  </p>
-
-  <div style="margin-top:10px;">
-    %s
-    %s
-    %s
-  </div>
-""".formatted(
-                h1Style(),
-                pStyle(),
-                esc(customerName),
-                pStyle(),
-                detailsBox(new String[][]{
-                        {"Servizio", serviceTitle},
-                        {"Data/ora prenotata", when},
-                        {"Email", safe(b.getCustomerEmail())}
-                }),
-                smallStyle(),
-                miniLink("WhatsApp", "https://wa.me/" + brandPhoneE164.replace("+", "")),
-                miniLink("Chiama", "tel:" + brandPhoneE164),
-                miniLink("Email", "mailto:" + brandEmail)
-        );
-
-        String html = wrap(body);
+        String html = wrap(preheader, inner);
 
         String text = """
-                Rimborso in arrivo - %s
-                Ciao %s,
-                La tua prenotazione non è stata confermata (slot già occupato).
-                Il pagamento verrà rimborsato automaticamente entro 5-10 giorni lavorativi.
+                Rimborso in arrivo · %s
 
-                Servizio: %s
+                Ciao %s, mi dispiace dirti che la tua prenotazione non è stata confermata:
+                lo slot era già stato occupato. Il pagamento verrà rimborsato automaticamente
+                entro 5-10 giorni lavorativi.
+
+                Trattamento: %s
                 Data/ora: %s
 
+                Scrivimi per fissare un nuovo appuntamento, mi spiace per l'inconveniente.
                 WhatsApp: https://wa.me/%s
-                """.formatted(
-                brandName, customerName, serviceTitle, when, brandPhoneE164.replace("+", "")
-        );
+                """.formatted(brandName, customerName, serviceTitle, when, waNum());
 
         return new EmailContent(subject, html, text);
     }
 
     // ===================== USER REGISTERED (admin notification) =====================
     public EmailContent userRegistered(User u) {
-        String subject = "Nuova registrazione - " + brandName;
-        String fullName = safe(u.getName()) + " " + safe(u.getSurname());
+        String subject = "Nuova registrazione · " + brandName;
+        String preheader = "Una nuova cliente si è registrata";
+
+        String fullName = (safe(u.getName()) + " " + safe(u.getSurname())).trim();
         String email = safe(u.getEmail());
         String phone = safe(u.getPhone());
 
-        String adminUrl = brandEmail; // URL pannello admin — placeholder
-
-        String body = """
-  <h1 style="%s">Nuova cliente registrata</h1>
-
-  <p style="%s">Una nuova utente si è appena registrata su <b>%s</b>.</p>
-
-  %s
-
-  <p style="%s; margin-top:16px;">
-    Puoi verificarla come <b>Cliente di Fiducia</b> dal pannello Gestione → Account.
-  </p>
-""".formatted(
-                h1Style(),
-                pStyle(),
-                esc(brandName),
-                detailsBox(new String[][]{
-                        {"Nome", fullName.trim()},
+        String inner = heroRow("Gestione clienti", "Nuova cliente")
+                + introRow("Una nuova cliente si è appena registrata su " + inkB(brandName) + ".")
+                + detailsPanelRow(new String[][]{
+                        {"Nome", fullName},
                         {"Email", email},
                         {"Telefono", phone}
-                }),
-                smallStyle()
-        );
+                })
+                + helperRow("Puoi verificarla come Cliente di Fiducia dal pannello Gestione → Account.");
 
-        String html = wrap(body);
+        String html = wrap(preheader, inner);
 
         String text = """
-                Nuova registrazione - %s
-                Una nuova utente si è appena registrata: %s (%s, %s).
-                Puoi verificarla dal pannello admin.
-                """.formatted(brandName, fullName.trim(), email, phone);
+                Nuova registrazione · %s
+
+                Una nuova cliente si è appena registrata.
+                Nome: %s
+                Email: %s
+                Telefono: %s
+
+                Puoi verificarla come Cliente di Fiducia dal pannello Gestione.
+                """.formatted(brandName, fullName, email, phone);
 
         return new EmailContent(subject, html, text);
     }
 
-    // ===================== LAYOUT HELPERS =====================
-
-    private String wrap(String innerHtml) {
-        return """
-        <div style="margin:0; padding:0; background:%s;">
-          <div style="max-width:640px; margin:0 auto; padding:26px 14px;">
-
-            %s
-
-            <div style="background:%s; border-radius:16px; padding:22px 18px;
-                        border:1px solid %s; box-shadow:0 10px 24px rgba(59,47,42,0.08);">
-              %s
-            </div>
-
-            %s
-
-          </div>
-        </div>
-        """.formatted(BG, headerBar(), CARD, BORDER, innerHtml, footer());
-    }
-
-    private String headerBar() {
-        String subtitle = "Trucco permanente • Laser • Estetica avanzata";
-
-        return """
-    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0"
-           style="border-collapse:collapse; background:%s; border:1px solid %s; border-radius:16px; margin-bottom:14px;">
-      <tr>
-        <td style="padding:18px;">
-          <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse; width:100%%;">
-            <tr>
-              <td width="110" style="vertical-align:middle; padding-right:14px;">
-                <img src="%s" alt="%s"
-                     style="display:block; width:96px; max-width:96px; height:auto; border:0; outline:none; text-decoration:none;" />
-              </td>
-
-              <td style="vertical-align:middle;">
-                <div style="font-family:Arial,sans-serif; color:%s; font-size:26px; font-weight:800; line-height:1.1; margin:0;">
-                  %s
-                </div>
-                <div style="font-family:Arial,sans-serif; color:%s; font-size:12px; letter-spacing:0.3px; margin-top:6px;">
-                  %s
-                </div>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-    """.formatted(
-                SAND, BORDER,
-                escAttr(logoUrl), esc(brandName),
-                TEXT, esc(brandName),
-                MUTED, esc(subtitle)
-        );
-    }
-
-    private String detailsBox(String[][] rows) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("""
-            <div style="margin-top:14px; background:%s; border:1px solid %s; border-radius:14px; padding:12px 14px;">
-        """.formatted("#FFFDFB", BORDER));
-
-        for (int i = 0; i < rows.length; i++) {
-            String[] r = rows[i];
-            sb.append(detailRow(r[0], r[1], i == rows.length - 1));
-        }
-
-        sb.append("</div>");
-        return sb.toString();
-    }
-
-    private String detailRow(String label, String value, boolean last) {
-        String border = last ? "none" : "1px solid " + BORDER;
-        return """
-          <div style="padding:8px 0; border-bottom:%s;">
-            <div style="font-family:Arial,sans-serif; font-size:12px; color:%s; margin-bottom:2px;">%s</div>
-            <div style="font-family:Arial,sans-serif; font-size:14px; color:%s; font-weight:700;">%s</div>
-          </div>
-        """.formatted(border, MUTED, esc(label), TEXT, esc(value));
-    }
-
-    private String button(String label, String url) {
-        return """
-          <a href="%s"
-             style="display:inline-block; background:%s; color:white; text-decoration:none;
-                    font-family:Arial,sans-serif; font-weight:700; font-size:14px;
-                    padding:12px 18px; border-radius:14px; border:1px solid %s;">
-             %s
-          </a>
-        """.formatted(escAttr(url), TEXT, GOLD, esc(label));
-    }
-
-    private String miniLink(String label, String url) {
-        return """
-          <a href="%s" style="display:inline-block; margin-right:10px; margin-top:6px;
-                              font-family:Arial,sans-serif; font-size:12px; color:%s; text-decoration:none;
-                              border:1px solid %s; padding:8px 10px; border-radius:999px; background:%s;">
-            %s
-          </a>
-        """.formatted(escAttr(url), TEXT, BORDER, SAND, esc(label));
-    }
-
-    private String footer() {
-        return """
-        <div style="margin-top:14px; background:%s; border-radius:16px; padding:16px 18px; border:1px solid %s;">
-          <div style="font-family:Arial,sans-serif; color:%s; font-size:13px; font-weight:700;">%s</div>
-
-          <div style="font-family:Arial,sans-serif; color:%s; font-size:12px; margin-top:8px; line-height:1.7;">
-            %s<br/>
-            Tel/WhatsApp: <a style="color:%s; text-decoration:none;" href="tel:%s">%s</a> ·
-            <a style="color:%s; text-decoration:none;" href="https://wa.me/%s">WhatsApp</a><br/>
-            Email: <a style="color:%s; text-decoration:none;" href="mailto:%s">%s</a><br/>
-            P. IVA: %s
-          </div>
-
-          <div style="font-family:Arial,sans-serif; color:%s; font-size:12px; margin-top:10px;">
-            <a style="color:%s; text-decoration:none;" href="%s">Instagram</a> ·
-            <a style="color:%s; text-decoration:none;" href="%s">Facebook</a>
-          </div>
-
-          <div style="margin-top:12px; border-top:1px solid %s; padding-top:10px;
-                      font-family:Arial,sans-serif; color:%s; font-size:11px;">
-            © %d %s - Tutti i diritti riservati
-          </div>
-        </div>
-        """.formatted(
-                SAND, BORDER, TEXT, esc(brandName),
-                MUTED,
-                esc(brandAddress),
-                TEXT, brandPhoneE164, esc(brandPhoneLabel),
-                TEXT, brandPhoneE164.replace("+",""),
-                TEXT, escAttr(brandEmail), esc(brandEmail),
-                esc(brandVat),
-                MUTED,
-                TEXT, escAttr(instagramUrl),
-                TEXT, escAttr(facebookUrl),
-                BORDER, MUTED,
-                java.time.LocalDate.now().getYear(), esc(brandName)
-        );
-    }
-
-    private String h1Style() {
-        return "font-family:Arial,sans-serif; margin:0 0 10px 0; color:" + TEXT + "; font-size:22px; line-height:1.2;";
-    }
-    private String pStyle() {
-        return "font-family:Arial,sans-serif; margin:0; color:" + TEXT + "; font-size:14px; line-height:1.65;";
-    }
-    private String smallStyle() {
-        return "font-family:Arial,sans-serif; margin:0; color:" + MUTED + "; font-size:12px; line-height:1.65;";
-    }
-
-    private String safe(String s) { return (s == null || s.isBlank()) ? "-" : s; }
-
-    private String esc(String s) {
-        if (s == null) return "-";
-        return s.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;");
-    }
-    private String escAttr(String s) { return esc(s).replace("'", "%27"); }
-
     // ===================== WAITLIST SLOT AVAILABLE =====================
     public EmailContent waitlistSlotAvailable(WaitlistEntry entry, String bookingLink) {
+        String subject = "Slot disponibile · prenota adesso — " + brandName;
+        String preheader = "Si è liberato uno slot per te ✦";
+
         String firstName = entry.getCustomerName() != null
-                ? entry.getCustomerName().split(" ")[0] : "cara cliente";
+                ? entry.getCustomerName().trim().split("\\s+")[0] : "cara cliente";
         String serviceTitle = entry.getService() != null
                 ? entry.getService().getTitle() : "il tuo trattamento";
-        String dateStr = entry.getRequestedDate()
-                .format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.ITALIAN));
+        String dateStr = cap(entry.getRequestedDate().format(IT_DATE_SHORT));
         String timeStr = entry.getRequestedTime().toString().substring(0, 5);
 
-        String body = """
-          <h1 style="%s">Il tuo slot si è liberato! 🎉</h1>
+        String inner = heroRow("Lista d'attesa", "Si è liberato")
+                + introRow("Ciao " + inkB(firstName) + ", ottima notizia: si è liberato uno slot per "
+                        + inkB(serviceTitle) + ".")
+                + whenRow(dateStr, timeStr)
+                + buttonRow("Prenota adesso", bookingLink)
+                + helperRow("Hai <b>2 ore</b> per completare la prenotazione, poi lo slot passa alla "
+                        + "persona successiva in lista.")
+                + helperRow("Se non sei più interessata, ignora pure questa email.")
+                + contactPillsRow();
 
-          <p style="%s">Ciao <b>%s</b>, ottima notizia:<br>
-          si è liberato uno slot per <b>%s</b>.</p>
+        String html = wrap(preheader, inner);
 
-          <div style="background:#fef7ef; border:1px solid %s; border-radius:12px;
-                      padding:16px 20px; margin:18px 0; text-align:center;">
-            <div style="font-family:Arial,sans-serif; font-size:1rem; font-weight:600; color:%s;">%s</div>
-            <div style="font-family:Arial,sans-serif; font-size:1.3rem; font-weight:700; color:%s; margin-top:4px;">🕐 %s</div>
-          </div>
+        String text = """
+                Slot disponibile · %s
 
-          <p style="%s">Clicca qui sotto per prenotare — il link è riservato a te:</p>
+                Ciao %s, si è liberato uno slot per %s.
 
-          <div style="margin-top:14px;">
-            %s
-          </div>
+                Quando: %s, ore %s
 
-          <div style="background:rgba(184,151,106,0.1); border-radius:8px; padding:10px 14px; margin-top:18px;
-                      font-family:Arial,sans-serif; font-size:12px; color:%s;">
-            ⏳ Hai <b>2 ore</b> per completare la prenotazione, dopodiché
-            lo slot sarà offerto alla persona successiva in lista.
-          </div>
+                Prenota adesso (link riservato, valido 2 ore):
+                %s
 
-          <p style="%s; margin-top:16px;">
-            Se non sei più interessata, ignora questa email.
-          </p>
-          """.formatted(
-                h1Style(),
-                pStyle(), esc(firstName), esc(serviceTitle),
-                BORDER, TEXT, esc(dateStr), GOLD, esc(timeStr),
-                pStyle(),
-                button("✨ Prenota adesso", bookingLink),
-                MUTED,
-                smallStyle()
-        );
+                Se non sei più interessata, ignora pure questa email.
+                """.formatted(brandName, firstName, serviceTitle, dateStr, timeStr, bookingLink);
 
-        String html = wrap(body);
-
-        String text = ("Ciao %s,\n\nSi è liberato uno slot per %s!\n\nData: %s\nOra: %s\n\n"
-                + "Prenota qui (link valido 2 ore):\n%s\n\n%s")
-                .formatted(firstName, serviceTitle, dateStr, timeStr, bookingLink, brandName);
-
-        return new EmailContent("Slot disponibile! Prenota adesso — " + brandName, html, text);
+        return new EmailContent(subject, html, text);
     }
 
     // ===================== REVIEW REQUEST =====================
     public EmailContent reviewRequest(Booking b) {
+        String subject = "Com'è andata? ⭐ · " + brandName;
+        String preheader = "Mi piacerebbe sapere come ti sei trovata ✦";
+
         String firstName = b.getCustomerName() != null
-                ? b.getCustomerName().split(" ")[0]
-                : "cara cliente";
-
+                ? b.getCustomerName().trim().split("\\s+")[0] : "cara cliente";
         String serviceTitle = b.getService() != null
-                ? b.getService().getTitle()
-                : "il tuo trattamento";
+                ? b.getService().getTitle() : "il tuo trattamento";
 
-        String subject = "Come ti sei trovata? \u2b50 \u2013 " + brandName;
+        String inner = heroRow("Il tuo parere", "Com'è andata?")
+                + starsRow()
+                + introRow("Ciao " + inkB(firstName) + ", grazie di avermi scelto per " + inkB(serviceTitle)
+                        + ". Il tuo parere conta tanto e aiuta altre persone a trovarmi.")
+                + helperRow("Se ti sei trovata bene, mi farebbe felice leggere una tua recensione — bastano due minuti.")
+                + buttonRow("Lascia una recensione", googleReviewUrl)
+                + helperRow("Se invece c'è qualcosa che posso migliorare, rispondi a questa email: "
+                        + "leggo personalmente ogni messaggio.");
 
-        String body = """
-          <h1 style="%s">Come ti sei trovata, %s?</h1>
+        String html = wrap(preheader, inner);
 
-          <div style="font-family:Arial,sans-serif; font-size:24px; letter-spacing:6px; margin:14px 0 18px;">
-            \u2b50\u2b50\u2b50\u2b50\u2b50
-          </div>
+        String text = """
+                Com'è andata? · %s
 
-          <p style="%s">
-            Grazie per aver scelto <b>%s</b> per
-            <span style="color:%s; font-weight:700;">%s</span>.
-            La tua opinione \u00e8 preziosa e aiuta altre persone a trovarci.
-          </p>
+                Ciao %s, grazie di avermi scelto per %s.
+                Il tuo parere conta tanto e aiuta altre persone a trovarmi.
 
-          <p style="%s">
-            Se sei rimasta soddisfatta, ci farebbe enormemente piacere leggere
-            una tua recensione — bastano due minuti:
-          </p>
+                Se ti sei trovata bene, lascia una recensione (bastano due minuti):
+                %s
 
-          <div style="margin-top:18px;">
-            %s
-          </div>
-
-          <p style="%s; margin-top:20px;">
-            Se invece c'\u00e8 qualcosa che potremmo migliorare, rispondi
-            direttamente a questa email — Michela legge tutto personalmente.
-          </p>
-          """.formatted(
-                h1Style(),
-                esc(firstName),
-                pStyle(), esc(brandName), GOLD, esc(serviceTitle),
-                pStyle(),
-                button("\u2728 Lascia la tua recensione", googleReviewUrl),
-                smallStyle()
-        );
-
-        String html = wrap(body);
-
-        String text = ("Ciao %s,\n\nGrazie per aver scelto %s per %s.\n\n"
-                + "Se sei rimasta soddisfatta, ci farebbe piacere leggere una tua recensione:\n%s\n\n"
-                + "Per qualsiasi feedback rispondi a questa email — Michela legge tutto personalmente.\n\n"
-                + "%s").formatted(
-                firstName, brandName, serviceTitle, googleReviewUrl, brandName);
+                Se invece c'è qualcosa che posso migliorare, rispondi a questa email:
+                leggo personalmente ogni messaggio.
+                """.formatted(brandName, firstName, serviceTitle, googleReviewUrl);
 
         return new EmailContent(subject, html, text);
     }
@@ -817,49 +464,32 @@ public class EmailTemplateService {
     // ===================== PRODUCT BACK IN STOCK =====================
     public EmailContent productBackInStock(String customerName, String productName,
                                            String productUrl, String email) {
-        String subject = "\"" + productName + "\" \u00e8 di nuovo disponibile \u2013 " + brandName;
         String safeCustomer = safe(customerName);
-        String safeProduct  = safe(productName);
+        String safeProduct = safe(productName);
+        String subject = "\"" + safeProduct + "\" è di nuovo disponibile · " + brandName;
+        String preheader = "Il prodotto che aspettavi è tornato disponibile ✦";
 
-        String body = """
-            <h1 style="%s">Buone notizie!</h1>
-
-            <p style="%s">Ciao <b>%s</b>,</p>
-            <p style="%s">
-              il prodotto che stavi aspettando \u00e8 tornato disponibile in negozio.
-            </p>
-
-            %s
-
-            <div style="margin-top:18px;">
-              %s
-            </div>
-
-            <p style="%s; margin-top:16px;">
-              Gli articoli si esauriscono velocemente \u2014 ti consigliamo di procedere all'acquisto
-              il prima possibile.
-            </p>
-            """.formatted(
-                    h1Style(),
-                    pStyle(),
-                    esc(safeCustomer),
-                    pStyle(),
-                    detailsBox(new String[][]{
+        String inner = heroRow("Torna disponibile", "Buone notizie")
+                + introRow("Ciao " + inkB(safeCustomer) + ", il prodotto che aspettavi è di nuovo "
+                        + "disponibile in studio.")
+                + detailsPanelRow(new String[][]{
                         {"Prodotto", safeProduct},
-                        {"Negozio", brandName},
+                        {"Studio", brandName},
                         {"Dove", brandAddress}
-                    }),
-                    button("Acquista ora", productUrl),
-                    smallStyle()
-            );
+                })
+                + buttonRow("Acquista ora", productUrl)
+                + helperRow("Gli articoli vanno a ruba — ti consiglio di non aspettare troppo.");
 
-        String html = wrap(body);
+        String html = wrap(preheader, inner);
+
         String text = """
-                %s \u00e8 di nuovo disponibile \u2013 %s
-                Ciao %s,
-                il prodotto "%s" \u00e8 tornato disponibile.
+                "%s" è di nuovo disponibile · %s
+
+                Ciao %s, il prodotto che aspettavi è di nuovo disponibile in studio.
                 Acquista ora: %s
-                """.formatted(safeProduct, brandName, safeCustomer, safeProduct, productUrl);
+
+                Gli articoli vanno a ruba, ti consiglio di non aspettare troppo.
+                """.formatted(safeProduct, brandName, safeCustomer, productUrl);
 
         return new EmailContent(subject, html, text);
     }
@@ -876,47 +506,356 @@ public class EmailTemplateService {
             case PACKAGE   -> "pacchetto";
         };
 
-        String subject = "\u2736 " + safe(itemName) + " \u00e8 di nuovo disponibile";
+        String subject = "✦ " + safe(itemName) + " è di nuovo disponibile";
+        String preheader = "Un preferito della tua wishlist è tornato ✦";
 
-        String body = """
-          <h1 style="%s">Di nuovo disponibile \u2736</h1>
+        String inner = heroRow("Dalla tua wishlist", "Di nuovo disponibile")
+                + introRow("Ciao " + inkB(firstName) + ", il " + inkB(typeLabel) + " che hai salvato nella "
+                        + "wishlist è di nuovo disponibile. Non aspettare troppo: potrebbe esaurirsi di nuovo.")
+                + detailsPanelRow(new String[][]{
+                        {cap(typeLabel), safe(itemName)}
+                })
+                + buttonRow("Scopri di più", itemUrl)
+                + helperRow("Se non ti interessa più, puoi rimuoverlo dalla wishlist dal tuo profilo.");
 
-          <p style="%s">Ciao <b>%s</b>,</p>
-          <p style="%s">
-            Il <b>%s</b> che hai salvato nella tua wishlist \u00e8 tornato disponibile.
-            Non aspettare troppo: potrebbe esaurirsi di nuovo!
-          </p>
+        String html = wrap(preheader, inner);
 
-          %s
-
-          <div style="margin-top:18px;">
-            %s
-          </div>
-
-          <p style="%s; margin-top:20px;">
-            Se non sei pi\u00f9 interessata, puoi rimuoverlo dalla tua wishlist accedendo al tuo profilo.
-          </p>
-          """.formatted(
-                h1Style(),
-                pStyle(),
-                esc(firstName),
-                pStyle(),
-                esc(typeLabel),
-                detailsBox(new String[][]{
-                        {Character.toUpperCase(typeLabel.charAt(0)) + typeLabel.substring(1), safe(itemName)}
-                }),
-                button("Scopri di pi\u00f9 \u2192", itemUrl),
-                smallStyle()
-        );
-
-        String html = wrap(body);
         String text = """
-                \u2736 %s \u00e8 di nuovo disponibile - %s
-                Ciao %s,
-                il %s "%s" che hai salvato nella tua wishlist \u00e8 tornato disponibile.
-                Scopri di pi\u00f9: %s
-                """.formatted(safe(itemName), brandName, firstName, typeLabel, safe(itemName), itemUrl);
+                ✦ %s è di nuovo disponibile · %s
+
+                Ciao %s, il %s che hai salvato nella wishlist è di nuovo disponibile.
+                Non aspettare troppo: potrebbe esaurirsi di nuovo.
+                Scopri di più: %s
+                """.formatted(safe(itemName), brandName, firstName, typeLabel, itemUrl);
 
         return new EmailContent(subject, html, text);
+    }
+
+    // ===================== LAYOUT SKELETON =====================
+
+    private static final String HEAD = """
+            <!DOCTYPE html><html lang="it"><head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta name="x-apple-disable-message-reformatting">
+            <meta name="color-scheme" content="light dark">
+            <meta name="supported-color-schemes" content="light dark">
+            <!--[if !mso]><!--><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Petrona:wght@400;500&display=swap" rel="stylesheet"><!--<![endif]-->
+            <style>
+              @media only screen and (max-width:620px){
+                .br-container{ width:100% !important; }
+                .br-pad{ padding-left:22px !important; padding-right:22px !important; }
+                .br-h1{ font-size:34px !important; }
+                .br-hero-pad{ padding:34px 22px 8px !important; }
+              }
+              @media (prefers-color-scheme: dark){
+                .br-canvas{ background:#1f1915 !important; }
+                .br-card{ background:#2a221c !important; border-color:#473a2c !important; }
+                .br-panel{ background:#241d18 !important; border-color:#473a2c !important; }
+                .br-ink{ color:#f3ebdd !important; }
+                .br-body{ color:#d9cdbd !important; }
+                .br-muted{ color:#b3a692 !important; }
+                .br-hair{ border-color:#473a2c !important; }
+                .br-rowhair{ border-color:#3a3024 !important; }
+                .br-gold{ color:#d8b884 !important; }
+                .br-pill{ background:#241d18 !important; border-color:#52432f !important; color:#f3ebdd !important; }
+                .br-btn{ background:#f3ebdd !important; color:#2a221c !important; border-color:#d8b884 !important; }
+                .br-footer-ink{ color:#e9e0d2 !important; }
+              }
+            </style>
+            </head>
+            <body style="margin:0;padding:0;">
+            """;
+
+    private static final String CANVAS_OPEN =
+            "<table role=\"presentation\" class=\"br-canvas\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"background:#efe7da;margin:0;\">"
+            + "<tr><td align=\"center\" style=\"padding:30px 14px 34px;\">"
+            + "<table role=\"presentation\" class=\"br-container\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:600px;max-width:600px;\">";
+
+    private static final String CARD_OPEN =
+            "<tr><td class=\"br-card\" style=\"background:#fffdf9;border:1px solid #e7dbca;border-radius:20px;\">"
+            + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">";
+
+    private static final String CARD_CLOSE = "</table></td></tr>";
+    private static final String CANVAS_CLOSE = "</table></td></tr></table>";
+
+    private String wrap(String preheader, String inner) {
+        return HEAD
+                + "<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;\">" + esc(preheader) + "</div>"
+                + CANVAS_OPEN
+                + headerBar()
+                + CARD_OPEN
+                + inner
+                + CARD_CLOSE
+                + footer()
+                + CANVAS_CLOSE
+                + "</body></html>";
+    }
+
+    private String headerBar() {
+        String wordmark = esc(brandName).replace(" ", "&nbsp;");
+        return "<tr><td align=\"center\" style=\"padding:6px 0 22px;\">"
+                + "<div class=\"br-gold\" style=\"font-family:" + SERIF + ";font-size:15px;color:#b8976a;\">✦</div>"
+                + "<div class=\"br-ink\" style=\"font-family:" + SERIF + ";font-weight:500;font-size:30px;letter-spacing:1.5px;color:#3a2e27;margin-top:2px;\">" + wordmark + "</div>"
+                + "<div class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#9c8c7d;margin-top:9px;\">Trucco permanente&nbsp;·&nbsp;Laser&nbsp;·&nbsp;Estetica avanzata</div>"
+                + "</td></tr>";
+    }
+
+    private String footer() {
+        String wordmark = esc(brandName).replace(" ", "&nbsp;");
+        String waNum = waNum();
+        return "<tr><td align=\"center\" class=\"br-pad\" style=\"padding:26px 24px 6px;\">"
+                + "<div class=\"br-footer-ink\" style=\"font-family:" + SERIF + ";font-size:18px;letter-spacing:1px;color:#5a4d44;\">" + wordmark + "</div>"
+                + "<div class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:12px;line-height:1.85;color:#9c8c7d;margin-top:8px;\">"
+                + esc(brandAddress) + "<br>"
+                + "<a href=\"tel:" + escAttr(brandPhoneE164) + "\" class=\"br-gold\" style=\"color:#8c6d3f;text-decoration:none;\">" + esc(brandPhoneLabel) + "</a>&nbsp;·&nbsp;"
+                + "<a href=\"https://wa.me/" + waNum + "\" class=\"br-gold\" style=\"color:#8c6d3f;text-decoration:none;\">WhatsApp</a>&nbsp;·&nbsp;"
+                + "<a href=\"mailto:" + escAttr(brandEmail) + "\" class=\"br-gold\" style=\"color:#8c6d3f;text-decoration:none;\">Email</a><br>"
+                + "<a href=\"" + escAttr(instagramUrl) + "\" class=\"br-gold\" style=\"color:#8c6d3f;text-decoration:none;\">Instagram</a>&nbsp;·&nbsp;"
+                + "<a href=\"" + escAttr(facebookUrl) + "\" class=\"br-gold\" style=\"color:#8c6d3f;text-decoration:none;\">Facebook</a>"
+                + "</div>"
+                + "<div class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:10.5px;color:#9c8c7d;margin-top:14px;\">"
+                + "P. IVA " + esc(brandVat) + " &nbsp;·&nbsp; © " + LocalDate.now().getYear() + " " + esc(brandName) + " — Tutti i diritti riservati"
+                + "</div>"
+                + "</td></tr>";
+    }
+
+    // ===================== ROW HELPERS =====================
+
+    private String heroRow(String eyebrow, String h1) {
+        return """
+                <tr><td align="center" class="br-hero-pad" style="padding:40px 40px 8px;">
+                  <div class="br-gold" style="font-family:%s;font-size:11px;letter-spacing:3.5px;text-transform:uppercase;color:#8c6d3f;font-weight:600;">%s</div>
+                  <h1 class="br-ink br-h1" style="font-family:%s;font-weight:300;font-size:46px;line-height:1.06;color:#3a2e27;margin:12px 0 0;">%s</h1>
+                </td></tr>
+                """.formatted(SANS, esc(eyebrow), SERIF, esc(h1));
+    }
+
+    private String introRow(String html) {
+        return """
+                <tr><td class="br-pad" style="padding:18px 40px 4px;">
+                  <p class="br-body" style="font-family:%s;font-size:15px;line-height:1.72;color:#574a41;margin:0;text-align:center;">%s</p>
+                </td></tr>
+                """.formatted(SANS, html);
+    }
+
+    private String ornamentRow() {
+        return "<tr><td align=\"center\" style=\"padding:22px 0 4px;\">"
+                + "<span class=\"br-gold\" style=\"font-family:" + SERIF + ";font-size:14px;color:#b8976a;letter-spacing:8px;\">✦&nbsp;✦&nbsp;✦</span>"
+                + "</td></tr>";
+    }
+
+    private String starsRow() {
+        return "<tr><td align=\"center\" class=\"br-pad\" style=\"padding:18px 40px 0;\">"
+                + "<span class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:24px;letter-spacing:8px;color:#b8976a;\">★★★★★</span>"
+                + "</td></tr>";
+    }
+
+    private String whenRow(String dateStr, String timeStr) {
+        return """
+                <tr><td class="br-pad" style="padding:14px 40px 0;">
+                  <div class="br-muted" style="font-family:%s;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#9c8c7d;font-weight:600;margin-bottom:8px;">Quando</div>
+                  <div class="br-ink" style="font-family:%s;font-size:25px;color:#3a2e27;line-height:1.2;">%s</div>
+                  <div class="br-body" style="font-family:%s;font-size:15px;color:#574a41;margin-top:4px;">Ore <b class="br-ink" style="color:#3a2e27;">%s</b></div>
+                </td></tr>
+                """.formatted(SANS, SERIF, esc(dateStr), SANS, esc(timeStr));
+    }
+
+    private String labeledLineRow(String label, String value, boolean serif) {
+        String valStyle = serif
+                ? "font-family:" + SERIF + ";font-size:21px;color:#3a2e27;line-height:1.25;"
+                : "font-family:" + SANS + ";font-size:15px;color:#574a41;";
+        String valClass = serif ? "br-ink" : "br-body";
+        return """
+                <tr><td class="br-pad" style="padding:20px 40px 0;">
+                  <div class="br-muted" style="font-family:%s;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#9c8c7d;font-weight:600;margin-bottom:5px;">%s</div>
+                  <div class="%s" style="%s">%s</div>
+                </td></tr>
+                """.formatted(SANS, esc(label), valClass, valStyle, esc(value));
+    }
+
+    private String kvRow(String label, String value) {
+        return """
+                <tr><td class="br-pad" style="padding:18px 40px 0;">
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"><tr>
+                    <td><span class="br-muted" style="font-family:%s;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9c8c7d;font-weight:600;">%s</span></td>
+                    <td align="right"><span class="br-ink" style="font-family:%s;font-size:14px;color:#3a2e27;font-weight:700;letter-spacing:0.5px;">%s</span></td>
+                  </tr></table>
+                </td></tr>
+                """.formatted(SANS, esc(label), SANS, esc(value));
+    }
+
+    /** Panel with an items list and a total row. itemsHtml comes from itemRow(...). */
+    private String panelRow(String pad, String label, String itemsHtml, String totalLabel, String totalAmount) {
+        return """
+                <tr><td class="br-pad" style="padding:%s;">
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" class="br-panel" style="background:#faf5ec;border:1px solid #e7dbca;border-radius:14px;">
+                    <tr><td style="padding:16px 18px 6px;">
+                      <div class="br-gold" style="font-family:%s;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#8c6d3f;font-weight:700;">%s</div>
+                    </td></tr>
+                    <tr><td style="padding:0 18px;">
+                      <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">%s</table>
+                    </td></tr>
+                    <tr><td style="padding:4px 18px 16px;">
+                      <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">
+                        <tr><td class="br-hair" style="border-top:1px solid #e3d4c0;padding-top:14px;">
+                          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"><tr>
+                            <td><span class="br-muted" style="font-family:%s;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9c8c7d;font-weight:700;">%s</span></td>
+                            <td align="right" style="white-space:nowrap;"><span class="br-ink" style="font-family:%s;font-size:24px;color:#3a2e27;font-weight:700;">%s</span></td>
+                          </tr></table>
+                        </td></tr>
+                      </table>
+                    </td></tr>
+                  </table>
+                </td></tr>
+                """.formatted(pad, SANS, esc(label), itemsHtml, SANS, esc(totalLabel), SANS, totalAmount);
+    }
+
+    /** A single line inside a panel's items table. price/meta may be null. */
+    private String itemRow(String name, String meta, String price, boolean last) {
+        String bb = last ? "" : "border-bottom:1px solid #ece0d0;";
+        String cls = last ? "" : "br-rowhair";
+        String metaSpan = (meta == null || meta.isBlank()) ? ""
+                : "<span class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:12px;color:#9c8c7d;\">&nbsp;· " + esc(meta) + "</span>";
+        String priceCell = (price == null || price.isBlank()) ? ""
+                : "<span class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:15px;color:#8c6d3f;font-weight:700;\">" + price + "</span>";
+        return """
+                <tr>
+                  <td class="%s" style="padding:9px 0;%s"><span class="br-ink" style="font-family:%s;font-size:15px;color:#3a2e27;font-weight:600;">%s</span>%s</td>
+                  <td align="right" class="%s" style="padding:9px 0;%swhite-space:nowrap;">%s</td>
+                </tr>
+                """.formatted(cls, bb, SANS, esc(name), metaSpan, cls, bb, priceCell);
+    }
+
+    /** Tinted pickup box (order). */
+    private String ritiroRow(String mainLine, String subLine) {
+        return """
+                <tr><td class="br-pad" style="padding:18px 40px 0;">
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" class="br-panel" style="background:rgba(184,151,106,0.10);border:1px solid #e7dbca;border-radius:14px;">
+                    <tr><td style="padding:15px 18px;">
+                      <div class="br-gold" style="font-family:%s;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#8c6d3f;font-weight:700;margin-bottom:6px;">Ritiro</div>
+                      <div class="br-ink" style="font-family:%s;font-size:21px;color:#3a2e27;line-height:1.25;">%s</div>
+                      <div class="br-body" style="font-family:%s;font-size:14px;color:#574a41;margin-top:4px;">%s</div>
+                    </td></tr>
+                  </table>
+                </td></tr>
+                """.formatted(SANS, SERIF, esc(mainLine), SANS, esc(subLine));
+    }
+
+    /** Panel of stacked label/value rows (admin + informational emails). */
+    private String detailsPanelRow(String[][] rows) {
+        StringBuilder inner = new StringBuilder();
+        for (int i = 0; i < rows.length; i++) {
+            inner.append(detailRow(rows[i][0], rows[i][1], i == rows.length - 1));
+        }
+        return """
+                <tr><td class="br-pad" style="padding:18px 40px 0;">
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" class="br-panel" style="background:#faf5ec;border:1px solid #e7dbca;border-radius:14px;">
+                    <tr><td style="padding:6px 18px;">
+                      <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">%s</table>
+                    </td></tr>
+                  </table>
+                </td></tr>
+                """.formatted(inner.toString());
+    }
+
+    private String detailRow(String label, String value, boolean last) {
+        String bb = last ? "" : "border-bottom:1px solid #ece0d0;";
+        String cls = last ? "" : "br-rowhair";
+        return """
+                <tr><td class="%s" style="padding:10px 0;%s">
+                  <div class="br-muted" style="font-family:%s;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9c8c7d;margin-bottom:3px;">%s</div>
+                  <div class="br-ink" style="font-family:%s;font-size:15px;color:#3a2e27;font-weight:600;">%s</div>
+                </td></tr>
+                """.formatted(cls, bb, SANS, esc(label), SANS, esc(value));
+    }
+
+    private String buttonRow(String label, String url) {
+        int w = Math.max(200, label.length() * 10 + 70);
+        return """
+                <tr><td align="center" class="br-pad" style="padding:30px 40px 6px;">
+                  <!--[if mso]>
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="%s" style="height:48px;v-text-anchor:middle;width:%dpx;" arcsize="27%%" strokecolor="#b8976a" fillcolor="#3a2e27">
+                    <w:anchorlock/>
+                    <center style="color:#fbf4e9;font-family:%s;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">%s</center>
+                  </v:roundrect>
+                  <![endif]-->
+                  <!--[if !mso]><!-->
+                  <a href="%s" class="br-btn" style="display:inline-block;background:#3a2e27;color:#fbf4e9;text-decoration:none;font-family:%s;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:15px 34px;border-radius:13px;border:1px solid #b8976a;">%s</a>
+                  <!--<![endif]-->
+                </td></tr>
+                """.formatted(escAttr(url), w, SANS, esc(label), escAttr(url), SANS, esc(label));
+    }
+
+    private String helperRow(String html) {
+        return """
+                <tr><td align="center" class="br-pad" style="padding:20px 40px 0;">
+                  <p class="br-muted" style="font-family:%s;font-size:13px;line-height:1.6;color:#9c8c7d;margin:0;">%s</p>
+                </td></tr>
+                """.formatted(SANS, html);
+    }
+
+    private String contactPillsRow() {
+        String wa = pill("WhatsApp", "https://wa.me/" + waNum(),
+                "<span style=\"color:#2ead5b;\">●</span>&nbsp; ");
+        String call = pill("Chiama", "tel:" + brandPhoneE164, "");
+        String mail = pill("Email", "mailto:" + brandEmail, "");
+        return "<tr><td align=\"center\" style=\"padding:12px 30px 0;\">" + wa + call + mail + "</td></tr>";
+    }
+
+    private String pill(String label, String url, String dot) {
+        return """
+                <a href="%s" class="br-pill" style="display:inline-block;margin:5px 4px;font-family:%s;font-size:12px;color:#3a2e27;text-decoration:none;border:1px solid #e3d4c0;padding:9px 16px;border-radius:999px;background:#faf5ec;">%s%s</a>
+                """.formatted(escAttr(url), SANS, dot, esc(label));
+    }
+
+    private String signoffRow(String lineHtml) {
+        return """
+                <tr><td align="center" class="br-pad" style="padding:26px 40px 36px;">
+                  <div class="br-rowhair" style="border-top:1px solid #ece0d0;padding-top:20px;">
+                    <span class="br-gold" style="font-family:%s;font-size:13px;color:#b8976a;letter-spacing:6px;">✦</span>
+                    <p class="br-muted" style="font-family:%s;font-size:17px;font-style:italic;color:#7a6a5d;margin:8px 0 0;line-height:1.5;">%s</p>
+                  </div>
+                </td></tr>
+                """.formatted(SERIF, SERIF, lineHtml);
+    }
+
+    // ===================== PRIMITIVES =====================
+
+    private String inkB(String s) {
+        return "<b class=\"br-ink\" style=\"color:#3a2e27;\">" + esc(s) + "</b>";
+    }
+
+    private String waNum() {
+        return brandPhoneE164.replace("+", "");
+    }
+
+    private static String euro(BigDecimal v) {
+        return "€ " + String.format(Locale.ITALY, "%.2f", v.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private static String euroPlain(BigDecimal v) {
+        return "€ " + String.format(Locale.ITALY, "%.2f", v.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private static String cap(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    private String safe(String s) {
+        return (s == null || s.isBlank()) ? "-" : s;
+    }
+
+    private String esc(String s) {
+        if (s == null) return "-";
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
+    }
+
+    private String escAttr(String s) {
+        return esc(s).replace("'", "%27");
     }
 }
