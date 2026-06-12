@@ -337,7 +337,7 @@ export const BookingFlow = ({
         layout="side"
         onHide={handleClose}
         eyebrow="PRENOTAZIONE ✦"
-        title={service?.title}
+        title={initialOption ? `${service?.title} · ${initialOption.name}` : service?.title}
         subtitle={metaSubtitle}
         topSlot={stepsSlot}
         size="sm"
@@ -598,7 +598,7 @@ export const BookingFlow = ({
                 <div className="bm-summary">
                   <div className="bm-summary__row">
                     <span>Servizio</span>
-                    <strong>{service?.title}</strong>
+                    <strong>{initialOption ? `${service?.title} · ${initialOption.name}` : service?.title}</strong>
                   </div>
                   <div className="bm-summary__row">
                     <span>Durata</span>

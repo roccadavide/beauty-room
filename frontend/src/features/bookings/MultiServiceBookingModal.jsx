@@ -214,21 +214,21 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
   const topSlot = (
     <>
       <div className="msb-cart-header">
-        <div className="msb-cart-header__pills">
+        <ul className="msb-cart-header__list">
           {services.map(s => (
-            <span key={s.id} className="msb-cart-header__pill">
-              {s.name}
-            </span>
+            <li key={s.id} className="msb-cart-header__list-item">
+              {s.name}{s.optionName ? ` · ${s.optionName}` : ""}
+            </li>
           ))}
+        </ul>
+        <div className="msb-cart-header__meta">
+          {totalDuration > 0 && (
+            <span className="msb-cart-header__duration">⏱ Durata totale · {formatDuration(totalDuration)}</span>
+          )}
           {products.length > 0 && (
             <span className="msb-cart-header__pill msb-cart-header__pill--product">
               +{products.length} prodott{products.length === 1 ? "o" : "i"}
             </span>
-          )}
-        </div>
-        <div className="msb-cart-header__meta">
-          {totalDuration > 0 && (
-            <span className="msb-cart-header__duration">⏱ Durata totale · {formatDuration(totalDuration)}</span>
           )}
           <span className="msb-cart-header__price">{totalPrice.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
         </div>
@@ -515,7 +515,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
             <div className="bm-summary__divider" />
             {services.map(s => (
               <div key={s.id} className="bm-summary__row">
-                <span>{s.name}</span>
+                <span>{s.name}{s.optionName ? ` · ${s.optionName}` : ""}</span>
                 <strong>{s.price.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
               </div>
             ))}

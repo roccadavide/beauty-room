@@ -139,6 +139,7 @@ const CartPage = () => {
                       onClick={() => item.type === "product" && navigate(`/prodotti/${item.productId}`)}
                     >
                       {item.name}
+                      {item.type === "service" && item.optionName ? ` · ${item.optionName}` : ""}
                     </h3>
                     <p className="cart-item-price-unit">€ {item.price.toFixed(2)} cad.</p>
                     {item.type === "package" && (
@@ -204,7 +205,7 @@ const CartPage = () => {
                   <div className="cart-summary-rows">
                     {serviceItems.map(item => (
                       <div key={item.id} className="cart-summary-row">
-                        <span>{item.name}</span>
+                        <span>{item.name}{item.optionName ? ` · ${item.optionName}` : ""}</span>
                         <span>€ {item.price.toFixed(2)}</span>
                       </div>
                     ))}
