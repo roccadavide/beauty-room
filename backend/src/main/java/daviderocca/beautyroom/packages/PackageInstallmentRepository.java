@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,6 +15,13 @@ import java.util.UUID;
 public interface PackageInstallmentRepository extends JpaRepository<PackageInstallment, UUID> {
 
     List<PackageInstallment> findByAssignmentIdOrderByPositionAscDueDateAsc(UUID assignmentId);
+
+    /**
+     * Paid installments across a set of packages, batched so "collected" can be
+     * summed per assignment in Java without an N+1 (Phase 2b "due" enrichment).
+     * Derives {@code assignment.id IN (...) AND paid = true}.
+     */
+    List<PackageInstallment> findByAssignmentIdInAndPaidTrue(Collection<UUID> assignmentIds);
 
     /**
      * Cross-package feed of UNPAID installments due in [from, to], excluding

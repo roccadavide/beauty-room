@@ -8,7 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -71,9 +73,26 @@ public class PackageInstallmentService {
      */
     @Transactional(readOnly = true)
     public List<InstallmentDueDTO> getInstallmentsDue(LocalDate from, LocalDate to) {
-        return installmentRepo.findUnpaidDueBetween(from, to, ClientPackageStatus.CANCELLED)
-                .stream()
-                .map(this::toDueDTO)
+        List<PackageInstallment> due =
+                installmentRepo.findUnpaidDueBetween(from, to, ClientPackageStatus.CANCELLED);
+
+        // "collected" per package = Σ of its paid installments. One batched query over
+        // the distinct due assignments (already in the L1 cache from the fetch-join
+        // above), summed in Java → 2 statements total, no N+1.
+        List<UUID> assignmentIds = due.stream()
+                .map(i -> i.getAssignment().getId())
+                .distinct()
+                .toList();
+        Map<UUID, BigDecimal> collectedByAssignment = new HashMap<>();
+        if (!assignmentIds.isEmpty()) {
+            for (PackageInstallment paid : installmentRepo.findByAssignmentIdInAndPaidTrue(assignmentIds)) {
+                BigDecimal amount = paid.getAmount() != null ? paid.getAmount() : BigDecimal.ZERO;
+                collectedByAssignment.merge(paid.getAssignment().getId(), amount, BigDecimal::add);
+            }
+        }
+
+        return due.stream()
+                .map(i -> toDueDTO(i, collectedByAssignment))
                 .toList();
     }
 
@@ -187,8 +206,10 @@ public class PackageInstallmentService {
     /**
      * Flattens an installment + its parent assignment into the agenda "due" row.
      * packageName falls back customPackageName → service title → "Pacchetto".
+     * total = the package's agreed gross (pricePaid, or ZERO); remaining = total −
+     * collected, where collected is looked up from the pre-summed batch map.
      */
-    private InstallmentDueDTO toDueDTO(PackageInstallment i) {
+    private InstallmentDueDTO toDueDTO(PackageInstallment i, Map<UUID, BigDecimal> collectedByAssignment) {
         ClientPackageAssignment a = i.getAssignment();
         String packageName;
         if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
@@ -198,12 +219,17 @@ public class PackageInstallmentService {
         } else {
             packageName = "Pacchetto";
         }
+        BigDecimal total = a.getPricePaid() != null ? a.getPricePaid() : BigDecimal.ZERO;
+        BigDecimal collected = collectedByAssignment.getOrDefault(a.getId(), BigDecimal.ZERO);
+        BigDecimal remaining = total.subtract(collected);
         return new InstallmentDueDTO(
                 i.getId(),
                 a.getId(),
                 a.getClientName(),
                 packageName,
                 i.getAmount(),
-                i.getDueDate());
+                i.getDueDate(),
+                total,
+                remaining);
     }
 }
