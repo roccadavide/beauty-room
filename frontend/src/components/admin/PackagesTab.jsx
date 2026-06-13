@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { cancelPackageAssignment, getClientPackageAssignmentsByName } from "../../api/modules/adminAgenda.api";
 import ConfirmDialog from "../common/ConfirmDialog";
+import InstallmentEditor from "./installments/InstallmentEditor";
 import PackageForm from "./PackageForm";
 
 export default function PackagesTab({ customer, services = [], isOpen, onPackageCreated }) {
@@ -11,6 +12,7 @@ export default function PackagesTab({ customer, services = [], isOpen, onPackage
   const [editingPackage, setEditingPackage] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, name } | null
   const [deleteError, setDeleteError] = useState("");
+  const [rateEditorPkg, setRateEditorPkg] = useState(null); // ClientPackageAssignmentDTO | null
 
   // ── Load active packages for this customer ─────────────────────────────────
   const reload = useCallback(async () => {
@@ -111,6 +113,16 @@ export default function PackagesTab({ customer, services = [], isOpen, onPackage
               )}
 
               <div className="pkgt-card__actions">
+                {pkg.paymentMode === "INSTALLMENTS" && (
+                  <button
+                    type="button"
+                    className="pkgt-card__btn"
+                    onClick={() => setRateEditorPkg(pkg)}
+                    aria-label="Gestisci rate"
+                  >
+                    📅 Gestisci rate
+                  </button>
+                )}
                 <button
                   type="button"
                   className="pkgt-card__btn"
@@ -172,6 +184,15 @@ export default function PackagesTab({ customer, services = [], isOpen, onPackage
         confirmLabel="Elimina"
         confirmVariant="danger"
       />
+
+      {rateEditorPkg && (
+        <InstallmentEditor
+          assignmentId={rateEditorPkg.id}
+          packageName={rateEditorPkg.displayName || rateEditorPkg.customPackageName || rateEditorPkg.serviceTitle || "Pacchetto"}
+          onClose={() => setRateEditorPkg(null)}
+          onChanged={reload}
+        />
+      )}
     </div>
   );
 }
