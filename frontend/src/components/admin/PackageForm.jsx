@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DurationField from "../common/DurationField";
 import DateTimeField, { toISODateLocal } from "../common/DateTimeField";
-import InstallmentEditor from "./installments/InstallmentEditor";
 import { createPackageAssignment, createPackageInstallment, createRecurringTemplate, fetchCatalogPackages, fetchRecurringTemplates, updatePackageAssignment } from "../../api/modules/adminAgenda.api";
 import "./PackageForm.css";
 
@@ -192,7 +191,6 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   const [paymentMode, setPaymentMode] = useState("PER_SESSION");
   const [upfrontPaidDate, setUpfrontPaidDate] = useState(() => toISODateLocal(new Date()));
   const [priceTouched, setPriceTouched] = useState(false);
-  const [rateEditorFor, setRateEditorFor] = useState(null);
   const [notes, setNotes] = useState("");
 
   const [catalogPackages, setCatalogPackages] = useState([]);
@@ -267,7 +265,6 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       setPricePaid("");
       setPaymentMode("PER_SESSION");
       setPriceTouched(false); // allow auto-fill on a fresh form
-      setRateEditorFor(null);
       setNotes("");
     }
     setCatalogSearch("");
@@ -572,9 +569,10 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         }
       }
       seedSigRef.current = null;
-      if (paymentMode === "INSTALLMENTS") {
-        setRateEditorFor(saved); // open the editor; onSaved fires when it closes
-      } else if (paymentMode === "UPFRONT" && !isEdit) {
+      // UPFRONT (create only) records the single paid installment for the full
+      // amount. All modes then end with onSaved → the package shows in the active
+      // list; INSTALLMENTS rate plans are managed on demand via "Gestisci rate".
+      if (paymentMode === "UPFRONT" && !isEdit) {
         try {
           await createPackageInstallment(saved.id, {
             amount: Number(pricePaid),
@@ -582,14 +580,12 @@ export default function PackageForm({ customer, services = [], editingPackage = 
             paid: true,
             paidDate: upfrontPaidDate,
           });
-          onSaved?.(saved);
         } catch {
-          setSubmitError("Pacchetto creato, ma il pagamento non è stato registrato. Aggiungilo dall'editor rate.");
-          setRateEditorFor(saved); // graceful recovery: open the editor so she can add/retry
+          // The package exists; the payment can be added later from "Gestisci rate".
+          setSubmitError("Pacchetto creato, ma il pagamento non è stato registrato. Aggiungilo da «Gestisci rate».");
         }
-      } else {
-        onSaved?.(saved); // PER_SESSION, or UPFRONT in edit mode → unchanged
       }
+      onSaved?.(saved);
     } catch (err) {
       setSubmitError(err.message || "Errore durante il salvataggio.");
     } finally {
@@ -615,7 +611,6 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   // The "Nuovo / Modifica pacchetto" page-level heading lives in PackagesTab —
   // intentionally NOT repeated here.
   return (
-    <>
     <form onSubmit={handleSubmit} className="pkgf-form" noValidate>
       {/* Mode pills — create only */}
       {!isEdit && (
@@ -910,18 +905,5 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         </button>
       </div>
     </form>
-    {rateEditorFor && (
-      <InstallmentEditor
-        assignmentId={rateEditorFor.id}
-        packageName={rateEditorFor.displayName || rateEditorFor.customPackageName || rateEditorFor.serviceTitle || "Pacchetto"}
-        onClose={() => {
-          const s = rateEditorFor;
-          setRateEditorFor(null);
-          onSaved?.(s);
-        }}
-        onChanged={() => {}}
-      />
-    )}
-    </>
   );
 }
