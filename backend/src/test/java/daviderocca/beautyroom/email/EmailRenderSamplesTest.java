@@ -149,9 +149,29 @@ class EmailRenderSamplesTest {
         assertTrue(ee.html().contains("€ 120,00"), "bundle total + product");
         assertTrue(ee.html().contains("Da saldare in studio: € 120,00"), "bundle due");
 
+        // (h) PROMPT E: single service + whole-appointment custom price (€30 list → €25) → the
+        // line shows the custom amount, NO list price, NO "Sconto"; the product adds on top.
+        AdminBookingCardDTO cardH = card(x -> {
+            x.start = start; x.end = start.plusMinutes(45);
+            x.name = "Anna Conti"; x.email = "anna@example.com";
+            x.services = List.of(
+                    new ServiceSummaryDTO(UUID.randomUUID(), "Pulizia viso", 45, bd("30.00"), null, null, null, null, false));
+            x.customTotalPrice = bd("25.00");   // single service: charge €25 instead of the €30 list price
+            x.sales = List.of(new SaleSummaryDTO(UUID.randomUUID(), UUID.randomUUID(), "Siero vitamina C", 1, bd("20.00"), false));
+        });
+        BookingEmailModel mH = asm.buildModel(cardH, null, false);
+        EmailContent eh = t.bookingConfirmed(mH);
+        write("h-confirmed-single-custom-price", eh);
+        assertTrue(eh.html().contains("€ 25,00"), "single-service line shows the custom price");
+        assertTrue(!eh.html().contains("Sconto"), "no reconciling discount for a single service");
+        assertTrue(!eh.html().contains("€ 30,00"), "the €30 list price is not shown");
+        assertTrue(eh.html().contains("€ 45,00"), "total = €25 service + €20 product");
+        assertTrue(eh.html().contains("Da saldare in studio: € 45,00"), "amount due = custom total + product");
+
         System.out.println("\n=== Rendered email samples ===");
         for (String f : List.of("a-confirmed-2services-product", "b-confirmed-promo",
-                "c-reminder-package-admin", "d-confirmed-package-online", "e-confirmed-bundle-sconto")) {
+                "c-reminder-package-admin", "d-confirmed-package-online", "e-confirmed-bundle-sconto",
+                "h-confirmed-single-custom-price")) {
             System.out.println("  /tmp/beautyroom-email-" + f + ".html");
         }
     }

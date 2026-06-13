@@ -39,8 +39,9 @@ import java.util.Locale;
  *       {@code totalDiscounted}, never its product lines summed separately.</li>
  *   <li>Packages are rendered as a {@link PackageBlock} (never a priced line); their cost
  *       is carried by the authoritative amount-due / payment label.</li>
- *   <li>{@code customTotalPrice} (when set) is the services-side bundle: show per-line
- *       list prices + a reconciling "Sconto" line; products always add on top.</li>
+ *   <li>{@code customTotalPrice} (when set) is the services-side bundle: with ≥2 service lines
+ *       show per-line list prices + a reconciling "Sconto" line; with a single service line the
+ *       override IS that line's price (no "Sconto"). Products always add on top.</li>
  * </ul>
  */
 @Service
@@ -109,6 +110,12 @@ public class BookingEmailAssembler {
         }
 
         boolean isBundle = card.customTotalPrice() != null;
+        // PROMPT E: a single-service appointment with a whole-appointment custom total has nothing
+        // to reconcile — that override IS the one line's price. Show it directly on the line and
+        // suppress the "Sconto" line (which only makes sense when ≥2 list prices sum above the
+        // bundle). Multi-service is unchanged; products still add on top of the total.
+        int serviceLineCount = card.services().size() + (showCustom ? 1 : 0);
+        boolean singleServiceCustomTotal = isBundle && serviceLineCount == 1;
         BigDecimal amountDue = computeAmountDue(items, isBundle, card.customTotalPrice());
 
         // ---------- display sections ----------
@@ -118,14 +125,16 @@ public class BookingEmailAssembler {
         List<EmailLine> treat = new ArrayList<>();
         BigDecimal servicesGross = BigDecimal.ZERO;
         for (ServiceSummaryDTO s : card.services()) {
-            servicesGross = servicesGross.add(nz(s.price()));
-            treat.add(new EmailLine(serviceLabel(s), null, money(s.price(), hidePrices), null));
+            BigDecimal linePrice = singleServiceCustomTotal ? card.customTotalPrice() : s.price();
+            servicesGross = servicesGross.add(nz(linePrice));
+            treat.add(new EmailLine(serviceLabel(s), null, money(linePrice, hidePrices), null));
         }
         if (showCustom) {
-            servicesGross = servicesGross.add(nz(card.customServicePrice()));
+            BigDecimal linePrice = singleServiceCustomTotal ? card.customTotalPrice() : card.customServicePrice();
+            servicesGross = servicesGross.add(nz(linePrice));
             treat.add(new EmailLine(
                     hasCustom ? card.customServiceName() : "Servizio personalizzato",
-                    null, money(card.customServicePrice(), hidePrices), null));
+                    null, money(linePrice, hidePrices), null));
         }
         if (treat.isEmpty() && legacyFallback && pkgs.isEmpty() && !creditBacked
                 && card.serviceTitle() != null) {

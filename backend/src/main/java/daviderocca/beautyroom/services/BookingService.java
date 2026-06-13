@@ -942,6 +942,17 @@ public class BookingService {
 
         Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
                 .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
+
+        // PROMPT E: agenda-created appointment → confirmation + 24h reminder (same chain as the
+        // online and in-store paths). No email gate is needed here: enqueueSafe no-ops when the
+        // customerEmail is null/blank, so walk-ins without an email get nothing. No double-send
+        // either: the uk_email_event_agg unique guard makes the edit path's later
+        // enqueueBookingConfirmed a no-op for the confirmation (it only reschedules the reminder).
+        // Future gate: back-filling a PAST appointment (data entry of history) must not email the
+        // client a confirmation for something already happened.
+        if (hydrated.getStartTime() != null && hydrated.getStartTime().isAfter(LocalDateTime.now())) {
+            emailOutboxService.enqueueBookingConfirmed(hydrated);
+        }
         return convertToDTO(hydrated);
     }
 
