@@ -165,7 +165,7 @@ public class EmailTemplateService {
                     .append(" = ").append(euroPlain(line)).append("\n");
         }
 
-        String totalLabel = isPis ? "Da saldare al ritiro" : "Totale pagato";
+        String totalLabel = isPis ? "Da saldare al ritiro" : "Pagato online";
         String whenPaid = (o.getPaidAt() != null) ? o.getPaidAt().format(IT_DT) : "-";
         String orderId = (o.getOrderId() != null)
                 ? "#" + o.getOrderId().toString().toUpperCase().substring(0, 8) : "-";
