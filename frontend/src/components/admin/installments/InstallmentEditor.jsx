@@ -94,6 +94,8 @@ const S = {
   },
   rowMain: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 },
   amount: { fontWeight: 700, color: "#3a2e22", fontSize: "0.95rem" },
+  // Sequential "Nª rata" prefix — driven by display index, so it renumbers cleanly on delete.
+  rataLabel: { fontWeight: 700, color: "#8c6d3f", fontSize: "0.82rem", whiteSpace: "nowrap" },
   rowActions: { display: "flex", alignItems: "center", gap: 6 },
   iconBtn: {
     border: "1px solid rgba(184, 151, 106, 0.3)",
@@ -416,9 +418,10 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
           {!loading && installments.length === 0 && <div style={S.muted}>Nessuna rata ancora pianificata.</div>}
           {installments.length > 0 && (
             <div style={inline ? S.listInline : S.list}>
-              {installments.map(inst => (
+              {installments.map((inst, idx) => (
                 <div key={inst.id} style={S.row}>
                   <div style={S.rowMain}>
+                    <span style={S.rataLabel}>{idx + 1}ª rata</span>
                     <span style={S.amount}>{formatEuro(inst.amount)}</span>
                     {renderStatus(inst)}
                   </div>
