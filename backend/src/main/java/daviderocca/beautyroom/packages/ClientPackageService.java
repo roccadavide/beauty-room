@@ -497,9 +497,13 @@ public class ClientPackageService {
             // V62: settled = upfront-paid OR per-link paid. Locked = upfront only.
             // Mirror BookingService.buildPackageSummary so this alternate entry point
             // surfaces identical state (drawer + agenda + any future consumer).
+            ClientPackagePaymentMode mode = a.getPaymentMode();
             boolean paidLocked = a.isPaidUpfront();
             boolean paid = paidLocked || link.isPaid();
-            BigDecimal sessionPrice = paidLocked ? BigDecimal.ZERO : computeSessionPrice(a);
+            // Mirror buildPackageSummary: zero the per-session price for any package
+            // not billed per session (UPFRONT prepaid or INSTALLMENTS registry-tracked).
+            boolean nonPerSessionBilled = paidLocked || mode == ClientPackagePaymentMode.INSTALLMENTS;
+            BigDecimal sessionPrice = nonPerSessionBilled ? BigDecimal.ZERO : computeSessionPrice(a);
             return new PackageSummaryDTO(
                     a.getId(),
                     name,
@@ -511,7 +515,8 @@ public class ClientPackageService {
                     mapItemsToSummary(a),
                     paid,
                     paidLocked,
-                    a.getNotes());
+                    a.getNotes(),
+                    mode);
         });
     }
 

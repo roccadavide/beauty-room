@@ -18,6 +18,7 @@ import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -87,7 +88,7 @@ class EmailRenderSamplesTest {
             b.name = "Sara Neri"; b.email = "sara@example.com";
             b.linkedPackages = List.of(new PackageSummaryDTO(
                     UUID.randomUUID(), "Laser ascelle", 3, 6, 3, bd("50.00"), false,
-                    List.of(), false, false, null));
+                    List.of(), false, false, null, ClientPackagePaymentMode.PER_SESSION));
         });
         BookingEmailModel mC = asm.buildModel(cardC, null, true);
         EmailContent c = t.bookingReminder(mC);
@@ -105,7 +106,7 @@ class EmailRenderSamplesTest {
             x.name = "Sara Neri"; x.email = "sara@example.com";
             x.linkedPackages = List.of(new PackageSummaryDTO(
                     UUID.randomUUID(), "Laser ascelle", 4, 6, 2, bd("50.00"), false,
-                    List.of(), true, false, null)); // paid = true
+                    List.of(), true, false, null, ClientPackagePaymentMode.PER_SESSION)); // paid = true
         });
         EmailContent c2 = t.bookingReminder(asm.buildModel(cardC2, null, true));
         write("c2-reminder-package-admin-paid", c2);

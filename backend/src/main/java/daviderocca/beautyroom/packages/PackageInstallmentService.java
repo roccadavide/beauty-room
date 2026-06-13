@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.packages;
 
+import daviderocca.beautyroom.enums.ClientPackageStatus;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -62,6 +63,18 @@ public class PackageInstallmentService {
                 installments.size(),
                 paidCount,
                 nextDueDate);
+    }
+
+    /**
+     * Cross-package feed of unpaid installments due in [from, to] for the agenda's
+     * "installments due" panel. CANCELLED packages are excluded at the query level.
+     */
+    @Transactional(readOnly = true)
+    public List<InstallmentDueDTO> getInstallmentsDue(LocalDate from, LocalDate to) {
+        return installmentRepo.findUnpaidDueBetween(from, to, ClientPackageStatus.CANCELLED)
+                .stream()
+                .map(this::toDueDTO)
+                .toList();
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────
@@ -169,5 +182,28 @@ public class PackageInstallmentService {
                 i.getCreatedAt(),
                 i.getUpdatedAt()
         );
+    }
+
+    /**
+     * Flattens an installment + its parent assignment into the agenda "due" row.
+     * packageName falls back customPackageName → service title → "Pacchetto".
+     */
+    private InstallmentDueDTO toDueDTO(PackageInstallment i) {
+        ClientPackageAssignment a = i.getAssignment();
+        String packageName;
+        if (a.getCustomPackageName() != null && !a.getCustomPackageName().isBlank()) {
+            packageName = a.getCustomPackageName();
+        } else if (a.getService() != null) {
+            packageName = a.getService().getTitle();
+        } else {
+            packageName = "Pacchetto";
+        }
+        return new InstallmentDueDTO(
+                i.getId(),
+                a.getId(),
+                a.getClientName(),
+                packageName,
+                i.getAmount(),
+                i.getDueDate());
     }
 }

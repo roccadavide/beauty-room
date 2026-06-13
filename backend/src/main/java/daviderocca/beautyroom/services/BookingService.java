@@ -24,6 +24,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SaleSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
 import daviderocca.beautyroom.enums.LinkingStatus;
 import daviderocca.beautyroom.enums.NotificationType;
@@ -3237,9 +3238,15 @@ public class BookingService {
         } else {
             pkgName = "Trattamento";
         }
+        ClientPackagePaymentMode mode = a.getPaymentMode();
         boolean paidLocked = a.isPaidUpfront();
         boolean paid = paidLocked || link.isPaid();
-        BigDecimal sessionPrice = paidLocked
+        // Zero the per-session price whenever the package is NOT billed per session:
+        // UPFRONT (already locked/prepaid) or INSTALLMENTS (money tracked in the
+        // installment registry). Either way the session must not count toward the
+        // booking's per-session "still to collect" / estimated revenue.
+        boolean nonPerSessionBilled = paidLocked || mode == ClientPackagePaymentMode.INSTALLMENTS;
+        BigDecimal sessionPrice = nonPerSessionBilled
                 ? BigDecimal.ZERO
                 : clientPackageService.computeSessionPrice(a);
         return new PackageSummaryDTO(
@@ -3253,7 +3260,8 @@ public class BookingService {
                 clientPackageService.mapItemsToSummary(a),
                 paid,
                 paidLocked,
-                a.getNotes());
+                a.getNotes(),
+                mode);
     }
 
     /**

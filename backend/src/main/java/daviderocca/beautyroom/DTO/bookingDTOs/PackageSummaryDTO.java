@@ -1,5 +1,7 @@
 package daviderocca.beautyroom.DTO.bookingDTOs;
 
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -46,5 +48,11 @@ public record PackageSummaryDTO(
         // V62 / Problem 6: dynamic reference to the package's notes.
         // Read live from ClientPackageAssignment.notes — editing the package
         // note propagates to every linked session on next render.
-        String notes
+        String notes,
+        // Phase 2a: how the package is billed (PER_SESSION / UPFRONT / INSTALLMENTS).
+        // The agenda (Phase 2b) renders the payment pill from THIS, not from
+        // paidLocked: an INSTALLMENTS package is not "prepaid/locked" yet still
+        // contributes €0 to the booking's per-session revenue (its money lives in
+        // the installment registry, mirrored by the sessionPrice=0 rule below).
+        ClientPackagePaymentMode paymentMode
 ) {}
