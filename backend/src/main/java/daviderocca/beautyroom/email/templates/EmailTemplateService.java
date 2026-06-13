@@ -72,111 +72,60 @@ public class EmailTemplateService {
             DateTimeFormatter.ofPattern("HH:mm", Locale.ITALY);
 
     // ===================== BOOKING CONFIRMED =====================
-    public EmailContent bookingConfirmed(Booking b) {
+    // v3: multi-item. Fed by BookingEmailAssembler (mirrors the admin agenda card),
+    // so the email shows every service/option/product/promo/package + an authoritative
+    // total and the correct payment label.
+    public EmailContent bookingConfirmed(BookingEmailModel m) {
         String subject = "Prenotazione confermata · " + brandName;
         String preheader = "Ti confermo il tuo appuntamento da Beauty Room ✦";
 
-        String customerName = safe(b.getCustomerName());
-        String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
-        String customerEmail = safe(b.getCustomerEmail());
-
-        String dateStr = "-", timeStr = "-";
-        if (b.getStartTime() != null) {
-            dateStr = cap(b.getStartTime().format(IT_DATE));
-            timeStr = b.getStartTime().format(IT_TIME);
-        }
-
-        BigDecimal price = null;
-        if (b.getServiceOption() != null && b.getServiceOption().getPrice() != null) {
-            price = b.getServiceOption().getPrice();
-        } else if (b.getService() != null && b.getService().getPrice() != null) {
-            price = b.getService().getPrice();
-        }
-        String priceStr = price != null ? euro(price) : "—";
-
-        boolean isPis = b.getPaymentMethod() == PaymentMethod.PAY_IN_STORE;
-        String totalLabel = isPis ? "Da saldare in studio" : "Pagato online";
-
+        String customerName = safe(m.customerName());
         String viewUrl = frontUrl + "/area-personale";
-
-        String items = itemRow(serviceTitle, null, priceStr, true);
 
         String inner = heroRow("La tua prenotazione", "Confermata")
                 + introRow("Ciao " + inkB(customerName) + ", ti confermo il tuo appuntamento da Beauty&nbsp;Room. "
                         + "Ti aspetto: qui sotto trovi tutti i dettagli.")
                 + ornamentRow()
-                + whenRow(dateStr, timeStr)
-                + panelRow("22px 40px 0", "Trattamento", items, totalLabel, priceStr)
+                + whenRangeRow(m.whenDate(), m.whenTime(), m.durationRange())
+                + pricedPanelRow(m)
+                + packageBlockRow(m.packageBlock())
+                + paymentRow(m.paymentLabel())
                 + labeledLineRow("Dove", brandAddress, false)
-                + kvRow("Email di conferma", customerEmail)
+                + kvRow("Email di conferma", safe(m.customerEmail()))
                 + buttonRow("Visualizza prenotazione", viewUrl)
                 + helperRow("Devi spostare o modificare l'appuntamento? Scrivimi, ci penso io.")
                 + contactPillsRow()
                 + signoffRow("Grazie di avermi scelto.<br>Non vedo l'ora di prendermi cura di te.");
 
         String html = wrap(preheader, inner);
-
-        String text = """
-                Prenotazione confermata · %s
-
-                Ciao %s, ti confermo il tuo appuntamento da Beauty Room. Ti aspetto.
-
-                Quando: %s, ore %s
-                Trattamento: %s
-                %s: %s
-                Dove: %s
-                Email di conferma: %s
-
-                Visualizza la prenotazione: %s
-                Scrivimi su WhatsApp: https://wa.me/%s
-
-                Grazie di avermi scelto. Non vedo l'ora di prendermi cura di te.
-                """.formatted(
-                brandName, customerName, dateStr, timeStr, serviceTitle,
-                totalLabel, price != null ? euroPlain(price) : "-",
-                brandAddress, customerEmail, viewUrl, waNum());
+        String text = bookingText("Prenotazione confermata",
+                "Ciao " + customerName + ", ti confermo il tuo appuntamento da Beauty Room. Ti aspetto.", m);
 
         return new EmailContent(subject, html, text);
     }
 
     // ===================== BOOKING REMINDER =====================
-    public EmailContent bookingReminder(Booking b) {
+    public EmailContent bookingReminder(BookingEmailModel m) {
         String subject = "Promemoria appuntamento · " + brandName;
         String preheader = "Promemoria appuntamento da Beauty Room ✦";
 
-        String customerName = safe(b.getCustomerName());
-        String serviceTitle = safe(b.getService() != null ? b.getService().getTitle() : null);
-
-        String dateStr = "-", timeStr = "-";
-        if (b.getStartTime() != null) {
-            dateStr = cap(b.getStartTime().format(IT_DATE));
-            timeStr = b.getStartTime().format(IT_TIME);
-        }
+        String customerName = safe(m.customerName());
 
         String inner = heroRow("Promemoria", "Ti aspetto")
                 + introRow("Ciao " + inkB(customerName) + ", ti ricordo il tuo appuntamento da Beauty&nbsp;Room.")
                 + ornamentRow()
-                + whenRow(dateStr, timeStr)
-                + labeledLineRow("Trattamento", serviceTitle, true)
+                + whenRangeRow(m.whenDate(), m.whenTime(), m.durationRange())
+                + pricedPanelRow(m)
+                + packageBlockRow(m.packageBlock())
+                + paymentRow(m.paymentLabel())
                 + labeledLineRow("Dove", brandAddress, false)
                 + helperRow("Hai un imprevisto e vuoi spostare? Scrivimi il prima possibile.")
                 + contactPillsRow()
                 + signoffRow("Grazie di avermi scelto.<br>Non vedo l'ora di prendermi cura di te.");
 
         String html = wrap(preheader, inner);
-
-        String text = """
-                Promemoria appuntamento · %s
-
-                Ciao %s, ti ricordo il tuo appuntamento da Beauty Room.
-
-                Quando: %s, ore %s
-                Trattamento: %s
-                Dove: %s
-
-                Hai un imprevisto e vuoi spostare? Scrivimi il prima possibile.
-                WhatsApp: https://wa.me/%s
-                """.formatted(brandName, customerName, dateStr, timeStr, serviceTitle, brandAddress, waNum());
+        String text = bookingText("Promemoria appuntamento",
+                "Ciao " + customerName + ", ti ricordo il tuo appuntamento da Beauty Room.", m);
 
         return new EmailContent(subject, html, text);
     }
@@ -661,6 +610,108 @@ public class EmailTemplateService {
                 """.formatted(SANS, SERIF, esc(dateStr), SANS, esc(timeStr));
     }
 
+    /** when + optional duration range ("13:30–13:50 circa · ~20 min"). */
+    private String whenRangeRow(String dateStr, String timeStr, String durationRange) {
+        String rangeLine = (durationRange == null || durationRange.isBlank()) ? ""
+                : "<div class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:13px;color:#9c8c7d;margin-top:7px;\">" + esc(durationRange) + "</div>";
+        return """
+                <tr><td class="br-pad" style="padding:14px 40px 0;">
+                  <div class="br-muted" style="font-family:%s;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#9c8c7d;font-weight:600;margin-bottom:8px;">Quando</div>
+                  <div class="br-ink" style="font-family:%s;font-size:25px;color:#3a2e27;line-height:1.2;">%s</div>
+                  <div class="br-body" style="font-family:%s;font-size:15px;color:#574a41;margin-top:4px;">Ore <b class="br-ink" style="color:#3a2e27;">%s</b></div>
+                  %s
+                </td></tr>
+                """.formatted(SANS, SERIF, esc(dateStr), SANS, esc(timeStr), rangeLine);
+    }
+
+    /** Multi-section priced panel (services / promo(s) / products) + optional Sconto + Totale. */
+    private String pricedPanelRow(BookingEmailModel m) {
+        if (m.sections().isEmpty() && m.totalStr() == null) return "";
+
+        StringBuilder body = new StringBuilder();
+        List<EmailSection> secs = m.sections();
+        for (int si = 0; si < secs.size(); si++) {
+            EmailSection sec = secs.get(si);
+            body.append("<tr><td style=\"padding:").append(si == 0 ? "16px" : "14px")
+                .append(" 18px 6px;\"><div class=\"br-gold\" style=\"font-family:").append(SANS)
+                .append(";font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#8c6d3f;font-weight:700;\">")
+                .append(esc(sec.label())).append("</div></td></tr>");
+            body.append("<tr><td style=\"padding:0 18px;\"><table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">");
+            List<EmailLine> lines = sec.lines();
+            for (int li = 0; li < lines.size(); li++) {
+                body.append(emailLineRow(lines.get(li), li == lines.size() - 1));
+            }
+            body.append("</table></td></tr>");
+        }
+
+        StringBuilder totals = new StringBuilder();
+        if (m.discountStr() != null) totals.append(totalLineRow(m.discountLabel(), m.discountStr(), false));
+        if (m.totalStr() != null) totals.append(totalLineRow(m.totalLabel(), m.totalStr(), true));
+        String totalsBlock = totals.length() == 0 ? ""
+                : "<tr><td style=\"padding:6px 18px 16px;\"><table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">"
+                + "<tr><td class=\"br-hair\" style=\"border-top:1px solid #e3d4c0;padding-top:12px;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">"
+                + totals + "</table></td></tr></table></td></tr>";
+
+        return "<tr><td class=\"br-pad\" style=\"padding:22px 40px 0;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"br-panel\" style=\"background:#faf5ec;border:1px solid #e7dbca;border-radius:14px;\">"
+                + body + totalsBlock + "</table></td></tr>";
+    }
+
+    /** One panel line: name (+meta) left, price (+optional struck original) right. */
+    private String emailLineRow(EmailLine line, boolean last) {
+        String bb = last ? "" : "border-bottom:1px solid #ece0d0;";
+        String cls = last ? "" : "br-rowhair";
+        String metaSpan = (line.meta() == null || line.meta().isBlank()) ? ""
+                : "<span class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:12px;color:#9c8c7d;\">&nbsp;· " + esc(line.meta()) + "</span>";
+        String priceCell;
+        if (line.priceStr() == null || line.priceStr().isBlank()) {
+            priceCell = "";
+        } else {
+            String strikeSpan = (line.strikeStr() == null || line.strikeStr().isBlank()) ? ""
+                    : "<span class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:12px;color:#9c8c7d;text-decoration:line-through;\">" + esc(line.strikeStr()) + "</span>&nbsp;&nbsp;";
+            priceCell = strikeSpan + "<span class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:15px;color:#8c6d3f;font-weight:700;\">" + esc(line.priceStr()) + "</span>";
+        }
+        return "<tr><td class=\"" + cls + "\" style=\"padding:9px 0;" + bb + "\"><span class=\"br-ink\" style=\"font-family:" + SANS + ";font-size:15px;color:#3a2e27;font-weight:600;\">" + esc(line.name()) + "</span>" + metaSpan + "</td>"
+                + "<td align=\"right\" class=\"" + cls + "\" style=\"padding:9px 0;" + bb + "white-space:nowrap;\">" + priceCell + "</td></tr>";
+    }
+
+    /** A Sconto/Totale row inside the panel footer. big = the grand total. */
+    private String totalLineRow(String label, String amount, boolean big) {
+        String amtStyle = big
+                ? "font-family:" + SANS + ";font-size:23px;color:#3a2e27;font-weight:700;"
+                : "font-family:" + SANS + ";font-size:15px;color:#8c6d3f;font-weight:700;";
+        String lblWeight = big ? "700" : "600";
+        return "<tr><td><span class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9c8c7d;font-weight:" + lblWeight + ";\">" + esc(label) + "</span></td>"
+                + "<td align=\"right\" style=\"white-space:nowrap;\"><span class=\"br-ink\" style=\"" + amtStyle + "\">" + esc(amount) + "</span></td></tr>";
+    }
+
+    /** Tinted package box (contextual; never a priced line). */
+    private String packageBlockRow(PackageBlock pb) {
+        if (pb == null) return "";
+        String sub = (pb.sessionInfo() == null || pb.sessionInfo().isBlank()) ? ""
+                : "<div class=\"br-body\" style=\"font-family:" + SANS + ";font-size:14px;color:#574a41;margin-top:5px;\">" + esc(pb.sessionInfo()) + "</div>";
+        String coveredTag = pb.covered()
+                ? "<div class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:12px;color:#8c6d3f;font-weight:700;margin-top:8px;\">✓ Incluso nel pacchetto</div>"
+                : "";
+        return "<tr><td class=\"br-pad\" style=\"padding:18px 40px 0;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"br-panel\" style=\"background:rgba(184,151,106,0.10);border:1px solid #e7dbca;border-radius:14px;\">"
+                + "<tr><td style=\"padding:16px 18px;\">"
+                + "<div class=\"br-ink\" style=\"font-family:" + SERIF + ";font-size:20px;color:#3a2e27;line-height:1.3;\">" + esc(pb.headline()) + "</div>"
+                + sub + coveredTag
+                + "</td></tr></table></td></tr>";
+    }
+
+    /** Payment-state line ("Già pagato online" / "Da saldare in studio: € X" / "Incluso..."). */
+    private String paymentRow(String label) {
+        if (label == null || label.isBlank()) return "";
+        return "<tr><td class=\"br-pad\" style=\"padding:18px 40px 0;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"><tr>"
+                + "<td><span class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9c8c7d;font-weight:600;\">Pagamento</span></td>"
+                + "<td align=\"right\"><span class=\"br-ink\" style=\"font-family:" + SANS + ";font-size:14px;color:#3a2e27;font-weight:700;\">" + esc(label) + "</span></td>"
+                + "</tr></table></td></tr>";
+    }
+
     private String labeledLineRow(String label, String value, boolean serif) {
         String valStyle = serif
                 ? "font-family:" + SERIF + ";font-size:21px;color:#3a2e27;line-height:1.25;"
@@ -831,11 +882,64 @@ public class EmailTemplateService {
     }
 
     private static String euro(BigDecimal v) {
-        return "€ " + String.format(Locale.ITALY, "%.2f", v.setScale(2, RoundingMode.HALF_UP));
+        return "€ " + String.format(Locale.ITALY, "%,.2f", v.setScale(2, RoundingMode.HALF_UP));
     }
 
     private static String euroPlain(BigDecimal v) {
-        return "€ " + String.format(Locale.ITALY, "%.2f", v.setScale(2, RoundingMode.HALF_UP));
+        return "€ " + String.format(Locale.ITALY, "%,.2f", v.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    /** Plain-text twin of the booking emails (kept in sync with the HTML). */
+    private String bookingText(String title, String greeting, BookingEmailModel m) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(title).append(" · ").append(brandName).append("\n\n");
+        sb.append(greeting).append("\n\n");
+        sb.append("Quando: ").append(m.whenDate()).append(", ore ").append(m.whenTime());
+        if (m.durationRange() != null && !m.durationRange().isBlank()) {
+            sb.append(" (").append(m.durationRange()).append(")");
+        }
+        sb.append("\n");
+        for (EmailSection sec : m.sections()) {
+            sb.append("\n").append(sec.label()).append(":\n");
+            for (EmailLine line : sec.lines()) {
+                sb.append("  - ").append(line.name());
+                if (line.meta() != null && !line.meta().isBlank()) {
+                    sb.append(" (").append(line.meta()).append(")");
+                }
+                if (line.priceStr() != null && !line.priceStr().isBlank()) {
+                    if (line.strikeStr() != null && !line.strikeStr().isBlank()) {
+                        sb.append("  ").append(line.strikeStr()).append(" → ");
+                    } else {
+                        sb.append("  ");
+                    }
+                    sb.append(line.priceStr());
+                }
+                sb.append("\n");
+            }
+        }
+        if (m.discountStr() != null) {
+            sb.append("\n").append(m.discountLabel()).append(": ").append(m.discountStr()).append("\n");
+        }
+        if (m.totalStr() != null) {
+            sb.append(m.totalLabel()).append(": ").append(m.totalStr()).append("\n");
+        }
+        if (m.packageBlock() != null) {
+            sb.append("\n").append(m.packageBlock().headline()).append("\n");
+            if (m.packageBlock().sessionInfo() != null && !m.packageBlock().sessionInfo().isBlank()) {
+                sb.append(m.packageBlock().sessionInfo()).append("\n");
+            }
+            if (m.packageBlock().covered()) sb.append("Incluso nel pacchetto\n");
+        }
+        if (m.paymentLabel() != null && !m.paymentLabel().isBlank()) {
+            sb.append("\nPagamento: ").append(m.paymentLabel()).append("\n");
+        }
+        sb.append("Dove: ").append(brandAddress).append("\n");
+        if (m.customerEmail() != null && !m.customerEmail().isBlank()) {
+            sb.append("Email di conferma: ").append(m.customerEmail()).append("\n");
+        }
+        sb.append("\nScrivimi su WhatsApp: https://wa.me/").append(waNum()).append("\n");
+        sb.append("\nGrazie di avermi scelto. Non vedo l'ora di prendermi cura di te.\n");
+        return sb.toString();
     }
 
     private static String cap(String s) {

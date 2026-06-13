@@ -2841,6 +2841,17 @@ public class BookingService {
         return toAdminCard(b, false);
     }
 
+    /**
+     * Email-layer reuse: assemble the SAME full booking card the admin agenda renders,
+     * so transactional emails total a booking identically to the agenda card. Thin
+     * delegator to the no-arg {@link #toAdminCard(Booking)} (no arretrati badge) — keeps
+     * the EntityManager/repos/clientPackageService wiring inside BookingService. Must be
+     * called inside an open transaction (the email outbox worker runs REQUIRES_NEW).
+     */
+    public AdminBookingCardDTO assembleBookingCard(Booking b) {
+        return toAdminCard(b);
+    }
+
     private AdminBookingCardDTO toAdminCard(Booking b, boolean hasOutstanding) {
         var pkg = b.getPackageCredit();
 

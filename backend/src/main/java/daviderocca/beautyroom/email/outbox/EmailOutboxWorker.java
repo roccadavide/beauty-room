@@ -3,6 +3,7 @@ package daviderocca.beautyroom.email.outbox;
 import daviderocca.beautyroom.email.events.EmailAggregateType;
 import daviderocca.beautyroom.email.events.EmailEventType;
 import daviderocca.beautyroom.email.provider.MailgunSender;
+import daviderocca.beautyroom.email.templates.BookingEmailAssembler;
 import daviderocca.beautyroom.email.templates.EmailContent;
 import daviderocca.beautyroom.email.templates.EmailTemplateService;
 import daviderocca.beautyroom.entities.Booking;
@@ -50,6 +51,8 @@ public class EmailOutboxWorker {
 
     private final MailgunSender         mailgunSender;
     private final EmailTemplateService  templates;
+    // v3 multi-item booking emails: assembles the model from the admin agenda card.
+    private final BookingEmailAssembler bookingEmailAssembler;
 
     @Value("${app.frontend.url:https://beauty-room.it}")
     private String frontUrl;
@@ -196,8 +199,8 @@ public class EmailOutboxWorker {
             }
 
             return switch (type) {
-                case BOOKING_CONFIRMED -> templates.bookingConfirmed(b);
-                case BOOKING_REMINDER_24H -> templates.bookingReminder(b);
+                case BOOKING_CONFIRMED -> templates.bookingConfirmed(bookingEmailAssembler.toModel(b, false));
+                case BOOKING_REMINDER_24H -> templates.bookingReminder(bookingEmailAssembler.toModel(b, true));
                 case PAID_CONFLICT -> templates.paidConflictAlert(b, null);
                 // FIX-6: template rimborso automatico per PAID_CONFLICT
                 case BOOKING_REFUNDED -> templates.bookingRefunded(b);
