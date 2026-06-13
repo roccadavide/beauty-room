@@ -1,11 +1,22 @@
 import { formatEuro } from "../../../utils/formatEuro";
 
-// Neutral "payment plan" pill for packages billed in installments — never the
-// paid/unpaid pill (per-session price is €0, so "✓ Pagato"/"⏳ Da pagare" would be
-// misleading). When a rata falls due on the viewed day, the live residuo/total is
-// appended. Pure, no state.
-export default function InstallmentPlanPill({ dueRows }) {
-  const due = dueRows?.length ? dueRows[0] : null;
+// Always-on "payment plan" pill for packages billed in installments. Reads the
+// batched per-package SUMMARY (not the due-feed rows), so it shows "Pagato €X su €Y
+// totali" on every INSTALLMENTS card regardless of whether a rata falls due that day,
+// and "✓ Già pagato" once fully settled. Never the paid/unpaid pill (per-session price
+// is €0, so "✓ Pagato"/"⏳ Da pagare" would be misleading). Pure, no state.
+export default function InstallmentPlanPill({ summary }) {
+  if (summary?.fullyPaid) {
+    return (
+      <span
+        className="ag-pill"
+        style={{ background: "rgba(140,109,63,0.14)", color: "#6f5630", border: "1px solid rgba(140,109,63,0.55)" }}
+        title="Pacchetto saldato"
+      >
+        ✓ Già pagato
+      </span>
+    );
+  }
   return (
     <span
       className="ag-pill"
@@ -13,10 +24,10 @@ export default function InstallmentPlanPill({ dueRows }) {
       title="Pagamento a rate"
     >
       📅 Piano rate
-      {due && (
+      {summary && (
         <>
-          {" · residuo "}
-          {formatEuro(due.remaining)} di {formatEuro(due.total)}
+          {" · Pagato "}
+          {formatEuro(summary.collected)} su {formatEuro(summary.total)} totali
         </>
       )}
     </span>

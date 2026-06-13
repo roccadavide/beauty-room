@@ -25,6 +25,13 @@ public interface PackageInstallmentRepository extends JpaRepository<PackageInsta
     List<PackageInstallment> findByAssignmentIdInAndPaidTrue(Collection<UUID> assignmentIds);
 
     /**
+     * ALL installments (paid + unpaid) across a set of packages, batched so the
+     * Phase 5 "summaries" endpoint can compute collected + hasOpenDue per assignment
+     * in Java from a single result set. Derives {@code assignment.id IN (...)}.
+     */
+    List<PackageInstallment> findByAssignmentIdIn(Collection<UUID> assignmentIds);
+
+    /**
      * Cross-package feed of UNPAID installments due in [from, to], excluding
      * installments of CANCELLED assignments. Fetch-joins the parent assignment and
      * its nullable service so the DTO mapping reads clientName / service title in a
@@ -42,6 +49,25 @@ public interface PackageInstallmentRepository extends JpaRepository<PackageInsta
     List<PackageInstallment> findUnpaidDueBetween(@Param("from") LocalDate from,
                                                   @Param("to") LocalDate to,
                                                   @Param("excludedStatus") ClientPackageStatus excludedStatus);
+
+    /**
+     * Cross-package feed of installments PAID in [from, to] (by paidDate), excluding
+     * CANCELLED assignments. Mirrors {@link #findUnpaidDueBetween} exactly (same
+     * fetch-joins, same enum-param idiom) so the agenda's "due" feed can keep a rata
+     * settled today visible as "saldato" alongside the still-unpaid ones.
+     */
+    @Query("""
+            select pi from PackageInstallment pi
+            join fetch pi.assignment a
+            left join fetch a.service s
+            where pi.paid = true
+              and pi.paidDate between :from and :to
+              and a.status <> :excludedStatus
+            order by pi.paidDate asc, a.clientName asc
+            """)
+    List<PackageInstallment> findPaidByPaidDateBetween(@Param("from") LocalDate from,
+                                                       @Param("to") LocalDate to,
+                                                       @Param("excludedStatus") ClientPackageStatus excludedStatus);
 
     /**
      * Phase 4a — report "packages" revenue stream. Sum of PAID installment amounts

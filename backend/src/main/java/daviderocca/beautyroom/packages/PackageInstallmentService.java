@@ -8,10 +8,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * CRUD + settlement for the package installment registry. Standalone — does not
@@ -68,18 +70,24 @@ public class PackageInstallmentService {
     }
 
     /**
-     * Cross-package feed of unpaid installments due in [from, to] for the agenda's
-     * "installments due" panel. CANCELLED packages are excluded at the query level.
+     * Cross-package feed of installments RELEVANT to [from, to] for the agenda's
+     * "installments due" panel: the union of two disjoint sets — unpaid due in range
+     * (paid = false) and paid in range by paidDate (paid = true). Keeping a rata
+     * settled today in the feed lets the agenda KPI stay counted. CANCELLED packages
+     * are excluded at the query level; the paid flag is mutually exclusive so a given
+     * installment lands in exactly one set (no double-count).
      */
     @Transactional(readOnly = true)
     public List<InstallmentDueDTO> getInstallmentsDue(LocalDate from, LocalDate to) {
-        List<PackageInstallment> due =
+        List<PackageInstallment> unpaidDue =
                 installmentRepo.findUnpaidDueBetween(from, to, ClientPackageStatus.CANCELLED);
+        List<PackageInstallment> paidInRange =
+                installmentRepo.findPaidByPaidDateBetween(from, to, ClientPackageStatus.CANCELLED);
 
         // "collected" per package = Σ of its paid installments. One batched query over
-        // the distinct due assignments (already in the L1 cache from the fetch-join
-        // above), summed in Java → 2 statements total, no N+1.
-        List<UUID> assignmentIds = due.stream()
+        // the distinct assignments across BOTH result sets (already in the L1 cache
+        // from the fetch-joins above), summed in Java → still no N+1.
+        List<UUID> assignmentIds = Stream.concat(unpaidDue.stream(), paidInRange.stream())
                 .map(i -> i.getAssignment().getId())
                 .distinct()
                 .toList();
@@ -91,9 +99,55 @@ public class PackageInstallmentService {
             }
         }
 
-        return due.stream()
+        // Unpaid first (ordered by dueDate), then paid (ordered by paidDate). The DTO
+        // carries the per-row paid flag straight off the entity, so each query's own
+        // filter already pins it to false / true respectively.
+        return Stream.concat(unpaidDue.stream(), paidInRange.stream())
                 .map(i -> toDueDTO(i, collectedByAssignment))
                 .toList();
+    }
+
+    /**
+     * Per-package installment summaries for the requested assignments, so the agenda
+     * can show "Pagato €collected su €total" (and the "Completa" gate) on every
+     * INSTALLMENTS card. Two queries total: the assignments (for pricePaid — and so a
+     * package with ZERO installments still gets a row) and all their installments,
+     * grouped by assignment in Java. Ids not found are skipped; no N+1.
+     */
+    @Transactional(readOnly = true)
+    public List<PackageInstallmentBatchSummaryDTO> getBatchSummaries(List<UUID> assignmentIds) {
+        if (assignmentIds == null || assignmentIds.isEmpty()) {
+            return List.of();
+        }
+        List<ClientPackageAssignment> assignments = assignmentRepo.findAllById(assignmentIds);
+        List<PackageInstallment> installments = installmentRepo.findByAssignmentIdIn(assignmentIds);
+
+        Map<UUID, List<PackageInstallment>> byAssignment = new HashMap<>();
+        for (PackageInstallment inst : installments) {
+            byAssignment.computeIfAbsent(inst.getAssignment().getId(), k -> new ArrayList<>()).add(inst);
+        }
+
+        LocalDate today = LocalDate.now();
+        List<PackageInstallmentBatchSummaryDTO> result = new ArrayList<>();
+        for (ClientPackageAssignment a : assignments) {
+            BigDecimal total = a.getPricePaid() != null ? a.getPricePaid() : BigDecimal.ZERO;
+            BigDecimal collected = BigDecimal.ZERO;
+            boolean hasOpenDue = false;
+            for (PackageInstallment inst : byAssignment.getOrDefault(a.getId(), List.of())) {
+                BigDecimal amount = inst.getAmount() != null ? inst.getAmount() : BigDecimal.ZERO;
+                if (inst.isPaid()) {
+                    collected = collected.add(amount);
+                } else if (inst.getDueDate() != null && !inst.getDueDate().isAfter(today)) {
+                    // unpaid + due today or overdue → an open rata gates "Completa".
+                    hasOpenDue = true;
+                }
+            }
+            BigDecimal remaining = total.subtract(collected);
+            boolean fullyPaid = total.compareTo(BigDecimal.ZERO) > 0 && collected.compareTo(total) >= 0;
+            result.add(new PackageInstallmentBatchSummaryDTO(
+                    a.getId(), total, collected, remaining, fullyPaid, hasOpenDue));
+        }
+        return result;
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────
@@ -230,6 +284,9 @@ public class PackageInstallmentService {
                 i.getAmount(),
                 i.getDueDate(),
                 total,
-                remaining);
+                remaining,
+                i.isPaid(),
+                i.getPaidDate(),
+                i.getNote());
     }
 }

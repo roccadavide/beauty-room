@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Cross-package installment queries for the agenda. Deliberately kept OFF the
@@ -29,5 +30,12 @@ public class PackageInstallmentQueryController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return ResponseEntity.ok(service.getInstallmentsDue(from, to));
+    }
+
+    // GET /admin/package-installments/summaries?ids=uuid1,uuid2,uuid3
+    // One batched row per package for the always-on "Pagato X su Y" + "Completa" gate.
+    @GetMapping("/summaries")
+    public ResponseEntity<List<PackageInstallmentBatchSummaryDTO>> summaries(@RequestParam List<UUID> ids) {
+        return ResponseEntity.ok(service.getBatchSummaries(ids));
     }
 }

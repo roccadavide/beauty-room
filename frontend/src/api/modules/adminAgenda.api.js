@@ -409,6 +409,20 @@ export const getInstallmentsDue = async (from, to) => {
   }
 };
 
+// Batched per-package summaries for the agenda's always-on "Pagato €X su €Y" pill.
+// Backend: GET /admin/package-installments/summaries?ids=uuid1,uuid2 ->
+//   [{ packageAssignmentId, total, collected, remaining, fullyPaid, hasOpenDue }]
+export const getPackageInstallmentSummaries = async ids => {
+  if (!ids?.length) return []; // never hit the endpoint with no ids
+  try {
+    const { data } = await http.get("/admin/package-installments/summaries", { params: { ids: ids.join(",") } });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore caricamento riepilogo rate.";
+    throw new Error(message);
+  }
+};
+
 // Register the payment of one installment.
 // Backend: PATCH /admin/package-assignments/{assignmentId}/installments/{installmentId}/settle  body { paidDate }
 export const settlePackageInstallment = async (assignmentId, installmentId, body) => {

@@ -38,6 +38,7 @@ import useInstallmentsDue from "../../hooks/useInstallmentsDue";
 import InstallmentPlanPill from "./installments/InstallmentPlanPill";
 import InstallmentDueAction from "./installments/InstallmentDueAction";
 import InstallmentsDueSection from "./installments/InstallmentsDueSection";
+import InstallmentEditor from "./installments/InstallmentEditor";
 // pkgi-* classes for the collapsible package items toggle
 import "./PackageForm.css";
 
@@ -355,7 +356,7 @@ function getPaymentLabel(booking) {
 }
 
 
-function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallment, onClose }) {
+function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallment, onPostponeInstallment, onClose }) {
   const priceMap = useMemo(() => new Map((services || []).map(s => [String(s.serviceId), Number(s.price)])), [services]);
 
   const active = useMemo(() => (bookings || []).filter(b => b.status !== "CANCELLED"), [bookings]);
@@ -492,7 +493,7 @@ function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallm
               )}
             </tbody>
           </table>
-          <InstallmentsDueSection dueList={dueList} settling={settling} onSettle={onSettleInstallment} />
+          <InstallmentsDueSection dueList={dueList} settling={settling} onSettle={onSettleInstallment} onPostpone={onPostponeInstallment} />
         </div>
 
         <div className="ag-estimato-footer">
@@ -1106,11 +1107,25 @@ export default function AdminAgendaPage() {
     }
   }, []);
 
-  // Installment surfacing (Phase 2b-fe). The hook owns the due-feed fetch, the
-  // dueByPackage map, the KPI total, and the settle action. Declared BEFORE refresh
-  // so reloadInstallments is in scope for refresh's dependency array.
+  // Installment surfacing (Phase 2b-fe / Phase 5). The hook owns the due-feed fetch,
+  // the batched summaries, the dueByPackage map, the KPI total, and the settle action.
+  // Declared BEFORE refresh so reloadInstallments is in scope for refresh's dep array.
+  // ids = the INSTALLMENTS packages visible today, summarised for the always-on pill
+  // (mirrors the itemPkgs field access used in the card below).
+  const installmentPackageIds = useMemo(() => {
+    const s = new Set();
+    bookings.forEach(b => {
+      const pkgs = b.linkedPackages?.length ? b.linkedPackages : b.linkedPackage ? [b.linkedPackage] : [];
+      pkgs.forEach(p => {
+        if (p.paymentMode === "INSTALLMENTS" && p.packageAssignmentId) s.add(String(p.packageAssignmentId));
+      });
+    });
+    return Array.from(s);
+  }, [bookings]);
+
   const {
     dueByPackage,
+    summaryByPackage,
     dueList,
     dueTotal,
     hasDue,
@@ -1118,7 +1133,11 @@ export default function AdminAgendaPage() {
     reload: reloadInstallments,
     requestSettle: requestSettleInstallment,
     confirmProps: installmentConfirmProps,
-  } = useInstallmentsDue(dateISO, { onError: setErr });
+  } = useInstallmentsDue(dateISO, installmentPackageIds, { onError: setErr });
+
+  // Posticipa target: opens the InstallmentEditor on a specific package's plan so
+  // Michela can move a rata's date (which then leaves today's feed on close).
+  const [rateEditorFor, setRateEditorFor] = useState(null);
 
   const refresh = useCallback(async () => {
     setErr("");
@@ -2169,7 +2188,7 @@ export default function AdminAgendaPage() {
                                                   backend. INSTALLMENTS plans show a neutral
                                                   "Piano rate" pill instead (per-session price €0). */}
                                               {pkg.paymentMode === "INSTALLMENTS" ? (
-                                                <InstallmentPlanPill dueRows={dueByPackage.get(String(pkg.packageAssignmentId))} />
+                                                <InstallmentPlanPill summary={summaryByPackage.get(String(pkg.packageAssignmentId))} />
                                               ) : (
                                                 <span
                                                   className={`ag-pill ${pkg.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
@@ -2215,6 +2234,7 @@ export default function AdminAgendaPage() {
                                                     amount: row.amount,
                                                   })
                                                 }
+                                                onPostpone={() => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName })}
                                               />
                                             )}
                                             </Fragment>
@@ -2968,6 +2988,18 @@ export default function AdminAgendaPage() {
 
       <ConfirmDialog {...installmentConfirmProps} />
 
+      {rateEditorFor && (
+        <InstallmentEditor
+          assignmentId={rateEditorFor.assignmentId}
+          packageName={rateEditorFor.packageName || "Pacchetto"}
+          onClose={() => {
+            setRateEditorFor(null);
+            reloadInstallments();
+          }}
+          onChanged={reloadInstallments}
+        />
+      )}
+
       {showEstimatoModal && (
         <EstimatoModal
           bookings={bookings}
@@ -2975,6 +3007,7 @@ export default function AdminAgendaPage() {
           dueList={dueList}
           settling={installmentSettling}
           onSettleInstallment={requestSettleInstallment}
+          onPostponeInstallment={row => setRateEditorFor({ assignmentId: row.packageAssignmentId, packageName: row.packageName })}
           onClose={() => setShowEstimatoModal(false)}
         />
       )}
