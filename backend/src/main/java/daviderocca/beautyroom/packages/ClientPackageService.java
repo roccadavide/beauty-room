@@ -7,6 +7,7 @@ import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.DuplicateResourceException;
@@ -95,7 +96,19 @@ public class ClientPackageService {
         assignment.setCustomPackageName(req.customPackageName() != null ? req.customPackageName().trim() : null);
         assignment.setStatus(ClientPackageStatus.ACTIVE);
         assignment.setSessionDurationMin(normalizePositive(req.sessionDurationMin()));
-        assignment.setPaidUpfront(Boolean.TRUE.equals(req.paidUpfront()));
+        // Payment mode: an explicit mode wins; otherwise the legacy paidUpfront flag drives it
+        // (byte-for-byte unchanged when paymentMode is absent). paidUpfront stays in sync so
+        // existing readers (buildPackageSummary, etc.) keep working.
+        ClientPackagePaymentMode mode = req.paymentMode();
+        boolean upfront;
+        if (mode == null) {
+            upfront = Boolean.TRUE.equals(req.paidUpfront());
+            mode = upfront ? ClientPackagePaymentMode.UPFRONT : ClientPackagePaymentMode.PER_SESSION;
+        } else {
+            upfront = (mode == ClientPackagePaymentMode.UPFRONT);
+        }
+        assignment.setPaymentMode(mode);
+        assignment.setPaidUpfront(upfront);
         assignment.setStartSession(req.startSession() != null && req.startSession() >= 1 ? req.startSession() : 1);
 
         // Explicit linked user override (admin can pre-link)
@@ -175,13 +188,25 @@ public class ClientPackageService {
             assignment.setSessionsRemaining(clamped);
         }
 
-        // Phase-1 extension fields. Null means "leave existing value untouched" for sessionDurationMin
-        // and startSession; paidUpfront defaults to false when null (matches create semantics).
+        // Phase-1 extension fields. Null means "leave existing value untouched".
         if (req.sessionDurationMin() != null) {
             assignment.setSessionDurationMin(normalizePositive(req.sessionDurationMin()));
         }
-        if (req.paidUpfront() != null) {
-            assignment.setPaidUpfront(req.paidUpfront());
+        // Payment mode (backward-compatible): an explicit mode wins; otherwise the legacy
+        // paidUpfront flag drives it, kept in sync with the mode. A bare !upfront legacy edit
+        // never clobbers a deliberate INSTALLMENTS plan (left untouched in that case).
+        if (req.paymentMode() != null) {
+            var mode = req.paymentMode();
+            assignment.setPaymentMode(mode);
+            assignment.setPaidUpfront(mode == ClientPackagePaymentMode.UPFRONT);
+        } else if (req.paidUpfront() != null) {
+            boolean upfront = req.paidUpfront();
+            assignment.setPaidUpfront(upfront);
+            if (upfront) {
+                assignment.setPaymentMode(ClientPackagePaymentMode.UPFRONT);
+            } else if (assignment.getPaymentMode() == ClientPackagePaymentMode.UPFRONT) {
+                assignment.setPaymentMode(ClientPackagePaymentMode.PER_SESSION);
+            }
         }
         if (req.startSession() != null && req.startSession() >= 1) {
             assignment.setStartSession(req.startSession());
@@ -622,7 +647,8 @@ public class ClientPackageService {
                 itemDTOs,
                 a.getSessionDurationMin(),
                 a.isPaidUpfront(),
-                a.getStartSession()
+                a.getStartSession(),
+                a.getPaymentMode()
         );
     }
 

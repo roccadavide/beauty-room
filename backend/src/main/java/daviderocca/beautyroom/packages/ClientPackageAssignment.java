@@ -3,6 +3,7 @@ package daviderocca.beautyroom.packages;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.entities.User;
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -83,6 +84,15 @@ public class ClientPackageAssignment {
     private boolean paidUpfront = false;
 
     /**
+     * How the package is settled (PER_SESSION / UPFRONT / INSTALLMENTS).
+     * Kept in sync with the legacy paidUpfront flag by ClientPackageService so
+     * existing readers (buildPackageSummary, etc.) keep working unchanged.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_mode", nullable = false, length = 20)
+    private ClientPackagePaymentMode paymentMode = ClientPackagePaymentMode.PER_SESSION;
+
+    /**
      * Starting session number for packages already mid-course at launch.
      * Phase-1 storage only — recalculatePackageSessions still anchors on
      * BookingPackageLink.sessionNumber.
@@ -125,6 +135,22 @@ public class ClientPackageAssignment {
                 addItem(i);
             }
         }
+    }
+
+    /**
+     * Installment registry (0..N recorded payments).
+     * Setter suppressed so the collection reference stays Hibernate-managed —
+     * CRUD goes through PackageInstallmentRepository; the collection exists for
+     * read + cascade-on-delete. Mirrors the items[] pattern above.
+     */
+    @Setter(AccessLevel.NONE)
+    @OneToMany(mappedBy = "assignment", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("position ASC")
+    private List<PackageInstallment> installments = new ArrayList<>();
+
+    public void addInstallment(PackageInstallment installment) {
+        installment.setAssignment(this);
+        this.installments.add(installment);
     }
 
     @PrePersist
