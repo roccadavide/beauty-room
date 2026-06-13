@@ -24,6 +24,9 @@ const fmtDate = iso => {
   return y && m && d ? `${d}/${m}/${y}` : iso;
 };
 
+// Round a money amount to 2 decimals.
+const round2 = n => Math.round(Number(n) * 100) / 100;
+
 const EMPTY_FORM = { amount: "", dueDate: "", dateTbd: false, paid: false, paidDate: "", paymentMethod: "", note: "" };
 
 const S = {
@@ -128,6 +131,21 @@ const S = {
   },
   formActions: { display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 2 },
   muted: { fontSize: "0.85rem", color: "#8a7a64" },
+  // Quick-fill chips under the Importo field (50% / 25% / Resto).
+  quickRow: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 },
+  quickBtn: {
+    border: "1px solid rgba(184, 151, 106, 0.45)",
+    background: "#fff",
+    color: "#5a4030",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    padding: "4px 10px",
+    borderRadius: 999,
+  },
+  // Live "how much is left to split" line; turns red when the amount exceeds the base.
+  remainder: { marginTop: 6, fontSize: "0.82rem", color: "#8a7a64" },
+  remainderErr: { marginTop: 6, fontSize: "0.82rem", color: "#c0392b", fontWeight: 600 },
   // "Da definire" status pill — neutral, muted, italic (never overdue-styled).
   tbd: {
     background: "rgba(184, 151, 106, 0.10)",
@@ -198,8 +216,9 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
   // ── Form open helpers ───────────────────────────────────────────────────────
   const openAdd = () => {
     setEditingId(null);
-    // Prefill the common "next rata = what's left" case.
-    setForm({ ...EMPTY_FORM, amount: summary?.remaining > 0 ? String(summary.remaining) : "" });
+    // Open with Importo blank — you're splitting the price into rate, not paying it
+    // all at once. The quick-fill chips below the field do the "what's left" math.
+    setForm({ ...EMPTY_FORM });
     setFormError("");
     setFormOpen(true);
   };
@@ -224,6 +243,18 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
     setForm(f => ({ ...f, paid: checked, paidDate: checked && !f.paidDate ? today() : f.paidDate }));
   };
 
+  // ── Amount-entry base ─────────────────────────────────────────────────────────
+  // `base` = how much of the price isn't split into rate yet, i.e. the headroom for
+  // this rata's amount. In edit mode the rata's own amount is already part of
+  // `scheduled` (hence excluded from `unscheduled`), so add it back: you can re-enter
+  // up to its old value plus whatever slack is left.
+  const editingAmount = editingId != null ? Number(installments.find(i => i.id === editingId)?.amount) || 0 : 0;
+  const base = round2((Number(summary?.unscheduled) || 0) + editingAmount);
+  // No sensible base (no total, or nothing left to split) → free entry, no cap.
+  const hasBase = Number(summary?.total) > 0 && base > 0;
+  const importoNum = form.amount === "" || Number.isNaN(Number(form.amount)) ? 0 : Number(form.amount);
+  const overBase = hasBase && importoNum > base;
+
   // ── Mutations ───────────────────────────────────────────────────────────────
   const afterMutation = async () => {
     await load();
@@ -236,14 +267,25 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
       setFormError("Inserisci un importo maggiore di 0.");
       return;
     }
-    if (!form.dateTbd && !form.dueDate) {
+    if (hasBase && amountNum > base) {
+      setFormError(`Supera il residuo da pianificare (${formatEuro(base)})`);
+      return;
+    }
+    if (form.paid) {
+      // A paid rata needs only the date it was paid — no due date, no "da definire".
+      if (!form.paidDate) {
+        setFormError("Inserisci la data di pagamento.");
+        return;
+      }
+    } else if (!form.dateTbd && !form.dueDate) {
       setFormError("Seleziona una data di scadenza oppure attiva «Data da definire».");
       return;
     }
     const body = {
       amount: amountNum,
-      // "Da definire" → send null (the backend field is nullable/un-required), not "".
-      dueDate: form.dateTbd ? null : form.dueDate,
+      // A paid rata or a "da definire" rata has no due date → send null (the backend
+      // field is nullable/un-required), not "".
+      dueDate: form.paid || form.dateTbd ? null : form.dueDate,
       paid: form.paid,
       paidDate: form.paid ? form.paidDate || today() : null,
       paymentMethod: form.paid ? form.paymentMethod.trim() || null : null,
@@ -332,9 +374,9 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
           {summary && (
             <div style={S.summary}>
               <div>
-                Incassato <strong>{formatEuro(summary.collected)}</strong> di {formatEuro(summary.total)} · Residuo{" "}
-                <strong>{formatEuro(summary.remaining)}</strong>
-                {summary.unscheduled ? <span style={S.summaryMuted}> · da pianificare {formatEuro(summary.unscheduled)}</span> : null}
+                Totale <strong>{formatEuro(summary.total)}</strong> · Incassato <strong>{formatEuro(summary.collected)}</strong> · Da
+                pianificare <strong>{formatEuro(summary.unscheduled)}</strong>
+                <span style={S.summaryMuted}> · Residuo {formatEuro(summary.remaining)}</span>
               </div>
               {summary.nextDueDate && (
                 <div style={S.summaryNext}>
@@ -397,17 +439,63 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
                   onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
                   placeholder="0,00"
                 />
+                {hasBase && (
+                  <>
+                    <div style={S.quickRow}>
+                      <button type="button" style={S.quickBtn} onClick={() => setForm(f => ({ ...f, amount: String(round2(base * 0.5)) }))}>
+                        50%
+                      </button>
+                      <button type="button" style={S.quickBtn} onClick={() => setForm(f => ({ ...f, amount: String(round2(base * 0.25)) }))}>
+                        25%
+                      </button>
+                      <button type="button" style={S.quickBtn} onClick={() => setForm(f => ({ ...f, amount: String(base) }))}>
+                        Resto {formatEuro(base)}
+                      </button>
+                    </div>
+                    {overBase ? (
+                      <div style={S.remainderErr}>Supera il residuo da pianificare ({formatEuro(base)})</div>
+                    ) : (
+                      <div style={S.remainder}>Ti mancano {formatEuro(round2(base - importoNum))} da pianificare</div>
+                    )}
+                  </>
+                )}
               </div>
 
-              {!form.dateTbd && (
-                <DateTimeField label="Scadenza *" mode="date" value={form.dueDate} onChange={v => setForm(f => ({ ...f, dueDate: v }))} />
-              )}
-
               <label style={S.check}>
-                <input type="checkbox" checked={form.dateTbd} onChange={e => setForm(f => ({ ...f, dateTbd: e.target.checked }))} />
-                <span>📌 Data da definire</span>
+                <input type="checkbox" checked={form.paid} onChange={e => togglePaid(e.target.checked)} />
+                <span>Già pagata</span>
               </label>
-              {form.dateTbd && <div style={S.muted}>La rata ricomparirà al prossimo appuntamento di questa cliente per questo pacchetto.</div>}
+
+              {form.paid ? (
+                /* Paid rata: only the date it was paid (+ optional method) — no due date. */
+                <div style={S.paidBlock}>
+                  <DateTimeField label="Pagata il *" mode="date" value={form.paidDate} onChange={v => setForm(f => ({ ...f, paidDate: v }))} />
+                  <div>
+                    <label className="nad-form__label" style={S.label}>
+                      Metodo
+                    </label>
+                    <input
+                      className="nad-form__input"
+                      type="text"
+                      value={form.paymentMethod}
+                      onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                      placeholder="Contanti, carta…"
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* Unpaid rata: a due date, or "da definire" if it's not fixed yet. */
+                <>
+                  {!form.dateTbd && (
+                    <DateTimeField label="Scadenza *" mode="date" value={form.dueDate} onChange={v => setForm(f => ({ ...f, dueDate: v }))} />
+                  )}
+                  <label style={S.check}>
+                    <input type="checkbox" checked={form.dateTbd} onChange={e => setForm(f => ({ ...f, dateTbd: e.target.checked }))} />
+                    <span>📌 Data da definire</span>
+                  </label>
+                  {form.dateTbd && <div style={S.muted}>La rata ricomparirà al prossimo appuntamento di questa cliente per questo pacchetto.</div>}
+                </>
+              )}
 
               <div>
                 <label className="nad-form__label" style={S.label}>
@@ -422,29 +510,6 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
                   maxLength={200}
                 />
               </div>
-
-              <label style={S.check}>
-                <input type="checkbox" checked={form.paid} onChange={e => togglePaid(e.target.checked)} />
-                <span>Già pagata</span>
-              </label>
-
-              {form.paid && (
-                <div style={S.paidBlock}>
-                  <DateTimeField label="Pagata il" mode="date" value={form.paidDate} onChange={v => setForm(f => ({ ...f, paidDate: v }))} />
-                  <div>
-                    <label className="nad-form__label" style={S.label}>
-                      Metodo
-                    </label>
-                    <input
-                      className="nad-form__input"
-                      type="text"
-                      value={form.paymentMethod}
-                      onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}
-                      placeholder="Contanti, carta…"
-                    />
-                  </div>
-                </div>
-              )}
 
               {formError && <div className="nad-form__error">{formError}</div>}
 
