@@ -254,6 +254,10 @@
   background: #10b981;
 }
 
+.rep-bar-packages {
+  background: #b8976a;
+}
+
 .rep-bar-zero {
   height: 4px !important;
   background: rgba(231, 214, 195, 0.9);
@@ -292,6 +296,10 @@
 
 .rep-dot--prod {
   background: #10b981;
+}
+
+.rep-dot--pkg {
+  background: #b8976a;
 }
 
 .rep-sections-grid {

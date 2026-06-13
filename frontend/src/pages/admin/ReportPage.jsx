@@ -110,6 +110,10 @@ function ReportPage() {
           <div className="rep-kpi-value">{fmtCurrency(summary.productsRevenue)}</div>
         </div>
         <div className="rep-kpi">
+          <div className="rep-kpi-label">Pacchetti</div>
+          <div className="rep-kpi-value">{fmtCurrency(summary.packagesRevenue)}</div>
+        </div>
+        <div className="rep-kpi">
           <div className="rep-kpi-label">Cancellati / No-show</div>
           <div className="rep-kpi-value">{summary.cancelledBookings}</div>
           <div className="rep-kpi-sub">Nuove clienti: {summary.newClientsCount}</div>
@@ -131,11 +135,13 @@ function ReportPage() {
               const key = `${m.year}-${m.month}`;
               const t = Number(m.treatments ?? 0);
               const p = Number(m.products ?? 0);
-              const total = t + p;
+              const k = Number(m.packages ?? 0);
+              const total = t + p + k;
               const denom = maxMonthly > 0 ? maxMonthly : 1;
               const totalPct = Math.max(0.05, total / denom);
               const tPct = total > 0 ? t / total : 0;
               const pPct = total > 0 ? p / total : 0;
+              const kPct = total > 0 ? k / total : 0;
 
               return (
                 <div key={key} className="rep-bar-col" title={`${formatMonthLabel(m.year, m.month)} · ${fmtCurrency(m.total)}`}>
@@ -144,6 +150,7 @@ function ReportPage() {
                       <div className="rep-bar-zero" />
                     ) : (
                       <>
+                        {k > 0 && <div className="rep-bar-segment rep-bar-packages" style={{ height: `${totalPct * 100 * kPct}%` }} />}
                         {p > 0 && <div className="rep-bar-segment rep-bar-products" style={{ height: `${totalPct * 100 * pPct}%` }} />}
                         {t > 0 && <div className="rep-bar-segment rep-bar-treatments" style={{ height: `${totalPct * 100 * tPct}%` }} />}
                       </>
@@ -162,6 +169,9 @@ function ReportPage() {
           <div className="rep-legend-item">
             <span className="rep-dot rep-dot--prod" /> Prodotti
           </div>
+          <div className="rep-legend-item">
+            <span className="rep-dot rep-dot--pkg" /> Pacchetti
+          </div>
         </div>
       </>
     );
@@ -170,7 +180,7 @@ function ReportPage() {
   const exportCsv = () => {
     if (!monthly.length) return;
     const lines = [
-      "Mese;Trattamenti (€);Prodotti (€);Totale (€)",
+      "Mese;Trattamenti (€);Prodotti (€);Pacchetti (€);Totale (€)",
       ...monthly.map(m => {
         const label = `${MONTH_LABELS[m.month - 1]} ${m.year}`;
         const t = Number(m.treatments ?? 0)
@@ -179,10 +189,13 @@ function ReportPage() {
         const p = Number(m.products ?? 0)
           .toFixed(2)
           .replace(".", ",");
+        const k = Number(m.packages ?? 0)
+          .toFixed(2)
+          .replace(".", ",");
         const tot = Number(m.total ?? 0)
           .toFixed(2)
           .replace(".", ",");
-        return `${label};${t};${p};${tot}`;
+        return `${label};${t};${p};${k};${tot}`;
       }),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
