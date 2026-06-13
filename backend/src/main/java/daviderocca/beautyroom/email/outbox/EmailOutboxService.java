@@ -42,6 +42,14 @@ public class EmailOutboxService {
         if (booking == null || booking.getBookingId() == null) return;
         if (booking.getStartTime() == null) return;
 
+        // RESCHEDULE-SAFE: drop any existing reminder so a moved booking re-schedules at the
+        // new time (the unique constraint uk_email_event_agg would otherwise block the re-insert,
+        // pinning the reminder to the stale time). Safe against duplicate sends: a reminder that
+        // already fired implies the appointment is <=24h away, so the 25h guard below then
+        // prevents re-creating it.
+        repo.deleteByEventTypeAndAggregateTypeAndAggregateId(
+                EmailEventType.BOOKING_REMINDER_24H, EmailAggregateType.BOOKING, booking.getBookingId());
+
         LocalDateTime now = LocalDateTime.now();
 
         LocalDateTime sched = booking.getStartTime().minusHours(24);
