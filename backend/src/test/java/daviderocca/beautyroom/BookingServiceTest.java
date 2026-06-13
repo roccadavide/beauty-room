@@ -79,6 +79,12 @@ class BookingServiceTest {
     // on closureService.assertNoOverlappingClosure(...). Pure test-infra fix.
     @Mock
     private daviderocca.beautyroom.services.ClosureService closureService;
+    // Added as a final dependency of BookingService by the email-feature merge.
+    // Without this mock @InjectMocks injects null and the fire-and-forget email
+    // calls NPE — the 3 pre-existing BookingServiceTest failures. The calls are
+    // void, so Mockito's default no-op is correct; no stubbing needed.
+    @Mock
+    private daviderocca.beautyroom.email.outbox.EmailOutboxService emailOutboxService;
     @Mock
     private BookingSaleRepository bookingSaleRepository;
     @Mock
