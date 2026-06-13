@@ -394,3 +394,29 @@ export const archiveRecurringTemplate = async id => {
     throw new Error(message);
   }
 };
+
+/* ================= PACKAGE INSTALLMENTS ================= */
+// Installments due in a date window (the agenda queries [date, date]).
+// Backend: GET /admin/package-installments/due?from=&to= ->
+//   [{ installmentId, packageAssignmentId, clientName, packageName, amount, dueDate, total, remaining }]
+export const getInstallmentsDue = async (from, to) => {
+  try {
+    const { data } = await http.get("/admin/package-installments/due", { params: { from, to } });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore caricamento rate in scadenza.";
+    throw new Error(message);
+  }
+};
+
+// Register the payment of one installment.
+// Backend: PATCH /admin/package-assignments/{assignmentId}/installments/{installmentId}/settle  body { paidDate }
+export const settlePackageInstallment = async (assignmentId, installmentId, body) => {
+  try {
+    const { data } = await http.patch(`/admin/package-assignments/${assignmentId}/installments/${installmentId}/settle`, body);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante il saldo della rata.";
+    throw new Error(message);
+  }
+};
