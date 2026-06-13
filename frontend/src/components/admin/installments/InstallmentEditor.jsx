@@ -154,9 +154,36 @@ const S = {
     fontStyle: "italic",
     fontWeight: 600,
   },
+  // ── Inline variant (in-drawer sub-view of the Pacchetti tab) ────────────────
+  // Renders in-flow inside .nad-content (already padded + scrollable): no panel
+  // box / backdrop / fixed sizing, and no inner width or max-height caps so the
+  // list and form fill the drawer width and scroll with the drawer, not nested.
+  panelInline: { display: "flex", flexDirection: "column" },
+  back: {
+    alignSelf: "flex-start",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontSize: "0.84rem",
+    fontWeight: 600,
+    color: "#b8976a",
+    padding: "2px 0",
+    marginBottom: 12,
+  },
+  titleInline: {
+    fontSize: "1.02rem",
+    fontWeight: 700,
+    color: "#5a4030",
+    paddingBottom: 12,
+    marginBottom: 4,
+    borderBottom: "1px solid rgba(184, 151, 106, 0.25)",
+  },
+  bodyInline: { display: "flex", flexDirection: "column", gap: 12, paddingTop: 14 },
+  listInline: { display: "flex", flexDirection: "column", gap: 8 },
 };
 
-export default function InstallmentEditor({ assignmentId, packageName, onClose, onChanged }) {
+export default function InstallmentEditor({ assignmentId, packageName, onClose, onChanged, inline = false, onBack }) {
   const [installments, setInstallments] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -192,10 +219,13 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
   // Don't tear the modal down mid-save; let ConfirmDialog own Escape when it's up.
   const requestClose = useCallback(() => {
     if (submitting) return;
-    onClose();
+    onClose?.();
   }, [submitting, onClose]);
 
+  // Modal-only: Escape closes the overlay. Inline lives inside the drawer, which
+  // owns Escape (and gets no onClose), so don't hijack the key there.
   useEffect(() => {
+    if (inline) return;
     const onKey = e => {
       if (e.key !== "Escape") return;
       if (confirmDelete) return; // ConfirmDialog handles its own Escape
@@ -203,15 +233,17 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [confirmDelete, requestClose]);
+  }, [inline, confirmDelete, requestClose]);
 
+  // Modal-only: lock page scroll behind the overlay. Inline scrolls with the drawer.
   useEffect(() => {
+    if (inline) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, []);
+  }, [inline]);
 
   // ── Form open helpers ───────────────────────────────────────────────────────
   const openAdd = () => {
@@ -359,17 +391,8 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
     return <span className="ag-pill ag-pill--unpaid">Da incassare il {fmtDate(inst.dueDate)}</span>;
   };
 
-  return createPortal(
-    <div style={S.backdrop} onClick={requestClose}>
-      <div style={S.panel} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div style={S.header}>
-          <div style={S.title}>📅 Piano rate — {packageName}</div>
-          <button type="button" style={S.close} onClick={requestClose} aria-label="Chiudi">
-            ✕
-          </button>
-        </div>
-
-        <div style={S.body}>
+  const bodyInner = (
+    <>
           {/* Summary bar */}
           {summary && (
             <div style={S.summary}>
@@ -392,7 +415,7 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
           {/* List */}
           {!loading && installments.length === 0 && <div style={S.muted}>Nessuna rata ancora pianificata.</div>}
           {installments.length > 0 && (
-            <div style={S.list}>
+            <div style={inline ? S.listInline : S.list}>
               {installments.map(inst => (
                 <div key={inst.id} style={S.row}>
                   <div style={S.rowMain}>
@@ -527,22 +550,52 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
               + Aggiungi rata
             </button>
           )}
-        </div>
-      </div>
+    </>
+  );
 
-      <ConfirmDialog
-        show={!!confirmDelete}
-        onHide={() => setConfirmDelete(null)}
-        onConfirm={doDelete}
-        title="Elimina rata"
-        message={
-          confirmDelete?.paid
-            ? `Questa rata da ${formatEuro(confirmDelete?.amount)} risulta incassata: eliminandola rimuovi anche l'incasso registrato. Procedere?`
-            : `Vuoi eliminare la rata da ${formatEuro(confirmDelete?.amount)}?`
-        }
-        confirmLabel="Elimina"
-        confirmVariant="danger"
-      />
+  const confirm = (
+    <ConfirmDialog
+      show={!!confirmDelete}
+      onHide={() => setConfirmDelete(null)}
+      onConfirm={doDelete}
+      title="Elimina rata"
+      message={
+        confirmDelete?.paid
+          ? `Questa rata da ${formatEuro(confirmDelete?.amount)} risulta incassata: eliminandola rimuovi anche l'incasso registrato. Procedere?`
+          : `Vuoi eliminare la rata da ${formatEuro(confirmDelete?.amount)}?`
+      }
+      confirmLabel="Elimina"
+      confirmVariant="danger"
+    />
+  );
+
+  // Inline: in-flow sub-view inside the Pacchetti tab — no portal, no backdrop.
+  if (inline) {
+    return (
+      <div style={S.panelInline}>
+        <button type="button" style={S.back} onClick={onBack}>
+          ← Torna ai pacchetti
+        </button>
+        <div style={S.titleInline}>📅 Piano rate — {packageName}</div>
+        <div style={S.bodyInline}>{bodyInner}</div>
+        {confirm}
+      </div>
+    );
+  }
+
+  // Default: centered modal — the agenda Posticipa entry point. Unchanged.
+  return createPortal(
+    <div style={S.backdrop} onClick={requestClose}>
+      <div style={S.panel} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div style={S.header}>
+          <div style={S.title}>📅 Piano rate — {packageName}</div>
+          <button type="button" style={S.close} onClick={requestClose} aria-label="Chiudi">
+            ✕
+          </button>
+        </div>
+        <div style={S.body}>{bodyInner}</div>
+      </div>
+      {confirm}
     </div>,
     document.body,
   );

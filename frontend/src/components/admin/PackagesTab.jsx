@@ -73,6 +73,16 @@ export default function PackagesTab({ customer, services = [], isOpen, onPackage
 
   return (
     <div className="pkgt">
+      {rateEditorPkg ? (
+        <InstallmentEditor
+          inline
+          assignmentId={rateEditorPkg.id}
+          packageName={rateEditorPkg.displayName || rateEditorPkg.customPackageName || rateEditorPkg.serviceTitle || "Pacchetto"}
+          onBack={() => setRateEditorPkg(null)}
+          onChanged={reload}
+        />
+      ) : (
+        <>
       {/* ── Part A: active packages list ─────────────────────────────────── */}
       <div className="pkgt-section">
         <div className="pkgt-section__title">
@@ -184,14 +194,7 @@ export default function PackagesTab({ customer, services = [], isOpen, onPackage
         confirmLabel="Elimina"
         confirmVariant="danger"
       />
-
-      {rateEditorPkg && (
-        <InstallmentEditor
-          assignmentId={rateEditorPkg.id}
-          packageName={rateEditorPkg.displayName || rateEditorPkg.customPackageName || rateEditorPkg.serviceTitle || "Pacchetto"}
-          onClose={() => setRateEditorPkg(null)}
-          onChanged={reload}
-        />
+        </>
       )}
     </div>
   );
