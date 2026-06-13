@@ -6,6 +6,7 @@ public record PeriodSummaryDTO(
         BigDecimal totalRevenue,
         BigDecimal treatmentsRevenue,
         BigDecimal productsRevenue,
+        BigDecimal packagesRevenue,
         long completedBookings,
         long cancelledBookings,
         long newClientsCount

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -41,4 +42,31 @@ public interface PackageInstallmentRepository extends JpaRepository<PackageInsta
     List<PackageInstallment> findUnpaidDueBetween(@Param("from") LocalDate from,
                                                   @Param("to") LocalDate to,
                                                   @Param("excludedStatus") ClientPackageStatus excludedStatus);
+
+    /**
+     * Phase 4a — report "packages" revenue stream. Sum of PAID installment amounts
+     * bucketed by paid month over the half-open range [from, to). Same Object[]
+     * (year, month, sum) shape as the treatments/products monthly aggregations, so
+     * ReportService can merge all three streams the same way.
+     */
+    @Query("""
+            select year(pi.paidDate), month(pi.paidDate), sum(pi.amount)
+            from PackageInstallment pi
+            where pi.paid = true
+              and pi.paidDate >= :from and pi.paidDate < :to
+            group by year(pi.paidDate), month(pi.paidDate)
+            order by year(pi.paidDate), month(pi.paidDate)
+            """)
+    List<Object[]> monthlyPackageRevenue(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    /**
+     * Phase 4a — scalar packages total for the period summary, same half-open range.
+     */
+    @Query("""
+            select coalesce(sum(pi.amount), 0)
+            from PackageInstallment pi
+            where pi.paid = true
+              and pi.paidDate >= :from and pi.paidDate < :to
+            """)
+    BigDecimal totalPackageRevenue(@Param("from") LocalDate from, @Param("to") LocalDate to);
 }

@@ -4,6 +4,7 @@ import daviderocca.beautyroom.DTO.reportDTOs.PeriodSummaryDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ServiceRevenueDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.TopClientDTO;
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import daviderocca.beautyroom.enums.OrderStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -20,7 +21,8 @@ public class ReportRepository {
     @PersistenceContext
     private EntityManager em;
 
-    public List<Object[]> monthlyTreatmentRevenue(LocalDateTime from, LocalDateTime to) {
+    public List<Object[]> monthlyTreatmentRevenue(LocalDateTime from, LocalDateTime to,
+                                                  List<ClientPackagePaymentMode> ledgerModes) {
         return em.createQuery("""
                         SELECT YEAR(b.startTime), MONTH(b.startTime),
                                SUM(COALESCE(so.price, s.price))
@@ -30,12 +32,18 @@ public class ReportRepository {
                         WHERE b.bookingStatus = :status
                           AND b.startTime >= :from
                           AND b.startTime < :to
+                          AND NOT EXISTS (
+                              SELECT 1 FROM BookingPackageLink bpl
+                              WHERE bpl.booking = b
+                                AND bpl.assignment.paymentMode IN :ledgerModes
+                          )
                         GROUP BY YEAR(b.startTime), MONTH(b.startTime)
                         ORDER BY YEAR(b.startTime), MONTH(b.startTime)
                         """, Object[].class)
                 .setParameter("status", BookingStatus.COMPLETED)
                 .setParameter("from", from)
                 .setParameter("to", to)
+                .setParameter("ledgerModes", ledgerModes)
                 .getResultList();
     }
 
@@ -56,7 +64,8 @@ public class ReportRepository {
                 .getResultList();
     }
 
-    public List<ServiceRevenueDTO> topServices(LocalDateTime from, LocalDateTime to) {
+    public List<ServiceRevenueDTO> topServices(LocalDateTime from, LocalDateTime to,
+                                               List<ClientPackagePaymentMode> ledgerModes) {
         List<Object[]> rows = em.createQuery("""
                         SELECT b.service.title,
                                COUNT(b),
@@ -67,12 +76,18 @@ public class ReportRepository {
                         WHERE b.bookingStatus = :status
                           AND b.startTime >= :from
                           AND b.startTime < :to
+                          AND NOT EXISTS (
+                              SELECT 1 FROM BookingPackageLink bpl
+                              WHERE bpl.booking = b
+                                AND bpl.assignment.paymentMode IN :ledgerModes
+                          )
                         GROUP BY b.service.title
                         ORDER BY COUNT(b) DESC
                         """, Object[].class)
                 .setParameter("status", BookingStatus.COMPLETED)
                 .setParameter("from", from)
                 .setParameter("to", to)
+                .setParameter("ledgerModes", ledgerModes)
                 .setMaxResults(10)
                 .getResultList();
 
@@ -116,7 +131,9 @@ public class ReportRepository {
         return result;
     }
 
-    public PeriodSummaryDTO periodSummary(LocalDateTime from, LocalDateTime to) {
+    public PeriodSummaryDTO periodSummary(LocalDateTime from, LocalDateTime to,
+                                          List<ClientPackagePaymentMode> ledgerModes,
+                                          BigDecimal packages) {
         BigDecimal treatments = (BigDecimal) em.createQuery("""
                         SELECT COALESCE(SUM(COALESCE(so.price, s.price)), 0)
                         FROM Booking b
@@ -125,10 +142,16 @@ public class ReportRepository {
                         WHERE b.bookingStatus = :status
                           AND b.startTime >= :from
                           AND b.startTime < :to
+                          AND NOT EXISTS (
+                              SELECT 1 FROM BookingPackageLink bpl
+                              WHERE bpl.booking = b
+                                AND bpl.assignment.paymentMode IN :ledgerModes
+                          )
                         """)
                 .setParameter("status", BookingStatus.COMPLETED)
                 .setParameter("from", from)
                 .setParameter("to", to)
+                .setParameter("ledgerModes", ledgerModes)
                 .getSingleResult();
 
         BigDecimal products = (BigDecimal) em.createQuery("""
@@ -184,12 +207,13 @@ public class ReportRepository {
                 .setParameter("to", to)
                 .getSingleResult();
 
-        BigDecimal total = treatments.add(products);
+        BigDecimal total = treatments.add(products).add(packages);
 
         return new PeriodSummaryDTO(
                 total,
                 treatments,
                 products,
+                packages,
                 completed,
                 cancelled,
                 newClients

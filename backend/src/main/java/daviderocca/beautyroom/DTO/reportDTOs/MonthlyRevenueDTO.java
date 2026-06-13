@@ -7,6 +7,7 @@ public record MonthlyRevenueDTO(
         int month,
         BigDecimal treatments,
         BigDecimal products,
+        BigDecimal packages,
         BigDecimal total
 ) {}
 
