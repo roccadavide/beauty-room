@@ -942,6 +942,17 @@ public class BookingService {
 
         Booking hydrated = bookingRepository.findByIdWithDetails(saved.getBookingId())
                 .orElseThrow(() -> new ResourceNotFoundException(saved.getBookingId()));
+
+        // PROMPT E: agenda-created appointment → confirmation + 24h reminder (same chain as the
+        // online and in-store paths). No email gate is needed here: enqueueSafe no-ops when the
+        // customerEmail is null/blank, so walk-ins without an email get nothing. No double-send
+        // either: the uk_email_event_agg unique guard makes the edit path's later
+        // enqueueBookingConfirmed a no-op for the confirmation (it only reschedules the reminder).
+        // Future gate: back-filling a PAST appointment (data entry of history) must not email the
+        // client a confirmation for something already happened.
+        if (hydrated.getStartTime() != null && hydrated.getStartTime().isAfter(LocalDateTime.now())) {
+            emailOutboxService.enqueueBookingConfirmed(hydrated);
+        }
         return convertToDTO(hydrated);
     }
 
@@ -1551,7 +1562,9 @@ public class BookingService {
             log.info("PackageCredit {} marked REFUNDED for bookingId={}", pc.getPackageCreditId(), bookingId);
         }
 
-        emailOutboxService.enqueueBookingRefunded(booking);
+        // PROMPT A: rimborso manuale concordato → email NEUTRA "Rimborso confermato" (con importo),
+        // non la "slot occupato" (che resta solo per il vero PAID_CONFLICT nel webhook).
+        emailOutboxService.enqueueBookingRefundConfirmed(booking);
         log.info("Booking rimborsato via Stripe: id={} paymentIntent={}", bookingId, paymentIntentId);
     }
 
@@ -1595,6 +1608,7 @@ public class BookingService {
             throw new BadRequestException("Esiste già una prenotazione in questo intervallo.");
         }
 
+        LocalDateTime oldStart = found.getStartTime(); // PROMPT B: capture pre-move start before overwrite
         found.setStartTime(start);
         found.setEndTime(end);
         found.setService(serviceItem);
@@ -1616,7 +1630,16 @@ public class BookingService {
 
         Booking updated = bookingRepository.save(found);
         maybeRecalculatePackage(bookingId);
-        emailOutboxService.enqueueBookingConfirmed(updated);
+        // PROMPT B: the confirmation was already enqueued at create (agenda/online/in-store), so we
+        // do NOT re-send it on edit. On a real time change to a FUTURE slot, send "spostato" (from→to,
+        // previous start persisted for the async worker); always realign the 24h reminder (no confirm).
+        boolean moved = oldStart != null && updated.getStartTime() != null
+                && !oldStart.equals(updated.getStartTime());
+        if (moved && updated.getStartTime().isAfter(LocalDateTime.now())) {
+            updated.setPreviousStartTime(oldStart);
+            emailOutboxService.enqueueBookingRescheduled(updated);
+        }
+        emailOutboxService.enqueueBookingReminder24h(updated);
         log.info("Booking updated: id={} status={} padding={}min", updated.getBookingId(), updated.getBookingStatus(), updated.getPaddingMinutes());
 
         // V64 (Fase 1.5): arretrati return-notification on edit (same hook/anti-dup as create).
@@ -1723,6 +1746,7 @@ public class BookingService {
             throw new BadRequestException("Lo slot selezionato non è disponibile.");
         }
 
+        LocalDateTime oldStart = found.getStartTime(); // PROMPT B: capture pre-move start before overwrite
         found.setStartTime(start);
         found.setEndTime(end);
         found.setDurationMinutes(totalDuration);
@@ -2023,7 +2047,16 @@ public class BookingService {
                         bookingPackageLinkRepository.save(lnk);
                     });
         }
-        emailOutboxService.enqueueBookingConfirmed(updated);
+        // PROMPT B: confirmation already enqueued at create — don't re-send on edit. On a real time
+        // change to a FUTURE slot, send "spostato" (from→to, previous persisted for the async worker);
+        // always realign the 24h reminder (no confirmation re-send).
+        boolean moved = oldStart != null && updated.getStartTime() != null
+                && !oldStart.equals(updated.getStartTime());
+        if (moved && updated.getStartTime().isAfter(LocalDateTime.now())) {
+            updated.setPreviousStartTime(oldStart);
+            emailOutboxService.enqueueBookingRescheduled(updated);
+        }
+        emailOutboxService.enqueueBookingReminder24h(updated);
         log.info("Multi-service booking updated: id={} start={} duration={}min custom={} pkgLinks={}->{} (added={}, removed={})",
                 updated.getBookingId(), start, totalDuration, hasCustom,
                 existingAssignmentIdSet.size(), requestedAssignmentIdSet.size(),
@@ -2089,6 +2122,14 @@ public class BookingService {
         found.setBookingStatus(newStatus);
         Booking updated = bookingRepository.save(found);
         maybeRecalculatePackage(bookingId);
+
+        // PROMPT B: notify the customer that a FUTURE appointment was cancelled (generic, no reason).
+        // Delete-first enqueue keeps this to one email even if cancelBooking also runs.
+        if (newStatus == BookingStatus.CANCELLED
+                && updated.getStartTime() != null
+                && updated.getStartTime().isAfter(LocalDateTime.now())) {
+            emailOutboxService.enqueueBookingCancelled(updated);
+        }
 
         log.info("Booking status updated: id={} {} -> {} packageCredit={}",
                 updated.getBookingId(), old, newStatus,
@@ -2714,6 +2755,12 @@ public class BookingService {
         restoreStandaloneSaleStock(bookingId);
         log.info("Booking cancelled: id={} reason={}", bookingId, found.getCancelReason());
 
+        // PROMPT B: notify the customer that a FUTURE appointment was cancelled (generic, no reason).
+        // Delete-first enqueue keeps this to one email even if updateBookingStatus also runs.
+        if (found.getStartTime() != null && found.getStartTime().isAfter(LocalDateTime.now())) {
+            emailOutboxService.enqueueBookingCancelled(found);
+        }
+
         if (!admin) {
             try {
                 String when = found.getStartTime().format(NOTIF_FMT);
@@ -2839,6 +2886,44 @@ public class BookingService {
     /** Non-agenda callers (findPmuUnsigned, signConsent): no arretrati badge. */
     private AdminBookingCardDTO toAdminCard(Booking b) {
         return toAdminCard(b, false);
+    }
+
+    /**
+     * Email-layer reuse: assemble the SAME full booking card the admin agenda renders,
+     * so transactional emails total a booking identically to the agenda card. Thin
+     * delegator to the no-arg {@link #toAdminCard(Booking)} (no arretrati badge) — keeps
+     * the EntityManager/repos/clientPackageService wiring inside BookingService. Must be
+     * called inside an open transaction (the email outbox worker runs REQUIRES_NEW).
+     */
+    public AdminBookingCardDTO assembleBookingCard(Booking b) {
+        return toAdminCard(b);
+    }
+
+    /**
+     * 1-based session number of a credit-backed (online prepaid package) booking, derived by
+     * ranking every booking that shares the same {@link PackageCredit} by startTime. Mirrors
+     * {@code ClientPackageService.recalculatePackageSessions}: CANCELLED / NO_SHOW bookings do
+     * not count. Returns 0 when {@code b} is not credit-backed or isn't found in the filtered
+     * list (the email render then falls back to "N sedute · M rimanenti").
+     * Used by {@link daviderocca.beautyroom.email.templates.BookingEmailAssembler} to show
+     * "Seduta X di N" for online packages, just like admin ones.
+     */
+    public int packageSessionNumber(Booking b) {
+        if (b == null || b.getPackageCredit() == null
+                || b.getPackageCredit().getPackageCreditId() == null) return 0;
+        List<Booking> siblings = bookingRepository
+                .findByPackageCredit_PackageCreditIdOrderByStartTimeAsc(
+                        b.getPackageCredit().getPackageCreditId());
+        int rank = 0;
+        for (Booking sib : siblings) {
+            BookingStatus s = sib.getBookingStatus();
+            if (s == BookingStatus.CANCELLED || s == BookingStatus.NO_SHOW) continue;
+            rank++;
+            if (sib.getBookingId() != null && sib.getBookingId().equals(b.getBookingId())) {
+                return rank;
+            }
+        }
+        return 0;
     }
 
     private AdminBookingCardDTO toAdminCard(Booking b, boolean hasOutstanding) {

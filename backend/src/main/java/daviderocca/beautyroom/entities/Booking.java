@@ -51,6 +51,11 @@ public class Booking {
     @Column(name = "start_time", nullable = false)
     private LocalDateTime startTime;
 
+    // PROMPT B: pre-move start, persisted so the async "spostato" email can show Prima → Ora.
+    // Nullable: set only when an appointment is actually moved (see BookingService update paths).
+    @Column(name = "previous_start_time")
+    private LocalDateTime previousStartTime;
+
     @Column(name = "end_time", nullable = false)
     private LocalDateTime endTime;
 

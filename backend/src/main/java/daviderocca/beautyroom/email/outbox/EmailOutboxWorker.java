@@ -3,6 +3,7 @@ package daviderocca.beautyroom.email.outbox;
 import daviderocca.beautyroom.email.events.EmailAggregateType;
 import daviderocca.beautyroom.email.events.EmailEventType;
 import daviderocca.beautyroom.email.provider.MailgunSender;
+import daviderocca.beautyroom.email.templates.BookingEmailAssembler;
 import daviderocca.beautyroom.email.templates.EmailContent;
 import daviderocca.beautyroom.email.templates.EmailTemplateService;
 import daviderocca.beautyroom.entities.Booking;
@@ -50,8 +51,10 @@ public class EmailOutboxWorker {
 
     private final MailgunSender         mailgunSender;
     private final EmailTemplateService  templates;
+    // v3 multi-item booking emails: assembles the model from the admin agenda card.
+    private final BookingEmailAssembler bookingEmailAssembler;
 
-    @Value("${app.front.url:http://localhost:5173}")
+    @Value("${app.frontend.url:https://beauty-room.it}")
     private String frontUrl;
 
     private final String lockOwner = resolveLockOwner();
@@ -190,17 +193,27 @@ public class EmailOutboxWorker {
                 // Eccezione: PAID_CONFLICT (admin) e BOOKING_REFUNDED (cliente) devono essere inviate
                 // anche se il booking è CANCELLED, perché la cancellazione è proprio il motivo dell'email.
                 // FIX-6: aggiunto BOOKING_REFUNDED come eccezione al filtro CANCELLED
-                if (type != EmailEventType.PAID_CONFLICT && type != EmailEventType.BOOKING_REFUNDED) {
+                // PROMPT A: anche BOOKING_REFUND_CONFIRMED (rimborso concordato) va inviata su CANCELLED/REFUNDED.
+                // PROMPT B: anche BOOKING_CANCELLED (la cancellazione È il motivo dell'email).
+                if (type != EmailEventType.PAID_CONFLICT
+                        && type != EmailEventType.BOOKING_REFUNDED
+                        && type != EmailEventType.BOOKING_REFUND_CONFIRMED
+                        && type != EmailEventType.BOOKING_CANCELLED) {
                     throw new SkipEmailException("Booking cancelled (skip): " + b.getBookingId());
                 }
             }
 
             return switch (type) {
-                case BOOKING_CONFIRMED -> templates.bookingConfirmed(b);
-                case BOOKING_REMINDER_24H -> templates.bookingReminder(b);
+                case BOOKING_CONFIRMED -> templates.bookingConfirmed(bookingEmailAssembler.toModel(b, false));
+                case BOOKING_REMINDER_24H -> templates.bookingReminder(bookingEmailAssembler.toModel(b, true));
                 case PAID_CONFLICT -> templates.paidConflictAlert(b, null);
-                // FIX-6: template rimborso automatico per PAID_CONFLICT
+                // FIX-6: template rimborso automatico per PAID_CONFLICT (slot occupato)
                 case BOOKING_REFUNDED -> templates.bookingRefunded(b);
+                // PROMPT A: rimborso neutro concordato (riusa il modello assembler, prezzi visibili)
+                case BOOKING_REFUND_CONFIRMED -> templates.bookingRefundConfirmed(bookingEmailAssembler.toModel(b, false));
+                // PROMPT B: appuntamento spostato (Prima→Ora) e annullato (generico)
+                case BOOKING_RESCHEDULED -> templates.bookingRescheduled(bookingEmailAssembler.toModel(b, false));
+                case BOOKING_CANCELLED -> templates.bookingCancelled(bookingEmailAssembler.toModel(b, false));
                 case REVIEW_REQUEST -> templates.reviewRequest(b);
                 default -> throw new IllegalArgumentException("Unsupported booking event: " + type);
             };
@@ -212,6 +225,8 @@ public class EmailOutboxWorker {
 
             return switch (type) {
                 case ORDER_PAID -> templates.orderPaid(o);
+                // PROMPT A: rimborso ordine neutro concordato
+                case ORDER_REFUND_CONFIRMED -> templates.orderRefundConfirmed(o);
                 default -> throw new IllegalArgumentException("Unsupported order event: " + type);
             };
         }

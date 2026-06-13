@@ -404,6 +404,15 @@ public class OrderService {
         order.setOrderStatus(OrderStatus.REFUNDED);
         orderRepository.save(order);
         log.info("Ordine rimborsato via Stripe: id={} paymentIntent={}", orderId, paymentIntentId);
+
+        // PROMPT A: notifica cliente — rimborso ordine neutro confermato (con importo). Non-blocking:
+        // lo Stripe refund è già andato a buon fine, un intoppo email non deve far rollback.
+        try {
+            emailOutboxService.enqueueOrderRefundConfirmed(order);
+        } catch (Exception ex) {
+            log.warn("enqueueOrderRefundConfirmed failed (non-blocking): orderId={} err={}", orderId, ex.getMessage());
+        }
+
         return findOrderByIdAndConvert(orderId);
     }
 

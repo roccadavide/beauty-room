@@ -42,6 +42,14 @@ public class EmailOutboxService {
         if (booking == null || booking.getBookingId() == null) return;
         if (booking.getStartTime() == null) return;
 
+        // RESCHEDULE-SAFE: drop any existing reminder so a moved booking re-schedules at the
+        // new time (the unique constraint uk_email_event_agg would otherwise block the re-insert,
+        // pinning the reminder to the stale time). Safe against duplicate sends: a reminder that
+        // already fired implies the appointment is <=24h away, so the 25h guard below then
+        // prevents re-creating it.
+        repo.deleteByEventTypeAndAggregateTypeAndAggregateId(
+                EmailEventType.BOOKING_REMINDER_24H, EmailAggregateType.BOOKING, booking.getBookingId());
+
         LocalDateTime now = LocalDateTime.now();
 
         LocalDateTime sched = booking.getStartTime().minusHours(24);
@@ -72,12 +80,72 @@ public class EmailOutboxService {
         );
     }
 
+    // PROMPT A: rimborso ordine neutro confermato (concordato, NON slot occupato).
+    public void enqueueOrderRefundConfirmed(Order order) {
+        if (order == null || order.getOrderId() == null) return;
+
+        enqueueSafe(
+                EmailEventType.ORDER_REFUND_CONFIRMED,
+                EmailAggregateType.ORDER,
+                order.getOrderId(),
+                normalizeEmail(order.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
     // FIX-6: notifica cliente che il suo slot era già occupato e il pagamento verrà rimborsato
     public void enqueueBookingRefunded(Booking booking) {
         if (booking == null || booking.getBookingId() == null) return;
 
         enqueueSafe(
                 EmailEventType.BOOKING_REFUNDED,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                normalizeEmail(booking.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
+    // PROMPT A: rimborso prenotazione neutro confermato (concordato col cliente, NON slot occupato).
+    public void enqueueBookingRefundConfirmed(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) return;
+
+        enqueueSafe(
+                EmailEventType.BOOKING_REFUND_CONFIRMED,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                normalizeEmail(booking.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
+    // PROMPT B: appuntamento spostato (from→to). Delete-first così ogni nuovo spostamento ri-invia:
+    // il vincolo uk_email_event_agg bloccherebbe altrimenti il re-insert, lasciando la mail vecchia.
+    public void enqueueBookingRescheduled(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) return;
+
+        repo.deleteByEventTypeAndAggregateTypeAndAggregateId(
+                EmailEventType.BOOKING_RESCHEDULED, EmailAggregateType.BOOKING, booking.getBookingId());
+
+        enqueueSafe(
+                EmailEventType.BOOKING_RESCHEDULED,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                normalizeEmail(booking.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
+    // PROMPT B: appuntamento annullato (generico). Delete-first così una seconda cancellazione (o
+    // entrambi i path cancelBooking/updateBookingStatus per la stessa cancellazione) restano una mail.
+    public void enqueueBookingCancelled(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) return;
+
+        repo.deleteByEventTypeAndAggregateTypeAndAggregateId(
+                EmailEventType.BOOKING_CANCELLED, EmailAggregateType.BOOKING, booking.getBookingId());
+
+        enqueueSafe(
+                EmailEventType.BOOKING_CANCELLED,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
                 normalizeEmail(booking.getCustomerEmail()),
