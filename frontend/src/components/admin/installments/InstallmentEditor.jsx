@@ -24,7 +24,7 @@ const fmtDate = iso => {
   return y && m && d ? `${d}/${m}/${y}` : iso;
 };
 
-const EMPTY_FORM = { amount: "", dueDate: "", paid: false, paidDate: "", paymentMethod: "", note: "" };
+const EMPTY_FORM = { amount: "", dueDate: "", dateTbd: false, paid: false, paidDate: "", paymentMethod: "", note: "" };
 
 const S = {
   backdrop: {
@@ -128,6 +128,14 @@ const S = {
   },
   formActions: { display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 2 },
   muted: { fontSize: "0.85rem", color: "#8a7a64" },
+  // "Da definire" status pill — neutral, muted, italic (never overdue-styled).
+  tbd: {
+    background: "rgba(184, 151, 106, 0.10)",
+    color: "#8a7a64",
+    border: "1px solid rgba(184, 151, 106, 0.3)",
+    fontStyle: "italic",
+    fontWeight: 600,
+  },
 };
 
 export default function InstallmentEditor({ assignmentId, packageName, onClose, onChanged }) {
@@ -201,6 +209,8 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
     setForm({
       amount: inst.amount != null ? String(inst.amount) : "",
       dueDate: inst.dueDate || "",
+      // A date-less rata opens with "da definire" pre-checked (Data cleared).
+      dateTbd: !inst.dueDate,
       paid: !!inst.paid,
       paidDate: inst.paidDate || (inst.paid ? today() : ""),
       paymentMethod: inst.paymentMethod || "",
@@ -226,13 +236,14 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
       setFormError("Inserisci un importo maggiore di 0.");
       return;
     }
-    if (!form.dueDate) {
-      setFormError("Seleziona una data di scadenza.");
+    if (!form.dateTbd && !form.dueDate) {
+      setFormError("Seleziona una data di scadenza oppure attiva «Data da definire».");
       return;
     }
     const body = {
       amount: amountNum,
-      dueDate: form.dueDate,
+      // "Da definire" → send null (the backend field is nullable/un-required), not "".
+      dueDate: form.dateTbd ? null : form.dueDate,
       paid: form.paid,
       paidDate: form.paid ? form.paidDate || today() : null,
       paymentMethod: form.paid ? form.paymentMethod.trim() || null : null,
@@ -288,7 +299,15 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
         </span>
       );
     }
-    if (inst.dueDate && inst.dueDate < t) {
+    // Date-less ("da definire") rata: neutral muted label — never a date, never overdue.
+    if (!inst.dueDate) {
+      return (
+        <span className="ag-pill" style={S.tbd}>
+          Da definire
+        </span>
+      );
+    }
+    if (inst.dueDate < t) {
       return (
         <span className="ag-pill" style={S.overdue}>
           ⚠️ Scaduta il {fmtDate(inst.dueDate)}
@@ -380,7 +399,15 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
                 />
               </div>
 
-              <DateTimeField label="Scadenza *" mode="date" value={form.dueDate} onChange={v => setForm(f => ({ ...f, dueDate: v }))} />
+              {!form.dateTbd && (
+                <DateTimeField label="Scadenza *" mode="date" value={form.dueDate} onChange={v => setForm(f => ({ ...f, dueDate: v }))} />
+              )}
+
+              <label style={S.check}>
+                <input type="checkbox" checked={form.dateTbd} onChange={e => setForm(f => ({ ...f, dateTbd: e.target.checked }))} />
+                <span>📌 Data da definire</span>
+              </label>
+              {form.dateTbd && <div style={S.muted}>La rata ricomparirà al prossimo appuntamento di questa cliente per questo pacchetto.</div>}
 
               <div>
                 <label className="nad-form__label" style={S.label}>
