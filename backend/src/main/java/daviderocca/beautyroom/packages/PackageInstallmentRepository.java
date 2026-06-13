@@ -32,6 +32,14 @@ public interface PackageInstallmentRepository extends JpaRepository<PackageInsta
     List<PackageInstallment> findByAssignmentIdIn(Collection<UUID> assignmentIds);
 
     /**
+     * Phase 5d — date-less ("da definire") UNPAID installments across a set of
+     * packages: the rate that float with no due date until the package's next
+     * appointment snaps them onto its date. Derives
+     * {@code assignment.id IN (...) AND paid = false AND dueDate IS NULL}.
+     */
+    List<PackageInstallment> findByAssignmentIdInAndPaidFalseAndDueDateIsNull(Collection<UUID> assignmentIds);
+
+    /**
      * Cross-package feed of UNPAID installments due in [from, to], excluding
      * installments of CANCELLED assignments. Fetch-joins the parent assignment and
      * its nullable service so the DTO mapping reads clientName / service title in a

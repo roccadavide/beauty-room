@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -205,6 +206,27 @@ public class PackageInstallmentService {
     public void delete(UUID assignmentId, UUID installmentId) {
         PackageInstallment inst = requireInstallment(assignmentId, installmentId);
         installmentRepo.delete(inst);
+    }
+
+    /**
+     * Phase 5d — snap "da definire" (date-less) installments onto an appointment's
+     * date. For each of the given packages, every UNPAID rata with no due date gets
+     * its dueDate set to {@code date} (the booking just created for that package),
+     * turning a floating rata back into an ordinary dated one — so it resurfaces on
+     * its day, gates "Completa" there, and settles/postpones normally. No-op when
+     * there are no packages or no date. Strictly additive: dated rate are untouched.
+     */
+    @Transactional
+    public void snapDatelessInstallments(Collection<UUID> assignmentIds, LocalDate date) {
+        if (assignmentIds == null || assignmentIds.isEmpty() || date == null) {
+            return;
+        }
+        List<PackageInstallment> dateless =
+                installmentRepo.findByAssignmentIdInAndPaidFalseAndDueDateIsNull(assignmentIds);
+        for (PackageInstallment inst : dateless) {
+            inst.setDueDate(date);
+        }
+        installmentRepo.saveAll(dateless);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

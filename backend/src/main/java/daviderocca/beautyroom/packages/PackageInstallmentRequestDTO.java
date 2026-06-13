@@ -13,7 +13,8 @@ import java.time.LocalDate;
  */
 public record PackageInstallmentRequestDTO(
         @NotNull @DecimalMin(value = "0.00") BigDecimal amount,
-        @NotNull LocalDate dueDate,
+        // Phase 5d: optional — absent/null means "da definire" (no due date yet).
+        LocalDate dueDate,
         Boolean paid,
         LocalDate paidDate,
         String paymentMethod,

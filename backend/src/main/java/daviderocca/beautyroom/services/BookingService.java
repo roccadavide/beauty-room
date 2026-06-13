@@ -36,6 +36,7 @@ import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
 import daviderocca.beautyroom.packages.ClientPackageService;
+import daviderocca.beautyroom.packages.PackageInstallmentService;
 import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
@@ -105,6 +106,8 @@ public class BookingService {
     private final UserLookupService userLookupService;
     private final ClientPackageService clientPackageService;
     private final BookingPackageLinkRepository bookingPackageLinkRepository;
+    // Phase 5d: snap "da definire" (date-less) installments onto the next appointment.
+    private final PackageInstallmentService packageInstallmentService;
     // 08.2: promotions <-> agenda wiring
     private final BookingPromotionLinkRepository bookingPromotionLinkRepository;
     private final BookingSaleRepository bookingSaleRepository;
@@ -919,6 +922,23 @@ public class BookingService {
             log.info("CASE A/B done: bookingId={} pkg={} session {}/{} remaining={}",
                     saved.getBookingId(), pkg.getId(),
                     dto.currentSession(), dto.totalSessions(), remaining);
+        }
+
+        // ── Step 6c (Phase 5d): snap "da definire" installments onto this date ──
+        // The package link(s) are now persisted. Re-read them as the single source
+        // for EVERY linked assignment (CASE C's N packages + CASE A/B's implicit one)
+        // and pin any unpaid date-less rata to this appointment's date, so a "da
+        // definire" rata resurfaces here as an ordinary dated installment. Guard:
+        // never snap onto a back-dated/historical booking (today or future only).
+        LocalDate snapDate = saved.getStartTime().toLocalDate();
+        if (!snapDate.isBefore(LocalDate.now())) {
+            List<UUID> linkedAssignmentIds = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(saved.getBookingId())
+                    .stream()
+                    .map(l -> l.getAssignment().getId())
+                    .distinct()
+                    .toList();
+            packageInstallmentService.snapDatelessInstallments(linkedAssignmentIds, snapDate);
         }
 
         // ── Step 6b: attach promotions (frozen snapshot + product stock −1) ────

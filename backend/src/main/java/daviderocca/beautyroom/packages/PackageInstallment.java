@@ -37,7 +37,9 @@ public class PackageInstallment {
     @Column(name = "amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal amount;
 
-    @Column(name = "due_date", nullable = false)
+    // Phase 5d: nullable — a NULL due_date is a "da definire" rata that floats until
+    // the package's next appointment snaps it onto that date.
+    @Column(name = "due_date")
     private LocalDate dueDate;
 
     @Column(name = "paid", nullable = false)

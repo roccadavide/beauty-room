@@ -29,6 +29,7 @@ import daviderocca.beautyroom.repositories.ServiceOptionRepository;
 import daviderocca.beautyroom.services.AdminNotificationService;
 import daviderocca.beautyroom.services.BookingService;
 import daviderocca.beautyroom.packages.ClientPackageService;
+import daviderocca.beautyroom.packages.PackageInstallmentService;
 import daviderocca.beautyroom.services.CustomerService;
 import daviderocca.beautyroom.services.PackageCreditService;
 import daviderocca.beautyroom.services.ServiceItemService;
@@ -74,6 +75,11 @@ class BookingServiceTest {
     private BookingPackageLinkRepository bookingPackageLinkRepository;
     @Mock
     private ClientPackageService clientPackageService;
+    // Phase 5d: createMultiServiceBooking now snaps date-less installments via
+    // PackageInstallmentService. No existing test calls that method, so the mock is
+    // never invoked (no stubbing) — it exists only so @InjectMocks wires a non-null dep.
+    @Mock
+    private PackageInstallmentService packageInstallmentService;
     // Added as a final dependency of BookingService by the closure feature work
     // (commits before Phase 6e). Without mocking it createManualBooking ... NPEs
     // on closureService.assertNoOverlappingClosure(...). Pure test-infra fix.
