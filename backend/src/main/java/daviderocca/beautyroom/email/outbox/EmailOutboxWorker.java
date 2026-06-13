@@ -193,7 +193,10 @@ public class EmailOutboxWorker {
                 // Eccezione: PAID_CONFLICT (admin) e BOOKING_REFUNDED (cliente) devono essere inviate
                 // anche se il booking è CANCELLED, perché la cancellazione è proprio il motivo dell'email.
                 // FIX-6: aggiunto BOOKING_REFUNDED come eccezione al filtro CANCELLED
-                if (type != EmailEventType.PAID_CONFLICT && type != EmailEventType.BOOKING_REFUNDED) {
+                // PROMPT A: anche BOOKING_REFUND_CONFIRMED (rimborso concordato) va inviata su CANCELLED/REFUNDED.
+                if (type != EmailEventType.PAID_CONFLICT
+                        && type != EmailEventType.BOOKING_REFUNDED
+                        && type != EmailEventType.BOOKING_REFUND_CONFIRMED) {
                     throw new SkipEmailException("Booking cancelled (skip): " + b.getBookingId());
                 }
             }
@@ -202,8 +205,10 @@ public class EmailOutboxWorker {
                 case BOOKING_CONFIRMED -> templates.bookingConfirmed(bookingEmailAssembler.toModel(b, false));
                 case BOOKING_REMINDER_24H -> templates.bookingReminder(bookingEmailAssembler.toModel(b, true));
                 case PAID_CONFLICT -> templates.paidConflictAlert(b, null);
-                // FIX-6: template rimborso automatico per PAID_CONFLICT
+                // FIX-6: template rimborso automatico per PAID_CONFLICT (slot occupato)
                 case BOOKING_REFUNDED -> templates.bookingRefunded(b);
+                // PROMPT A: rimborso neutro concordato (riusa il modello assembler, prezzi visibili)
+                case BOOKING_REFUND_CONFIRMED -> templates.bookingRefundConfirmed(bookingEmailAssembler.toModel(b, false));
                 case REVIEW_REQUEST -> templates.reviewRequest(b);
                 default -> throw new IllegalArgumentException("Unsupported booking event: " + type);
             };
@@ -215,6 +220,8 @@ public class EmailOutboxWorker {
 
             return switch (type) {
                 case ORDER_PAID -> templates.orderPaid(o);
+                // PROMPT A: rimborso ordine neutro concordato
+                case ORDER_REFUND_CONFIRMED -> templates.orderRefundConfirmed(o);
                 default -> throw new IllegalArgumentException("Unsupported order event: " + type);
             };
         }

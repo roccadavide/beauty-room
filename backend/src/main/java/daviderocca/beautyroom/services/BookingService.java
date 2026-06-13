@@ -1551,7 +1551,9 @@ public class BookingService {
             log.info("PackageCredit {} marked REFUNDED for bookingId={}", pc.getPackageCreditId(), bookingId);
         }
 
-        emailOutboxService.enqueueBookingRefunded(booking);
+        // PROMPT A: rimborso manuale concordato → email NEUTRA "Rimborso confermato" (con importo),
+        // non la "slot occupato" (che resta solo per il vero PAID_CONFLICT nel webhook).
+        emailOutboxService.enqueueBookingRefundConfirmed(booking);
         log.info("Booking rimborsato via Stripe: id={} paymentIntent={}", bookingId, paymentIntentId);
     }
 

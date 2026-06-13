@@ -80,12 +80,38 @@ public class EmailOutboxService {
         );
     }
 
+    // PROMPT A: rimborso ordine neutro confermato (concordato, NON slot occupato).
+    public void enqueueOrderRefundConfirmed(Order order) {
+        if (order == null || order.getOrderId() == null) return;
+
+        enqueueSafe(
+                EmailEventType.ORDER_REFUND_CONFIRMED,
+                EmailAggregateType.ORDER,
+                order.getOrderId(),
+                normalizeEmail(order.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
     // FIX-6: notifica cliente che il suo slot era già occupato e il pagamento verrà rimborsato
     public void enqueueBookingRefunded(Booking booking) {
         if (booking == null || booking.getBookingId() == null) return;
 
         enqueueSafe(
                 EmailEventType.BOOKING_REFUNDED,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                normalizeEmail(booking.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
+    // PROMPT A: rimborso prenotazione neutro confermato (concordato col cliente, NON slot occupato).
+    public void enqueueBookingRefundConfirmed(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) return;
+
+        enqueueSafe(
+                EmailEventType.BOOKING_REFUND_CONFIRMED,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
                 normalizeEmail(booking.getCustomerEmail()),

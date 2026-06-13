@@ -11,7 +11,10 @@ import daviderocca.beautyroom.email.templates.BookingEmailModel;
 import daviderocca.beautyroom.email.templates.EmailContent;
 import daviderocca.beautyroom.email.templates.EmailTemplateService;
 import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.Order;
+import daviderocca.beautyroom.entities.OrderItem;
 import daviderocca.beautyroom.entities.PackageCredit;
+import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
 import org.junit.jupiter.api.Test;
@@ -153,6 +156,55 @@ class EmailRenderSamplesTest {
         }
     }
 
+    /** PROMPT A: neutral refund-confirmed emails (booking + order) — no "slot occupato" wording. */
+    @Test
+    void renderRefundConfirmedSamples() throws Exception {
+        EmailTemplateService t = brandedTemplate();
+        LocalDateTime start = LocalDateTime.of(2026, 6, 15, 13, 30);
+
+        // (f) booking refund CONFIRMED — paid-online 2-service booking, full refund → amount = paid total
+        AdminBookingCardDTO cardF = card(b -> {
+            b.start = start; b.end = start.plusMinutes(50);
+            b.name = "Giulia Bianchi"; b.email = "giulia@example.com";
+            b.paidOnline = true;
+            b.services = List.of(
+                    new ServiceSummaryDTO(UUID.randomUUID(), "Manicure", 30, bd("25.00"), null, null, null, null, true),
+                    new ServiceSummaryDTO(UUID.randomUUID(), "Laser", 20, bd("80.00"), UUID.randomUUID(), "Ascelle", null, null, true));
+        });
+        EmailContent fref = t.bookingRefundConfirmed(asm.buildModel(cardF, null, false));
+        write("f-booking-refund-confirmed", fref);
+        assertTrue(fref.html().contains("Importo rimborsato"), "amount label");
+        assertTrue(fref.html().contains("€ 105,00"), "refund amount = paid total");
+        assertTrue(fref.html().contains("Manicure · Laser · Ascelle"), "appointment service summary");
+        assertTrue(!fref.html().contains("occupato"), "no slot-taken wording");
+        assertTrue(!fref.html().contains("Non confermata"), "no slot-taken wording");
+
+        // (g) order refund CONFIRMED — total mirrors orderPaid (price × qty)
+        Order order = new Order();
+        order.setCustomerName("Francesca");
+        order.setCustomerSurname("Mauri");
+        order.setCustomerEmail("francesca@example.com");
+        setObj(order, "orderId", UUID.fromString("a1b2c3d4-1111-2222-3333-444455556666"));
+        Product p1 = new Product(); p1.setName("Crema viso lenitiva");
+        Product p2 = new Product(); p2.setName("Detergente delicato");
+        order.setOrderItems(List.of(
+                new OrderItem(1, bd("30.00"), p1, null),
+                new OrderItem(2, bd("18.50"), p2, null)));
+        EmailContent gref = t.orderRefundConfirmed(order);
+        write("g-order-refund-confirmed", gref);
+        assertTrue(gref.html().contains("Importo rimborsato"), "amount label");
+        // euro() glues € to the number with a non-breaking space in HTML (as orderPaid does);
+        // assert the numeric part to stay space-agnostic. The .txt twin uses a regular space.
+        assertTrue(gref.html().contains("67,00"), "order refund amount (30 + 2×18.50)");
+        assertTrue(gref.text().contains("€ 67,00"), "order refund amount in text twin");
+        assertTrue(gref.html().contains("#A1B2C3D4"), "order number");
+        assertTrue(!gref.html().contains("occupato"), "no slot wording");
+
+        System.out.println("\n=== Rendered refund-confirmed email samples ===");
+        System.out.println("  /tmp/beautyroom-email-f-booking-refund-confirmed.html");
+        System.out.println("  /tmp/beautyroom-email-g-order-refund-confirmed.html");
+    }
+
     // ---------- helpers ----------
 
     private static PackageCredit packageCredit() {
@@ -224,6 +276,13 @@ class EmailRenderSamplesTest {
     }
 
     private static void set(Object target, String field, String value) throws Exception {
+        Field f = target.getClass().getDeclaredField(field);
+        f.setAccessible(true);
+        f.set(target, value);
+    }
+
+    // Order.orderId is @Setter(AccessLevel.NONE) — set it reflectively for a realistic sample.
+    private static void setObj(Object target, String field, Object value) throws Exception {
         Field f = target.getClass().getDeclaredField(field);
         f.setAccessible(true);
         f.set(target, value);

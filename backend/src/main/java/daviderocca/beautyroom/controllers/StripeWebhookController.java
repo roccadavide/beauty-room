@@ -425,6 +425,19 @@ public class StripeWebhookController {
                             session.getId(), refundOk);
                     log.info("MULTI PAID_CONFLICT: tombstone bookingId={} sessionId={} reason={}",
                             tombstone.getBookingId(), session.getId(), tombstone.getCancelReason());
+
+                    // PROMPT A: il ramo multi-servizio non notificava nessuno. Allineato al ramo
+                    // single-booking (≈:216/:223): alert admin + email cliente "slot occupato / rimborso".
+                    try {
+                        emailOutboxService.enqueuePaidConflictAlert(tombstone, session.getId());
+                    } catch (Exception ex) {
+                        log.error("Failed to enqueue PAID_CONFLICT alert email (multi): {}", ex.getMessage());
+                    }
+                    try {
+                        emailOutboxService.enqueueBookingRefunded(tombstone);
+                    } catch (Exception ex) {
+                        log.error("Failed to enqueue BOOKING_REFUNDED customer email (multi): {}", ex.getMessage());
+                    }
                 } catch (Exception ex) {
                     log.error("MULTI PAID_CONFLICT: impossibile persistere tombstone sessionId={}: {}",
                             session.getId(), ex.getMessage(), ex);

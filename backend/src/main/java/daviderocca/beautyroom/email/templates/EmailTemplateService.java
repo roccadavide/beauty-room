@@ -219,6 +219,56 @@ public class EmailTemplateService {
         return new EmailContent(subject, html, text);
     }
 
+    // ===================== ORDER REFUND CONFIRMED (PROMPT A) =====================
+    // Neutral, agreed refund — NOT a slot/stock failure. Amount = order total (as orderPaid).
+    public EmailContent orderRefundConfirmed(Order o) {
+        String subject = "Rimborso ordine confermato · " + brandName;
+        String preheader = "Ti confermo il rimborso del tuo ordine, in arrivo entro 5–10 giorni ✦";
+
+        String firstName = (o.getCustomerName() != null && !o.getCustomerName().isBlank())
+                ? o.getCustomerName().trim().split("\\s+")[0]
+                : "cara cliente";
+
+        BigDecimal total = BigDecimal.ZERO;
+        if (o.getOrderItems() != null) {
+            for (OrderItem it : o.getOrderItems()) {
+                if (it != null && it.getPrice() != null && it.getProduct() != null) {
+                    total = total.add(it.getPrice().multiply(BigDecimal.valueOf(it.getQuantity())));
+                }
+            }
+        }
+
+        String orderId = (o.getOrderId() != null)
+                ? "#" + o.getOrderId().toString().toUpperCase().substring(0, 8) : "-";
+
+        String inner = heroRow("Il tuo rimborso", "Confermato")
+                + introRow("Ciao " + inkB(firstName) + ", ti confermo il rimborso del tuo ordine. "
+                        + "Riceverai l'importo sul tuo metodo di pagamento entro 5–10 giorni lavorativi.")
+                + ornamentRow()
+                + amountHighlightRow("Importo rimborsato", euro(total))
+                + kvRow("Numero ordine", orderId)
+                + helperRow("Per qualsiasi cosa scrivimi.")
+                + contactPillsRow()
+                + signoffRow("Grazie di cuore.<br>A presto.");
+
+        String html = wrap(preheader, inner);
+
+        String text = """
+                Rimborso ordine confermato · %s
+
+                Ciao %s, ti confermo il rimborso del tuo ordine.
+                Riceverai l'importo sul tuo metodo di pagamento entro 5-10 giorni lavorativi.
+
+                Numero ordine: %s
+                Importo rimborsato: %s
+
+                Per qualsiasi cosa scrivimi.
+                WhatsApp: https://wa.me/%s
+                """.formatted(brandName, firstName, orderId, euroPlain(total), waNum());
+
+        return new EmailContent(subject, html, text);
+    }
+
     // ===================== PAID CONFLICT ALERT (ADMIN) =====================
     public EmailContent paidConflictAlert(Booking b, String stripeSessionId) {
         String subject = "⚠️ PAID_CONFLICT — Prenotazione pagata su slot già occupato";
@@ -297,6 +347,43 @@ public class EmailTemplateService {
                 """.formatted(brandName, customerName, serviceTitle, when, waNum());
 
         return new EmailContent(subject, html, text);
+    }
+
+    // ===================== BOOKING REFUND CONFIRMED (PROMPT A) =====================
+    // Neutral, agreed refund — NOT "slot occupato". Reuses the assembler model so the amount
+    // (m.totalStr()) matches what the customer paid (total refunds only). No priced panel.
+    public EmailContent bookingRefundConfirmed(BookingEmailModel m) {
+        String subject = "Rimborso confermato · " + brandName;
+        String preheader = "Ti confermo il rimborso, in arrivo entro 5–10 giorni ✦";
+
+        String customerName = safe(m.customerName());
+        String apptValue = appointmentSummary(m);
+
+        boolean hasAmount = m.totalStr() != null && !m.totalStr().isBlank();
+        String amountRow = hasAmount ? amountHighlightRow("Importo rimborsato", m.totalStr()) : "";
+
+        String inner = heroRow("Il tuo rimborso", "Confermato")
+                + introRow("Ciao " + inkB(customerName) + ", ti confermo il rimborso del tuo appuntamento. "
+                        + "Riceverai l'importo sul tuo metodo di pagamento entro 5–10 giorni lavorativi.")
+                + ornamentRow()
+                + amountRow
+                + labeledLineRow("Appuntamento", apptValue, false)
+                + helperRow("Per qualsiasi cosa scrivimi.")
+                + contactPillsRow()
+                + signoffRow("Grazie di cuore.<br>A presto.");
+
+        String html = wrap(preheader, inner);
+
+        StringBuilder t = new StringBuilder();
+        t.append("Rimborso confermato · ").append(brandName).append("\n\n");
+        t.append("Ciao ").append(customerName).append(", ti confermo il rimborso del tuo appuntamento.\n");
+        t.append("Riceverai l'importo sul tuo metodo di pagamento entro 5-10 giorni lavorativi.\n\n");
+        if (hasAmount) t.append("Importo rimborsato: ").append(m.totalStr()).append("\n");
+        t.append("Appuntamento: ").append(apptValue).append("\n\n");
+        t.append("Per qualsiasi cosa scrivimi.\n");
+        t.append("WhatsApp: https://wa.me/").append(waNum()).append("\n");
+
+        return new EmailContent(subject, html, t.toString());
     }
 
     // ===================== USER REGISTERED (admin notification) =====================
@@ -736,6 +823,16 @@ public class EmailTemplateService {
                 """.formatted(SANS, esc(label), SANS, esc(value));
     }
 
+    /** Prominent single-amount panel (refund emails): label + big serif amount, centered. */
+    private String amountHighlightRow(String label, String amountStr) {
+        return "<tr><td class=\"br-pad\" style=\"padding:22px 40px 0;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"br-panel\" style=\"background:#faf5ec;border:1px solid #e7dbca;border-radius:14px;\">"
+                + "<tr><td align=\"center\" style=\"padding:22px 18px;\">"
+                + "<div class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#9c8c7d;font-weight:700;margin-bottom:8px;\">" + esc(label) + "</div>"
+                + "<div class=\"br-ink\" style=\"font-family:" + SERIF + ";font-size:42px;color:#3a2e27;line-height:1;\">" + esc(amountStr) + "</div>"
+                + "</td></tr></table></td></tr>";
+    }
+
     /** Panel with an items list and a total row. itemsHtml comes from itemRow(...). */
     private String panelRow(String pad, String label, String itemsHtml, String totalLabel, String totalAmount) {
         return """
@@ -940,6 +1037,40 @@ public class EmailTemplateService {
         sb.append("\nScrivimi su WhatsApp: https://wa.me/").append(waNum()).append("\n");
         sb.append("\nGrazie di avermi scelto. Non vedo l'ora di prendermi cura di te.\n");
         return sb.toString();
+    }
+
+    /** Concise "{date}, ore {time} · {service name(s)}" for the refund-confirmed email.
+     *  Pulls service names from the model sections (treatment lines, promo titles); skips
+     *  the Prodotti section; falls back to the package headline, then date/time only. */
+    private String appointmentSummary(BookingEmailModel m) {
+        String date = (m.whenDate() != null && !m.whenDate().isBlank() && !"-".equals(m.whenDate())) ? m.whenDate() : null;
+        String time = (m.whenTime() != null && !m.whenTime().isBlank() && !"-".equals(m.whenTime())) ? m.whenTime() : null;
+
+        List<String> names = new ArrayList<>();
+        for (EmailSection sec : m.sections()) {
+            String label = sec.label() != null ? sec.label() : "";
+            if (label.startsWith("Promozione")) {
+                int dot = label.indexOf('·');
+                names.add(dot >= 0 ? label.substring(dot + 1).trim() : label);
+            } else if (label.startsWith("Prodotti")) {
+                // products aren't part of the appointment summary
+            } else {
+                for (EmailLine line : sec.lines()) {
+                    if (line.name() != null && !line.name().isBlank()) names.add(line.name());
+                }
+            }
+        }
+        if (names.isEmpty() && m.packageBlock() != null && m.packageBlock().headline() != null) {
+            names.add(m.packageBlock().headline());
+        }
+        String services = String.join(" · ", names);
+
+        List<String> parts = new ArrayList<>();
+        if (date != null && time != null) parts.add(date + ", ore " + time);
+        else if (date != null) parts.add(date);
+        else if (time != null) parts.add("ore " + time);
+        if (!services.isBlank()) parts.add(services);
+        return parts.isEmpty() ? "-" : String.join(" · ", parts);
     }
 
     private static String cap(String s) {
