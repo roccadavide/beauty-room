@@ -194,9 +194,11 @@ public class EmailOutboxWorker {
                 // anche se il booking è CANCELLED, perché la cancellazione è proprio il motivo dell'email.
                 // FIX-6: aggiunto BOOKING_REFUNDED come eccezione al filtro CANCELLED
                 // PROMPT A: anche BOOKING_REFUND_CONFIRMED (rimborso concordato) va inviata su CANCELLED/REFUNDED.
+                // PROMPT B: anche BOOKING_CANCELLED (la cancellazione È il motivo dell'email).
                 if (type != EmailEventType.PAID_CONFLICT
                         && type != EmailEventType.BOOKING_REFUNDED
-                        && type != EmailEventType.BOOKING_REFUND_CONFIRMED) {
+                        && type != EmailEventType.BOOKING_REFUND_CONFIRMED
+                        && type != EmailEventType.BOOKING_CANCELLED) {
                     throw new SkipEmailException("Booking cancelled (skip): " + b.getBookingId());
                 }
             }
@@ -209,6 +211,9 @@ public class EmailOutboxWorker {
                 case BOOKING_REFUNDED -> templates.bookingRefunded(b);
                 // PROMPT A: rimborso neutro concordato (riusa il modello assembler, prezzi visibili)
                 case BOOKING_REFUND_CONFIRMED -> templates.bookingRefundConfirmed(bookingEmailAssembler.toModel(b, false));
+                // PROMPT B: appuntamento spostato (Prima→Ora) e annullato (generico)
+                case BOOKING_RESCHEDULED -> templates.bookingRescheduled(bookingEmailAssembler.toModel(b, false));
+                case BOOKING_CANCELLED -> templates.bookingCancelled(bookingEmailAssembler.toModel(b, false));
                 case REVIEW_REQUEST -> templates.reviewRequest(b);
                 default -> throw new IllegalArgumentException("Unsupported booking event: " + type);
             };

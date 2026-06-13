@@ -119,6 +119,13 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     // ===== Stripe =====
     Optional<Booking> findByStripeSessionId(String stripeSessionId);
 
+    // ===== Online package (PackageCredit) session ranking =====
+    // All bookings that share one online PackageCredit, in chronological order. The email
+    // assembler ranks them (after filtering CANCELLED/NO_SHOW) to derive "Seduta X di N" for
+    // online packages — mirroring ClientPackageService.recalculatePackageSessions for admin ones.
+    // Backed by idx_booking_pkg_credit (package_credit_id).
+    List<Booking> findByPackageCredit_PackageCreditIdOrderByStartTimeAsc(UUID packageCreditId);
+
     // ===== Expire HOLD =====
     List<Booking> findByBookingStatusAndExpiresAtBefore(BookingStatus status, LocalDateTime time);
 

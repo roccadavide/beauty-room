@@ -16,6 +16,7 @@ import daviderocca.beautyroom.entities.OrderItem;
 import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.ServiceItem;
+import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.enums.BookingStatus;
 import org.junit.jupiter.api.Test;
 
@@ -131,6 +132,45 @@ class EmailRenderSamplesTest {
         assertTrue(d.html().contains("✓ Incluso nel pacchetto"), "covered tag");
         assertTrue(d.html().contains("Incluso nel pacchetto (già pagato)"), "covered payment label");
 
+        // (d1) PROMPT C+D: online package PURCHASE (rank 1) — unified "Seduta X di N" + amount paid.
+        // Shows "Seduta 1 di 5 · ne restano 4 · pagato € 250,00" + "valido fino al …".
+        AdminBookingCardDTO cardD1 = card(b -> {
+            b.start = start; b.end = start.plusMinutes(30);
+            b.name = "Elena Russo"; b.email = "elena@example.com";
+            b.serviceTitle = "Laser ascelle";
+            b.packageCreditId = UUID.randomUUID();
+            b.sessionsRemaining = 4; b.sessionsTotal = 5;
+        });
+        Booking bookingD1 = new Booking();
+        bookingD1.setStartTime(start);
+        bookingD1.setDurationMinutes(30);
+        bookingD1.setPackageCredit(packageCreditOnline(5, 4));
+        EmailContent d1 = t.bookingConfirmed(asm.buildModel(cardD1, bookingD1, false, 1));
+        write("d1-confirmed-package-online-purchase", d1);
+        assertTrue(d1.html().contains("Seduta 1 di 5 · ne restano 4"), "rank 1 session line");
+        assertTrue(d1.html().contains("pagato € 250,00"), "rank 1 shows amount paid");
+        assertTrue(d1.html().contains("valido fino al 12 giu 2028"), "validity");
+        assertTrue(d1.html().contains("Incluso nel pacchetto (già pagato)"), "covered payment label");
+        assertTrue(d1.html().contains("15 giugno 2026"), "first-session date in when block");
+
+        // (d2) PROMPT C+D: online package LATER session (rank 3, booked by Michela in agenda) —
+        // "Seduta 3 di 5 · ne restano 2", NO amount (only the purchase shows what was paid).
+        AdminBookingCardDTO cardD2 = card(b -> {
+            b.start = start; b.end = start.plusMinutes(30);
+            b.name = "Elena Russo"; b.email = "elena@example.com";
+            b.serviceTitle = "Laser ascelle";
+            b.packageCreditId = UUID.randomUUID();
+            b.sessionsRemaining = 2; b.sessionsTotal = 5;
+        });
+        Booking bookingD2 = new Booking();
+        bookingD2.setStartTime(start);
+        bookingD2.setDurationMinutes(30);
+        bookingD2.setPackageCredit(packageCreditOnline(5, 2));
+        EmailContent d2 = t.bookingConfirmed(asm.buildModel(cardD2, bookingD2, false, 3));
+        write("d2-confirmed-package-online-session3", d2);
+        assertTrue(d2.html().contains("Seduta 3 di 5 · ne restano 2"), "rank 3 session line");
+        assertTrue(!d2.html().contains("pagato €"), "later session shows NO amount");
+
         // (e) bundle (customTotalPrice) → per-line list prices + reconciling Sconto, products on top
         AdminBookingCardDTO cardE = card(x -> {
             x.start = start; x.end = start.plusMinutes(60);
@@ -170,8 +210,9 @@ class EmailRenderSamplesTest {
 
         System.out.println("\n=== Rendered email samples ===");
         for (String f : List.of("a-confirmed-2services-product", "b-confirmed-promo",
-                "c-reminder-package-admin", "d-confirmed-package-online", "e-confirmed-bundle-sconto",
-                "h-confirmed-single-custom-price")) {
+                "c-reminder-package-admin", "d-confirmed-package-online",
+                "d1-confirmed-package-online-purchase", "d2-confirmed-package-online-session3",
+                "e-confirmed-bundle-sconto", "h-confirmed-single-custom-price")) {
             System.out.println("  /tmp/beautyroom-email-" + f + ".html");
         }
     }
@@ -225,6 +266,62 @@ class EmailRenderSamplesTest {
         System.out.println("  /tmp/beautyroom-email-g-order-refund-confirmed.html");
     }
 
+    /** PROMPT B: appuntamento spostato (Prima→Ora) + annullato. */
+    @Test
+    void renderRescheduledAndCancelledSamples() throws Exception {
+        EmailTemplateService t = brandedTemplate();
+        LocalDateTime oldStart = LocalDateTime.of(2026, 6, 15, 13, 30);
+        LocalDateTime newStart = LocalDateTime.of(2026, 6, 18, 16, 0);
+
+        // (i) moved: 2-service booking, 15 giu 13:30 → 18 giu 16:00 (previous persisted)
+        AdminBookingCardDTO cardMoved = card(b -> {
+            b.start = newStart; b.end = newStart.plusMinutes(50);
+            b.name = "Giulia Bianchi"; b.email = "giulia@example.com";
+            b.services = List.of(
+                    new ServiceSummaryDTO(UUID.randomUUID(), "Manicure", 30, bd("25.00"), null, null, null, null, false),
+                    new ServiceSummaryDTO(UUID.randomUUID(), "Laser", 20, bd("80.00"), UUID.randomUUID(), "Ascelle", null, null, false));
+        });
+        Booking bMoved = new Booking();
+        bMoved.setStartTime(newStart);
+        bMoved.setDurationMinutes(50);
+        bMoved.setPreviousStartTime(oldStart);
+        EmailContent moved = t.bookingRescheduled(asm.buildModel(cardMoved, bMoved, false));
+        write("i-booking-rescheduled", moved);
+        assertTrue(moved.html().contains("Spostato"), "h1");
+        assertTrue(moved.html().contains(">Prima<"), "previous label present");
+        assertTrue(moved.html().contains("line-through"), "previous struck");
+        assertTrue(moved.html().contains("15 giugno 2026"), "previous date");
+        assertTrue(moved.html().contains("18 giugno 2026"), "new date");
+        assertTrue(moved.html().contains("Manicure"), "service summary");
+        assertTrue(!moved.html().contains("€"), "moved email shows no prices");
+        assertTrue(moved.text().contains("Prima:") && moved.text().contains("Ora:"), "text twin from→to");
+
+        // (i2) moved with NO previous persisted → only the new date/time, no "Prima" row
+        EmailContent movedNoPrev = t.bookingRescheduled(asm.buildModel(cardMoved, null, false));
+        write("i2-booking-rescheduled-noprev", movedNoPrev);
+        assertTrue(!movedNoPrev.html().contains(">Prima<"), "no previous label when previousStartTime null");
+        assertTrue(movedNoPrev.html().contains("18 giugno 2026"), "new date still shown");
+
+        // (j) cancelled: generic, no price, no reason
+        AdminBookingCardDTO cardCancel = card(b -> {
+            b.start = oldStart; b.end = oldStart.plusMinutes(45);
+            b.name = "Marta Verdi"; b.email = "marta@example.com";
+            b.services = List.of(
+                    new ServiceSummaryDTO(UUID.randomUUID(), "Pulizia viso", 45, bd("45.00"), null, null, null, null, false));
+        });
+        EmailContent cancelled = t.bookingCancelled(asm.buildModel(cardCancel, null, false));
+        write("j-booking-cancelled", cancelled);
+        assertTrue(cancelled.html().contains("Annullato"), "h1");
+        assertTrue(cancelled.html().contains("15 giugno 2026"), "appointment date");
+        assertTrue(cancelled.html().contains("Pulizia viso"), "service summary");
+        assertTrue(!cancelled.html().contains("€"), "no price");
+
+        System.out.println("\n=== Rendered reschedule/cancel email samples ===");
+        for (String f : List.of("i-booking-rescheduled", "i2-booking-rescheduled-noprev", "j-booking-cancelled")) {
+            System.out.println("  /tmp/beautyroom-email-" + f + ".html");
+        }
+    }
+
     // ---------- helpers ----------
 
     private static PackageCredit packageCredit() {
@@ -235,6 +332,25 @@ class EmailRenderSamplesTest {
         pc.setSessionsRemaining(5);
         pc.setExpiryDate(LocalDateTime.of(2028, 6, 12, 0, 0));
         pc.setService(svc);
+        return pc;
+    }
+
+    // Online package credit WITH the service option set — option.price is exactly what Stripe
+    // charged for the package (BookingCheckoutController :150, full price, not × sessions), so the
+    // rank-1 purchase email can show "pagato € …".
+    private static PackageCredit packageCreditOnline(int total, int remaining) {
+        ServiceItem svc = new ServiceItem();
+        svc.setTitle("Laser ascelle");
+        ServiceOption opt = new ServiceOption();
+        opt.setName("Laser ascelle");
+        opt.setPrice(new BigDecimal("250.00"));
+        opt.setSessions(total);
+        PackageCredit pc = new PackageCredit();
+        pc.setSessionsTotal(total);
+        pc.setSessionsRemaining(remaining);
+        pc.setExpiryDate(LocalDateTime.of(2028, 6, 12, 0, 0));
+        pc.setService(svc);
+        pc.setServiceOption(opt);
         return pc;
     }
 

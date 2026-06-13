@@ -386,6 +386,82 @@ public class EmailTemplateService {
         return new EmailContent(subject, html, t.toString());
     }
 
+    // ===================== BOOKING RESCHEDULED (PROMPT B) =====================
+    // Sent when an appointment's start time actually changes (future only). Shows a clear
+    // "Prima → Ora" change block (old muted/struck, new gold) + a concise current service
+    // summary. Guard: m.previousStartTime() == null → render only the new date/time (no "Prima").
+    public EmailContent bookingRescheduled(BookingEmailModel m) {
+        String subject = "Appuntamento spostato · " + brandName;
+        String preheader = "Il tuo appuntamento è stato spostato ✦";
+
+        String customerName = safe(m.customerName());
+        String prevDate = m.previousStartTime() != null ? cap(m.previousStartTime().format(IT_DATE)) : null;
+        String prevTime = m.previousStartTime() != null ? m.previousStartTime().format(IT_TIME) : null;
+
+        String treatment = String.join(" · ", treatmentNames(m));
+        String treatmentRow = treatment.isBlank() ? "" : labeledLineRow("Trattamento", treatment, false);
+
+        String inner = heroRow("Appuntamento aggiornato", "Spostato")
+                + introRow("Ciao " + inkB(customerName) + ", ti avviso che il tuo appuntamento è stato spostato.")
+                + ornamentRow()
+                + rescheduleRow(prevDate, prevTime, m.whenDate(), m.whenTime())
+                + treatmentRow
+                + helperRow("Se la nuova data non ti va bene, scrivimi e troviamo un'alternativa.")
+                + contactPillsRow()
+                + signoffRow("Grazie della comprensione.<br>Ti aspetto.");
+
+        String html = wrap(preheader, inner);
+
+        StringBuilder t = new StringBuilder();
+        t.append("Appuntamento spostato · ").append(brandName).append("\n\n");
+        t.append("Ciao ").append(customerName).append(", ti avviso che il tuo appuntamento è stato spostato.\n\n");
+        if (prevDate != null) t.append("Prima: ").append(prevDate).append(", ore ").append(prevTime).append("\n");
+        t.append("Ora: ").append(m.whenDate()).append(", ore ").append(m.whenTime()).append("\n");
+        if (!treatment.isBlank()) t.append("\nTrattamento: ").append(treatment).append("\n");
+        t.append("\nSe la nuova data non ti va bene, scrivimi e troviamo un'alternativa.\n");
+        t.append("WhatsApp: https://wa.me/").append(waNum()).append("\n");
+
+        return new EmailContent(subject, html, t.toString());
+    }
+
+    // ===================== BOOKING CANCELLED (PROMPT B) =====================
+    // Generic cancellation notice (future only). No price, no reason.
+    public EmailContent bookingCancelled(BookingEmailModel m) {
+        String subject = "Appuntamento annullato · " + brandName;
+        String preheader = "Il tuo appuntamento è stato annullato ✦";
+
+        String customerName = safe(m.customerName());
+        String date = (m.whenDate() != null && !m.whenDate().isBlank() && !"-".equals(m.whenDate())) ? m.whenDate() : null;
+
+        String intro = date != null
+                ? "Ciao " + inkB(customerName) + ", il tuo appuntamento del " + esc(lcFirst(date)) + " è stato annullato."
+                : "Ciao " + inkB(customerName) + ", il tuo appuntamento è stato annullato.";
+
+        String treatment = String.join(" · ", treatmentNames(m));
+        String treatmentRow = treatment.isBlank() ? "" : labeledLineRow("Trattamento", treatment, false);
+
+        String inner = heroRow("Appuntamento", "Annullato")
+                + introRow(intro)
+                + ornamentRow()
+                + treatmentRow
+                + helperRow("Per fissarne uno nuovo, scrivimi quando vuoi.")
+                + contactPillsRow()
+                + signoffRow("Mi dispiace.<br>Spero di rivederti presto.");
+
+        String html = wrap(preheader, inner);
+
+        StringBuilder t = new StringBuilder();
+        t.append("Appuntamento annullato · ").append(brandName).append("\n\n");
+        t.append(date != null
+                ? "Ciao " + customerName + ", il tuo appuntamento del " + lcFirst(date) + " è stato annullato.\n"
+                : "Ciao " + customerName + ", il tuo appuntamento è stato annullato.\n");
+        if (!treatment.isBlank()) t.append("\nTrattamento: ").append(treatment).append("\n");
+        t.append("\nPer fissarne uno nuovo, scrivimi quando vuoi.\n");
+        t.append("WhatsApp: https://wa.me/").append(waNum()).append("\n");
+
+        return new EmailContent(subject, html, t.toString());
+    }
+
     // ===================== USER REGISTERED (admin notification) =====================
     public EmailContent userRegistered(User u) {
         String subject = "Nuova registrazione · " + brandName;
@@ -709,6 +785,33 @@ public class EmailTemplateService {
                   %s
                 </td></tr>
                 """.formatted(SANS, SERIF, esc(dateStr), SANS, esc(timeStr), rangeLine);
+    }
+
+    /** Reschedule "Prima → Ora" change block (PROMPT B): old muted + struck, new gold + bold.
+     *  prevDate null → render only the new date/time (labelled "Quando", no "Prima" row, no arrow). */
+    private String rescheduleRow(String prevDate, String prevTime, String newDate, String newTime) {
+        String prevBlock = "";
+        if (prevDate != null) {
+            prevBlock = "<tr><td align=\"center\" style=\"padding:18px 18px 0;\">"
+                    + "<div class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#9c8c7d;font-weight:700;margin-bottom:6px;\">Prima</div>"
+                    + "<div class=\"br-muted\" style=\"font-family:" + SERIF + ";font-size:19px;color:#9c8c7d;text-decoration:line-through;line-height:1.25;\">" + esc(prevDate) + "</div>"
+                    + "<div class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:13px;color:#9c8c7d;text-decoration:line-through;margin-top:2px;\">ore " + esc(prevTime) + "</div>"
+                    + "</td></tr>"
+                    + "<tr><td align=\"center\" style=\"padding:8px 0 2px;\">"
+                    + "<span class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:22px;color:#b8976a;line-height:1;\">↓</span>"
+                    + "</td></tr>";
+        }
+        String oraLabel = (prevDate != null) ? "Ora" : "Quando";
+        String oraTopPad = (prevDate != null) ? "4px" : "20px";
+        return "<tr><td class=\"br-pad\" style=\"padding:22px 40px 0;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"br-panel\" style=\"background:#faf5ec;border:1px solid #e7dbca;border-radius:14px;\">"
+                + prevBlock
+                + "<tr><td align=\"center\" style=\"padding:" + oraTopPad + " 18px 20px;\">"
+                + "<div class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#8c6d3f;font-weight:700;margin-bottom:6px;\">" + oraLabel + "</div>"
+                + "<div class=\"br-gold\" style=\"font-family:" + SERIF + ";font-size:27px;color:#b8976a;font-weight:700;line-height:1.2;\">" + esc(newDate) + "</div>"
+                + "<div class=\"br-body\" style=\"font-family:" + SANS + ";font-size:15px;color:#574a41;margin-top:5px;\">Ore <b class=\"br-gold\" style=\"color:#b8976a;\">" + esc(newTime) + "</b></div>"
+                + "</td></tr>"
+                + "</table></td></tr>";
     }
 
     /** Multi-section priced panel (services / promo(s) / products) + optional Sconto + Totale. */
@@ -1039,13 +1142,10 @@ public class EmailTemplateService {
         return sb.toString();
     }
 
-    /** Concise "{date}, ore {time} · {service name(s)}" for the refund-confirmed email.
-     *  Pulls service names from the model sections (treatment lines, promo titles); skips
-     *  the Prodotti section; falls back to the package headline, then date/time only. */
-    private String appointmentSummary(BookingEmailModel m) {
-        String date = (m.whenDate() != null && !m.whenDate().isBlank() && !"-".equals(m.whenDate())) ? m.whenDate() : null;
-        String time = (m.whenTime() != null && !m.whenTime().isBlank() && !"-".equals(m.whenTime())) ? m.whenTime() : null;
-
+    /** Service/promo names for the appointment (treatment lines + promo titles; skips Prodotti),
+     *  falling back to the package headline. No date/time, no prices — the concise summary reused
+     *  by the refund-confirmed, rescheduled and cancelled emails. */
+    private List<String> treatmentNames(BookingEmailModel m) {
         List<String> names = new ArrayList<>();
         for (EmailSection sec : m.sections()) {
             String label = sec.label() != null ? sec.label() : "";
@@ -1063,7 +1163,17 @@ public class EmailTemplateService {
         if (names.isEmpty() && m.packageBlock() != null && m.packageBlock().headline() != null) {
             names.add(m.packageBlock().headline());
         }
-        String services = String.join(" · ", names);
+        return names;
+    }
+
+    /** Concise "{date}, ore {time} · {service name(s)}" for the refund-confirmed email.
+     *  Pulls service names from the model sections (treatment lines, promo titles); skips
+     *  the Prodotti section; falls back to the package headline, then date/time only. */
+    private String appointmentSummary(BookingEmailModel m) {
+        String date = (m.whenDate() != null && !m.whenDate().isBlank() && !"-".equals(m.whenDate())) ? m.whenDate() : null;
+        String time = (m.whenTime() != null && !m.whenTime().isBlank() && !"-".equals(m.whenTime())) ? m.whenTime() : null;
+
+        String services = String.join(" · ", treatmentNames(m));
 
         List<String> parts = new ArrayList<>();
         if (date != null && time != null) parts.add(date + ", ore " + time);
@@ -1076,6 +1186,12 @@ public class EmailTemplateService {
     private static String cap(String s) {
         if (s == null || s.isEmpty()) return s;
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    /** Lowercase the first char — for embedding a capitalized date mid-sentence ("del lunedì ..."). */
+    private static String lcFirst(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toLowerCase(s.charAt(0)) + s.substring(1);
     }
 
     private String safe(String s) {

@@ -119,6 +119,40 @@ public class EmailOutboxService {
         );
     }
 
+    // PROMPT B: appuntamento spostato (from→to). Delete-first così ogni nuovo spostamento ri-invia:
+    // il vincolo uk_email_event_agg bloccherebbe altrimenti il re-insert, lasciando la mail vecchia.
+    public void enqueueBookingRescheduled(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) return;
+
+        repo.deleteByEventTypeAndAggregateTypeAndAggregateId(
+                EmailEventType.BOOKING_RESCHEDULED, EmailAggregateType.BOOKING, booking.getBookingId());
+
+        enqueueSafe(
+                EmailEventType.BOOKING_RESCHEDULED,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                normalizeEmail(booking.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
+    // PROMPT B: appuntamento annullato (generico). Delete-first così una seconda cancellazione (o
+    // entrambi i path cancelBooking/updateBookingStatus per la stessa cancellazione) restano una mail.
+    public void enqueueBookingCancelled(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) return;
+
+        repo.deleteByEventTypeAndAggregateTypeAndAggregateId(
+                EmailEventType.BOOKING_CANCELLED, EmailAggregateType.BOOKING, booking.getBookingId());
+
+        enqueueSafe(
+                EmailEventType.BOOKING_CANCELLED,
+                EmailAggregateType.BOOKING,
+                booking.getBookingId(),
+                normalizeEmail(booking.getCustomerEmail()),
+                LocalDateTime.now()
+        );
+    }
+
     public void enqueuePaidConflictAlert(Booking booking, String stripeSessionId) {
         if (booking == null || booking.getBookingId() == null) return;
         String to = normalizeEmail(adminEmail);

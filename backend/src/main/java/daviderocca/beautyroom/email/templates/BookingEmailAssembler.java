@@ -60,14 +60,24 @@ public class BookingEmailAssembler {
     /** Fetch the card and build the model. Must run inside the worker's REQUIRES_NEW tx. */
     public BookingEmailModel toModel(Booking b, boolean reminder) {
         AdminBookingCardDTO card = bookingService.assembleBookingCard(b);
-        return buildModel(card, b, reminder);
+        // Online-package session number (0 for non-credit bookings). The DB hit lives here so the
+        // pure buildModel stays DB-free (render tests build the assembler with a null service).
+        int onlineSessionRank = bookingService.packageSessionNumber(b);
+        return buildModel(card, b, reminder, onlineSessionRank);
     }
 
     /** Internal economic line — mirrors buildBreakdownItems for amount-due parity. */
     private record Item(BigDecimal price, String kind, boolean settled) {}
 
-    /** Pure card → model mapping (no DB). Visible for render/unit tests. */
+    /** Pure card → model mapping (no DB), no online-package ranking. Kept for callers/tests. */
     public BookingEmailModel buildModel(AdminBookingCardDTO card, Booking b, boolean reminder) {
+        return buildModel(card, b, reminder, 0);
+    }
+
+    /** Pure card → model mapping (no DB). {@code onlineSessionRank} = 1-based credit session
+     *  number (0 = unknown/non-credit). Visible for render/unit tests. */
+    public BookingEmailModel buildModel(AdminBookingCardDTO card, Booking b, boolean reminder,
+                                        int onlineSessionRank) {
         boolean paidOnline = card.paidOnline();
         boolean creditBacked = card.packageCreditId() != null; // online prepaid package session
 
@@ -199,7 +209,7 @@ public class BookingEmailAssembler {
         }
 
         // ---------- package block ----------
-        PackageBlock packageBlock = buildPackageBlock(card, b, pkgs, reminder, creditBacked);
+        PackageBlock packageBlock = buildPackageBlock(card, b, pkgs, reminder, creditBacked, onlineSessionRank);
 
         // ---------- payment label (authoritative amount due) ----------
         String paymentLabel;
@@ -226,6 +236,9 @@ public class BookingEmailAssembler {
         String whenTime = start != null ? start.format(IT_TIME) : "-";
         String durationRange = durationRange(card, b);
 
+        // PROMPT B: pre-move start carried raw on the entity; only bookingRescheduled renders it.
+        LocalDateTime previousStartTime = (b != null) ? b.getPreviousStartTime() : null;
+
         return new BookingEmailModel(
                 card.customerName(), card.customerEmail(),
                 whenDate, whenTime, durationRange,
@@ -233,7 +246,8 @@ public class BookingEmailAssembler {
                 discountLabel, discountStr,
                 totalLabel, totalStr,
                 paymentLabel,
-                packageBlock);
+                packageBlock,
+                previousStartTime);
     }
 
     /** Mirrors AdminAgendaPage.computeBookingAmountDue (bundle = lockstep non-sale unit). */
@@ -250,7 +264,8 @@ public class BookingEmailAssembler {
     }
 
     private PackageBlock buildPackageBlock(AdminBookingCardDTO card, Booking b,
-                                           List<PackageSummaryDTO> pkgs, boolean reminder, boolean creditBacked) {
+                                           List<PackageSummaryDTO> pkgs, boolean reminder,
+                                           boolean creditBacked, int onlineSessionRank) {
         // Online prepaid package session (PackageCredit) — never in linkedPackages.
         if (creditBacked && b != null && b.getPackageCredit() != null) {
             PackageCredit pc = b.getPackageCredit();
@@ -261,7 +276,22 @@ public class BookingEmailAssembler {
             String headline = "Pacchetto: " + total + " " + sedute(total) + " di " + svc
                     + (!reminder && pc.getExpiryDate() != null
                         ? ", valido fino al " + pc.getExpiryDate().format(IT_DATE_SHORT) : "");
-            String sessionInfo = total + " " + sedute(total) + " · " + remaining + " rimanenti";
+            // PROMPT D: unify with admin packages — "Seduta X di N · ne resta/restano M", X from the
+            // startTime ranking (BookingService.packageSessionNumber). rank == 0 (shouldn't happen
+            // post-save) falls back to the old "N sedute · M rimanenti".
+            String sessionInfo;
+            if (onlineSessionRank > 0) {
+                sessionInfo = "Seduta " + onlineSessionRank + " di " + total
+                        + " · ne " + (remaining == 1 ? "resta " : "restano ") + remaining;
+                // PROMPT C: on the purchase (first session) only, show what was charged — the full
+                // package option price (exactly what Stripe billed: option.getPrice(), not × sessions).
+                if (onlineSessionRank == 1 && pc.getServiceOption() != null
+                        && pc.getServiceOption().getPrice() != null) {
+                    sessionInfo += " · pagato " + money(pc.getServiceOption().getPrice(), false);
+                }
+            } else {
+                sessionInfo = total + " " + sedute(total) + " · " + remaining + " rimanenti";
+            }
             return new PackageBlock(headline, sessionInfo, true);
         }
         // Admin/in-person package (ClientPackageAssignment via BookingPackageLink). No expiry exists.

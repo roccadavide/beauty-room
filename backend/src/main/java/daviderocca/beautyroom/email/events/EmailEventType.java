@@ -10,6 +10,9 @@ public enum EmailEventType {
     // PROMPT A: rimborso neutro concordato (NON slot occupato) — booking e ordine
     BOOKING_REFUND_CONFIRMED,
     ORDER_REFUND_CONFIRMED,
+    // PROMPT B: appuntamento spostato (from→to) e annullato (generico)
+    BOOKING_RESCHEDULED,
+    BOOKING_CANCELLED,
     REVIEW_REQUEST,
     WAITLIST_SLOT_AVAILABLE,
     USER_REGISTERED,

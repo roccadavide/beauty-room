@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.email.templates;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -12,6 +13,7 @@ import java.util.List;
  * - totalLabel/totalStr → null when there is nothing priced to total (covered/empty panel)
  * - paymentLabel → "Già pagato online" / "Da saldare in studio: € X" / "Incluso nel pacchetto (già pagato)"
  * - packageBlock → null when the booking is not part of a package
+ * - previousStartTime → the pre-move start (raw); only bookingRescheduled renders it (Prima row)
  */
 public record BookingEmailModel(
         String customerName, String customerEmail,
@@ -20,5 +22,6 @@ public record BookingEmailModel(
         String discountLabel, String discountStr,
         String totalLabel, String totalStr,
         String paymentLabel,
-        PackageBlock packageBlock
+        PackageBlock packageBlock,
+        LocalDateTime previousStartTime
 ) {}
