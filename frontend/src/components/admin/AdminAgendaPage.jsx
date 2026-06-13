@@ -1315,6 +1315,16 @@ export default function AdminAgendaPage() {
   };
 
   const handleCompleteClick = b => {
+    // Guard: non completare finché un pacchetto a rate ha una rata scaduta/in scadenza
+    // (hasOpenDue) ancora da gestire — è così che una rata sfuggiva non saldata. Hard
+    // block: saldarla o posticiparla ricarica summaryByPackage e sblocca da sé (no override).
+    const pkgs = b.linkedPackages?.length ? b.linkedPackages : b.linkedPackage ? [b.linkedPackage] : [];
+    const blocked = pkgs.some(p => p.paymentMode === "INSTALLMENTS" && summaryByPackage.get(String(p.packageAssignmentId))?.hasOpenDue);
+    if (blocked) {
+      setErr("Ci sono rate di questo pacchetto da gestire: saldale o posticipale prima di completare l'appuntamento.");
+      setErrDetails(null);
+      return;
+    }
     const items = buildBreakdownItems(b, priceMap);
     if (b.paidOnline) return settleAndComplete(b, items);                              // 1
     if (b.customTotalPrice != null) return setCompletionDrawer({ booking: b, items }); // 3 (bundle prima di "tutte pagate")
