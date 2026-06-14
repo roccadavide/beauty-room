@@ -129,7 +129,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     // ===== Expire HOLD =====
     List<Booking> findByBookingStatusAndExpiresAtBefore(BookingStatus status, LocalDateTime time);
 
-    @EntityGraph(attributePaths = {"service", "serviceOption", "user"})
+    @EntityGraph(attributePaths = {"service", "serviceOption", "user", "customer", "linkedUser"})
     @Query("select b from Booking b where b.bookingId = :id")
     Optional<Booking> findByIdWithDetails(@Param("id") UUID id);
 

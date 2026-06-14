@@ -31,7 +31,7 @@ public class EmailOutboxService {
                 EmailEventType.BOOKING_CONFIRMED,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
-                normalizeEmail(booking.getCustomerEmail()),
+                recipientFor(booking),
                 LocalDateTime.now()
         );
 
@@ -63,7 +63,7 @@ public class EmailOutboxService {
                 EmailEventType.BOOKING_REMINDER_24H,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
-                normalizeEmail(booking.getCustomerEmail()),
+                recipientFor(booking),
                 sched
         );
     }
@@ -101,7 +101,7 @@ public class EmailOutboxService {
                 EmailEventType.BOOKING_REFUNDED,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
-                normalizeEmail(booking.getCustomerEmail()),
+                recipientFor(booking),
                 LocalDateTime.now()
         );
     }
@@ -114,7 +114,7 @@ public class EmailOutboxService {
                 EmailEventType.BOOKING_REFUND_CONFIRMED,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
-                normalizeEmail(booking.getCustomerEmail()),
+                recipientFor(booking),
                 LocalDateTime.now()
         );
     }
@@ -131,7 +131,7 @@ public class EmailOutboxService {
                 EmailEventType.BOOKING_RESCHEDULED,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
-                normalizeEmail(booking.getCustomerEmail()),
+                recipientFor(booking),
                 LocalDateTime.now()
         );
     }
@@ -148,7 +148,7 @@ public class EmailOutboxService {
                 EmailEventType.BOOKING_CANCELLED,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
-                normalizeEmail(booking.getCustomerEmail()),
+                recipientFor(booking),
                 LocalDateTime.now()
         );
     }
@@ -201,7 +201,7 @@ public class EmailOutboxService {
                 EmailEventType.REVIEW_REQUEST,
                 EmailAggregateType.BOOKING,
                 booking.getBookingId(),
-                normalizeEmail(booking.getCustomerEmail()),
+                recipientFor(booking),
                 LocalDateTime.now()
         );
     }
@@ -262,6 +262,25 @@ public class EmailOutboxService {
         } catch (DataIntegrityViolationException dup) {
             // qualcuno l'ha inserita nello stesso istante
         }
+    }
+
+    private static final String WALKIN_EMAIL_DOMAIN = "@beautyroom.local";
+
+    /** Deliverable address test: not null/blank and not the technical walk-in
+     *  address (walkin+…@beautyroom.local). Mirrors CustomerService's WALKIN_MARKER. */
+    private boolean isRealEmail(String e) {
+        return e != null && !e.isBlank() && !e.toLowerCase().contains(WALKIN_EMAIL_DOMAIN);
+    }
+
+    /** Resolves the booking recipient: the typed customerEmail first, then the linked
+     *  account (customer → linkedUser → user). Returns null only for a true walk-in with
+     *  no real address anywhere, in which case enqueueSafe skips the send (correct). */
+    private String recipientFor(Booking b) {
+        if (isRealEmail(b.getCustomerEmail())) return normalizeEmail(b.getCustomerEmail());
+        if (b.getCustomer()   != null && isRealEmail(b.getCustomer().getEmail()))   return normalizeEmail(b.getCustomer().getEmail());
+        if (b.getLinkedUser() != null && isRealEmail(b.getLinkedUser().getEmail())) return normalizeEmail(b.getLinkedUser().getEmail());
+        if (b.getUser()       != null && isRealEmail(b.getUser().getEmail()))       return normalizeEmail(b.getUser().getEmail());
+        return null;
     }
 
     private static String normalizeEmail(String email) {
