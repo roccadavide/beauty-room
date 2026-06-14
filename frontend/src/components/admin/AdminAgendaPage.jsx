@@ -2593,7 +2593,7 @@ export default function AdminAgendaPage() {
                             })()}
 
                           <div className="ag-item__actions">
-                            {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
+                            {b.status !== "CANCELLED" && b.status !== "COMPLETED" && b.status !== "REFUNDED" && (
                               <Button className="ag-btn ag-btn--soft" size="sm" onClick={() => openEdit(b)}>
                                 Modifica
                               </Button>

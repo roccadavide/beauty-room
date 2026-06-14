@@ -3068,11 +3068,14 @@ export default function NewAppointmentDrawer({
               onDraftChange={editBooking ? undefined : captureFormDraft}
               onReset={editBooking ? undefined : handleResetDraft}
               onSuccess={msg => {
-                // A new appointment was persisted — drop the draft and suppress the
-                // close-time captures that would otherwise repopulate it.
+                // A new appointment was persisted — fully reset the drawer so the next
+                // open starts blank: suppress the close-time capture first, then
+                // handleResetDraft (null draft + blank customer + resetNonce bump →
+                // AppointmentForm remounts clean, so the previous client's packages list
+                // can't survive). Editing must NOT auto-blank on save → gated on !editBooking.
                 if (!editBooking) {
-                  draftRef.current = null;
                   suppressCaptureRef.current = true;
+                  handleResetDraft();
                 }
                 onAppointmentSaved?.(msg);
                 onClose();

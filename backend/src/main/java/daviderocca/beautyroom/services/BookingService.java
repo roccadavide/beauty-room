@@ -1424,13 +1424,14 @@ public class BookingService {
 
         Booking found = findBookingById(bookingId);
 
-        // FIX B3: blocca la delete solo se la prenotazione è pagata online E non ancora cancellata.
-        // Se è già CANCELLED il rimborso è stato gestito (o non c'era pagamento online):
-        // la delete è sempre sicura in quel caso.
+        // FIX B3: blocca la delete solo se la prenotazione è pagata online E non è già in uno
+        // stato terminale gestito. Se è CANCELLED o REFUNDED il rimborso è stato gestito (o non
+        // c'era pagamento online): la delete è sempre sicura in quel caso.
         boolean isPaidOnline = found.getStripeSessionId() != null;
         boolean isCancelled  = found.getBookingStatus() == BookingStatus.CANCELLED;
+        boolean isRefunded   = found.getBookingStatus() == BookingStatus.REFUNDED;
 
-        if (isPaidOnline && !isCancelled) {
+        if (isPaidOnline && !isCancelled && !isRefunded) {
             throw new BadRequestException(
                     "Questa prenotazione è stata pagata online. Gestisci prima il rimborso prima di eliminarla."
             );
