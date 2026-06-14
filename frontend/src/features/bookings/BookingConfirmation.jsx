@@ -409,7 +409,7 @@ export default function BookingConfirmation() {
                     <div key={s.id} className="conf-detail-row">
                       <span className="conf-detail-label">{i === 0 ? (b.services.length > 1 ? "Trattamenti" : "Trattamento") : ""}</span>
                       <span className="conf-detail-value">
-                        {s.name}
+                        {s.name}{s.optionName ? ` · ${s.optionName}` : ""}
                         {(s.durationMinutes != null || s.price != null) && (
                           <>
                             {" — "}
@@ -431,7 +431,7 @@ export default function BookingConfirmation() {
                         </div>
                       )}
                       <div>
-                        <div className="conf-service-name">{service?.title || b?.serviceId || "–"}</div>
+                        <div className="conf-service-name">{service?.title || b?.serviceId || "–"}{b?.serviceOptionName ? ` · ${b.serviceOptionName}` : ""}</div>
                         {service?.durationMin != null && service?.price != null && (
                           <div className="conf-service-meta">
                             {service.durationMin} min ·{" "}
@@ -471,14 +471,6 @@ export default function BookingConfirmation() {
                   <div className="conf-detail-row">
                     <span className="conf-detail-label">Fine prevista</span>
                     <span className="conf-detail-value">{fmtDate(b.endTime)}</span>
-                  </div>
-                )}
-
-                {/* Opzione */}
-                {b?.serviceOptionName && (
-                  <div className="conf-detail-row">
-                    <span className="conf-detail-label">Opzione</span>
-                    <span className="conf-detail-value">{b.serviceOptionName}</span>
                   </div>
                 )}
 

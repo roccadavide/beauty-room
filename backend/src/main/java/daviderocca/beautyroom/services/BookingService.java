@@ -2948,26 +2948,14 @@ public class BookingService {
         return 0;
     }
 
-    private AdminBookingCardDTO toAdminCard(Booking b, boolean hasOutstanding) {
-        var pkg = b.getPackageCredit();
-
-        // Resolve display service title: primary FK takes precedence, fall back to first in list
-        String serviceTitle = null;
-        UUID serviceId = null;
-        if (b.getService() != null) {
-            serviceTitle = b.getService().getTitle();
-            serviceId = b.getService().getServiceId();
-        } else if (b.isCustomService()) {
-            serviceTitle = b.getCustomServiceName();
-        } else if (!b.getServices().isEmpty()) {
-            serviceTitle = b.getServices().get(0).getTitle();
-            serviceId = b.getServices().get(0).getServiceId();
-        }
-
-        // Fetch services with per-entry option_id from booking_services join table.
-        // V62: bs.paid is the per-line settled flag — surfaced in ServiceSummaryDTO
-        // and consumed by the agenda for incasso stimato and per-line badges.
-        @SuppressWarnings("unchecked")
+    /**
+     * Per-line service summaries for a booking, read from the booking_services join table so each
+     * row carries its own option_id → option name, per-line duration/price overrides and paid flag.
+     * The @ManyToMany Booking.services maps only (booking_id, service_id) and cannot surface these,
+     * so both the agenda card (toAdminCard) and the booking response (convertToDTO) resolve lines here.
+     */
+    @SuppressWarnings("unchecked")
+    private List<ServiceSummaryDTO> loadServiceSummaries(UUID bookingId) {
         List<Object[]> svcRows = entityManager.createNativeQuery("""
                 SELECT bs.service_id, s.title,
                        COALESCE(bs.override_duration_min, so.duration_min, s.duration_min) AS duration_min,
@@ -2981,9 +2969,9 @@ public class BookingService {
                 WHERE bs.booking_id = :bookingId
                 ORDER BY bs.sort_order
                 """)
-                .setParameter("bookingId", b.getBookingId())
+                .setParameter("bookingId", bookingId)
                 .getResultList();
-        List<ServiceSummaryDTO> services = svcRows.stream()
+        return svcRows.stream()
                 .map(r -> {
                     UUID sId = r[0] instanceof UUID u ? u : UUID.fromString(r[0].toString());
                     UUID oId = r[4] == null ? null : (r[4] instanceof UUID u ? u : UUID.fromString(r[4].toString()));
@@ -3003,6 +2991,26 @@ public class BookingService {
                     );
                 })
                 .toList();
+    }
+
+    private AdminBookingCardDTO toAdminCard(Booking b, boolean hasOutstanding) {
+        var pkg = b.getPackageCredit();
+
+        // Resolve display service title: primary FK takes precedence, fall back to first in list
+        String serviceTitle = null;
+        UUID serviceId = null;
+        if (b.getService() != null) {
+            serviceTitle = b.getService().getTitle();
+            serviceId = b.getService().getServiceId();
+        } else if (b.isCustomService()) {
+            serviceTitle = b.getCustomServiceName();
+        } else if (!b.getServices().isEmpty()) {
+            serviceTitle = b.getServices().get(0).getTitle();
+            serviceId = b.getServices().get(0).getServiceId();
+        }
+
+        // Per-line option/override/paid resolved from booking_services (see loadServiceSummaries).
+        List<ServiceSummaryDTO> services = loadServiceSummaries(b.getBookingId());
 
         boolean consentRequired = (b.getService() != null && b.getService().isConsentRequired())
                 || services.stream().anyMatch(s -> false); // service-level consent flag not on summary
@@ -3348,13 +3356,10 @@ public class BookingService {
     }
 
     private BookingResponseDTO convertToDTO(Booking booking) {
-        // ServiceSummaryDTO here is built from the JPA-managed list, which is empty on
-        // the entries path (booking_services is populated by native INSERT). Per-line
-        // paid is therefore not surfaced through this response — the agenda fetches
-        // toAdminCard separately and that path reads bs.paid from the join table.
-        List<ServiceSummaryDTO> services = booking.getServices().stream()
-                .map(s -> new ServiceSummaryDTO(s.getServiceId(), s.getTitle(), s.getDurationMin(), s.getPrice(), null, null, null, null, false))
-                .toList();
+        // Per-line option/override/paid live only in booking_services — the @ManyToMany
+        // Booking.services maps just (booking_id, service_id). Resolve from the same source
+        // the agenda card uses so the confirmation page can render each line's option inline.
+        List<ServiceSummaryDTO> services = loadServiceSummaries(booking.getBookingId());
 
         // Fallback service title for backward compat
         String serviceTitle = booking.getService() != null
