@@ -2198,7 +2198,10 @@ export default function AdminAgendaPage() {
                                                   backend. INSTALLMENTS plans show a neutral
                                                   "Piano rate" pill instead (per-session price €0). */}
                                               {pkg.paymentMode === "INSTALLMENTS" ? (
-                                                <InstallmentPlanPill summary={summaryByPackage.get(String(pkg.packageAssignmentId))} />
+                                                <InstallmentPlanPill
+                                                  summary={summaryByPackage.get(String(pkg.packageAssignmentId))}
+                                                  onClick={() => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName })}
+                                                />
                                               ) : (
                                                 <span
                                                   className={`ag-pill ${pkg.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
@@ -2244,7 +2247,7 @@ export default function AdminAgendaPage() {
                                                     amount: row.amount,
                                                   })
                                                 }
-                                                onPostpone={() => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName })}
+                                                onPostpone={row => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName, editInstallmentId: row.installmentId })}
                                               />
                                             )}
                                             </Fragment>
@@ -3002,6 +3005,7 @@ export default function AdminAgendaPage() {
         <InstallmentEditor
           assignmentId={rateEditorFor.assignmentId}
           packageName={rateEditorFor.packageName || "Pacchetto"}
+          initialEditInstallmentId={rateEditorFor.editInstallmentId}
           onClose={() => {
             setRateEditorFor(null);
             reloadInstallments();
@@ -3017,7 +3021,7 @@ export default function AdminAgendaPage() {
           dueList={dueList}
           settling={installmentSettling}
           onSettleInstallment={requestSettleInstallment}
-          onPostponeInstallment={row => setRateEditorFor({ assignmentId: row.packageAssignmentId, packageName: row.packageName })}
+          onPostponeInstallment={row => setRateEditorFor({ assignmentId: row.packageAssignmentId, packageName: row.packageName, editInstallmentId: row.installmentId })}
           onClose={() => setShowEstimatoModal(false)}
         />
       )}

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createPackageInstallment,
   deletePackageInstallment,
@@ -12,6 +11,7 @@ import {
 import { formatEuro } from "../../../utils/formatEuro";
 import ConfirmDialog from "../../common/ConfirmDialog";
 import DateTimeField, { toISODateLocal } from "../../common/DateTimeField";
+import UnifiedDrawer from "../../common/UnifiedDrawer";
 
 // "Today" as YYYY-MM-DD from LOCAL parts (never toISOString) — same as the rest
 // of the codebase. toISODateLocal lives in DateTimeField and does exactly this.
@@ -30,46 +30,6 @@ const round2 = n => Math.round(Number(n) * 100) / 100;
 const EMPTY_FORM = { amount: "", dueDate: "", dateTbd: false, paid: false, paidDate: "", paymentMethod: "", note: "" };
 
 const S = {
-  backdrop: {
-    position: "fixed",
-    inset: 0,
-    zIndex: 1058, // above the NewAppointmentDrawer panel (1050), below ConfirmDialog (1060)
-    background: "rgba(20, 12, 6, 0.55)",
-    backdropFilter: "blur(2px)",
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "center",
-    padding: "max(4vh, 16px) 16px",
-    overflowY: "auto",
-  },
-  panel: {
-    width: "100%",
-    maxWidth: 560,
-    background: "#fffaf3",
-    borderRadius: 16,
-    boxShadow: "0 20px 60px rgba(46, 33, 24, 0.28)",
-    display: "flex",
-    flexDirection: "column",
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    padding: "16px 18px",
-    borderBottom: "1px solid rgba(184, 151, 106, 0.25)",
-  },
-  title: { fontSize: "1.02rem", fontWeight: 700, color: "#5a4030" },
-  close: {
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: "1.1rem",
-    color: "#8c6d3f",
-    lineHeight: 1,
-    padding: 4,
-  },
-  body: { padding: 18, display: "flex", flexDirection: "column", gap: 12 },
   summary: {
     background: "rgba(184, 151, 106, 0.10)",
     border: "1px solid rgba(184, 151, 106, 0.4)",
@@ -185,7 +145,7 @@ const S = {
   listInline: { display: "flex", flexDirection: "column", gap: 8 },
 };
 
-export default function InstallmentEditor({ assignmentId, packageName, onClose, onChanged, inline = false, onBack }) {
+export default function InstallmentEditor({ assignmentId, packageName, onClose, onChanged, inline = false, onBack, initialEditInstallmentId = null }) {
   const [installments, setInstallments] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -218,34 +178,12 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
     load();
   }, [load]);
 
-  // Don't tear the modal down mid-save; let ConfirmDialog own Escape when it's up.
+  // Guard close while a save is in flight. The inline back button and the drawer
+  // chrome (✕ / backdrop / Escape, all owned by UnifiedDrawer) route through this.
   const requestClose = useCallback(() => {
     if (submitting) return;
     onClose?.();
   }, [submitting, onClose]);
-
-  // Modal-only: Escape closes the overlay. Inline lives inside the drawer, which
-  // owns Escape (and gets no onClose), so don't hijack the key there.
-  useEffect(() => {
-    if (inline) return;
-    const onKey = e => {
-      if (e.key !== "Escape") return;
-      if (confirmDelete) return; // ConfirmDialog handles its own Escape
-      requestClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [inline, confirmDelete, requestClose]);
-
-  // Modal-only: lock page scroll behind the overlay. Inline scrolls with the drawer.
-  useEffect(() => {
-    if (inline) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [inline]);
 
   // ── Form open helpers ───────────────────────────────────────────────────────
   const openAdd = () => {
@@ -257,7 +195,7 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
     setFormOpen(true);
   };
 
-  const openEdit = inst => {
+  const openEdit = useCallback(inst => {
     setEditingId(inst.id);
     setForm({
       amount: inst.amount != null ? String(inst.amount) : "",
@@ -271,7 +209,19 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
     });
     setFormError("");
     setFormOpen(true);
-  };
+  }, []);
+
+  // Pre-open edit (agenda "Posticipa"): once the first fetch resolves, if
+  // initialEditInstallmentId matches a rata, open its edit form. One-shot via a ref
+  // so it fires once on entry — never again after a refetch/mutation reloads the list.
+  const initialEditApplied = useRef(false);
+  useEffect(() => {
+    if (initialEditApplied.current || loading) return;
+    initialEditApplied.current = true; // consume on first settled load, match or not
+    if (initialEditInstallmentId == null) return;
+    const target = installments.find(i => String(i.id) === String(initialEditInstallmentId));
+    if (target) openEdit(target);
+  }, [loading, installments, initialEditInstallmentId, openEdit]);
 
   const togglePaid = checked => {
     setForm(f => ({ ...f, paid: checked, paidDate: checked && !f.paidDate ? today() : f.paidDate }));
@@ -586,20 +536,16 @@ export default function InstallmentEditor({ assignmentId, packageName, onClose, 
     );
   }
 
-  // Default: centered modal — the agenda Posticipa entry point. Unchanged.
-  return createPortal(
-    <div style={S.backdrop} onClick={requestClose}>
-      <div style={S.panel} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div style={S.header}>
-          <div style={S.title}>📅 Piano rate — {packageName}</div>
-          <button type="button" style={S.close} onClick={requestClose} aria-label="Chiudi">
-            ✕
-          </button>
-        </div>
-        <div style={S.body}>{bodyInner}</div>
-      </div>
+  // Default: right-side drawer — the agenda entry points (Posticipa + plan pill).
+  // Reuses the shared UnifiedDrawer chrome (ud- panel/backdrop/slide) so it looks
+  // exactly like the app's other drawers; ✕ / backdrop / Escape route to onHide,
+  // and requestClose keeps the mid-save guard. ConfirmDialog renders alongside.
+  return (
+    <>
+      <UnifiedDrawer show onHide={requestClose} title={`📅 Piano rate — ${packageName}`} size="lg">
+        {bodyInner}
+      </UnifiedDrawer>
       {confirm}
-    </div>,
-    document.body,
+    </>
   );
 }

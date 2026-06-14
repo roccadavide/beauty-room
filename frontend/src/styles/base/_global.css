@@ -35,6 +35,11 @@ body {
   --z-modal-backdrop: 1060;
   --z-modal-panel: 1070;
   --z-toast: 1080;
+  /* Confirm/alert dialog: above the unified drawer (.ud-root 1080) so a delete
+     confirm opened from inside a drawer is reachable; still below the DateTimeField
+     sheet (10050+) so date pickers overlay it. Dedicated var — do NOT fold into
+     --z-modal-backdrop (other modals stay at 1060). */
+  --z-confirm: 1090;
 }
 
 body.nav-scrolled {
