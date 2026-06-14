@@ -370,6 +370,21 @@
   background: #fad8d8;
 }
 
+/* Compact reset button that lives in the Cliente section header (not the footer). */
+.nad-btn--reset-inline {
+  padding: 3px 10px;
+  font-size: 0.74rem;
+  background: #f3ede5;
+  color: #8a7660;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.nad-btn--reset-inline:not(:disabled):hover {
+  background: #e9dfd2;
+  color: #6f5d49;
+}
+
 /* ── Form sections ────────────────────────────────────────────────────────── */
 .nad-section {
   display: flex;
@@ -386,6 +401,22 @@
   padding-bottom: 6px;
   border-bottom: 1px solid #f0e8df;
   margin-bottom: 0;
+}
+
+/* Cliente section header: title left, compact reset button right. The full-width
+   section underline moves to this wrapper so it spans the row, not just the title. */
+.nad-cliente-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0e8df;
+}
+
+.nad-cliente-head .nad-section__title {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 /* ── Field error ─────────────────────────────────────────────────────────── */

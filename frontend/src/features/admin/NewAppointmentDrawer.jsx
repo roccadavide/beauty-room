@@ -1418,7 +1418,16 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
 
       {/* ── Section 1: Cliente ─────────────────────────────────────────────── */}
       <div className="nad-section">
-        <div className="nad-section__title">Cliente</div>
+        <div className="nad-cliente-head">
+          <div className="nad-section__title">Cliente</div>
+          {/* New appointment only (onReset is undefined in edit/duplicate), and only
+              once the draft has content worth wiping. Resets via a full remount. */}
+          {onReset && (Boolean(customerName?.trim()) || selectedServices.length > 0 || serviceItems.length > 0) && (
+            <button type="button" className="nad-btn nad-btn--reset-inline" onClick={onReset} disabled={submitting}>
+              ↺ Nuovo
+            </button>
+          )}
+        </div>
 
         <div className="nad-form__row nad-form__row--2col">
           <div>
@@ -2595,13 +2604,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       )}
 
       <div className="nad-form__actions">
-        {/* New appointment only (onReset is undefined in edit/duplicate): wipe the
-            whole draft and start clean via a remount. */}
-        {onReset && (
-          <button type="button" className="nad-btn" onClick={onReset} disabled={submitting}>
-            ↺ Nuovo appuntamento
-          </button>
-        )}
         <button type="submit" className="nad-btn nad-btn--primary" disabled={submitting}>
           {submitting ? "Salvataggio…" : isEditMode ? "Salva modifiche" : "Crea appuntamento"}
         </button>
