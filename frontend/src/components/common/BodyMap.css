@@ -1,0 +1,71 @@
+/* ── BodyMap — silhouette reattiva (laser / cera) ── */
+
+.bm-figs {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  align-items: flex-end; /* fronte e retro allineati allo stesso "pavimento" */
+}
+
+.bm-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bm-fig {
+  flex: 0 0 auto;
+  width: 128px;
+  height: auto;
+  filter: drop-shadow(0 7px 10px rgba(46, 33, 24, 0.14));
+}
+
+@media (max-width: 980px) {
+  .bm-fig {
+    width: 114px;
+  }
+}
+@media (max-width: 560px) {
+  .bm-fig {
+    width: 98px;
+  }
+}
+@media (max-width: 380px) {
+  .bm-fig {
+    width: 86px;
+  }
+}
+
+.bm-caption {
+  text-align: center;
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9c8880;
+  margin-top: 0.45rem;
+}
+
+/* corpo base — gradiente caldo, nessun bordo: la sagoma resta morbida */
+.bm-body path,
+.bm-body rect,
+.bm-body ellipse {
+  fill: url(#bmBodyGrad);
+}
+
+/* regioni — invisibili da spente, si accendono da selezionate / in carrello */
+.bm-region {
+  fill: transparent;
+  transition: fill 0.3s ease;
+}
+.bm-region--cart {
+  fill: #86b393; /* verde "nel carrello" */
+}
+.bm-region--sel {
+  fill: #b8976a; /* oro "selezionata" — vince sul verde se entrambe */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bm-region {
+    transition: none;
+  }
+}
