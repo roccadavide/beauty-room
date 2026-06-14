@@ -3013,69 +3013,16 @@ button.ag-pill:hover,
   margin-top: 2px;
 }
 
-/* Card inner layout: body + action buttons */
+/* Card inner layout: body */
 .ag-pkg-select-card__body {
   flex: 1;
   min-width: 0;
 }
 
-.ag-pkg-select-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  margin-left: 6px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.ag-pkg-select-card:hover .ag-pkg-select-card__actions,
-.ag-pkg-select-card.is-selected .ag-pkg-select-card__actions {
-  opacity: 1;
-}
-
-/* Make the card a flex row so actions sit at the right edge */
+/* Make the card a flex row */
 .ag-pkg-select-card {
   display: flex;
   align-items: center;
-}
-
-.ag-pkg-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.78rem;
-  line-height: 1;
-  transition:
-    background 0.12s,
-    opacity 0.12s;
-}
-
-.ag-pkg-action-btn--edit {
-  color: var(--card-gold, #b8976a);
-  opacity: 0.8;
-}
-
-.ag-pkg-action-btn--edit:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.ag-pkg-action-btn--trash {
-  color: #c0392b;
-  opacity: 0.7;
-}
-
-.ag-pkg-action-btn--trash:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.04);
 }
 
 /* Active packages section header (FIX 3) */

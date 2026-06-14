@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DurationField from "../common/DurationField";
-import { createPackageAssignment, createRecurringTemplate, fetchCatalogPackages, fetchRecurringTemplates, updatePackageAssignment } from "../../api/modules/adminAgenda.api";
+import DateTimeField, { toISODateLocal } from "../common/DateTimeField";
+import { createPackageAssignment, createPackageInstallment, createRecurringTemplate, fetchCatalogPackages, fetchRecurringTemplates, updatePackageAssignment } from "../../api/modules/adminAgenda.api";
 import "./PackageForm.css";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -185,7 +186,11 @@ export default function PackageForm({ customer, services = [], editingPackage = 
   const [startSession, setStartSession] = useState("1");
   const [sessionDurationMin, setSessionDurationMin] = useState(null);
   const [pricePaid, setPricePaid] = useState("");
-  const [paidUpfront, setPaidUpfront] = useState(false);
+  // Payment mode (Phase 3b) — mutually exclusive with the picker `mode` above.
+  // PER_SESSION (default) | UPFRONT (one paid installment on create) | INSTALLMENTS (open editor on save).
+  const [paymentMode, setPaymentMode] = useState("PER_SESSION");
+  const [upfrontPaidDate, setUpfrontPaidDate] = useState(() => toISODateLocal(new Date()));
+  const [priceTouched, setPriceTouched] = useState(false);
   const [notes, setNotes] = useState("");
 
   const [catalogPackages, setCatalogPackages] = useState([]);
@@ -246,7 +251,9 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       setStartSession(String(editingPackage.startSession ?? 1));
       setSessionDurationMin(editingPackage.sessionDurationMin ?? null);
       setPricePaid(editingPackage.pricePaid != null ? String(editingPackage.pricePaid) : "");
-      setPaidUpfront(!!editingPackage.paidUpfront);
+      setPaymentMode(editingPackage.paymentMode ?? (editingPackage.paidUpfront ? "UPFRONT" : "PER_SESSION"));
+      setPriceTouched(true); // never auto-overwrite a saved package's price
+      setUpfrontPaidDate(toISODateLocal(new Date()));
       setNotes(editingPackage.notes ?? "");
     } else {
       setMode("catalog");
@@ -256,7 +263,8 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       setStartSession("1");
       setSessionDurationMin(null);
       setPricePaid("");
-      setPaidUpfront(false);
+      setPaymentMode("PER_SESSION");
+      setPriceTouched(false); // allow auto-fill on a fresh form
       setNotes("");
     }
     setCatalogSearch("");
@@ -276,6 +284,7 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     setStartSession("1");
     setSessionDurationMin(null);
     setPricePaid("");
+    setPriceTouched(false);
     setCatalogSearch("");
     setSaveAsRecurring(false);
     seedSigRef.current = null;
@@ -307,6 +316,7 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       setStartSession("1");
       setSessionDurationMin(optDuration);
       setPricePaid(opt.price != null ? String(opt.price) : "");
+      setPriceTouched(true);
     },
     [services],
   );
@@ -337,6 +347,7 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     setComposition(nextComposition);
     setSessionDurationMin(nextDuration);
     setPricePaid(nextPrice);
+    setPriceTouched(true);
     seedSigRef.current = seedSignature(nextName, nextComposition, nextPrice, nextDuration);
     setMode("service");
   }, []);
@@ -437,6 +448,15 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     return { total, perSession: sumPerSession };
   }, [composition, services, totalSessions]);
 
+  // Auto-fill the total in the manual ("service") path: pricePaid = contenuto × sedute
+  // until she types a price, applies a discount, or picks from catalog/recurring
+  // (all set priceTouched). Edit never auto-overwrites a saved price.
+  useEffect(() => {
+    if (!isEdit && !priceTouched && fullPriceData && fullPriceData.total > 0) {
+      setPricePaid(String(fullPriceData.total));
+    }
+  }, [fullPriceData, priceTouched, isEdit]);
+
   const priceCalc = useMemo(() => {
     const sessions = parseInt(totalSessions, 10);
     const paid = parseFloat(pricePaid);
@@ -451,6 +471,7 @@ export default function PackageForm({ customer, services = [], editingPackage = 
     pct => {
       if (!fullPriceData) return;
       setPricePaid(String(round2(fullPriceData.total * (1 - pct))));
+      setPriceTouched(true);
     },
     [fullPriceData],
   );
@@ -481,9 +502,13 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       errs.totalSessions = `Non puoi scendere sotto le sedute già effettuate (${completedOriginal}).`;
     }
     if (pricePaid !== "" && Number(pricePaid) < 0) errs.pricePaid = "Prezzo ≥ 0";
+    // UPFRONT/INSTALLMENTS settle a concrete amount → a positive total is mandatory.
+    if (paymentMode === "UPFRONT" || paymentMode === "INSTALLMENTS") {
+      if (pricePaid === "" || Number(pricePaid) <= 0) errs.pricePaid = "Imposta il prezzo totale per questa modalità di pagamento.";
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
-  }, [composition, totalSessions, startSession, pricePaid, customer, isEdit, completedOriginal, name]);
+  }, [composition, totalSessions, startSession, pricePaid, customer, isEdit, completedOriginal, name, paymentMode]);
 
   // ── Payload builder (contract unchanged) ───────────────────────────────────
   const buildPayload = useCallback(() => {
@@ -506,7 +531,8 @@ export default function PackageForm({ customer, services = [], editingPackage = 
       sessionsRemaining,
       sessionDurationMin: sessionDurationMin ?? null,
       pricePaid: pricePaid !== "" ? Number(pricePaid) : null,
-      paidUpfront,
+      paymentMode,
+      paidUpfront: paymentMode === "UPFRONT",
       notes: notes.trim() || null,
       items: composition.map((row, i) => ({
         serviceId: row.kind === "service" ? row.serviceId : null,
@@ -515,7 +541,7 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         position: i,
       })),
     };
-  }, [composition, customer, isEdit, completedOriginal, name, derivedName, notes, paidUpfront, pricePaid, sessionDurationMin, startSession, totalSessions]);
+  }, [composition, customer, isEdit, completedOriginal, name, derivedName, notes, paymentMode, pricePaid, sessionDurationMin, startSession, totalSessions]);
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -543,6 +569,22 @@ export default function PackageForm({ customer, services = [], editingPackage = 
         }
       }
       seedSigRef.current = null;
+      // UPFRONT (create only) records the single paid installment for the full
+      // amount. All modes then end with onSaved → the package shows in the active
+      // list; INSTALLMENTS rate plans are managed on demand via "Gestisci rate".
+      if (paymentMode === "UPFRONT" && !isEdit) {
+        try {
+          await createPackageInstallment(saved.id, {
+            amount: Number(pricePaid),
+            dueDate: upfrontPaidDate,
+            paid: true,
+            paidDate: upfrontPaidDate,
+          });
+        } catch {
+          // The package exists; the payment can be added later from "Gestisci rate".
+          setSubmitError("Pacchetto creato, ma il pagamento non è stato registrato. Aggiungilo da «Gestisci rate».");
+        }
+      }
       onSaved?.(saved);
     } catch (err) {
       setSubmitError(err.message || "Errore durante il salvataggio.");
@@ -759,7 +801,10 @@ export default function PackageForm({ customer, services = [], editingPackage = 
             type="number"
             className="nad-form__input"
             value={pricePaid}
-            onChange={e => setPricePaid(e.target.value)}
+            onChange={e => {
+              setPricePaid(e.target.value);
+              setPriceTouched(true);
+            }}
             min={0}
             step={0.5}
             placeholder="Opzionale"
@@ -791,10 +836,39 @@ export default function PackageForm({ customer, services = [], editingPackage = 
             )}
           </div>
         )}
-        <label className="pkgf-paid">
-          <input type="checkbox" checked={paidUpfront} onChange={e => setPaidUpfront(e.target.checked)} />
-          <span>💵 Pagato in anticipo</span>
-        </label>
+        <div className="nad-form__row">
+          <label className="nad-form__label">Come paga la cliente?</label>
+          <div className="nad-pkg-mode-toggle">
+            <button
+              type="button"
+              className={`nad-pkg-mode-pill${paymentMode === "PER_SESSION" ? " is-active" : ""}`}
+              onClick={() => setPaymentMode("PER_SESSION")}
+            >
+              Volta per volta
+            </button>
+            <button
+              type="button"
+              className={`nad-pkg-mode-pill${paymentMode === "UPFRONT" ? " is-active" : ""}`}
+              onClick={() => setPaymentMode("UPFRONT")}
+            >
+              Tutto subito
+            </button>
+            <button
+              type="button"
+              className={`nad-pkg-mode-pill${paymentMode === "INSTALLMENTS" ? " is-active" : ""}`}
+              onClick={() => setPaymentMode("INSTALLMENTS")}
+            >
+              A rate
+            </button>
+          </div>
+          {paymentMode === "UPFRONT" && (
+            <>
+              <DateTimeField mode="date" label="Pagato il" value={upfrontPaidDate} onChange={setUpfrontPaidDate} />
+              <div className="nad-help">Verrà registrata una rata pagata per l'intero importo in questa data.</div>
+            </>
+          )}
+          {paymentMode === "INSTALLMENTS" && <div className="nad-help">Dopo «Crea pacchetto» potrai aggiungere le rate.</div>}
+        </div>
         {!isEdit && mode === "service" && (
           <label className="pkgf-paid">
             <input type="checkbox" checked={saveAsRecurring} onChange={e => setSaveAsRecurring(e.target.checked)} />

@@ -257,7 +257,7 @@
 .cd-root {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal-backdrop);
+  z-index: var(--z-confirm); /* above .ud-root (1080); see --z-confirm in _global.css */
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s linear;

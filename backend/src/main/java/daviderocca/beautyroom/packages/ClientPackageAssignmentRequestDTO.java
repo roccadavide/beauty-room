@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.packages;
 
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -48,5 +49,9 @@ public record ClientPackageAssignmentRequestDTO(
         Boolean paidUpfront,
 
         // Starting session number for packages mid-course at launch. Defaults to 1 when null.
-        Integer startSession
+        Integer startSession,
+
+        // Payment mode (PER_SESSION / UPFRONT / INSTALLMENTS). Null on legacy requests →
+        // paidUpfront drives the outcome (backward-compatible).
+        ClientPackagePaymentMode paymentMode
 ) {}

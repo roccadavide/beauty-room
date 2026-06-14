@@ -24,6 +24,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SaleSummaryDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
 import daviderocca.beautyroom.enums.LinkingStatus;
 import daviderocca.beautyroom.enums.NotificationType;
@@ -35,6 +36,7 @@ import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
 import daviderocca.beautyroom.packages.ClientPackageService;
+import daviderocca.beautyroom.packages.PackageInstallmentService;
 import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
@@ -104,6 +106,8 @@ public class BookingService {
     private final UserLookupService userLookupService;
     private final ClientPackageService clientPackageService;
     private final BookingPackageLinkRepository bookingPackageLinkRepository;
+    // Phase 5d: snap "da definire" (date-less) installments onto the next appointment.
+    private final PackageInstallmentService packageInstallmentService;
     // 08.2: promotions <-> agenda wiring
     private final BookingPromotionLinkRepository bookingPromotionLinkRepository;
     private final BookingSaleRepository bookingSaleRepository;
@@ -918,6 +922,23 @@ public class BookingService {
             log.info("CASE A/B done: bookingId={} pkg={} session {}/{} remaining={}",
                     saved.getBookingId(), pkg.getId(),
                     dto.currentSession(), dto.totalSessions(), remaining);
+        }
+
+        // ── Step 6c (Phase 5d): snap "da definire" installments onto this date ──
+        // The package link(s) are now persisted. Re-read them as the single source
+        // for EVERY linked assignment (CASE C's N packages + CASE A/B's implicit one)
+        // and pin any unpaid date-less rata to this appointment's date, so a "da
+        // definire" rata resurfaces here as an ordinary dated installment. Guard:
+        // never snap onto a back-dated/historical booking (today or future only).
+        LocalDate snapDate = saved.getStartTime().toLocalDate();
+        if (!snapDate.isBefore(LocalDate.now())) {
+            List<UUID> linkedAssignmentIds = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(saved.getBookingId())
+                    .stream()
+                    .map(l -> l.getAssignment().getId())
+                    .distinct()
+                    .toList();
+            packageInstallmentService.snapDatelessInstallments(linkedAssignmentIds, snapDate);
         }
 
         // ── Step 6b: attach promotions (frozen snapshot + product stock −1) ────
@@ -3237,9 +3258,15 @@ public class BookingService {
         } else {
             pkgName = "Trattamento";
         }
+        ClientPackagePaymentMode mode = a.getPaymentMode();
         boolean paidLocked = a.isPaidUpfront();
         boolean paid = paidLocked || link.isPaid();
-        BigDecimal sessionPrice = paidLocked
+        // Zero the per-session price whenever the package is NOT billed per session:
+        // UPFRONT (already locked/prepaid) or INSTALLMENTS (money tracked in the
+        // installment registry). Either way the session must not count toward the
+        // booking's per-session "still to collect" / estimated revenue.
+        boolean nonPerSessionBilled = paidLocked || mode == ClientPackagePaymentMode.INSTALLMENTS;
+        BigDecimal sessionPrice = nonPerSessionBilled
                 ? BigDecimal.ZERO
                 : clientPackageService.computeSessionPrice(a);
         return new PackageSummaryDTO(
@@ -3253,7 +3280,8 @@ public class BookingService {
                 clientPackageService.mapItemsToSummary(a),
                 paid,
                 paidLocked,
-                a.getNotes());
+                a.getNotes(),
+                mode);
     }
 
     /**

@@ -1,0 +1,551 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createPackageInstallment,
+  deletePackageInstallment,
+  getPackageInstallments,
+  getPackageInstallmentSummary,
+  settlePackageInstallment,
+  unsettlePackageInstallment,
+  updatePackageInstallment,
+} from "../../../api/modules/adminAgenda.api";
+import { formatEuro } from "../../../utils/formatEuro";
+import ConfirmDialog from "../../common/ConfirmDialog";
+import DateTimeField, { toISODateLocal } from "../../common/DateTimeField";
+import UnifiedDrawer from "../../common/UnifiedDrawer";
+
+// "Today" as YYYY-MM-DD from LOCAL parts (never toISOString) — same as the rest
+// of the codebase. toISODateLocal lives in DateTimeField and does exactly this.
+const today = () => toISODateLocal(new Date());
+
+// YYYY-MM-DD -> gg/mm/aaaa, parsed by parts so there is no timezone drift.
+const fmtDate = iso => {
+  if (!iso) return "";
+  const [y, m, d] = String(iso).slice(0, 10).split("-");
+  return y && m && d ? `${d}/${m}/${y}` : iso;
+};
+
+// Round a money amount to 2 decimals.
+const round2 = n => Math.round(Number(n) * 100) / 100;
+
+const EMPTY_FORM = { amount: "", dueDate: "", dateTbd: false, paid: false, paidDate: "", paymentMethod: "", note: "" };
+
+const S = {
+  summary: {
+    background: "rgba(184, 151, 106, 0.10)",
+    border: "1px solid rgba(184, 151, 106, 0.4)",
+    borderRadius: 10,
+    padding: "10px 12px",
+    fontSize: "0.88rem",
+    color: "#5a4632",
+  },
+  summaryMuted: { color: "#8a7a64" },
+  summaryNext: { marginTop: 4, fontSize: "0.82rem", color: "#8c6d3f", fontWeight: 600 },
+  list: { display: "flex", flexDirection: "column", gap: 8, maxHeight: "40vh", overflowY: "auto" },
+  row: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+    padding: "8px 10px",
+    border: "1px solid rgba(184, 151, 106, 0.22)",
+    borderRadius: 10,
+    background: "#fff",
+  },
+  rowMain: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 },
+  amount: { fontWeight: 700, color: "#3a2e22", fontSize: "0.95rem" },
+  // Sequential "Nª rata" prefix — driven by display index, so it renumbers cleanly on delete.
+  rataLabel: { fontWeight: 700, color: "#8c6d3f", fontSize: "0.82rem", whiteSpace: "nowrap" },
+  rowActions: { display: "flex", alignItems: "center", gap: 6 },
+  iconBtn: {
+    border: "1px solid rgba(184, 151, 106, 0.3)",
+    background: "#fff",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    lineHeight: 1,
+    padding: "5px 8px",
+    borderRadius: 8,
+  },
+  overdue: {
+    background: "rgba(248, 113, 113, 0.14)",
+    color: "#c0392b",
+    border: "1px solid rgba(248, 113, 113, 0.4)",
+    fontWeight: 600,
+  },
+  form: {
+    border: "1px solid rgba(184, 151, 106, 0.4)",
+    borderRadius: 12,
+    padding: 14,
+    background: "rgba(184, 151, 106, 0.06)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  formTitle: { fontWeight: 700, color: "#5a4030", fontSize: "0.92rem" },
+  label: { display: "block", marginBottom: 4 },
+  check: { display: "flex", alignItems: "center", gap: 8, fontSize: "0.86rem", color: "#5a4030", cursor: "pointer" },
+  paidBlock: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    paddingLeft: 10,
+    borderLeft: "3px solid rgba(184, 151, 106, 0.45)",
+  },
+  formActions: { display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 2 },
+  muted: { fontSize: "0.85rem", color: "#8a7a64" },
+  // Quick-fill chips under the Importo field (50% / 25% / Resto).
+  quickRow: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 },
+  quickBtn: {
+    border: "1px solid rgba(184, 151, 106, 0.45)",
+    background: "#fff",
+    color: "#5a4030",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    padding: "4px 10px",
+    borderRadius: 999,
+  },
+  // Live "how much is left to split" line; turns red when the amount exceeds the base.
+  remainder: { marginTop: 6, fontSize: "0.82rem", color: "#8a7a64" },
+  remainderErr: { marginTop: 6, fontSize: "0.82rem", color: "#c0392b", fontWeight: 600 },
+  // "Da definire" status pill — neutral, muted, italic (never overdue-styled).
+  tbd: {
+    background: "rgba(184, 151, 106, 0.10)",
+    color: "#8a7a64",
+    border: "1px solid rgba(184, 151, 106, 0.3)",
+    fontStyle: "italic",
+    fontWeight: 600,
+  },
+  // ── Inline variant (in-drawer sub-view of the Pacchetti tab) ────────────────
+  // Renders in-flow inside .nad-content (already padded + scrollable): no panel
+  // box / backdrop / fixed sizing, and no inner width or max-height caps so the
+  // list and form fill the drawer width and scroll with the drawer, not nested.
+  panelInline: { display: "flex", flexDirection: "column" },
+  back: {
+    alignSelf: "flex-start",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontSize: "0.84rem",
+    fontWeight: 600,
+    color: "#b8976a",
+    padding: "2px 0",
+    marginBottom: 12,
+  },
+  titleInline: {
+    fontSize: "1.02rem",
+    fontWeight: 700,
+    color: "#5a4030",
+    paddingBottom: 12,
+    marginBottom: 4,
+    borderBottom: "1px solid rgba(184, 151, 106, 0.25)",
+  },
+  bodyInline: { display: "flex", flexDirection: "column", gap: 12, paddingTop: 14 },
+  listInline: { display: "flex", flexDirection: "column", gap: 8 },
+};
+
+export default function InstallmentEditor({ assignmentId, packageName, onClose, onChanged, inline = false, onBack, initialEditInstallmentId = null }) {
+  const [installments, setInstallments] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null); // null = add, id = edit
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState("");
+
+  const [confirmDelete, setConfirmDelete] = useState(null); // installment | null
+
+  // ── Load list + summary in parallel (on mount and after every mutation) ─────
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [list, sum] = await Promise.all([getPackageInstallments(assignmentId), getPackageInstallmentSummary(assignmentId)]);
+      setInstallments(Array.isArray(list) ? list : []);
+      setSummary(sum || null);
+    } catch (err) {
+      setError(err.message || "Errore caricamento rate.");
+    } finally {
+      setLoading(false);
+    }
+  }, [assignmentId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Guard close while a save is in flight. The inline back button and the drawer
+  // chrome (✕ / backdrop / Escape, all owned by UnifiedDrawer) route through this.
+  const requestClose = useCallback(() => {
+    if (submitting) return;
+    onClose?.();
+  }, [submitting, onClose]);
+
+  // ── Form open helpers ───────────────────────────────────────────────────────
+  const openAdd = () => {
+    setEditingId(null);
+    // Open with Importo blank — you're splitting the price into rate, not paying it
+    // all at once. The quick-fill chips below the field do the "what's left" math.
+    setForm({ ...EMPTY_FORM });
+    setFormError("");
+    setFormOpen(true);
+  };
+
+  const openEdit = useCallback(inst => {
+    setEditingId(inst.id);
+    setForm({
+      amount: inst.amount != null ? String(inst.amount) : "",
+      dueDate: inst.dueDate || "",
+      // A date-less rata opens with "da definire" pre-checked (Data cleared).
+      dateTbd: !inst.dueDate,
+      paid: !!inst.paid,
+      paidDate: inst.paidDate || (inst.paid ? today() : ""),
+      paymentMethod: inst.paymentMethod || "",
+      note: inst.note || "",
+    });
+    setFormError("");
+    setFormOpen(true);
+  }, []);
+
+  // Pre-open edit (agenda "Posticipa"): once the first fetch resolves, if
+  // initialEditInstallmentId matches a rata, open its edit form. One-shot via a ref
+  // so it fires once on entry — never again after a refetch/mutation reloads the list.
+  const initialEditApplied = useRef(false);
+  useEffect(() => {
+    if (initialEditApplied.current || loading) return;
+    initialEditApplied.current = true; // consume on first settled load, match or not
+    if (initialEditInstallmentId == null) return;
+    const target = installments.find(i => String(i.id) === String(initialEditInstallmentId));
+    if (target) openEdit(target);
+  }, [loading, installments, initialEditInstallmentId, openEdit]);
+
+  const togglePaid = checked => {
+    setForm(f => ({ ...f, paid: checked, paidDate: checked && !f.paidDate ? today() : f.paidDate }));
+  };
+
+  // ── Amount-entry base ─────────────────────────────────────────────────────────
+  // `base` = how much of the price isn't split into rate yet, i.e. the headroom for
+  // this rata's amount. In edit mode the rata's own amount is already part of
+  // `scheduled` (hence excluded from `unscheduled`), so add it back: you can re-enter
+  // up to its old value plus whatever slack is left.
+  const editingAmount = editingId != null ? Number(installments.find(i => i.id === editingId)?.amount) || 0 : 0;
+  const base = round2((Number(summary?.unscheduled) || 0) + editingAmount);
+  // No sensible base (no total, or nothing left to split) → free entry, no cap.
+  const hasBase = Number(summary?.total) > 0 && base > 0;
+  const importoNum = form.amount === "" || Number.isNaN(Number(form.amount)) ? 0 : Number(form.amount);
+  const overBase = hasBase && importoNum > base;
+
+  // ── Mutations ───────────────────────────────────────────────────────────────
+  const afterMutation = async () => {
+    await load();
+    onChanged?.();
+  };
+
+  const submitForm = async () => {
+    const amountNum = Number(form.amount);
+    if (!form.amount || Number.isNaN(amountNum) || amountNum <= 0) {
+      setFormError("Inserisci un importo maggiore di 0.");
+      return;
+    }
+    if (hasBase && amountNum > base) {
+      setFormError(`Supera il residuo da pianificare (${formatEuro(base)})`);
+      return;
+    }
+    if (form.paid) {
+      // A paid rata needs only the date it was paid — no due date, no "da definire".
+      if (!form.paidDate) {
+        setFormError("Inserisci la data di pagamento.");
+        return;
+      }
+    } else if (!form.dateTbd && !form.dueDate) {
+      setFormError("Seleziona una data di scadenza oppure attiva «Data da definire».");
+      return;
+    }
+    const body = {
+      amount: amountNum,
+      // A paid rata or a "da definire" rata has no due date → send null (the backend
+      // field is nullable/un-required), not "".
+      dueDate: form.paid || form.dateTbd ? null : form.dueDate,
+      paid: form.paid,
+      paidDate: form.paid ? form.paidDate || today() : null,
+      paymentMethod: form.paid ? form.paymentMethod.trim() || null : null,
+      note: form.note.trim() || null,
+    };
+    setSubmitting(true);
+    setFormError("");
+    try {
+      if (editingId) await updatePackageInstallment(assignmentId, editingId, body);
+      else await createPackageInstallment(assignmentId, body);
+      setFormOpen(false);
+      await afterMutation();
+    } catch (err) {
+      setFormError(err.message || "Errore durante il salvataggio.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const runAction = async fn => {
+    setSubmitting(true);
+    setError("");
+    try {
+      await fn();
+      await afterMutation();
+    } catch (err) {
+      setError(err.message || "Operazione non riuscita.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const doSettle = inst => runAction(() => settlePackageInstallment(assignmentId, inst.id, { paidDate: today() }));
+  const doUnsettle = inst => runAction(() => unsettlePackageInstallment(assignmentId, inst.id));
+
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    const target = confirmDelete;
+    setConfirmDelete(null);
+    await runAction(() => deletePackageInstallment(assignmentId, target.id));
+  };
+
+  // ── Derived summary bits ────────────────────────────────────────────────────
+  const t = today();
+  const nextInst = summary?.nextDueDate ? installments.find(i => !i.paid && i.dueDate === summary.nextDueDate) : null;
+
+  const renderStatus = inst => {
+    if (inst.paid) {
+      return (
+        <span className="ag-pill ag-pill--paid">
+          ✓ Pagata il {fmtDate(inst.paidDate)}
+          {inst.paymentMethod ? ` · ${inst.paymentMethod}` : ""}
+        </span>
+      );
+    }
+    // Date-less ("da definire") rata: neutral muted label — never a date, never overdue.
+    if (!inst.dueDate) {
+      return (
+        <span className="ag-pill" style={S.tbd}>
+          Da definire
+        </span>
+      );
+    }
+    if (inst.dueDate < t) {
+      return (
+        <span className="ag-pill" style={S.overdue}>
+          ⚠️ Scaduta il {fmtDate(inst.dueDate)}
+        </span>
+      );
+    }
+    return <span className="ag-pill ag-pill--unpaid">Da incassare il {fmtDate(inst.dueDate)}</span>;
+  };
+
+  const bodyInner = (
+    <>
+          {/* Summary bar */}
+          {summary && (
+            <div style={S.summary}>
+              <div>
+                Totale <strong>{formatEuro(summary.total)}</strong> · Incassato <strong>{formatEuro(summary.collected)}</strong> · Da
+                pianificare <strong>{formatEuro(summary.unscheduled)}</strong>
+                <span style={S.summaryMuted}> · Residuo {formatEuro(summary.remaining)}</span>
+              </div>
+              {summary.nextDueDate && (
+                <div style={S.summaryNext}>
+                  {nextInst ? `Prossima: ${formatEuro(nextInst.amount)} il ${fmtDate(summary.nextDueDate)}` : `Prossima il ${fmtDate(summary.nextDueDate)}`}
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && <div className="nad-form__error">{error}</div>}
+          {loading && <div style={S.muted}>Carico…</div>}
+
+          {/* List */}
+          {!loading && installments.length === 0 && <div style={S.muted}>Nessuna rata ancora pianificata.</div>}
+          {installments.length > 0 && (
+            <div style={inline ? S.listInline : S.list}>
+              {installments.map((inst, idx) => (
+                <div key={inst.id} style={S.row}>
+                  <div style={S.rowMain}>
+                    <span style={S.rataLabel}>{idx + 1}ª rata</span>
+                    <span style={S.amount}>{formatEuro(inst.amount)}</span>
+                    {renderStatus(inst)}
+                  </div>
+                  <div style={S.rowActions}>
+                    {inst.paid ? (
+                      <button type="button" className="ag-pill ag-pill--toggle" disabled={submitting} onClick={() => doUnsettle(inst)}>
+                        Annulla saldo
+                      </button>
+                    ) : (
+                      <button type="button" className="ag-pill ag-pill--toggle" disabled={submitting} onClick={() => doSettle(inst)}>
+                        Salda
+                      </button>
+                    )}
+                    <button type="button" style={S.iconBtn} disabled={submitting} onClick={() => openEdit(inst)} aria-label="Modifica rata">
+                      ✏
+                    </button>
+                    <button type="button" style={S.iconBtn} disabled={submitting} onClick={() => setConfirmDelete(inst)} aria-label="Elimina rata">
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add / edit inline form */}
+          {formOpen ? (
+            <div style={S.form}>
+              <div style={S.formTitle}>{editingId ? "Modifica rata" : "Nuova rata"}</div>
+
+              <div>
+                <label className="nad-form__label" style={S.label}>
+                  Importo (€) *
+                </label>
+                <input
+                  className="nad-form__input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                  placeholder="0,00"
+                />
+                {hasBase && (
+                  <>
+                    <div style={S.quickRow}>
+                      <button type="button" style={S.quickBtn} onClick={() => setForm(f => ({ ...f, amount: String(round2(base * 0.5)) }))}>
+                        50%
+                      </button>
+                      <button type="button" style={S.quickBtn} onClick={() => setForm(f => ({ ...f, amount: String(round2(base * 0.25)) }))}>
+                        25%
+                      </button>
+                      <button type="button" style={S.quickBtn} onClick={() => setForm(f => ({ ...f, amount: String(base) }))}>
+                        Resto {formatEuro(base)}
+                      </button>
+                    </div>
+                    {overBase ? (
+                      <div style={S.remainderErr}>Supera il residuo da pianificare ({formatEuro(base)})</div>
+                    ) : (
+                      <div style={S.remainder}>Ti mancano {formatEuro(round2(base - importoNum))} da pianificare</div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <label style={S.check}>
+                <input type="checkbox" checked={form.paid} onChange={e => togglePaid(e.target.checked)} />
+                <span>Già pagata</span>
+              </label>
+
+              {form.paid ? (
+                /* Paid rata: only the date it was paid (+ optional method) — no due date. */
+                <div style={S.paidBlock}>
+                  <DateTimeField label="Pagata il *" mode="date" value={form.paidDate} onChange={v => setForm(f => ({ ...f, paidDate: v }))} />
+                  <div>
+                    <label className="nad-form__label" style={S.label}>
+                      Metodo
+                    </label>
+                    <input
+                      className="nad-form__input"
+                      type="text"
+                      value={form.paymentMethod}
+                      onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                      placeholder="Contanti, carta…"
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* Unpaid rata: a due date, or "da definire" if it's not fixed yet. */
+                <>
+                  {!form.dateTbd && (
+                    <DateTimeField label="Scadenza *" mode="date" value={form.dueDate} onChange={v => setForm(f => ({ ...f, dueDate: v }))} />
+                  )}
+                  <label style={S.check}>
+                    <input type="checkbox" checked={form.dateTbd} onChange={e => setForm(f => ({ ...f, dateTbd: e.target.checked }))} />
+                    <span>📌 Data da definire</span>
+                  </label>
+                  {form.dateTbd && <div style={S.muted}>La rata ricomparirà al prossimo appuntamento di questa cliente per questo pacchetto.</div>}
+                </>
+              )}
+
+              <div>
+                <label className="nad-form__label" style={S.label}>
+                  Note
+                </label>
+                <input
+                  className="nad-form__input"
+                  type="text"
+                  value={form.note}
+                  onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+                  placeholder="(facoltativo)"
+                  maxLength={200}
+                />
+              </div>
+
+              {formError && <div className="nad-form__error">{formError}</div>}
+
+              <div style={S.formActions}>
+                <button type="button" className="nad-btn" disabled={submitting} onClick={() => setFormOpen(false)}>
+                  Annulla
+                </button>
+                <button type="button" className="nad-btn nad-btn--primary" disabled={submitting} onClick={submitForm}>
+                  {submitting ? "Salvo…" : editingId ? "Salva" : "Aggiungi"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="nad-btn nad-btn--primary" disabled={submitting || loading} onClick={openAdd}>
+              + Aggiungi rata
+            </button>
+          )}
+    </>
+  );
+
+  const confirm = (
+    <ConfirmDialog
+      show={!!confirmDelete}
+      onHide={() => setConfirmDelete(null)}
+      onConfirm={doDelete}
+      title="Elimina rata"
+      message={
+        confirmDelete?.paid
+          ? `Questa rata da ${formatEuro(confirmDelete?.amount)} risulta incassata: eliminandola rimuovi anche l'incasso registrato. Procedere?`
+          : `Vuoi eliminare la rata da ${formatEuro(confirmDelete?.amount)}?`
+      }
+      confirmLabel="Elimina"
+      confirmVariant="danger"
+    />
+  );
+
+  // Inline: in-flow sub-view inside the Pacchetti tab — no portal, no backdrop.
+  if (inline) {
+    return (
+      <div style={S.panelInline}>
+        <button type="button" style={S.back} onClick={onBack}>
+          ← Torna ai pacchetti
+        </button>
+        <div style={S.titleInline}>📅 Piano rate — {packageName}</div>
+        <div style={S.bodyInline}>{bodyInner}</div>
+        {confirm}
+      </div>
+    );
+  }
+
+  // Default: right-side drawer — the agenda entry points (Posticipa + plan pill).
+  // Reuses the shared UnifiedDrawer chrome (ud- panel/backdrop/slide) so it looks
+  // exactly like the app's other drawers; ✕ / backdrop / Escape route to onHide,
+  // and requestClose keeps the mid-save guard. ConfirmDialog renders alongside.
+  return (
+    <>
+      <UnifiedDrawer show onHide={requestClose} title={`📅 Piano rate — ${packageName}`} size="lg">
+        {bodyInner}
+      </UnifiedDrawer>
+      {confirm}
+    </>
+  );
+}

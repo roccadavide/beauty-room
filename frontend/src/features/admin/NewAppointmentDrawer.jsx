@@ -9,7 +9,6 @@ import { formatEuro } from "../../utils/formatEuro";
 import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
 import { DAYPARTS, groupSlotsByDaypart } from "../../utils/slotDaypart";
 import {
-  cancelPackageAssignment,
   createMultiServiceBooking,
   createPersonalAppointment,
   deletePersonalAppointment,
@@ -23,7 +22,6 @@ import { createCustomer, getActivePackages, updateCustomer, deleteCustomer } fro
 import { fetchActivePromotions } from "../../api/modules/promotions.api";
 import { fetchProducts } from "../../api/modules/products.api";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-import EditPackageModal from "../../components/common/EditPackageModal";
 import PackagesTab from "../../components/admin/PackagesTab";
 import "./NewAppointmentDrawer.css";
 
@@ -564,11 +562,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [deleteCustomerLoading, setDeleteCustomerLoading] = useState(false);
   const [deleteCustomerError, setDeleteCustomerError] = useState("");
 
-  // ── Active-package inline edit / delete ───────────────────────────────────
-  const [editingActivePkg, setEditingActivePkg] = useState(null);
-  const [deleteActivePkgId, setDeleteActivePkgId] = useState(null);
-  const [deleteActivePkgName, setDeleteActivePkgName] = useState("");
-
   // Collapsible per-package state. `expandedPkgIds` covers the "Pacchetti attivi"
   // selection cards. `expandedSelectedPkgIds` covers the "Servizi selezionati" rows
   // (Phase 5b: multiple packages may be selected, each with its own collapsible).
@@ -898,28 +891,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       );
     } finally {
       setDeleteCustomerLoading(false);
-    }
-  };
-
-  const handleActivePkgSaved = updated => {
-    setActivePackages(prev => prev.map(p => (p.id === updated.id ? updated : p)));
-    setEditingActivePkg(null);
-  };
-
-  const executeActivePkgDelete = async () => {
-    if (!deleteActivePkgId) return;
-    try {
-      await cancelPackageAssignment(deleteActivePkgId);
-      setActivePackages(prev => prev.filter(p => p.id !== deleteActivePkgId));
-      // Phase 5b: drop the cancelled package from the multi-select set + its
-      // per-package satellites. The online branch stays singular.
-      if (selectedPackageIds.has(deleteActivePkgId)) deselectAdminPackage(deleteActivePkgId);
-      if (selectedPackageCreditId === deleteActivePkgId) setSelectedPackageCreditId(null);
-    } catch (err) {
-      setSubmitError("Errore durante la cancellazione del pacchetto: " + (err.message || "Errore sconosciuto"));
-    } finally {
-      setDeleteActivePkgId(null);
-      setDeleteActivePkgName("");
     }
   };
 
@@ -1667,33 +1638,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                           </>
                         )}
                       </div>
-                      {!isOnline && (
-                        <div className="ag-pkg-select-card__actions">
-                          <button
-                            type="button"
-                            className="ag-pkg-action-btn ag-pkg-action-btn--edit"
-                            aria-label="Modifica pacchetto"
-                            onClick={e => {
-                              e.stopPropagation();
-                              setEditingActivePkg(pkg);
-                            }}
-                          >
-                            ✏
-                          </button>
-                          <button
-                            type="button"
-                            className="ag-pkg-action-btn ag-pkg-action-btn--trash"
-                            aria-label="Elimina pacchetto"
-                            onClick={e => {
-                              e.stopPropagation();
-                              setDeleteActivePkgId(pkg.id);
-                              setDeleteActivePkgName(pkg.displayName || pkg.serviceTitle || "Pacchetto");
-                            }}
-                          >
-                            🗑
-                          </button>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -2660,23 +2604,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           {submitting ? "Salvataggio…" : isEditMode ? "Salva modifiche" : "Crea appuntamento"}
         </button>
       </div>
-
-      <ConfirmDialog
-        show={!!deleteActivePkgId}
-        onHide={() => {
-          setDeleteActivePkgId(null);
-          setDeleteActivePkgName("");
-        }}
-        onConfirm={executeActivePkgDelete}
-        title="Elimina pacchetto"
-        message={`Vuoi eliminare il pacchetto "${deleteActivePkgName}"? Le sedute già effettuate rimarranno nello storico.`}
-        confirmLabel="Elimina"
-        confirmVariant="danger"
-      />
-
-      {editingActivePkg && (
-        <EditPackageModal pkg={editingActivePkg} services={services} onClose={() => setEditingActivePkg(null)} onSave={handleActivePkgSaved} />
-      )}
 
       {editingServizio && (
         <EditServizioModal

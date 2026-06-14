@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.packages;
 
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import daviderocca.beautyroom.enums.ClientPackageStatus;
 
 import java.math.BigDecimal;
@@ -28,5 +29,6 @@ public record ClientPackageAssignmentDTO(
         List<ClientPackageAssignmentItemDTO> items,
         Integer sessionDurationMin,
         boolean paidUpfront,
-        int startSession
+        int startSession,
+        ClientPackagePaymentMode paymentMode
 ) {}

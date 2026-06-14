@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from "react-bootstrap";
 import {
@@ -34,6 +34,11 @@ import SEO from "../common/SEO";
 import formatDuration from "../../utils/formatDuration";
 import formatPackageItemLabel from "../../utils/formatPackageItemLabel";
 import { buildArretratoSettlePayload } from "./settlePayload";
+import useInstallmentsDue from "../../hooks/useInstallmentsDue";
+import InstallmentPlanPill from "./installments/InstallmentPlanPill";
+import InstallmentDueAction from "./installments/InstallmentDueAction";
+import InstallmentsDueSection from "./installments/InstallmentsDueSection";
+import InstallmentEditor from "./installments/InstallmentEditor";
 // pkgi-* classes for the collapsible package items toggle
 import "./PackageForm.css";
 
@@ -178,6 +183,7 @@ function buildBreakdownItems(booking, priceMap) {
     items.push({
       label, price, kind: "package", paid: isLineSettled(pkg, booking),
       refKind: "package", refId: pkg.packageAssignmentId, locked: pkg.paidLocked === true,
+      paymentMode: pkg.paymentMode,
     });
   });
 
@@ -350,7 +356,7 @@ function getPaymentLabel(booking) {
 }
 
 
-function EstimatoModal({ bookings, services, onClose }) {
+function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallment, onPostponeInstallment, onClose }) {
   const priceMap = useMemo(() => new Map((services || []).map(s => [String(s.serviceId), Number(s.price)])), [services]);
 
   const active = useMemo(() => (bookings || []).filter(b => b.status !== "CANCELLED"), [bookings]);
@@ -381,6 +387,10 @@ function EstimatoModal({ bookings, services, onClose }) {
     () => ({ total: rows.reduce((acc, r) => acc + (Number.isFinite(r.amountDue) ? r.amountDue : 0), 0) }),
     [rows],
   );
+
+  // Installments due today are surfaced as their own section (and folded into the
+  // footer total) — they live outside the per-booking rows above.
+  const dueSum = (dueList || []).reduce((acc, r) => acc + Number(r.amount || 0), 0);
 
   useEffect(() => {
     const onKey = e => {
@@ -433,12 +443,14 @@ function EstimatoModal({ bookings, services, onClose }) {
                       </td>
                       <td
                         className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}
-                        style={it.paid ? { textDecoration: "line-through", opacity: 0.55 } : undefined}
+                        style={it.paid && it.paymentMode !== "INSTALLMENTS" ? { textDecoration: "line-through", opacity: 0.55 } : undefined}
                       >
-                        {formatEuro(it.price)}
+                        {it.paymentMode === "INSTALLMENTS" ? <span style={{ color: "#8c6d3f" }}>📅 Piano rate</span> : formatEuro(it.price)}
                       </td>
                       <td>
-                        {isBundle ? (
+                        {it.paymentMode === "INSTALLMENTS" ? (
+                          <InstallmentPlanPill />
+                        ) : isBundle ? (
                           // Bundle = one atomic payment unit → a single booking-level badge on row 0.
                           idx === 0 ? (
                             <span className={`ag-pay-badge ${pay.css}`}>
@@ -481,10 +493,11 @@ function EstimatoModal({ bookings, services, onClose }) {
               )}
             </tbody>
           </table>
+          <InstallmentsDueSection dueList={dueList} settling={settling} onSettle={onSettleInstallment} onPostpone={onPostponeInstallment} />
         </div>
 
         <div className="ag-estimato-footer">
-          <div className="ag-estimato-total">Totale stimato (da incassare): {formatEuro(totals.total)}</div>
+          <div className="ag-estimato-total">Totale stimato (da incassare): {formatEuro(totals.total + dueSum)}</div>
         </div>
       </div>
     </div>,
@@ -1094,6 +1107,38 @@ export default function AdminAgendaPage() {
     }
   }, []);
 
+  // Installment surfacing (Phase 2b-fe / Phase 5). The hook owns the due-feed fetch,
+  // the batched summaries, the dueByPackage map, the KPI total, and the settle action.
+  // Declared BEFORE refresh so reloadInstallments is in scope for refresh's dep array.
+  // ids = the INSTALLMENTS packages visible today, summarised for the always-on pill
+  // (mirrors the itemPkgs field access used in the card below).
+  const installmentPackageIds = useMemo(() => {
+    const s = new Set();
+    bookings.forEach(b => {
+      const pkgs = b.linkedPackages?.length ? b.linkedPackages : b.linkedPackage ? [b.linkedPackage] : [];
+      pkgs.forEach(p => {
+        if (p.paymentMode === "INSTALLMENTS" && p.packageAssignmentId) s.add(String(p.packageAssignmentId));
+      });
+    });
+    return Array.from(s);
+  }, [bookings]);
+
+  const {
+    dueByPackage,
+    summaryByPackage,
+    dueList,
+    dueTotal,
+    hasDue,
+    settling: installmentSettling,
+    reload: reloadInstallments,
+    requestSettle: requestSettleInstallment,
+    confirmProps: installmentConfirmProps,
+  } = useInstallmentsDue(dateISO, installmentPackageIds, { onError: setErr });
+
+  // Posticipa target: opens the InstallmentEditor on a specific package's plan so
+  // Michela can move a rata's date (which then leaves today's feed on close).
+  const [rateEditorFor, setRateEditorFor] = useState(null);
+
   const refresh = useCallback(async () => {
     setErr("");
     setErrDetails(null);
@@ -1104,12 +1149,13 @@ export default function AdminAgendaPage() {
       const sorted = (bk || []).slice().sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
       setBookings(sorted);
       setPersonalAppts(pa || []);
+      reloadInstallments();
     } catch (e) {
       setErr(e.message || "Errore nel caricamento agenda.");
     } finally {
       setLoading(false);
     }
-  }, [dateISO]);
+  }, [dateISO, reloadInstallments]);
 
   useEffect(() => {
     loadServices();
@@ -1198,8 +1244,14 @@ export default function AdminAgendaPage() {
       const p = dueOf(b);
       return sum + (Number.isFinite(p) ? p : 0);
     }, 0);
-    return { count, bookedMin, openMin, occ, incassoStimato, revenueKnown };
-  }, [bookings, timeline, services]);
+    // Installments due on the viewed day add to the estimate; their presence alone
+    // makes revenue "known" even on a day with no priced appointments.
+    return {
+      count, bookedMin, openMin, occ,
+      incassoStimato: incassoStimato + dueTotal,
+      revenueKnown: revenueKnown || hasDue,
+    };
+  }, [bookings, timeline, services, dueTotal, hasDue]);
 
   // Catalog price map (serviceId → price), shared by the "Completa" smart-skip and
   // the CompletionDrawer. Only affects displayed prices: the settle payload and the
@@ -1263,6 +1315,16 @@ export default function AdminAgendaPage() {
   };
 
   const handleCompleteClick = b => {
+    // Guard: non completare finché un pacchetto a rate ha una rata scaduta/in scadenza
+    // (hasOpenDue) ancora da gestire — è così che una rata sfuggiva non saldata. Hard
+    // block: saldarla o posticiparla ricarica summaryByPackage e sblocca da sé (no override).
+    const pkgs = b.linkedPackages?.length ? b.linkedPackages : b.linkedPackage ? [b.linkedPackage] : [];
+    const blocked = pkgs.some(p => p.paymentMode === "INSTALLMENTS" && summaryByPackage.get(String(p.packageAssignmentId))?.hasOpenDue);
+    if (blocked) {
+      setErr("Ci sono rate di questo pacchetto da gestire: saldale o posticipale prima di completare l'appuntamento.");
+      setErrDetails(null);
+      return;
+    }
     const items = buildBreakdownItems(b, priceMap);
     if (b.paidOnline) return settleAndComplete(b, items);                              // 1
     if (b.customTotalPrice != null) return setCompletionDrawer({ booking: b, items }); // 3 (bundle prima di "tutte pagate")
@@ -2115,7 +2177,8 @@ export default function AdminAgendaPage() {
                                             }
                                           };
                                           return (
-                                            <div className="ag-svc-entries__row" key={pkg.packageAssignmentId ?? `pkg-${pkgIdx}`}>
+                                            <Fragment key={pkg.packageAssignmentId ?? `pkg-${pkgIdx}`}>
+                                            <div className="ag-svc-entries__row">
                                               <span className="ag-svc-entries__pkg-icon" aria-hidden="true">📦</span>
                                               <span className="ag-svc-entries__name">{pkgLabel}</span>
                                               {sessionNum && totalSess && (
@@ -2132,13 +2195,21 @@ export default function AdminAgendaPage() {
                                               )}
                                               {/* V62 Fix 2: per-session paid pill, always shown.
                                                   pkg.paid already folds in paidUpfront on the
-                                                  backend. */}
-                                              <span
-                                                className={`ag-pill ${pkg.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
-                                                title={pkg.paidUpfront ? "Pacchetto pagato in anticipo" : (pkg.paid ? "Sessione pagata" : "Sessione da pagare")}
-                                              >
-                                                {pkg.paid ? "✓ Pagato" : "⏳ Da pagare"}
-                                              </span>
+                                                  backend. INSTALLMENTS plans show a neutral
+                                                  "Piano rate" pill instead (per-session price €0). */}
+                                              {pkg.paymentMode === "INSTALLMENTS" ? (
+                                                <InstallmentPlanPill
+                                                  summary={summaryByPackage.get(String(pkg.packageAssignmentId))}
+                                                  onClick={() => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName })}
+                                                />
+                                              ) : (
+                                                <span
+                                                  className={`ag-pill ${pkg.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                                                  title={pkg.paidUpfront ? "Pacchetto pagato in anticipo" : (pkg.paid ? "Sessione pagata" : "Sessione da pagare")}
+                                                >
+                                                  {pkg.paid ? "✓ Pagato" : "⏳ Da pagare"}
+                                                </span>
+                                              )}
                                               {hasMultipleItems && (
                                                 <button
                                                   type="button"
@@ -2164,6 +2235,22 @@ export default function AdminAgendaPage() {
                                                 </ul>
                                               )}
                                             </div>
+                                            {pkg.paymentMode === "INSTALLMENTS" && (
+                                              <InstallmentDueAction
+                                                dueRows={dueByPackage.get(String(pkg.packageAssignmentId))}
+                                                settling={installmentSettling}
+                                                onSettle={row =>
+                                                  requestSettleInstallment({
+                                                    assignmentId: pkg.packageAssignmentId,
+                                                    installmentId: row.installmentId,
+                                                    clientName: b.customerName,
+                                                    amount: row.amount,
+                                                  })
+                                                }
+                                                onPostpone={row => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName, editInstallmentId: row.installmentId })}
+                                              />
+                                            )}
+                                            </Fragment>
                                           );
                                         })}
                                         {promos.map((promo, promoIdx) => {
@@ -2912,7 +2999,32 @@ export default function AdminAgendaPage() {
         confirmVariant="primary"
       />
 
-      {showEstimatoModal && <EstimatoModal bookings={bookings} services={services} onClose={() => setShowEstimatoModal(false)} />}
+      <ConfirmDialog {...installmentConfirmProps} />
+
+      {rateEditorFor && (
+        <InstallmentEditor
+          assignmentId={rateEditorFor.assignmentId}
+          packageName={rateEditorFor.packageName || "Pacchetto"}
+          initialEditInstallmentId={rateEditorFor.editInstallmentId}
+          onClose={() => {
+            setRateEditorFor(null);
+            reloadInstallments();
+          }}
+          onChanged={reloadInstallments}
+        />
+      )}
+
+      {showEstimatoModal && (
+        <EstimatoModal
+          bookings={bookings}
+          services={services}
+          dueList={dueList}
+          settling={installmentSettling}
+          onSettleInstallment={requestSettleInstallment}
+          onPostponeInstallment={row => setRateEditorFor({ assignmentId: row.packageAssignmentId, packageName: row.packageName, editInstallmentId: row.installmentId })}
+          onClose={() => setShowEstimatoModal(false)}
+        />
+      )}
 
       {completionDrawer && (
         <CompletionDrawer

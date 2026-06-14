@@ -394,3 +394,111 @@ export const archiveRecurringTemplate = async id => {
     throw new Error(message);
   }
 };
+
+/* ================= PACKAGE INSTALLMENTS ================= */
+// Installments due in a date window (the agenda queries [date, date]).
+// Backend: GET /admin/package-installments/due?from=&to= ->
+//   [{ installmentId, packageAssignmentId, clientName, packageName, amount, dueDate, total, remaining }]
+export const getInstallmentsDue = async (from, to) => {
+  try {
+    const { data } = await http.get("/admin/package-installments/due", { params: { from, to } });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore caricamento rate in scadenza.";
+    throw new Error(message);
+  }
+};
+
+// Batched per-package summaries for the agenda's always-on "Pagato €X su €Y" pill.
+// Backend: GET /admin/package-installments/summaries?ids=uuid1,uuid2 ->
+//   [{ packageAssignmentId, total, collected, remaining, fullyPaid, hasOpenDue }]
+export const getPackageInstallmentSummaries = async ids => {
+  if (!ids?.length) return []; // never hit the endpoint with no ids
+  try {
+    const { data } = await http.get("/admin/package-installments/summaries", { params: { ids: ids.join(",") } });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore caricamento riepilogo rate.";
+    throw new Error(message);
+  }
+};
+
+// Register the payment of one installment.
+// Backend: PATCH /admin/package-assignments/{assignmentId}/installments/{installmentId}/settle  body { paidDate }
+export const settlePackageInstallment = async (assignmentId, installmentId, body) => {
+  try {
+    const { data } = await http.patch(`/admin/package-assignments/${assignmentId}/installments/${installmentId}/settle`, body);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante il saldo della rata.";
+    throw new Error(message);
+  }
+};
+
+// Full installment list for one package assignment (the rate editor).
+// Backend: GET /admin/package-assignments/{assignmentId}/installments -> PackageInstallmentDTO[]
+export const getPackageInstallments = async assignmentId => {
+  try {
+    const { data } = await http.get(`/admin/package-assignments/${assignmentId}/installments`);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore caricamento rate.";
+    throw new Error(message);
+  }
+};
+
+// Residuo / incassato roll-up for one package assignment.
+// Backend: GET .../installments/summary -> PackageInstallmentSummaryDTO
+export const getPackageInstallmentSummary = async assignmentId => {
+  try {
+    const { data } = await http.get(`/admin/package-assignments/${assignmentId}/installments/summary`);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore caricamento riepilogo rate.";
+    throw new Error(message);
+  }
+};
+
+// Add a rata. Backend: POST .../installments (PackageInstallmentRequestDTO) -> 201 PackageInstallmentDTO
+export const createPackageInstallment = async (assignmentId, body) => {
+  try {
+    const { data } = await http.post(`/admin/package-assignments/${assignmentId}/installments`, body);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante la creazione della rata.";
+    throw new Error(message);
+  }
+};
+
+// Edit a rata. Backend: PUT .../installments/{installmentId} (PackageInstallmentRequestDTO) -> PackageInstallmentDTO
+export const updatePackageInstallment = async (assignmentId, installmentId, body) => {
+  try {
+    const { data } = await http.put(`/admin/package-assignments/${assignmentId}/installments/${installmentId}`, body);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'aggiornamento della rata.";
+    throw new Error(message);
+  }
+};
+
+// Revert a settled rata back to unpaid. Backend: PATCH .../installments/{installmentId}/unsettle
+export const unsettlePackageInstallment = async (assignmentId, installmentId) => {
+  try {
+    const { data } = await http.patch(`/admin/package-assignments/${assignmentId}/installments/${installmentId}/unsettle`);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'annullamento del saldo.";
+    throw new Error(message);
+  }
+};
+
+// Remove a rata. Backend: DELETE .../installments/{installmentId} -> 204
+export const deletePackageInstallment = async (assignmentId, installmentId) => {
+  try {
+    await http.delete(`/admin/package-assignments/${assignmentId}/installments/${installmentId}`);
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore durante l'eliminazione della rata.";
+    throw new Error(message);
+  }
+};
