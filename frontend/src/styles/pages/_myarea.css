@@ -208,9 +208,50 @@
   color: #7a6855;
 }
 
-.ma-booking-duration {
-  color: #b8976a;
+/* Per-service list — one row per service line */
+.ma-booking-services { margin-top: 2px; }
+.ma-booking-services .ma-booking-service:last-child { margin-bottom: 0; }
+
+/* Option name appended to a service line: "Servizio · Opzione" */
+.ma-booking-option {
+  color: #8c6d3f;
+  font-weight: 500;
+}
+
+/* Prominent date + time block */
+.ma-booking-when {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 8px;
+}
+
+.ma-booking-date {
+  font-size: 0.9rem;
   font-weight: 600;
+  color: #2a1b15;
+  text-transform: capitalize;
+  letter-spacing: 0.2px;
+  line-height: 1.3;
+}
+
+.ma-booking-time-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ma-booking-time {
+  font-family: "SaolDisplay-Light", serif;
+  font-size: 1.5rem;
+  color: #8c6d3f;
+  line-height: 1.15;
+}
+
+.ma-booking-dur {
+  font-size: 0.78rem;
+  color: #9e8272;
+  font-weight: 500;
 }
 
 .ma-booking-badges {
@@ -301,26 +342,7 @@
   white-space: nowrap;
 }
 
-/* ── Calendar / cancel buttons ────────────────────────────────────────────── */
-.ma-cal-btn {
-  font-family: "Montserrat", sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  padding: 6px 14px;
-  border-radius: 20px;
-  border: 1.5px solid rgba(184, 151, 106, 0.4);
-  background: transparent;
-  color: #b8976a;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.ma-cal-btn:hover {
-  background: rgba(184, 151, 106, 0.1);
-  border-color: #b8976a;
-}
-
+/* ── Cancel button ────────────────────────────────────────────────────────── */
 .ma-cancel-btn {
   font-family: "Montserrat", sans-serif;
   font-size: 11px;

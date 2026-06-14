@@ -36,18 +36,27 @@ const PKG_STATUS_LABELS = {
   CANCELLED: { label: "Cancellato",  color: "#c0392b", bg: "rgba(192,57,43,0.08)" },
 };
 
-// Resolve the display name for a booking's service(s)
-function resolveServiceName(b) {
+// Build the per-service display rows: one row per service line, each carrying its
+// resolved option name when present (e.g. "Epilazione cera" · "Ascelle").
+function buildServiceLines(b) {
+  const lines = [];
   if (Array.isArray(b.services) && b.services.length > 0) {
-    const names = b.services.map(s => s.name || s.serviceName).filter(Boolean);
-    if (names.length > 0) {
-      const label = names.join(" + ");
-      if (b.isCustomService && b.customServiceName) return `${label} + ${b.customServiceName}`;
-      return label;
+    for (const s of b.services) {
+      const name = s.name || s.serviceName;
+      if (name) lines.push({ name, option: s.optionName || null, custom: false });
     }
   }
-  if (b.isCustomService && b.customServiceName) return b.customServiceName;
-  return b.serviceTitle || b.serviceName || "Trattamento";
+  if (b.isCustomService && b.customServiceName) {
+    lines.push({ name: b.customServiceName, option: null, custom: true });
+  }
+  if (lines.length === 0) {
+    lines.push({
+      name: b.serviceTitle || b.serviceName || "Trattamento",
+      option: b.serviceOptionName || null,
+      custom: !!b.isCustomService,
+    });
+  }
+  return lines;
 }
 
 // Format duration in minutes to "Xh Ymin" or "Ymin"
@@ -58,28 +67,6 @@ function formatDuration(mins) {
   if (h === 0) return `${m} min`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}min`;
-}
-
-function downloadIcs(booking, date) {
-  const end = new Date(date.getTime() + (booking.durationMinutes || booking.durationMin || 60) * 60000);
-  const fmt = d => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-  const ics = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "BEGIN:VEVENT",
-    `DTSTART:${fmt(date)}`,
-    `DTEND:${fmt(end)}`,
-    `SUMMARY:${resolveServiceName(booking)}`,
-    "LOCATION:Beauty Room M.R.",
-    "DESCRIPTION:Prenotazione confermata",
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
-  const blob = new Blob([ics], { type: "text/calendar" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `beautyroom-${String(booking.bookingId || "").slice(-6)}.ics`;
-  a.click();
 }
 
 export default function MyArea() {
@@ -263,7 +250,7 @@ export default function MyArea() {
               const isCompleted = status === "COMPLETED" || status === "CANCELLED" || status === "NO_SHOW";
               const isCancellable = bookingDate && bookingDate - now > 24 * 60 * 60 * 1000;
               const isLinkedByMichela = b.linkingStatus === "LINKED";
-              const serviceName = resolveServiceName(b);
+              const serviceLines = buildServiceLines(b);
               const duration = formatDuration(b.durationMinutes);
 
               const cardClass = [
@@ -276,29 +263,42 @@ export default function MyArea() {
                 <div key={b.bookingId} className={cardClass}>
                   <div className="ma-booking-header">
                     <div className="ma-booking-meta">
-                      {/* Service name */}
-                      <p className="ma-booking-service">
-                        {b.isCustomService
-                          ? <em>{serviceName}</em>
-                          : serviceName}
-                      </p>
-
-                      {/* Date + time */}
-                      <p className="ma-order-date">
-                        {bookingDate
-                          ? bookingDate.toLocaleDateString("it-IT", {
+                      {/* Date + time — prominent block */}
+                      {bookingDate ? (
+                        <div className="ma-booking-when">
+                          <span className="ma-booking-date">
+                            {bookingDate.toLocaleDateString("it-IT", {
                               weekday: "long",
                               day: "numeric",
                               month: "long",
                               year: "numeric",
-                            }) +
-                            ` · ore ${bookingDate.toLocaleTimeString("it-IT", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}`
-                          : "—"}
-                        {duration && <span className="ma-booking-duration"> · {duration}</span>}
-                      </p>
+                            })}
+                          </span>
+                          <span className="ma-booking-time-row">
+                            <span className="ma-booking-time">
+                              {bookingDate.toLocaleTimeString("it-IT", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {duration && <span className="ma-booking-dur">{duration}</span>}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="ma-order-date">—</p>
+                      )}
+
+                      {/* Service lines — one row per service, with option when present */}
+                      <div className="ma-booking-services">
+                        {serviceLines.map((line, i) => (
+                          <p key={i} className="ma-booking-service">
+                            {line.custom ? <em>{line.name}</em> : line.name}
+                            {line.option && (
+                              <span className="ma-booking-option"> · {line.option}</span>
+                            )}
+                          </p>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="ma-booking-badges">
@@ -337,11 +337,6 @@ export default function MyArea() {
 
                   {/* Actions */}
                   <div className="ma-booking-actions">
-                    {!isPast && bookingDate && (
-                      <button className="ma-cal-btn" onClick={() => downloadIcs(b, bookingDate)}>
-                        📅 Aggiungi al calendario
-                      </button>
-                    )}
                     {isCancellable && status !== "CANCELLED" && (
                       <span className="ma-cancel-note">Per cancellare contatta Michela</span>
                     )}
