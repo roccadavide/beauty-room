@@ -356,11 +356,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [itemErrors, setItemErrors] = useState({});
 
   // ── Date / slots ──────────────────────────────────────────────────────────
-  // New appointment: restore the drafted date/time if present, else fall back to
-  // the page's selectedDate. Duplicate intentionally starts with a fresh date/time
-  // (initialDraft is null in edit/duplicate, so those paths are unchanged).
+  // New appointment: the DATE always follows the page's selectedDate (the
+  // currently-viewed agenda day), even when a draft is restored — so navigating to
+  // another day and pressing "+" creates on the right day. The slot/time and every
+  // other field still restore from the draft. Duplicate has initialDraft=null so it
+  // also follows selectedDate; edit uses the booking's own startTime.
   const [appointmentDate, setAppointmentDate] = useState(() =>
-    isEditMode && editBooking.startTime ? editBooking.startTime.slice(0, 10) : (initialDraft?.appointmentDate ?? selectedDate ?? ""),
+    isEditMode && editBooking.startTime ? editBooking.startTime.slice(0, 10) : (selectedDate ?? initialDraft?.appointmentDate ?? ""),
   );
   const [selectedSlot, setSelectedSlot] = useState(() =>
     isEditMode && editBooking.startTime ? editBooking.startTime.slice(11, 16) : (initialDraft?.selectedSlot ?? ""),
