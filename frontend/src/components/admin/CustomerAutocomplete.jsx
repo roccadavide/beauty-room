@@ -175,8 +175,8 @@ export default function CustomerAutocomplete({ value, onChange, onSelect, onNoMa
                   onMouseDown={() => handleSelect(c)}
                 >
                   <span className="ag-autocomplete__name">{c.fullName}</span>
-                  {c.phone && <span className="ag-autocomplete__meta"> · {c.phone}</span>}
-                  {c.email && !c.email.includes("@beautyroom.local") && <span className="ag-autocomplete__meta"> · {c.email}</span>}
+                  {c.phone && <span className="ag-autocomplete__meta">{c.phone}</span>}
+                  {c.email && !c.email.includes("@beautyroom.local") && <span className="ag-autocomplete__meta">{c.email}</span>}
                 </div>
               ))}
           </div>

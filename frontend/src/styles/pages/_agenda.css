@@ -1702,8 +1702,9 @@ button.ag-pill:hover,
   cursor: pointer;
   font-size: 0.875rem;
   display: flex;
-  align-items: center;
-  gap: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   color: rgba(255, 255, 255, 0.82);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   transition: background 0.1s;
@@ -1717,7 +1718,7 @@ button.ag-pill:hover,
 }
 
 .ag-autocomplete__name {
-  font-weight: 500;
+  font-weight: 600;
 }
 .ag-autocomplete__meta {
   color: rgba(255, 255, 255, 0.38);
