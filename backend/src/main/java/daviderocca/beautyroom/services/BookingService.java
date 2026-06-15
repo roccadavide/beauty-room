@@ -18,6 +18,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PackageItemSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoLineSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
@@ -3038,6 +3039,53 @@ public class BookingService {
             }
         } catch (Exception e) {
             log.warn("Could not resolve linkedPackages for booking {}: {}", b.getBookingId(), e.getMessage());
+        }
+
+        // Online prepaid package (PackageCredit, born from a Stripe purchase): there is no
+        // BookingPackageLink/ClientPackageAssignment behind it, so the admin-path loop above
+        // leaves linkedPkgs empty. Synthesize ONE PackageSummaryDTO so the agenda card renders
+        // it through the SAME markup as an admin package (📦 icon, "Seduta X/Y", treatment line).
+        // Display-only: no assignment exists → packageAssignmentId is null (the frontend already
+        // coalesces it), and the package is fully prepaid via Stripe → paid/paidUpfront/paidLocked
+        // = true with per-session price €0, mirroring the admin paidUpfront rule so it never
+        // double-counts in the day's estimated-revenue KPI. The single intended visual difference
+        // from an admin package is the existing "💳 Pagato online" badge.
+        if (linkedPkgs.isEmpty() && pkg != null) {
+            ServiceOption pkgOption = pkg.getServiceOption() != null ? pkg.getServiceOption() : b.getServiceOption();
+            ServiceItem pkgService = pkg.getService() != null ? pkg.getService() : b.getService();
+            String optName = pkgOption != null ? pkgOption.getName() : null;
+            String svcTitle = pkgService != null ? pkgService.getTitle() : serviceTitle;
+            // Match buildPackageSummary's "service · option" label so the agenda dedup
+            // (pkgLabelsNorm) folds away any duplicate catalog line carrying the same name.
+            String onlinePkgName;
+            if (svcTitle != null && optName != null) onlinePkgName = svcTitle + " · " + optName;
+            else if (optName != null)               onlinePkgName = optName;
+            else if (svcTitle != null)              onlinePkgName = svcTitle;
+            else                                    onlinePkgName = "Pacchetto";
+            // An online package's composition is its single ServiceOption — one descriptive line.
+            PackageItemSummaryDTO onlineItem = new PackageItemSummaryDTO(
+                    1,
+                    pkgService != null ? pkgService.getServiceId() : null,
+                    svcTitle,
+                    pkgOption != null ? pkgOption.getOptionId() : null,
+                    optName,
+                    null);
+            PackageSummaryDTO onlinePkg = new PackageSummaryDTO(
+                    null,                              // no ClientPackageAssignment behind an online package
+                    onlinePkgName,
+                    packageSessionNumber(b),           // 1-based rank over the shared PackageCredit (mirrors the email layer)
+                    pkg.getSessionsTotal(),
+                    pkg.getSessionsRemaining(),
+                    BigDecimal.ZERO,                   // prepaid → €0 to estimated revenue (admin paidUpfront rule)
+                    true,                              // paidUpfront — fully prepaid via Stripe
+                    List.of(onlineItem),
+                    true,                              // paid
+                    true,                              // paidLocked — settlement not editable in the drawer
+                    null,                              // notes — PackageCredit carries none
+                    ClientPackagePaymentMode.UPFRONT); // not INSTALLMENTS → normal "✓ Pagato" pill
+            linkedPkgs = List.of(onlinePkg);
+            // Keep the deprecated singular in sync with linkedPackages.get(0) (its documented invariant).
+            linkedPkg  = onlinePkg;
         }
 
         // BE-2: fetch the booking's sales ONCE. Standalone sales (promotionLinkId == null)
