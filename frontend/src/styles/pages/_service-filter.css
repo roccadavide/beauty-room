@@ -211,11 +211,25 @@
   margin: 0 auto 1.5rem;
 }
 
-.ro-sortable {
-  touch-action: manipulation;
+/* iOS: blocca gli hijack nativi del long-press sulle card admin in riordino */
+.ro-sortable,
+.ro-sortable * {
+  -webkit-touch-callout: none; /* niente menu salva/copia immagine sull'hold */
+  -webkit-user-select: none; /* niente selezione testo durante il long-press */
+  user-select: none;
+}
+.ro-sortable img {
+  -webkit-user-drag: none; /* niente drag nativo dell'immagine */
 }
 
-.ro-wobble :where(.service-card, .card, .beauty-service-card) {
+/* Must be present from finger-down, BEFORE the drag starts, or iOS Safari
+   claims the gesture as a scroll and the card never begins dragging.
+   Applied to every sortable card whenever the grid is in draggable mode. */
+.ro-sortable {
+  touch-action: none;
+}
+
+.ro-wobble :where(.service-card, .card, .beauty-service-card, .beauty-product-card) {
   animation: roWobble 0.32s ease-in-out infinite;
   transform-origin: 50% 50%;
 }
@@ -232,7 +246,7 @@
   }
 }
 
-.ro-dragging :where(.service-card, .card, .beauty-service-card) {
+.ro-dragging :where(.service-card, .card, .beauty-service-card, .beauty-product-card) {
   animation: none;
   box-shadow: 0 18px 40px rgba(140, 109, 63, 0.28);
   transform: scale(1.03);
@@ -283,7 +297,10 @@
   padding: 0.5rem 1.15rem;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: filter 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition:
+    filter 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .ro-bar-cancel {
@@ -312,6 +329,11 @@
 }
 
 @media (max-width: 576px) {
-  .ro-bar-label { display: none; }
-  .ro-bar { gap: 0.5rem; padding: 0.6rem; }
+  .ro-bar-label {
+    display: none;
+  }
+  .ro-bar {
+    gap: 0.5rem;
+    padding: 0.6rem;
+  }
 }

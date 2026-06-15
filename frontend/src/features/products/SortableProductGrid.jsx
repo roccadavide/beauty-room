@@ -1,53 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Container, Row } from "react-bootstrap";
-import {
-  DndContext,
-  closestCenter,
-  MouseSensor,
-  TouchSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
-} from "@dnd-kit/sortable";
-import ServiceCard from "./ServiceCard";
-import SortableServiceCard from "./SortableServiceCard";
+import { DndContext, closestCenter, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import ProductCard from "./ProductCard";
+import SortableProductCard from "./SortableProductCard";
 
-const SortableServiceGrid = ({
-  services,
-  reorderEnabled,
-  isAdmin,
-  categoriesMap,
-  onCardClick,
-  onEdit,
-  onDelete,
-  onToggleActive,
-  onReorderSave,
-}) => {
-  const [items, setItems] = useState(services);
+const SortableProductGrid = ({ products, reorderEnabled, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive, onReorderSave }) => {
+  const [items, setItems] = useState(products);
   const [reordering, setReordering] = useState(false);
   const [saving, setSaving] = useState(false);
-  const originalRef = useRef(services);
+  const originalRef = useRef(products);
 
   // Resync from parent ONLY when not actively reordering, so an in-progress
   // drag session is never clobbered by upstream changes (filters, like counts).
   useEffect(() => {
     if (!reordering) {
-      setItems(services);
-      originalRef.current = services;
+      setItems(products);
+      originalRef.current = products;
     }
-  }, [services, reordering]);
+  }, [products, reordering]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 12 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragStart = () => {
@@ -57,12 +34,12 @@ const SortableServiceGrid = ({
     }
   };
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = event => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setItems((prev) => {
-      const oldIndex = prev.findIndex((x) => x.serviceId === active.id);
-      const newIndex = prev.findIndex((x) => x.serviceId === over.id);
+    setItems(prev => {
+      const oldIndex = prev.findIndex(x => x.productId === active.id);
+      const newIndex = prev.findIndex(x => x.productId === over.id);
       if (oldIndex === -1 || newIndex === -1) return prev;
       return arrayMove(prev, oldIndex, newIndex);
     });
@@ -90,17 +67,17 @@ const SortableServiceGrid = ({
     return (
       <Container fluid="xxl">
         <Row className="g-4 g-xl-5">
-          {services.map((s) => (
-            <ServiceCard
-              key={s.serviceId}
-              s={s}
+          {products.map(p => (
+            <ProductCard
+              key={p.productId}
+              p={p}
               isAdmin={isAdmin}
               categoriesMap={categoriesMap}
-              dataScrollId={s.serviceId}
-              onCardClick={() => onCardClick(s)}
-              onEdit={() => onEdit(s)}
-              onDelete={() => onDelete(s)}
-              onToggleActive={(v) => onToggleActive(s, v)}
+              dataScrollId={p.productId}
+              onCardClick={() => onCardClick(p)}
+              onEdit={() => onEdit(p)}
+              onDelete={() => onDelete(p)}
+              onToggleActive={v => onToggleActive(p, v)}
             />
           ))}
         </Row>
@@ -119,12 +96,12 @@ const SortableServiceGrid = ({
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={items.map((s) => s.serviceId)} strategy={rectSortingStrategy}>
+            <SortableContext items={items.map(p => p.productId)} strategy={rectSortingStrategy}>
               <Row className="g-4 g-xl-5">
-                {items.map((s) => (
-                  <SortableServiceCard
-                    key={s.serviceId}
-                    s={s}
+                {items.map(p => (
+                  <SortableProductCard
+                    key={p.productId}
+                    p={p}
                     reordering={reordering}
                     isAdmin={isAdmin}
                     categoriesMap={categoriesMap}
@@ -140,22 +117,23 @@ const SortableServiceGrid = ({
         </div>
       </Container>
 
-      {reordering && createPortal(
-        <div className="ro-bar" role="region" aria-label="Riordino trattamenti">
-          <span className="ro-bar-label">Trascina per riordinare · {items.length} trattamenti</span>
-          <div className="ro-bar-actions">
-            <button className="ro-bar-cancel" onClick={handleCancel} disabled={saving}>
-              Annulla
-            </button>
-            <button className="ro-bar-save" onClick={handleSave} disabled={saving}>
-              {saving ? "Salvataggio…" : "Salva ordine"}
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
+      {reordering &&
+        createPortal(
+          <div className="ro-bar" role="region" aria-label="Riordino prodotti">
+            <span className="ro-bar-label">Trascina per riordinare · {items.length} prodotti</span>
+            <div className="ro-bar-actions">
+              <button className="ro-bar-cancel" onClick={handleCancel} disabled={saving}>
+                Annulla
+              </button>
+              <button className="ro-bar-save" onClick={handleSave} disabled={saving}>
+                {saving ? "Salvataggio…" : "Salva ordine"}
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 };
 
-export default SortableServiceGrid;
+export default SortableProductGrid;

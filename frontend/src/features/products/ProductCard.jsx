@@ -11,7 +11,22 @@ import { useLike } from "../../hooks/useLike";
 import LikePill from "../../components/common/LikePill";
 import LikeBurst from "../../components/common/LikeBurst";
 
-function ProductCard({ p, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
+function ProductCard({
+  p,
+  isAdmin,
+  categoriesMap,
+  onCardClick,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  sortableRef,
+  sortableStyle,
+  sortableClassName,
+  sortableAttributes,
+  sortableListeners,
+  dataScrollId,
+  clickGuard,
+}) {
   const { onMouseEnter, onMouseLeave } = usePrefetch(() => fetchProductById(p.productId));
   const { count, liked, burst, triggerLike, showHint } = useLike("PRODUCT", p.productId, p.likesCount ?? 0);
 
@@ -34,7 +49,19 @@ function ProductCard({ p, isAdmin, categoriesMap, onCardClick, onEdit, onDelete,
   }, [triggerLike, onCardClick]);
 
   return (
-    <Col xs={12} sm={6} lg={6} xl={4} className="d-flex">
+    <Col
+      xs={12}
+      sm={6}
+      lg={6}
+      xl={4}
+      ref={sortableRef}
+      className={`d-flex ${sortableClassName || ""}`.trim()}
+      style={sortableStyle}
+      data-scroll-id={dataScrollId}
+      {...(sortableAttributes || {})}
+      {...(sortableListeners || {})}
+      {...(clickGuard ? { onClickCapture: e => { e.preventDefault(); e.stopPropagation(); } } : {})}
+    >
       <Card
         className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}${isAdmin && !(p.active ?? true) ? " admin-entity--inactive" : ""}`}
         onClick={handleCardClick}
