@@ -386,42 +386,6 @@
   margin-bottom: 0.5rem;
 }
 
-/* ── PACKAGE BROWSER: group filter chips ── */
-.so-pkg-filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 0.5rem;
-}
-
-.so-pkg-chip {
-  padding: 0.28rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid rgba(184, 151, 106, 0.28);
-  background: transparent;
-  color: #7a6156;
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.so-pkg-chip:hover {
-  border-color: #b8976a;
-  color: #2e2118;
-}
-
-.so-pkg-chip--active {
-  background: #b8976a;
-  border-color: #b8976a;
-  color: #fff;
-  font-weight: 600;
-}
-
 /* ── PACKAGE BROWSER: collapsible wrapper ── */
 .so-pkg-list-wrap {
   overflow: hidden;

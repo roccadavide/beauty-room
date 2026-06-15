@@ -21,8 +21,10 @@ const HeartIcon = ({ filled, className = "" }) => (
  * @param {string}  itemType  — 'SERVICE' | 'PRODUCT' | 'PROMOTION' | 'PACKAGE'
  * @param {string}  itemId    — UUID dell'item
  * @param {'card'|'detail'} [variant='card']
+ * @param {string}  [label]   — opt-in: rende la variante 'card' come pill cuore + testo
+ *                              (es. "Salva nei preferiti"). Senza label resta l'icona tonda.
  */
-export default function WishlistHeart({ itemType, itemId, variant = "card" }) {
+export default function WishlistHeart({ itemType, itemId, variant = "card", label = null }) {
   const { user } = useSelector(s => s.auth);
   const dispatch = useDispatch();
 
@@ -108,7 +110,7 @@ export default function WishlistHeart({ itemType, itemId, variant = "card" }) {
   return (
     <>
       <button
-        className="wh-btn-card"
+        className={`wh-btn-card${label ? " wh-btn-card--labeled" : ""}`}
         onClick={handleClick}
         disabled={loading}
         data-tooltip={tooltip}
@@ -116,6 +118,7 @@ export default function WishlistHeart({ itemType, itemId, variant = "card" }) {
         aria-pressed={wishlisted}
       >
         <HeartIcon filled={wishlisted} className={popAnim ? "wh-pop" : ""} />
+        {label && <span className="wh-btn-card-label">{wishlisted ? "Salvato" : label}</span>}
       </button>
       <div className={`wh-toast${toast.show ? " wh-toast--visible" : ""}`}>{toast.text}</div>
     </>
