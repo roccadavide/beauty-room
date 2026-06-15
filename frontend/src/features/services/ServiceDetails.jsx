@@ -73,9 +73,8 @@ const ServiceDetail = () => {
   const [selectedZoneIds, setSelectedZoneIds] = useState(() => new Set());
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  const [openGroups, setOpenGroups] = useState(() => new Set());
   const [pkgOpen, setPkgOpen] = useState(false);
-  const [bodyMapHidden, setBodyMapHidden] = useState(false);
   // shared
   const [selectedGender, setSelectedGender] = useState("FEMALE");
   const [cartFeedback, setCartFeedback] = useState(false);
@@ -321,13 +320,19 @@ const ServiceDetail = () => {
     });
   };
 
+  // openGroups tracks which accordion groups are expanded — empty set = all start collapsed.
   const toggleGroup = name =>
-    setCollapsedGroups(prev => {
+    setOpenGroups(prev => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
       return next;
     });
+
+  const clearSelection = () => {
+    setSelectedZoneIds(new Set());
+    setSelectedPackage(null);
+  };
 
   const handleAddZonesToCart = () => {
     if (!service || selCount === 0) return;
@@ -557,7 +562,15 @@ const ServiceDetail = () => {
               </span>
             </div>
 
-            <h1 className="detail-title">{service.title}</h1>
+            {/* Epilation: compact save heart sits next to the title; non-epilation keeps the plain title (wishlist stays in .sd-cta-stack). */}
+            {isZoneService ? (
+              <div className="sd-title-row">
+                <h1 className="detail-title">{service.title}</h1>
+                <WishlistHeart itemType="SERVICE" itemId={service.serviceId} variant="card" />
+              </div>
+            ) : (
+              <h1 className="detail-title">{service.title}</h1>
+            )}
 
             <ServiceLikesRow serviceId={service.serviceId} initialCount={service.likesCount ?? 0} />
 
@@ -571,19 +584,20 @@ const ServiceDetail = () => {
               <span className="detail-price-note">{priceNote}</span>
             </div>
 
+            {/* Epilation: trust pills as a compact strip right under the price (reassurance at the decision point) */}
+            {isZoneService && (
+              <div className="detail-trust detail-trust--compact">
+                <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
+                <span className="detail-trust-pill">✓ Pagamento sicuro</span>
+                <span className="detail-trust-pill">✓ Conferma immediata</span>
+                <span className="detail-trust-pill">✦ Spostamento facile — Scrivimi su WhatsApp</span>
+              </div>
+            )}
+
             {/* ── NEW: multi-select zone selector + reactive silhouette (laser / cera) ── */}
             {isZoneService && (
               <div className="zs-wrap">
-                <div className="zs-layout">
-                  {showBodyMap && (
-                    <div className={`zs-fig${bodyMapHidden ? " zs-fig--hidden" : ""}`}>
-                      <BodyMap selectedRegions={selectedRegions} inCartRegions={inCartRegions} />
-                      <button type="button" className="zs-fig-toggle" onClick={() => setBodyMapHidden(h => !h)}>
-                        {bodyMapHidden ? "Mostra mappa" : "Nascondi mappa"}
-                      </button>
-                    </div>
-                  )}
-
+                <div className={`zs-layout${showBodyMap ? " zs-layout--with-fig" : ""}`}>
                   <div className="zs-main">
                     {hasGenderOptions && (
                       <div className="zs-gender">
@@ -631,7 +645,7 @@ const ServiceDetail = () => {
 
                     <div className="zs-groups">
                       {visibleGroups.map(group => {
-                        const isOpen = query ? true : !collapsedGroups.has(group.name);
+                        const isOpen = query ? true : openGroups.has(group.name);
                         const rows = query ? group.matched : group.opts;
                         const activeCount = group.opts.filter(o => selectedZoneIds.has(o.optionId) || cartHasOption(o.optionId)).length;
                         return (
@@ -662,10 +676,7 @@ const ServiceDetail = () => {
                                     }}
                                   >
                                     <span className="zs-check">{selected || inCart ? "✓" : ""}</span>
-                                    <span className="zs-name">
-                                      {stripGenderSuffix(o.name)}
-                                      {isGenderedOption(o) && <span className="zs-g">{o.gender === "FEMALE" ? "♀" : "♂"}</span>}
-                                    </span>
+                                    <span className="zs-name">{stripGenderSuffix(o.name)}</span>
                                     {o.durationMin ? <span className="zs-dur">{o.durationMin} min</span> : null}
                                     <span className="zs-price">{euro(o.price)}</span>
                                     {inCart && <span className="zs-tag">Nel carrello</span>}
@@ -712,46 +723,63 @@ const ServiceDetail = () => {
                       </div>
                     )}
 
-                    <div className="zs-summary">
-                      <div className="zs-sum-left">
-                        {selCount > 0 ? (
-                          <>
-                            <span className="zs-sum-price">{euro(selTotal)}</span>
-                            <span className="zs-sum-sub">
-                              {selCount} {selCount === 1 ? "zona" : "zone"} · ≈ {selDuration} min
-                            </span>
-                          </>
-                        ) : (
-                          <span className="zs-sum-sub">Seleziona le zone da aggiungere</span>
-                        )}
-                      </div>
-                      <div className="zs-sum-actions">
-                        {selCount > 0 && (
-                          <button type="button" className="zs-clear" onClick={() => setSelectedZoneIds(new Set())}>
-                            Svuota
-                          </button>
-                        )}
-                        <button type="button" className="zs-add" onClick={handleAddZonesToCart} disabled={selCount === 0}>
-                          {cartFeedback ? "Aggiunto ✓" : "Aggiungi al carrello"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                    {selCount > 1 && (
+                      <p className="zs-multi-note">Per prenotare più zone aggiungile al carrello — la prenotazione singola vale per una sola zona.</p>
+                    )}
 
-                {/* Pacchetti — teaser collassato sotto il selettore */}
-                {hasPackages && (
-                  <div className="zs-pkg">
-                    <button type="button" className={`zs-pkg-teaser${pkgOpen ? " open" : ""}`} onClick={() => setPkgOpen(o => !o)}>
-                      <span className="zs-pkg-teaser-label">
-                        Preferisci un pacchetto multi-seduta?
-                        {selectedPackage && <span className="zs-pkg-teaser-tag">{selectedPackage.sessions} sedute selezionate</span>}
-                      </span>
-                      <span className="zs-pkg-teaser-chev">▸</span>
-                    </button>
-                    {pkgOpen && renderPackageSection(selectedPackage?.optionId ?? null)}
+                    {/* Floating island — renders only on selection (zones or a package); consolidates the cart + booking actions. */}
+                    {(selCount > 0 || selectedPackage) && (
+                      <div className="zs-island" role="region" aria-label="Riepilogo selezione">
+                        <div className="zs-island-top">
+                          <div className="zs-island-info">
+                            <span className="zs-island-total">{euro(displayPrice)}</span>
+                            <span className="zs-island-sub">
+                              {selectedPackage
+                                ? `Pacchetto ${selectedPackage.sessions} sedute · ≈ ${displayDuration} min`
+                                : `${selCount} ${selCount === 1 ? "zona" : "zone"} · ≈ ${selDuration} min`}
+                            </span>
+                          </div>
+                          <button type="button" className="zs-island-clear" onClick={clearSelection}>
+                            Svuota selezione
+                          </button>
+                        </div>
+                        <div className="zs-island-actions">
+                          {selCount > 0 && (
+                            <button type="button" className="zs-island-add" onClick={handleAddZonesToCart}>
+                              {cartFeedback ? "Aggiunto ✓" : "Aggiungi al carrello"}
+                            </button>
+                          )}
+                          {bookingOption && (
+                            <button type="button" className="zs-island-book" onClick={openBooking}>
+                              {bookingOption.sessions > 1 ? `Prenota · ${bookingOption.sessions} sedute` : "Prenota ora"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {/* Pacchetti — teaser collassato (sotto il selettore su desktop, sopra la silhouette su mobile) */}
+                  {hasPackages && (
+                    <div className="zs-pkg">
+                      <button type="button" className={`zs-pkg-teaser${pkgOpen ? " open" : ""}`} onClick={() => setPkgOpen(o => !o)}>
+                        <span className="zs-pkg-teaser-label">
+                          Preferisci un pacchetto multi-seduta?
+                          {selectedPackage && <span className="zs-pkg-teaser-tag">{selectedPackage.sessions} sedute selezionate</span>}
+                        </span>
+                        <span className="zs-pkg-teaser-chev">▸</span>
+                      </button>
+                      {pkgOpen && renderPackageSection(selectedPackage?.optionId ?? null)}
+                    </div>
+                  )}
+
+                  {/* Silhouette reattiva — colonna destra sticky su desktop, in fondo alla selezione su mobile */}
+                  {showBodyMap && (
+                    <div className="zs-fig">
+                      <BodyMap selectedRegions={selectedRegions} inCartRegions={inCartRegions} />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -865,17 +893,18 @@ const ServiceDetail = () => {
               </p>
             )}
 
-            {isZoneService && selCount > 1 && (
-              <p className="zs-multi-note">Per prenotare più zone aggiungile al carrello — la prenotazione singola vale per una sola zona.</p>
+            {/* Non-epilation: trust pills keep their original position above the CTA stack (epilation shows them under the price). */}
+            {!isZoneService && (
+              <div className="detail-trust">
+                <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
+                <span className="detail-trust-pill">✓ Pagamento sicuro</span>
+                <span className="detail-trust-pill">✓ Conferma immediata</span>
+                <span className="detail-trust-pill">✦ Spostamento facile — Scrivimi su WhatsApp</span>
+              </div>
             )}
 
-            <div className="detail-trust">
-              <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
-              <span className="detail-trust-pill">✓ Pagamento sicuro</span>
-              <span className="detail-trust-pill">✓ Conferma immediata</span>
-              <span className="detail-trust-pill">✦ Spostamento facile — Scrivimi su WhatsApp</span>
-            </div>
-
+            {/* Non-epilation CTA stack — wishlist + prenota/carrello, unchanged. On the epilation path these live near the title and inside the island. */}
+            {!isZoneService && (
             <div className="sd-cta-stack">
               <WishlistHeart itemType="SERVICE" itemId={service.serviceId} variant="detail" />
               <div className="pd-cta-row">
@@ -913,6 +942,7 @@ const ServiceDetail = () => {
                     )}
               </div>
             </div>
+            )}
 
             <div className="detail-divider" />
 
