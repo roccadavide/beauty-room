@@ -246,7 +246,7 @@ const ServiceDetail = () => {
   const inCartRegions = regionsForOptions(cartZoneOptions);
 
   // ── Unified booking / display values (branch on the active selector) ──
-  const bookingOption = isZoneService ? selectedPackage ?? (selCount === 1 ? selectedZoneOptions[0] : null) : selectedOption;
+  const bookingOption = isZoneService ? (selectedPackage ?? (selCount === 1 ? selectedZoneOptions[0] : null)) : selectedOption;
 
   const displayPrice = isZoneService
     ? selectedPackage
@@ -254,7 +254,7 @@ const ServiceDetail = () => {
       : selCount > 0
         ? selTotal
         : service?.price
-    : selectedOption?.price ?? service?.price;
+    : (selectedOption?.price ?? service?.price);
 
   const displayDuration = (() => {
     if (isZoneService) {
@@ -893,18 +893,17 @@ const ServiceDetail = () => {
               </p>
             )}
 
-            {/* Non-epilation: trust pills keep their original position above the CTA stack (epilation shows them under the price). */}
-            {!isZoneService && (
-              <div className="detail-trust">
-                <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
-                <span className="detail-trust-pill">✓ Pagamento sicuro</span>
-                <span className="detail-trust-pill">✓ Conferma immediata</span>
-                <span className="detail-trust-pill">✦ Spostamento facile — Scrivimi su WhatsApp</span>
-              </div>
+            {isZoneService && selCount > 1 && (
+              <p className="zs-multi-note">Per prenotare più zone aggiungile al carrello — la prenotazione singola vale per una sola zona.</p>
             )}
 
-            {/* Non-epilation CTA stack — wishlist + prenota/carrello, unchanged. On the epilation path these live near the title and inside the island. */}
-            {!isZoneService && (
+            <div className="detail-trust">
+              <span className="detail-trust-pill">✓ Prenotazione gratuita</span>
+              <span className="detail-trust-pill">✓ Pagamento sicuro</span>
+              <span className="detail-trust-pill">✓ Conferma immediata</span>
+              <span className="detail-trust-pill">✦ Spostamento facile — Scrivimi su WhatsApp</span>
+            </div>
+
             <div className="sd-cta-stack">
               <WishlistHeart itemType="SERVICE" itemId={service.serviceId} variant="detail" />
               <div className="pd-cta-row">
@@ -942,7 +941,6 @@ const ServiceDetail = () => {
                     )}
               </div>
             </div>
-            )}
 
             <div className="detail-divider" />
 
