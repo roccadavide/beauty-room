@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Container } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
@@ -44,6 +45,22 @@ const useInView = (options = { threshold: 0.15 }) => {
   return [ref, visible];
 };
 
+// Width-based phone check — kept separate from useIsDesktop (which is pointer-based:
+// hover+fine). The mobile booking island must be portaled + position:fixed at exactly
+// the CSS phone breakpoint (<768px), so the JS gate and the CSS must share one width.
+const PHONE_QUERY = "(max-width: 767.98px)";
+const useIsPhone = () => {
+  const [isPhone, setIsPhone] = useState(() => typeof window !== "undefined" && window.matchMedia(PHONE_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(PHONE_QUERY);
+    const onChange = e => setIsPhone(e.matches);
+    mq.addEventListener("change", onChange);
+    setIsPhone(mq.matches);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return isPhone;
+};
+
 // Categories whose services drive the reactive silhouette + multi-select zone UI.
 // Labels live in the DB (not in code), so we match tolerantly (case-insensitive,
 // any "laser"/"cera"/"epilaz" wording) and additionally require that the zones
@@ -80,13 +97,13 @@ const ServiceDetail = () => {
   const [cartFeedback, setCartFeedback] = useState(false);
   const [pkgExpanded, setPkgExpanded] = useState(false);
   const [pkgGender, setPkgGender] = useState(null);
-  const [pkgGroup, setPkgGroup] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const wasCancelled = searchParams.get("cancel") === "1";
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const cartItems = useSelector(state => state.cart?.items ?? []);
   const isDesktop = useIsDesktop();
+  const isPhone = useIsPhone();
 
   useEffect(() => {
     if (!wasCancelled) return;
@@ -188,21 +205,7 @@ const ServiceDetail = () => {
   const pkgHasMale = packageOptions.some(o => o.gender === "MALE");
   const showPkgGenderToggle = pkgHasFemale && pkgHasMale;
   const effectivePkgGender = showPkgGenderToggle ? (pkgGender ?? "FEMALE") : null;
-  const pkgGroups = [
-    ...new Set(
-      packageOptions
-        .filter(o => !effectivePkgGender || !o.gender || o.gender === effectivePkgGender)
-        .map(o => o.optionGroup)
-        .filter(Boolean),
-    ),
-  ];
-  const hasPkgGroups = pkgGroups.length > 0;
-  const effectivePkgGroup = pkgGroups.includes(pkgGroup) ? pkgGroup : null;
-  const filteredPackages = packageOptions.filter(o => {
-    if (effectivePkgGender && o.gender && o.gender !== effectivePkgGender) return false;
-    if (effectivePkgGroup && o.optionGroup !== effectivePkgGroup) return false;
-    return true;
-  });
+  const filteredPackages = packageOptions.filter(o => !effectivePkgGender || !o.gender || o.gender === effectivePkgGender);
   const PKG_TEASER = 3;
   const hasMorePackages = filteredPackages.length > PKG_TEASER;
 
@@ -298,6 +301,7 @@ const ServiceDetail = () => {
   // ── Handlers ──
   const toggleZone = o => {
     if (cartHasOption(o.optionId)) return; // in-cart rows aren't re-selectable; use ✕ to remove
+    setSelectedPackage(null); // zones ⇄ packages are mutually exclusive
     setSelectedZoneIds(prev => {
       const next = new Set(prev);
       if (next.has(o.optionId)) next.delete(o.optionId);
@@ -393,10 +397,10 @@ const ServiceDetail = () => {
     setTimeout(() => setCartFeedback(false), 2500);
   };
 
-  // collapse package list when filters change
+  // collapse package list when the gender filter changes
   useEffect(() => {
     setPkgExpanded(false);
-  }, [pkgGender, pkgGroup]);
+  }, [pkgGender]);
 
   const calcSavings = opt => {
     if (!opt?.sessions || opt.sessions < 2 || !service?.price) return null;
@@ -440,10 +444,17 @@ const ServiceDetail = () => {
     );
 
   // Package selection differs per path: NEW path uses selectedPackage, OLD uses selectedOption.
-  const onSelectPackage = opt =>
-    isZoneService
-      ? setSelectedPackage(prev => (prev?.optionId === opt.optionId ? null : opt))
-      : setSelectedOption(prev => (prev?.optionId === opt.optionId ? null : opt));
+  // On the epilation path packages and zones are mutually exclusive — selecting a package
+  // clears any selected zones (deselecting a package leaves zones untouched: there are none).
+  const onSelectPackage = opt => {
+    if (!isZoneService) {
+      setSelectedOption(prev => (prev?.optionId === opt.optionId ? null : opt));
+      return;
+    }
+    const deselecting = selectedPackage?.optionId === opt.optionId;
+    setSelectedPackage(deselecting ? null : opt);
+    if (!deselecting) setSelectedZoneIds(new Set());
+  };
 
   const renderPackageSection = selectedId => (
     <div className="so-pkg-section">
@@ -460,19 +471,6 @@ const ServiceDetail = () => {
           <button className={`of-tab${(pkgGender ?? "FEMALE") === "MALE" ? " of-tab--active" : ""}`} onClick={() => setPkgGender("MALE")}>
             Uomo
           </button>
-        </div>
-      )}
-
-      {hasPkgGroups && (
-        <div className="so-pkg-filter-chips">
-          <button className={`so-pkg-chip${effectivePkgGroup === null ? " so-pkg-chip--active" : ""}`} onClick={() => setPkgGroup(null)}>
-            Tutti
-          </button>
-          {pkgGroups.map(g => (
-            <button key={g} className={`so-pkg-chip${effectivePkgGroup === g ? " so-pkg-chip--active" : ""}`} onClick={() => setPkgGroup(g)}>
-              {g}
-            </button>
-          ))}
         </div>
       )}
 
@@ -516,6 +514,41 @@ const ServiceDetail = () => {
       )}
     </div>
   );
+
+  // Floating island markup — extracted so the same node can render in-flow (desktop/tablet)
+  // or be portaled to <body> (phone, see below). Renders only on a selection; zones and
+  // packages are mutually exclusive, so the cart action (gated on selCount > 0) never shows
+  // for a package → a package is "Prenota" only, on every viewport.
+  const zoneIsland =
+    selCount > 0 || selectedPackage ? (
+      <div className={`zs-island${isPhone ? " zs-island--portal" : ""}`} role="region" aria-label="Riepilogo selezione">
+        <div className="zs-island-top">
+          <div className="zs-island-info">
+            <span className="zs-island-total">{euro(displayPrice)}</span>
+            <span className="zs-island-sub">
+              {selectedPackage
+                ? `Pacchetto ${selectedPackage.sessions} sedute · ≈ ${displayDuration} min`
+                : `${selCount} ${selCount === 1 ? "zona" : "zone"} · ≈ ${selDuration} min`}
+            </span>
+          </div>
+          <button type="button" className="zs-island-clear" onClick={clearSelection}>
+            Svuota selezione
+          </button>
+        </div>
+        <div className="zs-island-actions">
+          {selCount > 0 && (
+            <button type="button" className="zs-island-add" onClick={handleAddZonesToCart}>
+              {cartFeedback ? "Aggiunto ✓" : "Aggiungi al carrello"}
+            </button>
+          )}
+          {bookingOption && (
+            <button type="button" className="zs-island-book" onClick={openBooking}>
+              {bookingOption.sessions > 1 ? `Prenota · ${bookingOption.sessions} sedute` : "Prenota ora"}
+            </button>
+          )}
+        </div>
+      </div>
+    ) : null;
 
   return (
     <>
@@ -566,7 +599,7 @@ const ServiceDetail = () => {
             {isZoneService ? (
               <div className="sd-title-row">
                 <h1 className="detail-title">{service.title}</h1>
-                <WishlistHeart itemType="SERVICE" itemId={service.serviceId} variant="card" />
+                <WishlistHeart itemType="SERVICE" itemId={service.serviceId} variant="card" label="Salva nei preferiti" />
               </div>
             ) : (
               <h1 className="detail-title">{service.title}</h1>
@@ -727,36 +760,9 @@ const ServiceDetail = () => {
                       <p className="zs-multi-note">Per prenotare più zone aggiungile al carrello — la prenotazione singola vale per una sola zona.</p>
                     )}
 
-                    {/* Floating island — renders only on selection (zones or a package); consolidates the cart + booking actions. */}
-                    {(selCount > 0 || selectedPackage) && (
-                      <div className="zs-island" role="region" aria-label="Riepilogo selezione">
-                        <div className="zs-island-top">
-                          <div className="zs-island-info">
-                            <span className="zs-island-total">{euro(displayPrice)}</span>
-                            <span className="zs-island-sub">
-                              {selectedPackage
-                                ? `Pacchetto ${selectedPackage.sessions} sedute · ≈ ${displayDuration} min`
-                                : `${selCount} ${selCount === 1 ? "zona" : "zone"} · ≈ ${selDuration} min`}
-                            </span>
-                          </div>
-                          <button type="button" className="zs-island-clear" onClick={clearSelection}>
-                            Svuota selezione
-                          </button>
-                        </div>
-                        <div className="zs-island-actions">
-                          {selCount > 0 && (
-                            <button type="button" className="zs-island-add" onClick={handleAddZonesToCart}>
-                              {cartFeedback ? "Aggiunto ✓" : "Aggiungi al carrello"}
-                            </button>
-                          )}
-                          {bookingOption && (
-                            <button type="button" className="zs-island-book" onClick={openBooking}>
-                              {bookingOption.sessions > 1 ? `Prenota · ${bookingOption.sessions} sedute` : "Prenota ora"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    {/* Floating island. Phone (<768px): portaled to <body> so position:fixed pins to the
+                        viewport, not the PageTransition transform/filter wrapper. Desktop/tablet: in-flow here. */}
+                    {isPhone ? zoneIsland && createPortal(zoneIsland, document.body) : zoneIsland}
                   </div>
 
                   {/* Pacchetti — teaser collassato (sotto il selettore su desktop, sopra la silhouette su mobile) */}

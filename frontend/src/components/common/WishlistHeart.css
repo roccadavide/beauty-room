@@ -48,6 +48,34 @@
   opacity: 1;
 }
 
+/* ── LABELED CARD VARIANT (opt-in via `label` prop) ──
+   A compact pill — heart + text — for places where a bare icon doesn't read as "wishlist"
+   (e.g. the epilation detail title). Default (no label) card usages keep the 36px icon-only
+   circle untouched: every override here is scoped to .wh-btn-card--labeled. */
+.wh-btn-card--labeled {
+  width: auto;
+  height: auto;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 151, 106, 0.4);
+  padding: 7px 14px 7px 11px;
+  gap: 7px;
+}
+
+.wh-btn-card-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #8c6d3f;
+}
+
+/* The visible label replaces the tooltip — suppress it so it can't overflow off-screen. */
+.wh-btn-card--labeled::after {
+  display: none;
+}
+
 /* ── DETAIL VARIANT ── */
 .wh-btn-detail {
   display: inline-flex;
