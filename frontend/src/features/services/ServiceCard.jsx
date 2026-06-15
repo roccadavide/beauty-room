@@ -39,7 +39,7 @@ function ServiceCard({
   const { onMouseEnter, onMouseLeave } = usePrefetch(() => fetchServiceById(s.serviceId));
   const { count, liked, burst, triggerLike, showHint } = useLike("SERVICE", s.serviceId, s.likesCount ?? 0);
 
-  const lastTapRef  = useRef(0);
+  const lastTapRef = useRef(0);
   const navTimerRef = useRef(null);
 
   const handleCardClick = useCallback(() => {
@@ -73,12 +73,20 @@ function ServiceCard({
         onClick={() => onTileTap?.()}
       >
         <Card className={`br-card beauty-service-card ro-compact-card h-100${isSelected ? " ro-selected" : ""}`}>
-          {isSelected && <span className="ro-selected-badge" aria-hidden="true">✓</span>}
+          {isSelected && (
+            <span className="ro-selected-badge" aria-hidden="true">
+              ✓
+            </span>
+          )}
           <span className="ro-drag-handle" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
               <g fill="currentColor">
-                <circle cx="8" cy="5" r="1.5" /><circle cx="8" cy="11" r="1.5" /><circle cx="8" cy="17" r="1.5" />
-                <circle cx="14" cy="5" r="1.5" /><circle cx="14" cy="11" r="1.5" /><circle cx="14" cy="17" r="1.5" />
+                <circle cx="8" cy="5" r="1.5" />
+                <circle cx="8" cy="11" r="1.5" />
+                <circle cx="8" cy="17" r="1.5" />
+                <circle cx="14" cy="5" r="1.5" />
+                <circle cx="14" cy="11" r="1.5" />
+                <circle cx="14" cy="17" r="1.5" />
               </g>
             </svg>
           </span>
@@ -95,7 +103,7 @@ function ServiceCard({
     <Col
       xs={12}
       sm={6}
-      lg={6}
+      lg={4}
       xl={4}
       ref={sortableRef}
       className={`d-flex ${sortableClassName || ""}`.trim()}
@@ -113,7 +121,11 @@ function ServiceCard({
         {isAdmin && !(s.active ?? true) && <span className="bsc-inactive-badge">Inattivo</span>}
         <div className="bsc-img-wrap">
           {isAdmin && (
-            <div className="admin-card-toggle-corner" style={{ position: "absolute", left: 10, bottom: 10, top: "auto", right: "auto" }} onClick={e => e.stopPropagation()}>
+            <div
+              className="admin-card-toggle-corner"
+              style={{ position: "absolute", left: 10, bottom: 10, top: "auto", right: "auto" }}
+              onClick={e => e.stopPropagation()}
+            >
               <AdminToggle entityId={s.serviceId} isActive={s.active ?? true} endpoint="/service-items" onToggleSuccess={onToggleActive} />
             </div>
           )}
