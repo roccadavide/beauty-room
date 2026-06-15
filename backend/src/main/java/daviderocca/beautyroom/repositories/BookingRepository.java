@@ -24,6 +24,22 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     List<Booking> findByCustomerEmailIgnoreCase(String customerEmail);
 
+    /**
+     * Scalar projection of the booking's ServiceOption.sessions (null when the booking has no
+     * option, or the option's sessions is null). Used by the Stripe webhook to decide package vs
+     * single service WITHOUT dereferencing a detached lazy ServiceOption proxy: OSIV is off, so by
+     * the time the webhook reads the (re-fetched, then detached) booking, option.getSessions() would
+     * throw LazyInitializationException. This reads the value inside the repository's own session
+     * and returns a plain Integer. LEFT JOIN so an option-less booking still resolves (to null).
+     */
+    @Query("""
+        select o.sessions
+        from Booking b
+        left join b.serviceOption o
+        where b.bookingId = :bookingId
+    """)
+    Integer findServiceOptionSessionsByBookingId(@Param("bookingId") UUID bookingId);
+
     @Query("""
         select b
         from Booking b

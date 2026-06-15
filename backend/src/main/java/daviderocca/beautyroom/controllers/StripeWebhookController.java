@@ -243,10 +243,14 @@ public class StripeWebhookController {
             emailOutboxService.enqueueBookingConfirmed(b);
 
             // ===== PACCHETTI =====
-            int sessionsTotal = 1;
-            if (b.getServiceOption() != null && b.getServiceOption().getSessions() != null) {
-                sessionsTotal = b.getServiceOption().getSessions();
-            }
+            // OSIV is off (spring.jpa.open-in-view=false) and findBookingById's transaction is
+            // already closed, so b is detached and b.getServiceOption() is an uninitialized lazy
+            // proxy — touching getSessions() on it threw LazyInitializationException here, which
+            // aborted package-credit creation (booking stayed paid but packageCreditId = null).
+            // Resolve the sessions count via a scalar projection that reads it inside the
+            // repository's own session, returning a plain Integer instead of dereferencing the proxy.
+            Integer optionSessions = bookingRepository.findServiceOptionSessionsByBookingId(bookingId);
+            int sessionsTotal = optionSessions != null ? optionSessions : 1;
 
             if (sessionsTotal > 1) {
                 boolean alreadyCreated = packageCreditService.findByStripeSessionId(session.getId()).isPresent();
