@@ -46,4 +46,11 @@ public interface ServiceItemRepository extends JpaRepository<ServiceItem, UUID> 
     @Modifying
     @Query("UPDATE ServiceItem s SET s.likesCount = GREATEST(s.likesCount - 1, 0) WHERE s.serviceId = :id")
     void decrementLikes(@Param("id") UUID id);
+
+    @Query("select coalesce(max(s.displayOrder), -1) from ServiceItem s")
+    int findMaxDisplayOrder();
+
+    @Modifying
+    @Query("UPDATE ServiceItem s SET s.displayOrder = :order WHERE s.serviceId = :id")
+    void updateDisplayOrder(@Param("id") UUID id, @Param("order") int order);
 }

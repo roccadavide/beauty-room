@@ -44,6 +44,9 @@ public class ServiceItem {
     @Column(nullable = false)
     private boolean featured = false;
 
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder = 0;
+
     @Column(name = "consent_required", nullable = false)
     private boolean consentRequired = false;
 

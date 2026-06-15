@@ -73,6 +73,23 @@ export const deleteProduct = async productId => {
   }
 };
 
+// -------------------------- REORDER (ADMIN) --------------------------
+export const reorderProducts = async (orderedIds, accessToken) => {
+  try {
+    await http.patch(`${PRODUCT_ENDPOINTS.BASE}/reorder`, orderedIds, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    invalidateCache("products", "products_admin");
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore nel salvataggio dell’ordine dei prodotti.";
+    throw new Error(message);
+  }
+};
+
 // -------------------------- PRODUCT OPTIONS --------------------------
 
 export const createProductOption = async (productId, optionPayload) => {

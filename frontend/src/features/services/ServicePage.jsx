@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, lazy, Suspense } from "react";
 import { Container, Row } from "react-bootstrap";
 import ServicePageSkeleton from "./ServicePageSkeleton";
 import { useNavigate } from "react-router-dom";
@@ -7,11 +7,13 @@ import ServiceModal from "./ServiceModal";
 import DeleteServiceModal from "./DeleteServiceModal";
 import AdminAddButton from "../../components/common/AdminAddButton";
 import { fetchCategories } from "../../api/modules/categories.api";
-import { deleteService, fetchServices } from "../../api/modules/services.api";
+import { deleteService, fetchServices, reorderServices } from "../../api/modules/services.api";
 import SEO from "../../components/common/SEO";
 import useScrollRestore from "../../hooks/useScrollRestore";
 import ServiceCard from "./ServiceCard";
 import DoubleTapHint from "../../components/common/DoubleTapHint";
+
+const SortableServiceGrid = lazy(() => import("./SortableServiceGrid"));
 
 const ServicePage = () => {
   const [cat, setCat] = useState("all");
@@ -39,8 +41,7 @@ const ServicePage = () => {
     const loadData = async () => {
       try {
         const [services, cats] = await Promise.all([fetchServices(isAdmin), fetchCategories()]);
-        const sorted = isAdmin ? [...services].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0)) : services;
-        setAllServices(sorted);
+        setAllServices(services);
         setCategories(cats);
       } catch (err) {
         setError(err.message);
@@ -100,6 +101,23 @@ const ServicePage = () => {
   const handleEdit = service => {
     setEditingService(service);
     setOpen(true);
+  };
+
+  // ---------- CARD HANDLERS (s-aware, shared with sortable grid) ----------
+  const goToService = s => {
+    save(s.serviceId);
+    navigate(`/trattamenti/${s.serviceId}`);
+  };
+  const onCardEdit = s => handleEdit(s);
+  const onCardDelete = s => {
+    setSelectedService(s);
+    setDeleteModal(true);
+  };
+  const onCardToggleActive = (s, newVal) =>
+    setAllServices(prev => prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc)));
+  const handleReorderSave = async orderedServices => {
+    await reorderServices(orderedServices.map(s => s.serviceId), accessToken);
+    setAllServices(orderedServices);
   };
 
   // ---------- CREATE ----------
@@ -174,31 +192,60 @@ const ServicePage = () => {
       )}
 
       <DoubleTapHint />
-      <Container fluid="xxl">
-        <Row ref={rowRef} className="g-4 g-xl-5">
-          {filtered.map(s => (
-            <ServiceCard
-              key={s.serviceId}
-              s={s}
-              isAdmin={isAdmin}
-              categoriesMap={categoriesMap}
-              onCardClick={() => {
-                save(s.serviceId);
-                navigate(`/trattamenti/${s.serviceId}`);
-              }}
-              onEdit={() => handleEdit(s)}
-              onDelete={() => {
-                setSelectedService(s);
-                setDeleteModal(true);
-              }}
-              onToggleActive={newVal => setAllServices(prev => {
-                const updated = prev.map(svc => (svc.serviceId === s.serviceId ? { ...svc, active: newVal } : svc));
-                return [...updated].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
-              })}
-            />
-          ))}
-        </Row>
-      </Container>
+      {isAdmin ? (
+        <Suspense
+          fallback={
+            <Container fluid="xxl">
+              <Row className="g-4 g-xl-5">
+                {filtered.map(s => (
+                  <ServiceCard
+                    key={s.serviceId}
+                    s={s}
+                    isAdmin
+                    categoriesMap={categoriesMap}
+                    onCardClick={() => goToService(s)}
+                    onEdit={() => onCardEdit(s)}
+                    onDelete={() => onCardDelete(s)}
+                    onToggleActive={v => onCardToggleActive(s, v)}
+                  />
+                ))}
+              </Row>
+            </Container>
+          }
+        >
+          {(cat !== "all" || q.trim()) && (
+            <p className="ro-filter-note">Azzera ricerca e categoria per riordinare i trattamenti.</p>
+          )}
+          <SortableServiceGrid
+            services={filtered}
+            reorderEnabled={cat === "all" && !q.trim()}
+            isAdmin
+            categoriesMap={categoriesMap}
+            onCardClick={goToService}
+            onEdit={onCardEdit}
+            onDelete={onCardDelete}
+            onToggleActive={onCardToggleActive}
+            onReorderSave={handleReorderSave}
+          />
+        </Suspense>
+      ) : (
+        <Container fluid="xxl">
+          <Row ref={rowRef} className="g-4 g-xl-5">
+            {filtered.map(s => (
+              <ServiceCard
+                key={s.serviceId}
+                s={s}
+                isAdmin={false}
+                categoriesMap={categoriesMap}
+                onCardClick={() => goToService(s)}
+                onEdit={() => onCardEdit(s)}
+                onDelete={() => onCardDelete(s)}
+                onToggleActive={v => onCardToggleActive(s, v)}
+              />
+            ))}
+          </Row>
+        </Container>
+      )}
 
       {isAdmin && (
         <>

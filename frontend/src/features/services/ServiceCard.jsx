@@ -11,7 +11,24 @@ import { useLike } from "../../hooks/useLike";
 import LikePill from "../../components/common/LikePill";
 import LikeBurst from "../../components/common/LikeBurst";
 
-function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
+function ServiceCard({
+  s,
+  isAdmin,
+  categoriesMap,
+  onCardClick,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  sortableRef,
+  sortableStyle,
+  sortableClassName,
+  sortableAttributes,
+  sortableListeners,
+  dataScrollId,
+  reordering,
+  isSelected,
+  onTileTap,
+}) {
   const activeOptions = s.options?.filter(o => o.active) ?? [];
   const hasActiveOptions = activeOptions.length > 0;
   const minOptionDuration = activeOptions.map(o => o.durationMin).filter(Boolean);
@@ -40,8 +57,52 @@ function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete,
     }
   }, [triggerLike, onCardClick]);
 
+  if (reordering) {
+    return (
+      <Col
+        xs={6}
+        sm={4}
+        lg={3}
+        xl={3}
+        ref={sortableRef}
+        className={`d-flex ${sortableClassName || ""}`.trim()}
+        style={sortableStyle}
+        data-scroll-id={dataScrollId}
+        {...(sortableAttributes || {})}
+        {...(sortableListeners || {})}
+        onClick={() => onTileTap?.()}
+      >
+        <Card className={`br-card beauty-service-card ro-compact-card h-100${isSelected ? " ro-selected" : ""}`}>
+          {isSelected && <span className="ro-selected-badge" aria-hidden="true">✓</span>}
+          <span className="ro-drag-handle" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+              <g fill="currentColor">
+                <circle cx="8" cy="5" r="1.5" /><circle cx="8" cy="11" r="1.5" /><circle cx="8" cy="17" r="1.5" />
+                <circle cx="14" cy="5" r="1.5" /><circle cx="14" cy="11" r="1.5" /><circle cx="14" cy="17" r="1.5" />
+              </g>
+            </svg>
+          </span>
+          <div className="ro-compact-img">
+            <img src={s.images?.[0]} alt={s.title} loading="lazy" />
+          </div>
+          <div className="ro-compact-title">{s.title}</div>
+        </Card>
+      </Col>
+    );
+  }
+
   return (
-    <Col xs={12} sm={6} lg={6} xl={4} className="d-flex">
+    <Col
+      xs={12}
+      sm={6}
+      lg={6}
+      xl={4}
+      ref={sortableRef}
+      className={`d-flex ${sortableClassName || ""}`.trim()}
+      style={sortableStyle}
+      data-scroll-id={dataScrollId}
+      {...(sortableAttributes || {})}
+    >
       <Card
         className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`}
         onClick={handleCardClick}

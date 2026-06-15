@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { Container, Row } from "react-bootstrap";
 import ProductsPageSkeleton from "./ProductsPageSkeleton";
 import { useSelector } from "react-redux";
@@ -8,10 +8,12 @@ import ProductModal from "./ProductModal";
 import AdminAddButton from "../../components/common/AdminAddButton";
 import SEO from "../../components/common/SEO";
 import { fetchCategories } from "../../api/modules/categories.api";
-import { deleteProduct, fetchProducts } from "../../api/modules/products.api";
+import { deleteProduct, fetchProducts, reorderProducts } from "../../api/modules/products.api";
 import useScrollRestore from "../../hooks/useScrollRestore";
 import ProductCard from "./ProductCard";
 import DoubleTapHint from "../../components/common/DoubleTapHint";
+
+const SortableProductGrid = lazy(() => import("./SortableProductGrid"));
 
 function ProductsPage() {
   const [cat, setCat] = useState("all");
@@ -39,8 +41,7 @@ function ProductsPage() {
     const loadData = async () => {
       try {
         const [products, cats] = await Promise.all([fetchProducts(isAdmin), fetchCategories()]);
-        const sorted = isAdmin ? [...products].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0)) : products;
-        setAllProducts(sorted);
+        setAllProducts(products);
         setCategories(cats);
       } catch (err) {
         setError(err.message);
@@ -100,6 +101,23 @@ function ProductsPage() {
   const handleEdit = product => {
     setEditingProduct(product);
     setOpen(true);
+  };
+
+  // ---------- CARD HANDLERS (p-aware, shared with sortable grid) ----------
+  const goToProduct = p => {
+    save(p.productId);
+    navigate(`/prodotti/${p.productId}`);
+  };
+  const onCardEdit = p => handleEdit(p);
+  const onCardDelete = p => {
+    setSelectedProduct(p);
+    setDeleteModal(true);
+  };
+  const onCardToggleActive = (p, newVal) =>
+    setAllProducts(prev => prev.map(prod => (prod.productId === p.productId ? { ...prod, active: newVal } : prod)));
+  const handleReorderSave = async orderedProducts => {
+    await reorderProducts(orderedProducts.map(p => p.productId), accessToken);
+    setAllProducts(orderedProducts);
   };
 
   // ---------- CREATE ----------
@@ -174,31 +192,60 @@ function ProductsPage() {
       )}
 
       <DoubleTapHint />
-      <Container fluid="xxl">
-        <Row ref={rowRef} className="g-4 g-xl-5">
-          {filtered.map(p => (
-            <ProductCard
-              key={p.productId}
-              p={p}
-              isAdmin={isAdmin}
-              categoriesMap={categoriesMap}
-              onCardClick={() => {
-                save(p.productId);
-                navigate(`/prodotti/${p.productId}`);
-              }}
-              onEdit={() => handleEdit(p)}
-              onDelete={() => {
-                setSelectedProduct(p);
-                setDeleteModal(true);
-              }}
-              onToggleActive={newVal => setAllProducts(prev => {
-                const updated = prev.map(pr => (pr.productId === p.productId ? { ...pr, active: newVal } : pr));
-                return [...updated].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
-              })}
-            />
-          ))}
-        </Row>
-      </Container>
+      {isAdmin ? (
+        <Suspense
+          fallback={
+            <Container fluid="xxl">
+              <Row className="g-4 g-xl-5">
+                {filtered.map(p => (
+                  <ProductCard
+                    key={p.productId}
+                    p={p}
+                    isAdmin
+                    categoriesMap={categoriesMap}
+                    onCardClick={() => goToProduct(p)}
+                    onEdit={() => onCardEdit(p)}
+                    onDelete={() => onCardDelete(p)}
+                    onToggleActive={v => onCardToggleActive(p, v)}
+                  />
+                ))}
+              </Row>
+            </Container>
+          }
+        >
+          {(cat !== "all" || q.trim()) && (
+            <p className="ro-filter-note">Azzera ricerca e categoria per riordinare i prodotti.</p>
+          )}
+          <SortableProductGrid
+            products={filtered}
+            reorderEnabled={cat === "all" && !q.trim()}
+            isAdmin
+            categoriesMap={categoriesMap}
+            onCardClick={goToProduct}
+            onEdit={onCardEdit}
+            onDelete={onCardDelete}
+            onToggleActive={onCardToggleActive}
+            onReorderSave={handleReorderSave}
+          />
+        </Suspense>
+      ) : (
+        <Container fluid="xxl">
+          <Row ref={rowRef} className="g-4 g-xl-5">
+            {filtered.map(p => (
+              <ProductCard
+                key={p.productId}
+                p={p}
+                isAdmin={false}
+                categoriesMap={categoriesMap}
+                onCardClick={() => goToProduct(p)}
+                onEdit={() => onCardEdit(p)}
+                onDelete={() => onCardDelete(p)}
+                onToggleActive={v => onCardToggleActive(p, v)}
+              />
+            ))}
+          </Row>
+        </Container>
+      )}
 
       {isAdmin && (
         <>
