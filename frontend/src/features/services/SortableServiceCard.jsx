@@ -31,7 +31,7 @@ const SortableServiceCard = ({ s, reordering, isAdmin, categoriesMap, selectedId
       sortableStyle={style}
       sortableClassName={className}
       sortableAttributes={attributes}
-      dragHandleListeners={listeners}
+      sortableListeners={listeners}
     />
   );
 };

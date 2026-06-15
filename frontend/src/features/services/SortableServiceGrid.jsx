@@ -96,7 +96,8 @@ const SortableServiceGrid = ({
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onReorderSave(items);
+      const inactives = (originalRef.current || []).filter((s) => !(s.active ?? true));
+      await onReorderSave([...items, ...inactives]);
       setSelectedId(null);
       setReordering(false);
     } catch (err) {
@@ -139,7 +140,7 @@ const SortableServiceGrid = ({
     <>
       {!reordering && (
         <div className="ro-trigger-wrap">
-          <button type="button" className="ro-trigger-btn" onClick={() => setReordering(true)}>
+          <button type="button" className="ro-trigger-btn" onClick={() => { setItems(services.filter((s) => s.active ?? true)); setReordering(true); }}>
             <svg width="18" height="18" viewBox="0 0 22 22" aria-hidden="true">
               <g fill="currentColor">
                 <circle cx="8" cy="5" r="1.5" /><circle cx="8" cy="11" r="1.5" /><circle cx="8" cy="17" r="1.5" />
@@ -153,7 +154,7 @@ const SortableServiceGrid = ({
 
       {reordering && (
         <p className="ro-help-note">
-          Tocca la card da spostare, poi tocca dove vuoi metterla. Col mouse puoi anche trascinare dalla maniglia.
+          Solo i trattamenti attivi possono essere riordinati. Col mouse trascina direttamente la card; da tablet o telefono tocca la card da spostare e poi la destinazione.
         </p>
       )}
 

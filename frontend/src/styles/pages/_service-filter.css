@@ -342,7 +342,9 @@
 .ro-trigger-wrap {
   display: flex;
   justify-content: center;
-  margin: 0 auto 1.5rem;
+  position: relative;
+  z-index: 5;
+  margin: 0 auto 2rem;
 }
 .ro-trigger-btn {
   display: inline-flex;
@@ -402,6 +404,7 @@
   position: absolute;
   top: 6px;
   right: 6px;
+  pointer-events: none;
   width: 40px;
   height: 40px;
   display: flex;

@@ -23,7 +23,7 @@ function ServiceCard({
   sortableStyle,
   sortableClassName,
   sortableAttributes,
-  dragHandleListeners,
+  sortableListeners,
   dataScrollId,
   reordering,
   isSelected,
@@ -69,24 +69,19 @@ function ServiceCard({
         style={sortableStyle}
         data-scroll-id={dataScrollId}
         {...(sortableAttributes || {})}
+        {...(sortableListeners || {})}
         onClick={() => onTileTap?.()}
       >
         <Card className={`br-card beauty-service-card ro-compact-card h-100${isSelected ? " ro-selected" : ""}`}>
           {isSelected && <span className="ro-selected-badge" aria-hidden="true">✓</span>}
-          <button
-            type="button"
-            className="ro-drag-handle"
-            aria-label="Trascina per riordinare (mouse)"
-            onClick={e => e.stopPropagation()}
-            {...(dragHandleListeners || {})}
-          >
+          <span className="ro-drag-handle" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
               <g fill="currentColor">
                 <circle cx="8" cy="5" r="1.5" /><circle cx="8" cy="11" r="1.5" /><circle cx="8" cy="17" r="1.5" />
                 <circle cx="14" cy="5" r="1.5" /><circle cx="14" cy="11" r="1.5" /><circle cx="14" cy="17" r="1.5" />
               </g>
             </svg>
-          </button>
+          </span>
           <div className="ro-compact-img">
             <img src={s.images?.[0]} alt={s.title} loading="lazy" />
           </div>
