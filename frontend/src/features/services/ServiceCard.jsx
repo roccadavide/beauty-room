@@ -26,6 +26,8 @@ function ServiceCard({
   dragHandleListeners,
   dataScrollId,
   reordering,
+  isSelected,
+  onTileTap,
 }) {
   const activeOptions = s.options?.filter(o => o.active) ?? [];
   const hasActiveOptions = activeOptions.length > 0;
@@ -67,14 +69,15 @@ function ServiceCard({
         style={sortableStyle}
         data-scroll-id={dataScrollId}
         {...(sortableAttributes || {})}
-        onClickCapture={e => { e.preventDefault(); e.stopPropagation(); }}
+        onClick={() => onTileTap?.()}
       >
-        <Card className="br-card beauty-service-card ro-compact-card h-100">
+        <Card className={`br-card beauty-service-card ro-compact-card h-100${isSelected ? " ro-selected" : ""}`}>
+          {isSelected && <span className="ro-selected-badge" aria-hidden="true">✓</span>}
           <button
             type="button"
             className="ro-drag-handle"
-            aria-label="Trascina per riordinare"
-            onClick={e => { e.preventDefault(); e.stopPropagation(); }}
+            aria-label="Trascina per riordinare (mouse)"
+            onClick={e => e.stopPropagation()}
             {...(dragHandleListeners || {})}
           >
             <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">

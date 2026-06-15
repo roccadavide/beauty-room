@@ -5,7 +5,6 @@ import {
   DndContext,
   closestCenter,
   MouseSensor,
-  TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -32,6 +31,7 @@ const SortableServiceGrid = ({
 }) => {
   const [items, setItems] = useState(services);
   const [reordering, setReordering] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
   const [saving, setSaving] = useState(false);
   const originalRef = useRef(services);
 
@@ -47,18 +47,21 @@ const SortableServiceGrid = ({
   useEffect(() => {
     if (!reorderEnabled && reordering) {
       setReordering(false);
+      setSelectedId(null);
       setItems(services);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reorderEnabled]);
 
+  // Mouse drag only (handle). No TouchSensor: on touch we use tap-to-move,
+  // which is immune to Lenis. MouseSensor still drives mouse + iPad-mouse drag.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragStart = () => {
+    setSelectedId(null);
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(12);
   };
 
@@ -73,10 +76,28 @@ const SortableServiceGrid = ({
     });
   };
 
+  // Tap-to-move: tap a tile to pick it up, tap another to drop it there (insert).
+  const handleTileTap = (id) => {
+    if (selectedId == null) {
+      setSelectedId(id);
+    } else if (selectedId === id) {
+      setSelectedId(null);
+    } else {
+      setItems((prev) => {
+        const from = prev.findIndex((x) => x.serviceId === selectedId);
+        const to = prev.findIndex((x) => x.serviceId === id);
+        if (from === -1 || to === -1) return prev;
+        return arrayMove(prev, from, to);
+      });
+      setSelectedId(null);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       await onReorderSave(items);
+      setSelectedId(null);
       setReordering(false);
     } catch (err) {
       alert("Errore nel salvataggio dell'ordine: " + (err?.message || "riprova"));
@@ -87,6 +108,7 @@ const SortableServiceGrid = ({
 
   const handleCancel = () => {
     setItems(originalRef.current);
+    setSelectedId(null);
     setReordering(false);
   };
 
@@ -129,6 +151,12 @@ const SortableServiceGrid = ({
         </div>
       )}
 
+      {reordering && (
+        <p className="ro-help-note">
+          Tocca la card da spostare, poi tocca dove vuoi metterla. Col mouse puoi anche trascinare dalla maniglia.
+        </p>
+      )}
+
       <Container fluid="xxl">
         <div data-lenis-prevent="">
           {reordering ? (
@@ -148,6 +176,8 @@ const SortableServiceGrid = ({
                       reordering
                       isAdmin={isAdmin}
                       categoriesMap={categoriesMap}
+                      selectedId={selectedId}
+                      onTileTap={handleTileTap}
                       onCardClick={onCardClick}
                       onEdit={onEdit}
                       onDelete={onDelete}
@@ -179,7 +209,9 @@ const SortableServiceGrid = ({
 
       {reordering && createPortal(
         <div className="ro-bar" role="region" aria-label="Riordino trattamenti">
-          <span className="ro-bar-label">Trascina dalla maniglia · {items.length} trattamenti</span>
+          <span className="ro-bar-label">
+            {selectedId ? "Tocca la card di destinazione" : `Tocca una card, poi la destinazione · ${items.length} trattamenti`}
+          </span>
           <div className="ro-bar-actions">
             <button className="ro-bar-cancel" onClick={handleCancel} disabled={saving}>
               Annulla
