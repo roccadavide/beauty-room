@@ -1,19 +1,41 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Container, Row } from "react-bootstrap";
-import { DndContext, closestCenter, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import ProductCard from "./ProductCard";
 import SortableProductCard from "./SortableProductCard";
 
-const SortableProductGrid = ({ products, reorderEnabled, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive, onReorderSave }) => {
+const SortableProductGrid = ({
+  products,
+  reorderEnabled,
+  isAdmin,
+  categoriesMap,
+  onCardClick,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  onReorderSave,
+}) => {
   const [items, setItems] = useState(products);
   const [reordering, setReordering] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
   const [saving, setSaving] = useState(false);
   const originalRef = useRef(products);
 
-  // Resync from parent ONLY when not actively reordering, so an in-progress
-  // drag session is never clobbered by upstream changes (filters, like counts).
+  // Resync from parent only when NOT actively reordering.
   useEffect(() => {
     if (!reordering) {
       setItems(products);
@@ -21,34 +43,62 @@ const SortableProductGrid = ({ products, reorderEnabled, isAdmin, categoriesMap,
     }
   }, [products, reordering]);
 
+  // If filters get applied while reordering, exit reorder mode safely.
+  useEffect(() => {
+    if (!reorderEnabled && reordering) {
+      setReordering(false);
+      setSelectedId(null);
+      setItems(products);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reorderEnabled]);
+
+  // Mouse drag only (handle). No TouchSensor: on touch we use tap-to-move,
+  // which is immune to Lenis. MouseSensor still drives mouse + iPad-mouse drag.
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 12 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragStart = () => {
-    if (!reordering) {
-      setReordering(true);
-      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15);
-    }
+    setSelectedId(null);
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(12);
   };
 
-  const handleDragEnd = event => {
+  const handleDragEnd = (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setItems(prev => {
-      const oldIndex = prev.findIndex(x => x.productId === active.id);
-      const newIndex = prev.findIndex(x => x.productId === over.id);
+    setItems((prev) => {
+      const oldIndex = prev.findIndex((x) => x.productId === active.id);
+      const newIndex = prev.findIndex((x) => x.productId === over.id);
       if (oldIndex === -1 || newIndex === -1) return prev;
       return arrayMove(prev, oldIndex, newIndex);
     });
   };
 
+  // Tap-to-move: tap a tile to pick it up, tap another to drop it there (insert).
+  const handleTileTap = (id) => {
+    if (selectedId == null) {
+      setSelectedId(id);
+    } else if (selectedId === id) {
+      setSelectedId(null);
+    } else {
+      setItems((prev) => {
+        const from = prev.findIndex((x) => x.productId === selectedId);
+        const to = prev.findIndex((x) => x.productId === id);
+        if (from === -1 || to === -1) return prev;
+        return arrayMove(prev, from, to);
+      });
+      setSelectedId(null);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onReorderSave(items);
+      const inactives = (originalRef.current || []).filter((p) => !(p.active ?? true));
+      await onReorderSave([...items, ...inactives]);
+      setSelectedId(null);
       setReordering(false);
     } catch (err) {
       alert("Errore nel salvataggio dell'ordine: " + (err?.message || "riprova"));
@@ -59,15 +109,16 @@ const SortableProductGrid = ({ products, reorderEnabled, isAdmin, categoriesMap,
 
   const handleCancel = () => {
     setItems(originalRef.current);
+    setSelectedId(null);
     setReordering(false);
   };
 
-  // Filters active → reorder disabled → plain, non-draggable grid (no DndContext).
+  // Filters active → plain non-draggable grid.
   if (!reorderEnabled) {
     return (
       <Container fluid="xxl">
         <Row className="g-4 g-xl-5">
-          {products.map(p => (
+          {products.map((p) => (
             <ProductCard
               key={p.productId}
               p={p}
@@ -77,7 +128,7 @@ const SortableProductGrid = ({ products, reorderEnabled, isAdmin, categoriesMap,
               onCardClick={() => onCardClick(p)}
               onEdit={() => onEdit(p)}
               onDelete={() => onDelete(p)}
-              onToggleActive={v => onToggleActive(p, v)}
+              onToggleActive={(v) => onToggleActive(p, v)}
             />
           ))}
         </Row>
@@ -87,51 +138,92 @@ const SortableProductGrid = ({ products, reorderEnabled, isAdmin, categoriesMap,
 
   return (
     <>
+      {!reordering && (
+        <div className="ro-trigger-wrap">
+          <button type="button" className="ro-trigger-btn" onClick={() => { setItems(products.filter((p) => p.active ?? true)); setReordering(true); }}>
+            <svg width="18" height="18" viewBox="0 0 22 22" aria-hidden="true">
+              <g fill="currentColor">
+                <circle cx="8" cy="5" r="1.5" /><circle cx="8" cy="11" r="1.5" /><circle cx="8" cy="17" r="1.5" />
+                <circle cx="14" cy="5" r="1.5" /><circle cx="14" cy="11" r="1.5" /><circle cx="14" cy="17" r="1.5" />
+              </g>
+            </svg>
+            Riordina prodotti
+          </button>
+        </div>
+      )}
+
+      {reordering && (
+        <p className="ro-help-note">
+          Solo i prodotti attivi possono essere riordinati. Col mouse trascina direttamente la card; da tablet o telefono tocca la card da spostare e poi la destinazione.
+        </p>
+      )}
+
       <Container fluid="xxl">
-        <div data-lenis-prevent={reordering ? "" : undefined}>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            autoScroll={{ threshold: { x: 0, y: 0.2 } }}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={items.map(p => p.productId)} strategy={rectSortingStrategy}>
-              <Row className="g-4 g-xl-5">
-                {items.map(p => (
-                  <SortableProductCard
-                    key={p.productId}
-                    p={p}
-                    reordering={reordering}
-                    isAdmin={isAdmin}
-                    categoriesMap={categoriesMap}
-                    onCardClick={onCardClick}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onToggleActive={onToggleActive}
-                  />
-                ))}
-              </Row>
-            </SortableContext>
-          </DndContext>
+        <div data-lenis-prevent="">
+          {reordering ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              autoScroll={{ threshold: { x: 0, y: 0.2 } }}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={items.map((p) => p.productId)} strategy={rectSortingStrategy}>
+                <Row className="g-3">
+                  {items.map((p) => (
+                    <SortableProductCard
+                      key={p.productId}
+                      p={p}
+                      reordering
+                      isAdmin={isAdmin}
+                      categoriesMap={categoriesMap}
+                      selectedId={selectedId}
+                      onTileTap={handleTileTap}
+                      onCardClick={onCardClick}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      onToggleActive={onToggleActive}
+                    />
+                  ))}
+                </Row>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <Row className="g-4 g-xl-5">
+              {items.map((p) => (
+                <ProductCard
+                  key={p.productId}
+                  p={p}
+                  isAdmin={isAdmin}
+                  categoriesMap={categoriesMap}
+                  dataScrollId={p.productId}
+                  onCardClick={() => onCardClick(p)}
+                  onEdit={() => onEdit(p)}
+                  onDelete={() => onDelete(p)}
+                  onToggleActive={(v) => onToggleActive(p, v)}
+                />
+              ))}
+            </Row>
+          )}
         </div>
       </Container>
 
-      {reordering &&
-        createPortal(
-          <div className="ro-bar" role="region" aria-label="Riordino prodotti">
-            <span className="ro-bar-label">Trascina per riordinare · {items.length} prodotti</span>
-            <div className="ro-bar-actions">
-              <button className="ro-bar-cancel" onClick={handleCancel} disabled={saving}>
-                Annulla
-              </button>
-              <button className="ro-bar-save" onClick={handleSave} disabled={saving}>
-                {saving ? "Salvataggio…" : "Salva ordine"}
-              </button>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {reordering && createPortal(
+        <div className="ro-bar" role="region" aria-label="Riordino prodotti">
+          <span className="ro-bar-label">
+            {selectedId ? "Tocca la card di destinazione" : `Tocca una card, poi la destinazione · ${items.length} prodotti`}
+          </span>
+          <div className="ro-bar-actions">
+            <button className="ro-bar-cancel" onClick={handleCancel} disabled={saving}>
+              Annulla
+            </button>
+            <button className="ro-bar-save" onClick={handleSave} disabled={saving}>
+              {saving ? "Salvataggio…" : "Salva ordine"}
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 };

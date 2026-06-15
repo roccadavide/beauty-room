@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import ProductCard from "./ProductCard";
 
-const SortableProductCard = ({ p, reordering, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) => {
+const SortableProductCard = ({ p, reordering, isAdmin, categoriesMap, selectedId, onTileTap, onCardClick, onEdit, onDelete, onToggleActive }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: p.productId });
 
   const style = {
@@ -11,7 +11,8 @@ const SortableProductCard = ({ p, reordering, isAdmin, categoriesMap, onCardClic
     zIndex: isDragging ? 50 : undefined,
   };
 
-  const className = `ro-sortable${reordering ? " ro-wobble" : ""}${isDragging ? " ro-dragging" : ""}`;
+  const isSelected = selectedId === p.productId;
+  const className = `ro-sortable${reordering ? " ro-wobble ro-compact" : ""}${isDragging ? " ro-dragging" : ""}`;
 
   return (
     <ProductCard
@@ -19,6 +20,9 @@ const SortableProductCard = ({ p, reordering, isAdmin, categoriesMap, onCardClic
       isAdmin={isAdmin}
       categoriesMap={categoriesMap}
       dataScrollId={p.productId}
+      reordering={reordering}
+      isSelected={isSelected}
+      onTileTap={() => onTileTap(p.productId)}
       onCardClick={() => onCardClick(p)}
       onEdit={() => onEdit(p)}
       onDelete={() => onDelete(p)}
@@ -28,7 +32,6 @@ const SortableProductCard = ({ p, reordering, isAdmin, categoriesMap, onCardClic
       sortableClassName={className}
       sortableAttributes={attributes}
       sortableListeners={listeners}
-      clickGuard={reordering}
     />
   );
 };

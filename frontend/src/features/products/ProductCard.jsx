@@ -25,7 +25,9 @@ function ProductCard({
   sortableAttributes,
   sortableListeners,
   dataScrollId,
-  clickGuard,
+  reordering,
+  isSelected,
+  onTileTap,
 }) {
   const { onMouseEnter, onMouseLeave } = usePrefetch(() => fetchProductById(p.productId));
   const { count, liked, burst, triggerLike, showHint } = useLike("PRODUCT", p.productId, p.likesCount ?? 0);
@@ -48,6 +50,40 @@ function ProductCard({
     }
   }, [triggerLike, onCardClick]);
 
+  if (reordering) {
+    return (
+      <Col
+        xs={6}
+        sm={4}
+        lg={3}
+        xl={3}
+        ref={sortableRef}
+        className={`d-flex ${sortableClassName || ""}`.trim()}
+        style={sortableStyle}
+        data-scroll-id={dataScrollId}
+        {...(sortableAttributes || {})}
+        {...(sortableListeners || {})}
+        onClick={() => onTileTap?.()}
+      >
+        <Card className={`br-card beauty-product-card ro-compact-card h-100${isSelected ? " ro-selected" : ""}`}>
+          {isSelected && <span className="ro-selected-badge" aria-hidden="true">✓</span>}
+          <span className="ro-drag-handle" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+              <g fill="currentColor">
+                <circle cx="8" cy="5" r="1.5" /><circle cx="8" cy="11" r="1.5" /><circle cx="8" cy="17" r="1.5" />
+                <circle cx="14" cy="5" r="1.5" /><circle cx="14" cy="11" r="1.5" /><circle cx="14" cy="17" r="1.5" />
+              </g>
+            </svg>
+          </span>
+          <div className="ro-compact-img">
+            <img src={p.images?.[0]} alt={p.name} loading="lazy" />
+          </div>
+          <div className="ro-compact-title">{p.name}</div>
+        </Card>
+      </Col>
+    );
+  }
+
   return (
     <Col
       xs={12}
@@ -59,8 +95,6 @@ function ProductCard({
       style={sortableStyle}
       data-scroll-id={dataScrollId}
       {...(sortableAttributes || {})}
-      {...(sortableListeners || {})}
-      {...(clickGuard ? { onClickCapture: e => { e.preventDefault(); e.stopPropagation(); } } : {})}
     >
       <Card
         className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}${isAdmin && !(p.active ?? true) ? " admin-entity--inactive" : ""}`}
