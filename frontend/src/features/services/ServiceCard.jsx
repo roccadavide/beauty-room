@@ -11,7 +11,22 @@ import { useLike } from "../../hooks/useLike";
 import LikePill from "../../components/common/LikePill";
 import LikeBurst from "../../components/common/LikeBurst";
 
-function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete, onToggleActive }) {
+function ServiceCard({
+  s,
+  isAdmin,
+  categoriesMap,
+  onCardClick,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  sortableRef,
+  sortableStyle,
+  sortableClassName,
+  sortableAttributes,
+  sortableListeners,
+  dataScrollId,
+  clickGuard,
+}) {
   const activeOptions = s.options?.filter(o => o.active) ?? [];
   const hasActiveOptions = activeOptions.length > 0;
   const minOptionDuration = activeOptions.map(o => o.durationMin).filter(Boolean);
@@ -41,7 +56,19 @@ function ServiceCard({ s, isAdmin, categoriesMap, onCardClick, onEdit, onDelete,
   }, [triggerLike, onCardClick]);
 
   return (
-    <Col xs={12} sm={6} lg={6} xl={4} className="d-flex">
+    <Col
+      xs={12}
+      sm={6}
+      lg={6}
+      xl={4}
+      ref={sortableRef}
+      className={`d-flex ${sortableClassName || ""}`.trim()}
+      style={sortableStyle}
+      data-scroll-id={dataScrollId}
+      {...(sortableAttributes || {})}
+      {...(sortableListeners || {})}
+      {...(clickGuard ? { onClickCapture: e => { e.preventDefault(); e.stopPropagation(); } } : {})}
+    >
       <Card
         className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`}
         onClick={handleCardClick}

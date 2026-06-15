@@ -77,6 +77,23 @@ export const deleteService = async serviceId => {
   }
 };
 
+// -------------------------- REORDER (ADMIN) --------------------------
+export const reorderServices = async (orderedIds, accessToken) => {
+  try {
+    await http.patch(`${SERVICE_ENDPOINTS.BASE}/reorder`, orderedIds, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    invalidateCache("services", "services_admin");
+    return true;
+  } catch (error) {
+    const message = error.response?.data?.message || "Errore nel salvataggio dell’ordine dei servizi.";
+    throw new Error(message);
+  }
+};
+
 export const createServiceOption = async (serviceId, optionPayload) => {
   try {
     const { data } = await http.post(SERVICE_ENDPOINTS.CREATE_OPTION(serviceId), optionPayload, {

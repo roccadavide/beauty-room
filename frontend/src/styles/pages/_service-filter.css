@@ -192,3 +192,126 @@
     max-width: 100%;
   }
 }
+
+/* ═══════════════════════════════════════════
+   ADMIN REORDER (drag-to-sort) — services & products
+   ═══════════════════════════════════════════ */
+
+.ro-filter-note {
+  text-align: center;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.3px;
+  color: #8c6d3f;
+  background: rgba(184, 151, 106, 0.08);
+  border: 1px dashed rgba(184, 151, 106, 0.35);
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  max-width: 520px;
+  margin: 0 auto 1.5rem;
+}
+
+.ro-sortable {
+  touch-action: manipulation;
+}
+
+.ro-wobble :where(.service-card, .card, .beauty-service-card) {
+  animation: roWobble 0.32s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes roWobble {
+  0% {
+    transform: rotate(-0.7deg);
+  }
+  50% {
+    transform: rotate(0.7deg);
+  }
+  100% {
+    transform: rotate(-0.7deg);
+  }
+}
+
+.ro-dragging :where(.service-card, .card, .beauty-service-card) {
+  animation: none;
+  box-shadow: 0 18px 40px rgba(140, 109, 63, 0.28);
+  transform: scale(1.03);
+}
+
+.ro-dragging {
+  cursor: grabbing;
+}
+
+.ro-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 1080;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.7rem 0.8rem 0.7rem 1.3rem;
+  background: rgba(255, 253, 248, 0.96);
+  border: 1px solid rgba(184, 151, 106, 0.35);
+  border-radius: 999px;
+  box-shadow: 0 14px 38px rgba(46, 33, 24, 0.18);
+  backdrop-filter: blur(8px);
+  max-width: calc(100vw - 1.5rem);
+}
+
+.ro-bar-label {
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.4px;
+  color: #5a4a3a;
+  white-space: nowrap;
+}
+
+.ro-bar-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ro-bar-cancel,
+.ro-bar-save {
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  border-radius: 999px;
+  padding: 0.5rem 1.15rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: filter 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.ro-bar-cancel {
+  background: transparent;
+  border-color: rgba(176, 137, 104, 0.45);
+  color: #5a4a3a;
+}
+.ro-bar-cancel:hover:not(:disabled) {
+  background: rgba(184, 151, 106, 0.1);
+  color: #3a2e26;
+}
+
+.ro-bar-save {
+  background: linear-gradient(135deg, #b8976a 0%, #8c6d3f 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(140, 109, 63, 0.35);
+}
+.ro-bar-save:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.ro-bar-save:disabled,
+.ro-bar-cancel:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 576px) {
+  .ro-bar-label { display: none; }
+  .ro-bar { gap: 0.5rem; padding: 0.6rem; }
+}
