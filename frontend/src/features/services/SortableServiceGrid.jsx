@@ -35,8 +35,7 @@ const SortableServiceGrid = ({
   const [saving, setSaving] = useState(false);
   const originalRef = useRef(services);
 
-  // Resync from parent ONLY when not actively reordering, so an in-progress
-  // drag session is never clobbered by upstream changes (filters, like counts).
+  // Resync from parent only when NOT actively reordering.
   useEffect(() => {
     if (!reordering) {
       setItems(services);
@@ -44,17 +43,23 @@ const SortableServiceGrid = ({
     }
   }, [services, reordering]);
 
+  // If filters get applied while reordering, exit reorder mode safely.
+  useEffect(() => {
+    if (!reorderEnabled && reordering) {
+      setReordering(false);
+      setItems(services);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reorderEnabled]);
+
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 12 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragStart = () => {
-    if (!reordering) {
-      setReordering(true);
-      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15);
-    }
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(12);
   };
 
   const handleDragEnd = (event) => {
@@ -85,7 +90,7 @@ const SortableServiceGrid = ({
     setReordering(false);
   };
 
-  // Filters active → reorder disabled → plain, non-draggable grid (no DndContext).
+  // Filters active → plain non-draggable grid.
   if (!reorderEnabled) {
     return (
       <Container fluid="xxl">
@@ -110,39 +115,71 @@ const SortableServiceGrid = ({
 
   return (
     <>
+      {!reordering && (
+        <div className="ro-trigger-wrap">
+          <button type="button" className="ro-trigger-btn" onClick={() => setReordering(true)}>
+            <svg width="18" height="18" viewBox="0 0 22 22" aria-hidden="true">
+              <g fill="currentColor">
+                <circle cx="8" cy="5" r="1.5" /><circle cx="8" cy="11" r="1.5" /><circle cx="8" cy="17" r="1.5" />
+                <circle cx="14" cy="5" r="1.5" /><circle cx="14" cy="11" r="1.5" /><circle cx="14" cy="17" r="1.5" />
+              </g>
+            </svg>
+            Riordina trattamenti
+          </button>
+        </div>
+      )}
+
       <Container fluid="xxl">
-        <div data-lenis-prevent={reordering ? "" : undefined}>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            autoScroll={{ threshold: { x: 0, y: 0.2 } }}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={items.map((s) => s.serviceId)} strategy={rectSortingStrategy}>
-              <Row className="g-4 g-xl-5">
-                {items.map((s) => (
-                  <SortableServiceCard
-                    key={s.serviceId}
-                    s={s}
-                    reordering={reordering}
-                    isAdmin={isAdmin}
-                    categoriesMap={categoriesMap}
-                    onCardClick={onCardClick}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onToggleActive={onToggleActive}
-                  />
-                ))}
-              </Row>
-            </SortableContext>
-          </DndContext>
+        <div data-lenis-prevent="">
+          {reordering ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              autoScroll={{ threshold: { x: 0, y: 0.2 } }}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={items.map((s) => s.serviceId)} strategy={rectSortingStrategy}>
+                <Row className="g-3">
+                  {items.map((s) => (
+                    <SortableServiceCard
+                      key={s.serviceId}
+                      s={s}
+                      reordering
+                      isAdmin={isAdmin}
+                      categoriesMap={categoriesMap}
+                      onCardClick={onCardClick}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      onToggleActive={onToggleActive}
+                    />
+                  ))}
+                </Row>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <Row className="g-4 g-xl-5">
+              {items.map((s) => (
+                <ServiceCard
+                  key={s.serviceId}
+                  s={s}
+                  isAdmin={isAdmin}
+                  categoriesMap={categoriesMap}
+                  dataScrollId={s.serviceId}
+                  onCardClick={() => onCardClick(s)}
+                  onEdit={() => onEdit(s)}
+                  onDelete={() => onDelete(s)}
+                  onToggleActive={(v) => onToggleActive(s, v)}
+                />
+              ))}
+            </Row>
+          )}
         </div>
       </Container>
 
       {reordering && createPortal(
         <div className="ro-bar" role="region" aria-label="Riordino trattamenti">
-          <span className="ro-bar-label">Trascina per riordinare · {items.length} trattamenti</span>
+          <span className="ro-bar-label">Trascina dalla maniglia · {items.length} trattamenti</span>
           <div className="ro-bar-actions">
             <button className="ro-bar-cancel" onClick={handleCancel} disabled={saving}>
               Annulla

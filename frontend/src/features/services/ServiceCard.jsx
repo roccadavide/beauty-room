@@ -23,9 +23,9 @@ function ServiceCard({
   sortableStyle,
   sortableClassName,
   sortableAttributes,
-  sortableListeners,
+  dragHandleListeners,
   dataScrollId,
-  clickGuard,
+  reordering,
 }) {
   const activeOptions = s.options?.filter(o => o.active) ?? [];
   const hasActiveOptions = activeOptions.length > 0;
@@ -55,6 +55,44 @@ function ServiceCard({
     }
   }, [triggerLike, onCardClick]);
 
+  if (reordering) {
+    return (
+      <Col
+        xs={6}
+        sm={4}
+        lg={3}
+        xl={3}
+        ref={sortableRef}
+        className={`d-flex ${sortableClassName || ""}`.trim()}
+        style={sortableStyle}
+        data-scroll-id={dataScrollId}
+        {...(sortableAttributes || {})}
+        onClickCapture={e => { e.preventDefault(); e.stopPropagation(); }}
+      >
+        <Card className="br-card beauty-service-card ro-compact-card h-100">
+          <button
+            type="button"
+            className="ro-drag-handle"
+            aria-label="Trascina per riordinare"
+            onClick={e => { e.preventDefault(); e.stopPropagation(); }}
+            {...(dragHandleListeners || {})}
+          >
+            <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+              <g fill="currentColor">
+                <circle cx="8" cy="5" r="1.5" /><circle cx="8" cy="11" r="1.5" /><circle cx="8" cy="17" r="1.5" />
+                <circle cx="14" cy="5" r="1.5" /><circle cx="14" cy="11" r="1.5" /><circle cx="14" cy="17" r="1.5" />
+              </g>
+            </svg>
+          </button>
+          <div className="ro-compact-img">
+            <img src={s.images?.[0]} alt={s.title} loading="lazy" />
+          </div>
+          <div className="ro-compact-title">{s.title}</div>
+        </Card>
+      </Col>
+    );
+  }
+
   return (
     <Col
       xs={12}
@@ -66,8 +104,6 @@ function ServiceCard({
       style={sortableStyle}
       data-scroll-id={dataScrollId}
       {...(sortableAttributes || {})}
-      {...(sortableListeners || {})}
-      {...(clickGuard ? { onClickCapture: e => { e.preventDefault(); e.stopPropagation(); } } : {})}
     >
       <Card
         className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`}

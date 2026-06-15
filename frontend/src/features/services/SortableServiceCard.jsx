@@ -11,7 +11,7 @@ const SortableServiceCard = ({ s, reordering, isAdmin, categoriesMap, onCardClic
     zIndex: isDragging ? 50 : undefined,
   };
 
-  const className = `ro-sortable${reordering ? " ro-wobble" : ""}${isDragging ? " ro-dragging" : ""}`;
+  const className = `ro-sortable${reordering ? " ro-wobble ro-compact" : ""}${isDragging ? " ro-dragging" : ""}`;
 
   return (
     <ServiceCard
@@ -19,6 +19,7 @@ const SortableServiceCard = ({ s, reordering, isAdmin, categoriesMap, onCardClic
       isAdmin={isAdmin}
       categoriesMap={categoriesMap}
       dataScrollId={s.serviceId}
+      reordering={reordering}
       onCardClick={() => onCardClick(s)}
       onEdit={() => onEdit(s)}
       onDelete={() => onDelete(s)}
@@ -27,8 +28,7 @@ const SortableServiceCard = ({ s, reordering, isAdmin, categoriesMap, onCardClic
       sortableStyle={style}
       sortableClassName={className}
       sortableAttributes={attributes}
-      sortableListeners={listeners}
-      clickGuard={reordering}
+      dragHandleListeners={listeners}
     />
   );
 };
