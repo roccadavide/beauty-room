@@ -31,7 +31,7 @@ public class ProductController {
     public ResponseEntity<Page<ProductResponseDTO>> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
-            @RequestParam(defaultValue = "name") String sort,
+            @RequestParam(defaultValue = "displayOrder") String sort,
             @RequestParam(defaultValue = "false") boolean includeInactive,
             Authentication authentication
     ) {
@@ -89,5 +89,13 @@ public class ProductController {
     public ResponseEntity<Void> toggleActive(@PathVariable UUID productId) {
         productService.toggleActive(productId);
         return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/reorder")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> reorderProducts(@RequestBody List<UUID> orderedIds) {
+        log.info("Richiesta riordino prodotti ({} elementi)", orderedIds == null ? 0 : orderedIds.size());
+        productService.reorder(orderedIds);
+        return ResponseEntity.noContent().build();
     }
 }

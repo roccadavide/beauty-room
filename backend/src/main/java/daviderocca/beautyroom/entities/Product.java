@@ -50,6 +50,9 @@ public class Product {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder = 0;
+
     @Column(name = "likes_count", nullable = false)
     private int likesCount = 0;
 

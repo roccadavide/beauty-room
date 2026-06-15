@@ -52,7 +52,10 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Page<ProductResponseDTO> findAllProducts(int pageNumber, int pageSize, String sort, boolean includeInactive) {
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
+        Sort sortObj = "displayOrder".equals(sort)
+                ? Sort.by(Sort.Order.asc("displayOrder"), Sort.Order.asc("name"))
+                : Sort.by(sort);
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, sortObj);
         Page<Product> page = includeInactive
                 ? productRepository.findAllWithDetails(pageable)
                 : productRepository.findAllActiveWithDetails(pageable);
@@ -98,6 +101,7 @@ public class ProductService {
         );
         newProduct.setActive(payload.active() == null || payload.active());
         newProduct.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
+        newProduct.setDisplayOrder(productRepository.findMaxDisplayOrder() + 1);
 
         Product saved = productRepository.save(newProduct);
         log.info("Prodotto '{}' (ID: {}) creato con categoria '{}'",
@@ -187,6 +191,18 @@ public class ProductService {
         productRepository.save(entity);
         if (wasInactive && entity.isActive()) {
             wishlistService.notifyWishlistersOnReactivation(WishlistItemType.PRODUCT, entity.getProductId(), entity.getName());
+        }
+    }
+
+    // ---------------------------- REORDER ----------------------------
+
+    @Transactional
+    public void reorder(List<UUID> orderedIds) {
+        if (orderedIds == null || orderedIds.isEmpty()) {
+            throw new BadRequestException("La lista degli ID da riordinare è vuota.");
+        }
+        for (int i = 0; i < orderedIds.size(); i++) {
+            productRepository.updateDisplayOrder(orderedIds.get(i), i);
         }
     }
 

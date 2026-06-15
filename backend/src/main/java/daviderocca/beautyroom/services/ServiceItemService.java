@@ -160,7 +160,10 @@ public class ServiceItemService {
 
     @Transactional(readOnly = true)
     public Page<ServiceItemResponseDTO> findAllServiceItems(int pageNumber, int pageSize, String sort, boolean includeInactive) {
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(sort));
+        Sort sortObj = "displayOrder".equals(sort)
+                ? Sort.by(Sort.Order.asc("displayOrder"), Sort.Order.asc("title"))
+                : Sort.by(sort);
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, sortObj);
         Page<ServiceItem> page = includeInactive
                 ? serviceItemRepository.findAllWithDetails(pageable)
                 : serviceItemRepository.findAllActiveWithDetails(pageable);
@@ -216,6 +219,7 @@ public class ServiceItemService {
 
         newServiceItem.setActive(payload.active() == null || payload.active());
         newServiceItem.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
+        newServiceItem.setDisplayOrder(serviceItemRepository.findMaxDisplayOrder() + 1);
 
         ServiceItem saved = serviceItemRepository.save(newServiceItem);
         log.info("Servizio '{}' (ID: {}) creato (categoria: {})",
@@ -314,6 +318,18 @@ public class ServiceItemService {
                 .orElseThrow(() -> new ResourceNotFoundException(optionId));
         opt.setActive(!opt.isActive());
         serviceOptionRepository.save(opt);
+    }
+
+    // ---------------------------- REORDER ----------------------------
+
+    @Transactional
+    public void reorder(List<UUID> orderedIds) {
+        if (orderedIds == null || orderedIds.isEmpty()) {
+            throw new BadRequestException("La lista degli ID da riordinare è vuota.");
+        }
+        for (int i = 0; i < orderedIds.size(); i++) {
+            serviceItemRepository.updateDisplayOrder(orderedIds.get(i), i);
+        }
     }
 
     // ---------------------------- CLOUDINARY ----------------------------

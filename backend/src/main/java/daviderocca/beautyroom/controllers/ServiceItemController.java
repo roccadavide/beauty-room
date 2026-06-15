@@ -47,7 +47,7 @@ public class ServiceItemController {
     public ResponseEntity<Page<ServiceItemResponseDTO>> getAllServiceItems(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "40") int size,
-            @RequestParam(defaultValue = "title") String sort,
+            @RequestParam(defaultValue = "displayOrder") String sort,
             @RequestParam(defaultValue = "false") boolean includeInactive,
             Authentication authentication
     ) {
@@ -146,5 +146,13 @@ public class ServiceItemController {
     public ResponseEntity<Void> toggleOptionActive(@PathVariable UUID optionId) {
         serviceItemService.toggleOptionActive(optionId);
         return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/reorder")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> reorderServiceItems(@RequestBody List<UUID> orderedIds) {
+        log.info("Richiesta riordino servizi ({} elementi)", orderedIds == null ? 0 : orderedIds.size());
+        serviceItemService.reorder(orderedIds);
+        return ResponseEntity.noContent().build();
     }
 }

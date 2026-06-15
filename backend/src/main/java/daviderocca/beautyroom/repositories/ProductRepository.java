@@ -48,4 +48,11 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Modifying
     @Query("UPDATE Product p SET p.likesCount = GREATEST(p.likesCount - 1, 0) WHERE p.productId = :id")
     void decrementLikes(@Param("id") UUID id);
+
+    @Query("select coalesce(max(p.displayOrder), -1) from Product p")
+    int findMaxDisplayOrder();
+
+    @Modifying
+    @Query("UPDATE Product p SET p.displayOrder = :order WHERE p.productId = :id")
+    void updateDisplayOrder(@Param("id") UUID id, @Param("order") int order);
 }
