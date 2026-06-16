@@ -59,7 +59,7 @@ public class AvailabilityService {
      * flow the slot must remain reserved (short TTL handled by the expiry job).
      */
     private static final List<BookingStatus> BLOCKING_STATUSES =
-            List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
+            List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
 
     // ==========================================================================
     // 1) CLIENT AVAILABILITY — all slots for a service on a given date

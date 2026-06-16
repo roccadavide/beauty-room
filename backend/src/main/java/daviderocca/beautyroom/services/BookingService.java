@@ -130,7 +130,7 @@ public class BookingService {
     @Value("${app.booking.max-advance-days:150}")
     private int maxAdvanceDays;
 
-    private static final List<BookingStatus> BLOCKING = List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
+    private static final List<BookingStatus> BLOCKING = List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
 
     /**
      * Finestra di sicurezza per il padding: valore massimo ragionevole di paddingMinutes.
