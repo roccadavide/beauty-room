@@ -220,6 +220,28 @@ function SelectedProductRow({ prod, maxQty, isPaidOnline, onQty, onPrice, onPaid
   );
 }
 
+// Builds an activePackages-shaped object from a booking's frozen package link
+// (editBooking.linkedPackages[] → PackageSummaryDTO). Used in edit mode when a
+// booking's own ADMIN package is no longer in the live ACTIVE list — e.g. it
+// became EXHAUSTED once its last session was booked — so the already-linked row
+// stays visible/editable. serviceTitle/serviceOptionId are lifted from the
+// representative item (position 0) so resolvePkgDuration finds the same
+// per-session duration an active row would show.
+function pkgFromFrozenLink(frozen, pkgId) {
+  const items = Array.isArray(frozen?.items) ? frozen.items : [];
+  const head = items.find(it => it.position === 0) ?? items[0] ?? null;
+  return {
+    id: pkgId,
+    displayName: frozen?.packageName ?? null,
+    serviceTitle: head?.serviceTitle ?? null,
+    serviceOptionId: head?.serviceOptionId ?? null,
+    totalSessions: frozen?.totalSessions ?? 0,
+    sessionsRemaining: frozen?.sessionsRemaining ?? 0,
+    items,
+    paidUpfront: frozen?.paidUpfront ?? false,
+  };
+}
+
 // Phase 6d removed the dedicated ServiceItemCard component: custom services are
 // now first-class rows in "Servizi selezionati" (added via an inline form
 // triggered from "+ Servizio personalizzato"). See AppointmentForm below for
@@ -2014,8 +2036,19 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 editBooking.linkedPackages[] keyed by packageAssignmentId, NOT the
                 live activePackages counter (which advances with later bookings). */}
             {Array.from(selectedPackageIds).map(pkgId => {
-              const pkg = activePackages.find(p => p.id === pkgId);
-              if (!pkg) return null;
+              // The booking's frozen link (captured at creation) drives both the
+              // "Seduta X/Y" badge and the exhausted-package fallback below.
+              const frozen = isEditMode
+                ? (editBooking?.linkedPackages || []).find(lp => String(lp.packageAssignmentId) === String(pkgId))
+                : null;
+              // Prefer the live ACTIVE package. When it's gone from the active list
+              // (e.g. the package became EXHAUSTED once its last session was booked)
+              // fall back to the booking's own frozen link so its already-linked row
+              // stays visible/editable. The selectable "Pacchetti attivi" card list
+              // stays ACTIVE-only — this only rescues a booking's OWN linked row.
+              const live = activePackages.find(p => p.id === pkgId);
+              if (!live && !frozen) return null;
+              const pkg = live ?? pkgFromFrozenLink(frozen, pkgId);
               const overrideDur = packageDurationOverrides.get(pkgId) ?? null;
               const defaultDur = resolvePkgDuration(pkg, null);
               const displayDur = overrideDur ?? defaultDur;
@@ -2026,9 +2059,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               //     sessionNumber/totalSessions (the values captured at booking creation).
               //   - otherwise (create mode, or a package added during this edit session
               //     that has no link yet) → compute from the live package counter.
-              const frozen = isEditMode
-                ? (editBooking?.linkedPackages || []).find(lp => String(lp.packageAssignmentId) === String(pkgId))
-                : null;
               const sessionNum = frozen?.sessionNumber ?? pkg.totalSessions - pkg.sessionsRemaining + 1;
               const totalSess = frozen?.totalSessions ?? pkg.totalSessions;
               const pkgItems = Array.isArray(pkg.items) ? [...pkg.items].sort((a, b) => a.position - b.position) : [];
