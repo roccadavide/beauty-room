@@ -691,6 +691,13 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
                   ? (booking.status !== "REFUNDED" && <PaidOnlineBadge />)
                   : <OnlineBadge />
               )}
+              {/* Part C: credit-backed online-package sessions 2…N are admin-created
+                  (so the block above skips them) but were prepaid online — mark them too
+                  so they're not mistaken for an in-store-sold package. Purely additive:
+                  bookings without a packageCreditId are unaffected. */}
+              {booking.createdByAdmin && isBookingPackageCreditBacked(booking) && booking.status !== "REFUNDED" && (
+                <PaidOnlineBadge />
+              )}
             </div>
           </div>
         )}
@@ -2453,6 +2460,12 @@ export default function AdminAgendaPage() {
                                   b.paidOnline
                                     ? (b.status !== "REFUNDED" && <PaidOnlineBadge />)
                                     : <OnlineBadge />
+                                )}
+                                {/* Part C: credit-backed online-package sessions 2…N are
+                                    admin-created but prepaid online — mark them too. Purely
+                                    additive: non-package bookings (no packageCreditId) unaffected. */}
+                                {b.createdByAdmin && isBookingPackageCreditBacked(b) && b.status !== "REFUNDED" && (
+                                  <PaidOnlineBadge />
                                 )}
                                 <StatusPill status={b.status} />
                                 {/* V62 Fix 2: top-right "Pagato" pill removed in favour of

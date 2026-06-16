@@ -1626,6 +1626,12 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                         <div className="ag-pkg-select-card__name">
                           {pkg.displayName || pkg.serviceTitle || "—"}
                           {isOnline && <span className="nad-online-pkg-badge">Online</span>}
+                          {/* Part B: an ONLINE package is a Stripe-prepaid PackageCredit —
+                              flag it as already paid, reusing the agenda's "💳 Pagato online"
+                              language. margin-left:auto pins it to the card's top-right. */}
+                          {isOnline && (
+                            <span className="nad-online-pkg-paid" title="Pacchetto pagato online">💳 Pagato online</span>
+                          )}
                         </div>
                         <div className="ag-pkg-select-card__meta">
                           Seduta {sessionsUsed + 1}/{pkg.totalSessions}
