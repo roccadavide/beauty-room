@@ -13,6 +13,7 @@ import com.stripe.net.Webhook;
 import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.Customer;
 import daviderocca.beautyroom.entities.Order;
 import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.entities.ProcessedStripeEvent;
@@ -21,6 +22,7 @@ import daviderocca.beautyroom.repositories.ProcessedStripeEventRepository;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.OrderStatus;
 import daviderocca.beautyroom.services.BookingService;
+import daviderocca.beautyroom.services.CustomerService;
 import daviderocca.beautyroom.services.OrderService;
 import daviderocca.beautyroom.services.PackageCreditService;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +59,7 @@ public class StripeWebhookController {
 
     private final OrderService orderService;
     private final BookingService bookingService;
+    private final CustomerService customerService;
     private final PackageCreditService packageCreditService;
     private final EmailOutboxService emailOutboxService;
     private final BookingRepository bookingRepository;
@@ -277,6 +280,22 @@ public class StripeWebhookController {
                     b = bookingService.findBookingById(bookingId);
                     b.setPackageCredit(pc);
                     b.setCreditTrackedAtCreation(true);
+
+                    // Register the buyer as a Customer so the package is searchable under their
+                    // name in the agenda drawer and can be attached to future sessions. Reuse the
+                    // SAME find-or-create the MULTI webhook path uses (phone-first dedup, see
+                    // CustomerService#findOrCreate): a returning customer or a webhook retry resolves
+                    // to the existing record, never a duplicate. Best-effort — a failure here must
+                    // not abort the (already paid) package linkage.
+                    try {
+                        Customer customer = customerService.findOrCreate(
+                                b.getCustomerName(), b.getCustomerPhone(), b.getCustomerEmail(), null);
+                        b.setCustomer(customer);
+                    } catch (Exception e) {
+                        log.warn("Customer upsert failed for online package booking {}: {}",
+                                b.getBookingId(), e.getMessage());
+                    }
+
                     bookingService.save(b);
 
                     log.info("Pacchetto creato e collegato: bookingId={} packageCreditId={} total={} remaining={}",
