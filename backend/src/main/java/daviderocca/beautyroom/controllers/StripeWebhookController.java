@@ -267,7 +267,10 @@ public class StripeWebhookController {
                             b.getServiceOption(),
                             b.getUser(),
                             session.getId(),
-                            true
+                            // consumeFirstSession=false: the online package model consumes EVERY
+                            // session (incl. session-1) at booking completion. Pre-consuming here
+                            // would double-count session-1 and make the last session unbookable.
+                            false
                     );
 
                     b = bookingService.findBookingById(bookingId);
