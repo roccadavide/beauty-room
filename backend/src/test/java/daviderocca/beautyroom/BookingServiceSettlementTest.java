@@ -172,18 +172,20 @@ class BookingServiceSettlementTest {
 
         SettlementRequestDTO req = new SettlementRequestDTO(Boolean.TRUE, null, null, null, true, null, null);
 
-        // First settle: CONFIRMED → COMPLETED, consumes one session, stamps completedAt.
+        // First settle: CONFIRMED → COMPLETED, stamps completedAt. V72: completion is
+        // counter-neutral for online packages (the session is consumed at booking time).
         BookingResponseDTO r1 = bookingService.settleBookingLines(id, req, admin());
         assertThat(r1.bookingStatus()).isEqualTo(BookingStatus.COMPLETED);
         LocalDateTime firstCompletedAt = booking.getCompletedAt();
         assertThat(firstCompletedAt).isNotNull();
 
-        // Second settle on an already-COMPLETED booking: no re-consume, completedAt preserved.
+        // Second settle on an already-COMPLETED booking: completedAt preserved.
         BookingResponseDTO r2 = bookingService.settleBookingLines(id, req, admin());
         assertThat(r2.bookingStatus()).isEqualTo(BookingStatus.COMPLETED);
         assertThat(booking.getCompletedAt()).isEqualTo(firstCompletedAt);
 
-        verify(packageCreditService, times(1)).consumeSessionForBooking(any());
+        // V72: settle/complete never touches the online counter (decrement moved to booking time).
+        verify(packageCreditService, never()).consumeSessionForBooking(any());
         verify(packageCreditService, never()).restoreSessionForBooking(any());
     }
 

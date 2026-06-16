@@ -419,6 +419,10 @@ public class BookingService {
             PackageCredit pc = packageCreditService.findById(payload.packageCreditId());
             booking.setPackageCredit(pc);
             packageCreditService.validateBookingWithPackage(booking);
+            // V72: online package consumes at BOOKING time (same lifecycle as admin CASE A/B/C and
+            // the multi-service CASE D). Flag-guarded; the session is restored on cancel/no-show.
+            // The flag is persisted by the bookingRepository.save(booking) below.
+            packageCreditService.consumeSessionForBooking(booking);
         }
 
         booking.setBookingStatus(BookingStatus.CONFIRMED);
@@ -814,11 +818,16 @@ public class BookingService {
             saved.setTotalSessions(firstTotalSessions);
             bookingRepository.save(saved);
         } else if (hasPkgCredit) {
-            // CASE D — packageCreditId provided: PackageCredit FK already set before save.
-            // Session will be decremented by packageCreditService.consumeSessionForBooking()
-            // when the booking is marked COMPLETED (wired in updateBookingStatus).
-            log.info("CASE D: bookingId={} linked to packageCreditId={}",
-                    saved.getBookingId(), packageCredit.getPackageCreditId());
+            // CASE D — online PackageCredit. V72: consume the session at BOOKING time (mirrors
+            // admin CASE A/B/C), setting the credit-tracked flag so completion / re-save never
+            // double-counts; the session is restored on cancel/no-show. Validity (ACTIVE +
+            // remaining > 0) was already checked at Step 2 (~:544-549). Flag-guarded + persisted
+            // by the explicit save below.
+            packageCreditService.consumeSessionForBooking(saved);
+            bookingRepository.save(saved);
+            log.info("CASE D: bookingId={} linked to packageCreditId={} — session consumed at booking (remaining={})",
+                    saved.getBookingId(), packageCredit.getPackageCreditId(),
+                    packageCredit.getSessionsRemaining());
 
         } else if (hasSessionNumbers) {
             // CASE A / CASE B — explicit session numbers provided without a preselected package.
@@ -2136,11 +2145,21 @@ public class BookingService {
             }
         }
 
-        boolean wasCompleted    = (old == BookingStatus.COMPLETED);
-        boolean willBeCompleted = (newStatus == BookingStatus.COMPLETED);
+        // V72: online PackageCredit is consumed at BOOKING time and mirrors the admin recalc
+        // filter — a booking consumes a session IFF it is NOT CANCELLED and NOT NO_SHOW. So the
+        // counter only moves when this transition CROSSES the occupancy boundary:
+        //   occupying → released  (CANCELLED / NO_SHOW)  ⇒ restore  (give the prepaid session back)
+        //   released  → occupying (e.g. un-no-show)      ⇒ consume  (re-take it)
+        // Within-occupancy transitions (notably CONFIRMED→COMPLETED and COMPLETED→CONFIRMED) are
+        // counter-NEUTRAL now — completion no longer consumes, un-completion no longer restores.
+        // Both calls are flag-guarded (idempotent) and persisted by the save below. The COMPLETED→
+        // CANCELLED/NO_SHOW edge restores correctly because the decrement was taken at booking
+        // (flag still TRUE through COMPLETED). The admin in-person recalc below is untouched.
+        boolean wasOccupying = old != BookingStatus.CANCELLED && old != BookingStatus.NO_SHOW;
+        boolean willOccupy   = newStatus != BookingStatus.CANCELLED && newStatus != BookingStatus.NO_SHOW;
 
-        if (!wasCompleted && willBeCompleted)  packageCreditService.consumeSessionForBooking(found);
-        else if (wasCompleted && !willBeCompleted) packageCreditService.restoreSessionForBooking(found);
+        if (wasOccupying && !willOccupy)        packageCreditService.restoreSessionForBooking(found);
+        else if (!wasOccupying && willOccupy)   packageCreditService.consumeSessionForBooking(found);
 
         found.setBookingStatus(newStatus);
         Booking updated = bookingRepository.save(found);
@@ -2291,9 +2310,11 @@ public class BookingService {
         bookingRepository.save(found);
 
         // alsoComplete — idempotent transition to COMPLETED.
+        // V72: completion is counter-NEUTRAL for online packages now — the session was consumed at
+        // BOOKING time (CONFIRMED→COMPLETED stays within the occupancy boundary). No consume here.
+        // The admin in-person recalc below is untouched.
         if (req.alsoComplete() && found.getBookingStatus() != BookingStatus.COMPLETED) {
             found.setCompletedAt(LocalDateTime.now());
-            packageCreditService.consumeSessionForBooking(found);
             found.setBookingStatus(BookingStatus.COMPLETED);
             bookingRepository.save(found);
             maybeRecalculatePackage(bookingId);
@@ -2768,6 +2789,12 @@ public class BookingService {
         found.setCanceledAt(LocalDateTime.now());
         found.setCancelReason((reason == null || reason.trim().isEmpty()) ? (admin ? "ADMIN_CANCEL" : "USER_CANCEL") : reason.trim());
         found.setExpiresAt(null);
+
+        // V72: cancelling releases the online prepaid session (occupancy boundary crossed).
+        // Flag-guarded — a no-op for bookings that never held a decrement (e.g. an unpaid
+        // PENDING_PAYMENT cancel). Persisted by the save below. The admin in-person recalc
+        // (maybeRecalculatePackage) is separate and stays exactly as-is.
+        packageCreditService.restoreSessionForBooking(found);
 
         bookingRepository.save(found);
         maybeRecalculatePackage(bookingId);

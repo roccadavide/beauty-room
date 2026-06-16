@@ -116,6 +116,14 @@ public class PackageCreditService {
     public void consumeSessionForBooking(Booking booking) {
         if (booking.getPackageCredit() == null) return;
 
+        // Idempotency (V72): this booking already holds a decrement against its credit, so a
+        // re-save / edit / repeated transition must NOT decrement again. The flag is flipped to
+        // TRUE only on the actual decrement below, and back to FALSE by restoreSessionForBooking.
+        if (booking.isCreditTrackedAtCreation()) {
+            log.debug("consumeSession skip: booking {} already credit-tracked", booking.getBookingId());
+            return;
+        }
+
         UUID pcId = booking.getPackageCredit().getPackageCreditId();
 
         // lock pessimistico
@@ -157,6 +165,9 @@ public class PackageCreditService {
         }
 
         packageCreditRepository.save(pc);
+        // V72: mark this booking as holding the decrement (persisted by the caller's save).
+        // Set only here, on the real decrement — the remaining<=0 early-return above does not.
+        booking.setCreditTrackedAtCreation(true);
         log.info("PackageCredit {} seduta scalata — remaining={} status={}",
                 pcId, pc.getSessionsRemaining(), pc.getStatus());
     }
@@ -171,6 +182,15 @@ public class PackageCreditService {
     @Transactional
     public void restoreSessionForBooking(Booking booking) {
         if (booking.getPackageCredit() == null) return;
+
+        // Idempotency (V72): only restore if this booking actually holds a decrement. A booking
+        // that was never tracked (e.g. an unpaid PENDING_PAYMENT cancel, or a second restore on
+        // the same transition) gives nothing back. The flag is flipped to FALSE on the real
+        // restore below.
+        if (!booking.isCreditTrackedAtCreation()) {
+            log.debug("restoreSession skip: booking {} holds no tracked credit decrement", booking.getBookingId());
+            return;
+        }
 
         UUID pcId = booking.getPackageCredit().getPackageCreditId();
 
@@ -193,6 +213,8 @@ public class PackageCreditService {
         }
 
         packageCreditRepository.save(pc);
+        // V72: this booking no longer holds a decrement (persisted by the caller's save).
+        booking.setCreditTrackedAtCreation(false);
         log.info("PackageCredit {} seduta ripristinata (rollback) — remaining={} status={}",
                 pcId, pc.getSessionsRemaining(), pc.getStatus());
     }

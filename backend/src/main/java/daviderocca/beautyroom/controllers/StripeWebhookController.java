@@ -267,14 +267,16 @@ public class StripeWebhookController {
                             b.getServiceOption(),
                             b.getUser(),
                             session.getId(),
-                            // consumeFirstSession=false: the online package model consumes EVERY
-                            // session (incl. session-1) at booking completion. Pre-consuming here
-                            // would double-count session-1 and make the last session unbookable.
-                            false
+                            // V72: the online model now mirrors admin — every session is consumed at
+                            // BOOKING time, not at completion. Session-1 (this purchase) is consumed
+                            // immediately here (remaining = total − 1); the session-1 booking is
+                            // flagged credit-tracked below so a later edit/complete never re-counts it.
+                            true
                     );
 
                     b = bookingService.findBookingById(bookingId);
                     b.setPackageCredit(pc);
+                    b.setCreditTrackedAtCreation(true);
                     bookingService.save(b);
 
                     log.info("Pacchetto creato e collegato: bookingId={} packageCreditId={} total={} remaining={}",

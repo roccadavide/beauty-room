@@ -114,11 +114,14 @@ class BookingServiceTest {
     private BookingService bookingService;
 
     // =========================================================================
-    // TC-B1: doppio update COMPLETED non scala due volte (idempotenza)
+    // TC-B1: V72 — completing an online-package booking is counter-neutral.
+    // The session is consumed at BOOKING time, so CONFIRMED→COMPLETED (and a repeated
+    // COMPLETED→COMPLETED no-op) must NOT touch the online counter. The decrement/restore
+    // now key on crossing the CANCELLED/NO_SHOW occupancy boundary, not on completion.
     // =========================================================================
     @Test
-    @DisplayName("TC-B1: updateBookingStatus — doppio COMPLETED non scala due volte")
-    void updateBookingStatus_doubleCompleted_isIdempotentOnPackage() {
+    @DisplayName("TC-B1: updateBookingStatus — V72: completion does not consume the online package")
+    void updateBookingStatus_completion_isCounterNeutralForOnlinePackage() {
         UUID bookingId = UUID.randomUUID();
         Booking booking = new Booking();
         setFieldReflectively(booking, "bookingId", bookingId);
@@ -127,6 +130,7 @@ class BookingServiceTest {
 
         PackageCredit pc = new PackageCredit();
         booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // V72: already consumed at booking time
 
         when(bookingRepository.findByIdForUpdate(bookingId)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -134,15 +138,15 @@ class BookingServiceTest {
         User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
         admin.setRole(Role.ADMIN);
 
-        // Primo passaggio: CONFIRMED -> COMPLETED (consuma 1)
+        // CONFIRMED -> COMPLETED: within the occupancy boundary → no counter movement.
         BookingResponseDTO r1 = bookingService.updateBookingStatus(bookingId, BookingStatus.COMPLETED, admin);
         assertThat(r1.bookingStatus()).isEqualTo(BookingStatus.COMPLETED);
 
-        // Secondo passaggio: COMPLETED -> COMPLETED (no-op idempotente, nessun consumo)
+        // COMPLETED -> COMPLETED: same-status no-op.
         BookingResponseDTO r2 = bookingService.updateBookingStatus(bookingId, BookingStatus.COMPLETED, admin);
         assertThat(r2.bookingStatus()).isEqualTo(BookingStatus.COMPLETED);
 
-        verify(packageCreditService, times(1)).consumeSessionForBooking(any());
+        verify(packageCreditService, never()).consumeSessionForBooking(any());
         verify(packageCreditService, never()).restoreSessionForBooking(any());
     }
 

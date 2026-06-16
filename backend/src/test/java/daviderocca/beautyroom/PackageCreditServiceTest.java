@@ -160,6 +160,7 @@ class PackageCreditServiceTest {
 
         Booking booking = new Booking();
         booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // V72: restore only acts on a credit-tracked booking
 
         when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -183,6 +184,7 @@ class PackageCreditServiceTest {
 
         Booking booking = new Booking();
         booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // V72: tracked, so restore reaches the over-total guard
 
         when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
 
@@ -204,6 +206,7 @@ class PackageCreditServiceTest {
 
         Booking booking = new Booking();
         booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // V72: restore only acts on a credit-tracked booking
 
         when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -237,6 +240,34 @@ class PackageCreditServiceTest {
         verify(repo).save(captor.capture());
         assertThat(captor.getValue().getSessionsRemaining()).isEqualTo(0);
         assertThat(captor.getValue().getStatus()).isEqualTo(PackageCreditStatus.COMPLETED);
+    }
+
+    // =========================================================================
+    // TC-V72: idempotenza — consumare due volte la stessa booking scala UNA sola volta.
+    // È la proprietà di sicurezza centrale del modello online V72 (un re-save/edit non
+    // deve mai ri-scalare). Il flag creditTrackedAtCreation è il guardiano.
+    // =========================================================================
+    @Test
+    @DisplayName("TC-V72: consumeSessionForBooking — idempotente quando già credit-tracked")
+    void consumeSessionForBooking_isIdempotent_whenAlreadyTracked() {
+        PackageCredit pc = buildActivePackage(3, LocalDateTime.now().plusMonths(12));
+        UUID pcId = pc.getPackageCreditId();
+
+        Booking booking = new Booking();
+        booking.setPackageCredit(pc);
+
+        when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
+        when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Primo consumo: scala 3 → 2 e marca la booking come tracciata.
+        service.consumeSessionForBooking(booking);
+        assertThat(pc.getSessionsRemaining()).isEqualTo(2);
+        assertThat(booking.isCreditTrackedAtCreation()).isTrue();
+
+        // Secondo consumo (re-save/edit): il flag blocca la scalatura → resta 2, nessun save extra.
+        service.consumeSessionForBooking(booking);
+        assertThat(pc.getSessionsRemaining()).isEqualTo(2);
+        verify(repo, times(1)).save(any());
     }
 
     // =========================================================================

@@ -133,6 +133,14 @@ public class Booking {
     @Column(name = "custom_service_paid", nullable = false)
     private boolean customServicePaid = false;
 
+    // V72: online PackageCredit consume tracking. Mirrors the admin path's
+    // BookingPackageLink.sessionTrackedAtCreation. TRUE when this booking currently holds one
+    // decrement against its linked online PackageCredit (the session is consumed at BOOKING
+    // time now, not at completion). Flips back to FALSE when the session is restored on
+    // cancel / no-show. Guards consume/restore idempotency — see PackageCreditService.
+    @Column(name = "credit_tracked_at_creation", nullable = false)
+    private boolean creditTrackedAtCreation = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id")
     private ServiceItem service;
