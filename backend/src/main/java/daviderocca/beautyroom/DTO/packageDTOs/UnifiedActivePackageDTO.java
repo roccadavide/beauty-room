@@ -1,6 +1,7 @@
 package daviderocca.beautyroom.DTO.packageDTOs;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record UnifiedActivePackageDTO(
@@ -26,5 +27,8 @@ public record UnifiedActivePackageDTO(
         //   • ONLINE source → always TRUE (PackageCredit is paid up front via Stripe)
         // Same predicate the drawer already used; we were just missing the data on
         // this DTO in create mode (ClientPackageAssignmentDTO carries it for edit).
-        boolean paidUpfront
+        boolean paidUpfront,
+        // ONLINE packages carry an expiry (PackageCredit.expiryDate) shown on the Clienti
+        // customer-detail card. Null for ADMIN packages (no equivalent surfaced there).
+        LocalDateTime expiryDate
 ) {}

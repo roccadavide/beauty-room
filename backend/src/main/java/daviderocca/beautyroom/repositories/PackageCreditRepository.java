@@ -65,6 +65,30 @@ public interface PackageCreditRepository extends JpaRepository<PackageCredit, UU
             PackageCreditStatus status
     );
 
+    /**
+     * Bridge: a customer's online packages of the given status, resolved through THEIR OWN
+     * bookings (FK) rather than by email. The purchase webhook links both booking.customer and
+     * booking.packageCredit, so the EXISTS subquery returns only this customer's credits —
+     * collision-free (no shared-email leakage between two customers) and immune to a stale/blank
+     * Customer.email left by the phone-first find-or-create. service/serviceOption are fetched
+     * eagerly because OSIV is off and the caller maps them into the DTO after the tx closes.
+     */
+    @Query("""
+            SELECT DISTINCT pc FROM PackageCredit pc
+            LEFT JOIN FETCH pc.service
+            LEFT JOIN FETCH pc.serviceOption
+            WHERE pc.status = :status
+              AND EXISTS (
+                  SELECT 1 FROM Booking b
+                  WHERE b.packageCredit = pc
+                    AND b.customer.customerId = :customerId
+              )
+            """)
+    List<PackageCredit> findActiveOnlineByCustomerId(
+            @Param("customerId") UUID customerId,
+            @Param("status") PackageCreditStatus status
+    );
+
     // ---- lookup stripe (idempotenza webhook) ----
     Optional<PackageCredit> findByStripeSessionId(String stripeSessionId);
 

@@ -322,6 +322,20 @@ public class PackageCreditService {
     }
 
     /**
+     * A customer's ACTIVE online packages, resolved through THEIR OWN bookings (the FK bridge the
+     * purchase webhook sets: booking.customer + booking.packageCredit) instead of by email. This
+     * is the visibility fix: it returns only this customer's credits (collision-free, no shared-email
+     * leakage) and keeps working when Customer.email is stale/blank after a phone-first find-or-create.
+     * Used by the agenda drawer selector and the Clienti customer-detail panel.
+     */
+    @Transactional(readOnly = true)
+    public List<PackageCredit> findActiveByCustomerId(UUID customerId) {
+        if (customerId == null) return List.of();
+        return packageCreditRepository.findActiveOnlineByCustomerId(
+                customerId, PackageCreditStatus.ACTIVE);
+    }
+
+    /**
      * Recupera il pacchetto ACTIVE più vecchio (FIFO) per email + serviceOption.
      * Utile per futuri flow automatici di selezione pacchetto.
      */

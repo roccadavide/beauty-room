@@ -832,9 +832,16 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       base += resolvePkgDuration(pkg, packageDurationOverrides.get(pkgId));
     }
 
-    // Online package credit (still single, unchanged contract).
+    // Online package credit (still single, unchanged contract). In edit mode the live
+    // activePackages list is ADMIN-only, so fall back to the booking's frozen online link
+    // (the synthesized linkedPackages entry with no packageAssignmentId) — without it the
+    // package contributes 0 here and saving the edit would write a 0-minute duration.
     if (selectedPackageCreditId) {
-      const pkg = activePackages.find(p => p.id === selectedPackageCreditId);
+      const live = activePackages.find(p => p.id === selectedPackageCreditId);
+      const frozen = (!live && isEditMode)
+        ? (editBooking?.linkedPackages || []).find(lp => lp.packageAssignmentId == null)
+        : null;
+      const pkg = live ?? (frozen ? pkgFromFrozenLink(frozen, selectedPackageCreditId) : null);
       if (pkg) base += resolvePkgDuration(pkg, null);
     }
 
@@ -844,7 +851,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
 
     return totalDurationOverride ?? base;
-  }, [selectedServices, totalDurationOverride, serviceItems, selectedPackageIds, selectedPackageCreditId, activePackages, packageDurationOverrides, resolvePkgDuration, selectedPromotionIds, resolvePromoDuration]);
+  }, [selectedServices, totalDurationOverride, serviceItems, selectedPackageIds, selectedPackageCreditId, activePackages, packageDurationOverrides, resolvePkgDuration, selectedPromotionIds, resolvePromoDuration, isEditMode, editBooking]);
 
   const ensureWalkInEmail = useCallback(() => {
     const d = new Date();
@@ -1982,10 +1989,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         )}
 
         {/* ── Selected services panel ───────────────────────────────────────── */}
-        {(selectedPackageIds.size > 0 || selectedPromotionIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0 || selectedProducts.length > 0) && (
+        {(selectedPackageIds.size > 0 || selectedPackageCreditId != null || selectedPromotionIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0 || selectedProducts.length > 0) && (
           <div className="ag-selected-services">
             <div className="ag-selected-services__label">
-              Servizi selezionati ({selectedPackageIds.size + selectedPromotionIds.size + selectedServices.length + serviceItems.length + selectedProducts.length})
+              Servizi selezionati ({selectedPackageIds.size + (selectedPackageCreditId ? 1 : 0) + selectedPromotionIds.size + selectedServices.length + serviceItems.length + selectedProducts.length})
             </div>
             {/* V62: bulk paid toggle. Counts editable lines (catalog rows +
                 non-paidUpfront packages + custom-service line if present); a
@@ -2184,6 +2191,52 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 </div>
               );
             })}
+            {/* Online package (PackageCredit) row — counterpart of the ADMIN block above.
+                Keyed on selectedPackageCreditId (online stays single). Create mode reads the
+                live row from activePackages (the FK-bridged endpoint); edit mode's live list is
+                ADMIN-only, so fall back to the booking's frozen synthesized online link
+                (linkedPackages entry with no packageAssignmentId) — the row then renders even for
+                an exhausted package. Always prepaid via Stripe → locked "💳 Già pagato". */}
+            {selectedPackageCreditId && (() => {
+              const frozen = isEditMode
+                ? (editBooking?.linkedPackages || []).find(lp => lp.packageAssignmentId == null)
+                : null;
+              const live = activePackages.find(p => p.id === selectedPackageCreditId);
+              if (!live && !frozen) return null;
+              const pkg = live ?? pkgFromFrozenLink(frozen, selectedPackageCreditId);
+              const sessionNum = frozen?.sessionNumber ?? (pkg.totalSessions - pkg.sessionsRemaining + 1);
+              const totalSess = frozen?.totalSessions ?? pkg.totalSessions;
+              const dur = resolvePkgDuration(pkg, null);
+              return (
+                <div
+                  key={`credit-${selectedPackageCreditId}`}
+                  className="ag-selected-service-row"
+                  style={{ background: "rgba(184, 151, 106, 0.08)", borderLeft: "3px solid var(--card-gold, #b8976a)", flexWrap: "wrap" }}
+                >
+                  <span className="ag-selected-service-row__name">
+                    📦 {pkg.displayName || pkg.serviceTitle || "Pacchetto"}
+                    <span className="nad-online-pkg-badge" style={{ marginLeft: 8 }}>Online</span>
+                    <span className="ag-pkg-session-badge" style={{ marginLeft: 8 }}>
+                      Seduta {sessionNum}/{totalSess}
+                    </span>
+                  </span>
+                  <span className="ag-selected-service-row__dur">{formatDuration(dur)}</span>
+                  <span className="ag-pill ag-pill--paid" title="Pacchetto pagato online" aria-disabled="true">
+                    💳 Già pagato
+                  </span>
+                  {!isEditMode && (
+                    <button
+                      type="button"
+                      className="ag-selected-service-row__remove"
+                      title="Rimuovi pacchetto"
+                      onClick={() => setSelectedPackageCreditId(null)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
             {/* 08.5: promo rows — 🏷️ title + duration + paid toggle. No session
                 badge (promos have no sessions). Removable only in create, mirroring
                 packages; in edit the top selector still toggles attach. */}
