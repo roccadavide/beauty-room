@@ -48,6 +48,10 @@ const digitsOnly = s => (s ? String(s).replace(/[^0-9]/g, "") : "");
 
 const pad2 = n => String(n).padStart(2, "0");
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+// Un-complete is allowed only while the appointment is on today's calendar day (the
+// device runs in Italy → local date == Europe/Rome, matching the backend guard).
+// Derived from the persistent startTime, so the button survives a page refresh.
+const appointmentIsToday = startTime => toISODate(new Date(startTime)) === toISODate(new Date());
 const fromISODateLocal = iso => {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -298,51 +302,6 @@ function computeBookingAmountDue(booking, items) {
   // single unpaid product never re-triggers the whole bundle, then add unpaid products.
   const bundleUnpaid = items.some(it => it.kind !== "sale" && !it.paid);
   return (bundleUnpaid ? Number(booking.customTotalPrice) : 0) + saleDue;
-}
-
-// Snapshot of the CURRENT (pre-completion) paid flags as a /settle-style payload.
-// Stored in completedUndo so "Annulla completamento" can restore the exact flags
-// (symmetric undo). Bundle → single lockstep value; non-bundle → per-line maps.
-// Locked lines are skipped (backend ignores them either way). alsoComplete is added
-// by the caller (false on restore).
-function buildSnapshotPayload(booking, items) {
-  if (booking.customTotalPrice != null) {
-    // Bundle: markAllPaid reflects the NON-sale lines (services). Products are settled
-    // individually (salePaid) even in bundle mode (CompletionDrawer products section), so
-    // capture their pre-completion paid state too for a faithful undo.
-    const nonSale = items.filter(it => it.kind !== "sale");
-    const snap = { markAllPaid: nonSale.length > 0 && nonSale.every(it => it.paid) };
-    const salePaid = {};
-    items.forEach(it => {
-      if (it.kind === "sale" && it.refId != null) salePaid[String(it.refId)] = it.paid === true;
-    });
-    if (Object.keys(salePaid).length) snap.salePaid = salePaid;
-    return snap;
-  }
-  const servicePaid = {};
-  const packageSessionPaid = {};
-  let customServicePaid;
-  const promotionPaid = {};
-  const salePaid = {};
-  items.forEach(it => {
-    if (it.locked) return;
-    if (it.refKind === "service" || it.refKind === "legacy") {
-      if (it.refId != null) servicePaid[String(it.refId)] = it.paid === true;
-    } else if (it.refKind === "package") {
-      if (it.refId != null) packageSessionPaid[String(it.refId)] = it.paid === true;
-    } else if (it.refKind === "custom") {
-      customServicePaid = it.paid === true;
-    } else if (it.refKind === "promotion") {
-      if (it.refId != null) promotionPaid[String(it.refId)] = it.paid === true;
-    } else if (it.refKind === "sale") {
-      if (it.refId != null) salePaid[String(it.refId)] = it.paid === true;
-    }
-  });
-  const snap = { servicePaid, packageSessionPaid };
-  if (Object.keys(promotionPaid).length) snap.promotionPaid = promotionPaid;
-  if (Object.keys(salePaid).length) snap.salePaid = salePaid;
-  if (customServicePaid !== undefined) snap.customServicePaid = customServicePaid;
-  return snap;
 }
 
 // V62: column-level booking status. New bookings no longer write paid_in_store;
@@ -972,7 +931,6 @@ export default function AdminAgendaPage() {
   const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
   const [confirmModal, setConfirmModal] = useState(null);
-  const [completedUndo, setCompletedUndo] = useState({});
   const [closuresDrawerOpen, setClosuresDrawerOpen] = useState(false);
   const [closures, setClosures] = useState([]);
   const [paddingEditing, setPaddingEditing] = useState(null); // bookingId in edit
@@ -1306,15 +1264,11 @@ export default function AdminAgendaPage() {
   // ritardo) apre il drawer normalmente. Conta solo lo stato + i flag paid.
   // Rami diretti (1 paidOnline, 2 tutte già pagate): mappe vuote → il backend non
   // flippa alcun flag, esegue solo la transizione a COMPLETED.
-  // completedUndo[bookingId] = { prevStatus, paidSnapshot } → snapshot dei flag paid
-  // PRE-completamento, per l'undo simmetrico (vedi bottone "Annulla completamento").
-  const settleAndComplete = async (b, items) => {
-    const undo = { prevStatus: b.status, paidSnapshot: buildSnapshotPayload(b, items) };
+  const settleAndComplete = async b => {
     setErr("");
     setErrDetails(null);
     try {
       await settleBookingLines(b.bookingId, { servicePaid: {}, packageSessionPaid: {}, alsoComplete: true });
-      setCompletedUndo(u => ({ ...u, [b.bookingId]: undo }));
       await refresh();
     } catch (e) {
       setErr(e.message);
@@ -1333,21 +1287,19 @@ export default function AdminAgendaPage() {
       return;
     }
     const items = buildBreakdownItems(b, priceMap);
-    if (b.paidOnline) return settleAndComplete(b, items);                              // 1
+    if (b.paidOnline) return settleAndComplete(b);                              // 1
     if (b.customTotalPrice != null) return setCompletionDrawer({ booking: b, items }); // 3 (bundle prima di "tutte pagate")
-    if (items.every(it => it.paid)) return settleAndComplete(b, items);                // 2
+    if (items.every(it => it.paid)) return settleAndComplete(b);                // 2
     setCompletionDrawer({ booking: b, items });                                        // 4
   };
 
   const handleDrawerConfirm = async payload => {
     if (!completionDrawer) return;
     const b = completionDrawer.booking;
-    const undo = { prevStatus: b.status, paidSnapshot: buildSnapshotPayload(b, completionDrawer.items) };
     setErr("");
     setErrDetails(null);
     try {
       await settleBookingLines(b.bookingId, payload);
-      setCompletedUndo(u => ({ ...u, [b.bookingId]: undo }));
       setCompletionDrawer(null);
       await refresh();
     } catch (e) {
@@ -1355,24 +1307,16 @@ export default function AdminAgendaPage() {
     }
   };
 
-  // Undo simmetrico: ripristina PRIMA i flag paid pre-completamento (settle senza
-  // completare), POI lo stato a CONFIRMED (+ ripristino seduta via /status). Se la
-  // prima fallisce, lo stato resta COMPLETED e l'entry undo è conservata (retry).
+  // Un-complete = solo flip di stato COMPLETED → CONFIRMED. I flag paid restano come
+  // sono: arretrati e incasso stimato sono query-derived su COMPLETED, quindi si
+  // auto-azzerano al flip. Deriva dallo stato persistito → funziona anche dopo un
+  // refresh; la finestra "solo oggi" è gestita lato bottone (appointmentIsToday) e
+  // ribadita lato backend (rifiuta un un-complete fuori giornata).
   const undoCompletion = async b => {
-    const undo = completedUndo[b.bookingId];
-    if (!undo) return;
     setErr("");
     setErrDetails(null);
     try {
-      if (undo.paidSnapshot) {
-        await settleBookingLines(b.bookingId, { ...undo.paidSnapshot, alsoComplete: false });
-      }
-      await patchBookingStatus(b.bookingId, undo.prevStatus || "CONFIRMED");
-      setCompletedUndo(u => {
-        const n = { ...u };
-        delete n[b.bookingId];
-        return n;
-      });
+      await patchBookingStatus(b.bookingId, "CONFIRMED");
       await refresh();
     } catch (e) {
       setErr(e.message);
@@ -2658,7 +2602,7 @@ export default function AdminAgendaPage() {
                                 </Button>
                               </>
                             )}
-                            {b.status === "COMPLETED" && completedUndo[b.bookingId] && (
+                            {b.status === "COMPLETED" && appointmentIsToday(b.startTime) && (
                               <Button
                                 className="ag-btn ag-btn-undo"
                                 onClick={() => undoCompletion(b)}

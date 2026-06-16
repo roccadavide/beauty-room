@@ -2117,6 +2117,16 @@ public class BookingService {
         }
         if (old == BookingStatus.CANCELLED) throw new BadRequestException("Prenotazione CANCELLED: non modificabile.");
 
+        // Un-complete (COMPLETED → CONFIRMED) is allowed only on the appointment's own
+        // calendar day (Europe/Rome); from the next day a completed booking is locked.
+        // Gated narrowly so the package-credit boundary + CANCELLED/NO_SHOW branches below
+        // stay untouched. This is the only server path that performs COMPLETED → CONFIRMED.
+        if (old == BookingStatus.COMPLETED && newStatus == BookingStatus.CONFIRMED) {
+            if (!found.getStartTime().toLocalDate().isEqual(LocalDate.now(AvailabilityService.BUSINESS_ZONE)))
+                throw new BadRequestException("Puoi annullare il completamento solo nella giornata dell'appuntamento.");
+            found.setCompletedAt(null); // symmetric reversal: completion set it, un-complete clears it
+        }
+
         if (newStatus == BookingStatus.COMPLETED) found.setCompletedAt(LocalDateTime.now());
         if (newStatus == BookingStatus.CANCELLED) {
             found.setCanceledAt(LocalDateTime.now());
