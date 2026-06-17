@@ -66,23 +66,21 @@ public interface PackageCreditRepository extends JpaRepository<PackageCredit, UU
     );
 
     /**
-     * Bridge: a customer's online packages of the given status, resolved through THEIR OWN
-     * bookings (FK) rather than by email. The purchase webhook links both booking.customer and
-     * booking.packageCredit, so the EXISTS subquery returns only this customer's credits —
-     * collision-free (no shared-email leakage between two customers) and immune to a stale/blank
-     * Customer.email left by the phone-first find-or-create. service/serviceOption are fetched
-     * eagerly because OSIV is off and the caller maps them into the DTO after the tx closes.
+     * Bridge: a customer's online packages of the given status, resolved directly through the
+     * credit's own owner FK (package_credits.customer_id, V74 — forward-filled at purchase,
+     * backfilled for existing unambiguous rows). Keying on customer_id instead of the customer's
+     * bookings means a credit that has been detached from every booking but is still paid + ACTIVE
+     * stays visible, and shared-email collision is structurally impossible (the FK is per-customer).
+     * service/serviceOption are fetched eagerly because OSIV is off and the caller maps them into
+     * the DTO after the tx closes. Credits with a null customer_id (admin-assigned / un-backfilled)
+     * never match here and surface only in the admin global view.
      */
     @Query("""
             SELECT DISTINCT pc FROM PackageCredit pc
             LEFT JOIN FETCH pc.service
             LEFT JOIN FETCH pc.serviceOption
             WHERE pc.status = :status
-              AND EXISTS (
-                  SELECT 1 FROM Booking b
-                  WHERE b.packageCredit = pc
-                    AND b.customer.customerId = :customerId
-              )
+              AND pc.customer.customerId = :customerId
             """)
     List<PackageCredit> findActiveOnlineByCustomerId(
             @Param("customerId") UUID customerId,
