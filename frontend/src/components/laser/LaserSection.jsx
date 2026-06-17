@@ -98,6 +98,14 @@ export default function LaserSection() {
   // "doppio contenitore"); radica la card sulla crema che rientra sotto.
   const cardShadow = useTransform(scrollYProgress, [0.05, 0.85], ["0px 0px 0px 0px rgba(184, 151, 106, 0)", "0px 26px 60px -16px rgba(140, 109, 63, 0.4)"]);
 
+  // La crema rientra DIETRO la card → il buio della sezione RECEDE (parità col
+  // preview). Port di creamReturn da hero-v1-preview-handoff.html.
+  // KNOB: allarga/sposta questo range per far rientrare la crema prima/dopo.
+  // Deve iniziare DOPO che la card ha cominciato a emergere, così SI VEDE prima
+  // emergere dal buio. (Coupled: .laser-section margin-top, hero .hero-scene
+  // height + --cover. Il buio dev'essere pieno quando la card entra, poi recede.)
+  const creamReturn = useTransform(scrollYProgress, [0.35, 0.8], [0, 1]);
+
   // Fascio laser: la lunghezza verticale cresce dal manipolo verso il
   // basso mentre scendi. Quantizzato per limitare i re-render di LaserFlow.
   useMotionValueEvent(scrollYProgress, "change", v => {
@@ -156,6 +164,13 @@ export default function LaserSection() {
 
   return (
     <section ref={sectionRef} className="laser-section">
+      {/* Velo crema: rientra DIETRO la card (z-index 1 < container z-index 2)
+          → il buio della sezione recede mentre scendi. Gate su !reduce (NON
+          sceneActive) così il reveal gira anche su mobile: scrollYProgress è
+          vivo a prescindere da isMobile. Una semplice opacity su un div pieno
+          separato non ha transform/canvas/border-radius → niente fringing Safari
+          come quello che gatava i transform della card. Port di .cream-return. */}
+      <MotionDiv className="laser-cream-return" aria-hidden="true" style={!reduce ? { opacity: creamReturn } : undefined} />
       <Container className="d-flex justify-content-center align-items-center">
         <MotionDiv ref={cardRef} className="laser-card-wrapper" style={cardStyle}>
           <div className="laser-card laser-card--dark">

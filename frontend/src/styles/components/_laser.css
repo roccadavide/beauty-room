@@ -4,9 +4,13 @@
 
 .laser-section {
   /* SEAM con la hero v1: la sezione parte SCURA (stesso #2f2723 di hero e
-     card) e sfuma a crema più in basso → la card "emerge dal buio" e la crema
-     rientra attorno alla sua metà inferiore. */
-  background: linear-gradient(to bottom, #2f2723 0%, #2f2723 40%, #fffdf8 66%);
+     card). NON è più un gradiente statico — quello restava metà-buio/metà-crema
+     a OGNI scroll (transizione SPAZIALE che non recede mai). Ora è una base
+     SCURA SOLIDA su cui la crema rientra NEL TEMPO via .laser-cream-return
+     (opacità pilotata dallo scroll) → la card "emerge dal buio" e la crema
+     RIENTRA dietro di lei. Port del meccanismo .cream-return del preview
+     approvato (design-reference/hero-v1-preview-handoff.html). */
+  background: #2f2723;
   /* OVERLAP: tiriamo la sezione SU dentro la coda scura della hero (ancora
      pinnata e scura) → la card RISALE DAL BUIO durante lo scroll invece di
      comparire nella crema a fine corsa. Scuro-su-scuro = nessun lampo crema.
@@ -19,12 +23,38 @@
   z-index: 3;
 }
 
+/* La crema rientra SOPRA la base scura, DIETRO la card — l'opacità è pilotata
+   dallo scroll da LaserSection.jsx (creamReturn). Port di .cream-return da
+   hero-v1-preview-handoff.html. È QUESTO che fa RECEDERE il buio (la transizione
+   è temporale, non più un gradiente statico). */
+.laser-cream-return {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #fffdf8;
+  opacity: 0; /* pilotata da Framer */
+  pointer-events: none;
+}
+
+/* La card (Container) resta SOPRA il velo crema. Le regole mobile
+   .laser-section .container toccano solo max-width/padding/width → nessun
+   conflitto con position/z-index qui. */
+.laser-section > .container {
+  position: relative;
+  z-index: 2;
+}
+
 /* Reduced-motion: niente reveal → LaserSection "calma" (crema piena, nessun
    overlap con la hero statica). */
 @media (prefers-reduced-motion: reduce) {
   .laser-section {
     background: #fffdf8;
     margin-top: 0;
+  }
+
+  /* Niente reveal temporale: crema statica, nessun velo da far comparire. */
+  .laser-cream-return {
+    display: none;
   }
 }
 
