@@ -1,15 +1,23 @@
-import { Fragment, useRef, useEffect, useState } from "react";
+import { Fragment, useRef, useEffect, useLayoutEffect, useState } from "react";
 import { Container, Button } from "react-bootstrap";
 import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { animate, splitText, stagger } from "animejs";
 
 const MotionDiv = motion.div;
-const MotionH1 = motion.h1;
 const MotionP = motion.p;
 
 /* Parole chiave statiche — sostituiscono il vecchio marquee scorrevole. */
 const KEYWORDS = ["Laser", "Permanent Make-Up", "Estetica Avanzata"];
+
+/* Gate "play-once-per-load" a livello di MODULO (non per-mount).
+   L'intro del titolo va in scena al massimo una volta per caricamento di
+   pagina. Su navigazione SPA il flag persiste tra unmount/remount → al
+   rientro in Home il titolo è già nello stato finale, niente replay né
+   lampo. Un refresh vero del browser azzera il modulo → l'intro rigioca
+   una volta sola. NIENTE localStorage/sessionStorage: solo variabile di
+   modulo, di proposito. */
+let heroIntroPlayed = false;
 
 /* L'app è "visibile" quando lo splash-screen di index.html è sparito. */
 function appIsReady() {
@@ -38,8 +46,8 @@ export default function HeroSection({
 }) {
   const reduce = useReducedMotion();
   const titleRef = useRef(null);
+  const titleWrapRef = useRef(null);
   const dustRef = useRef(null);
-  const hasAnimated = useRef(false);
 
   /* ── Gate d'ingresso ──────────────────────────────────────────────
      Le animazioni d'INGRESSO partono solo quando lo splash è sparito.
@@ -76,20 +84,65 @@ export default function HeroSection({
     };
   }, [ready]);
 
-  /* ── anime.js — split caratteri SOLO sul titolo, dopo il gate ────── */
-  useEffect(() => {
-    if (reduce || !ready || hasAnimated.current || !titleRef.current) return;
-    hasAnimated.current = true;
+  /* ── anime.js — split caratteri SOLO sul titolo, dopo il gate ──────
+     useLayoutEffect (non useEffect): lo split è applicato PRIMA del paint,
+     così non si vede mai il titolo intero che diventa split (niente reflow
+     a scatto). Gira solo se l'intro non è ancora andato in scena in questo
+     load (heroIntroPlayed). Il flag si setta SUBITO, appena le guardie
+     passano (non a fine animazione): se navighi via a metà intro e torni,
+     al rientro vedi il titolo finale senza replay. */
+  useLayoutEffect(() => {
+    if (reduce || !ready || heroIntroPlayed || !titleRef.current) return;
+    heroIntroPlayed = true; // commit: l'intro va in scena ORA
 
-    const titleSplit = splitText(titleRef.current, { chars: { wrap: "clip" } });
+    const titleEl = titleRef.current;
+    const wrap = titleWrapRef.current;
+    let cancelled = false;
+    let titleSplit = null;
+    let titleAnim = null;
 
-    animate(titleSplit.chars, {
-      y: [{ to: ["100%", "0%"] }],
-      opacity: [0, 1],
-      duration: 2000,
-      ease: "out(3)",
-      delay: stagger(52),
-    });
+    /* Pre-reveal: nascondi il wrap PRIMA del paint (modificatore via classe,
+       aggiunto da JS solo ora che l'intro gioca). Così niente lampo del
+       titolo intero né degli slot vuoti mentre si attende il font. */
+    wrap?.classList.add("is-title-prereveal");
+
+    const runSplit = () => {
+      if (cancelled || !titleEl) return;
+
+      titleSplit = splitText(titleEl, { chars: { wrap: "clip" } });
+
+      titleAnim = animate(titleSplit.chars, {
+        y: [{ to: ["100%", "0%"] }],
+        opacity: [0, 1],
+        duration: 2000,
+        ease: "out(3)",
+        delay: stagger(52),
+      });
+
+      /* Rivela sullo stesso frame in cui split+animazione partono: ora i
+         caratteri sono già clippati a y:100% / opacity:0, quindi scoprire il
+         wrap non mostra nulla "di troppo". */
+      wrap?.classList.remove("is-title-prereveal");
+    };
+
+    /* Non misurare/splittare prima che il font del titolo (SaolDisplay-Light)
+       sia pronto, altrimenti lo split misura la metrica sbagliata. Fail-safe:
+       se document.fonts non esiste, splitta SUBITO (sincrono, prima del paint)
+       → il titolo non resta mai bloccato invisibile. */
+    if (document.fonts?.ready) {
+      // 2° arg = handler di reject: se mai la promise non si risolvesse,
+      // splittiamo comunque → il titolo non resta bloccato invisibile.
+      document.fonts.ready.then(runSplit, runSplit);
+    } else {
+      runSplit();
+    }
+
+    return () => {
+      cancelled = true;
+      titleAnim?.revert(); // 1) annulla l'animazione e ripristina gli stili inline
+      titleSplit?.revert(); // 2) ripristina il DOM originale (titolo non splittato)
+      wrap?.classList.remove("is-title-prereveal"); // mai lasciare il titolo invisibile
+    };
   }, [reduce, ready]);
 
   /* ── Polvere di luce (canvas) ─────────────────────────────────────
@@ -239,11 +292,11 @@ export default function HeroSection({
     }),
   };
 
-  // Titolo: solo opacità. Lo scorrimento dei caratteri lo fa anime.js.
-  const titleReveal = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { duration: 0.4 } },
-  };
+  /* initial degli elementi fadeUp: se l'intro è già stata giocata in questo
+     load (remount SPA) → false = niente entrata, montano già visibili.
+     Primo load → "hidden" = giocano una volta. Il titolo NON passa di qui:
+     lo gestiscono anime.js + il pre-reveal del wrap. */
+  const fadeInitial = heroIntroPlayed ? false : "hidden";
 
   return (
     <div className="hero-scene">
@@ -290,7 +343,7 @@ export default function HeroSection({
           {/* Contenuto */}
           <Container fluid className="hero-inner">
             <div className="hero-text-panel">
-              <MotionDiv className="hero-eyebrow" variants={fadeUp} initial="hidden" animate={animState} custom={0}>
+              <MotionDiv className="hero-eyebrow" variants={fadeUp} initial={fadeInitial} animate={animState} custom={0}>
                 <span className="hero-eyebrow-mark" aria-hidden="true">
                   ✦
                 </span>
@@ -299,16 +352,18 @@ export default function HeroSection({
 
               <div className="hero-rule" aria-hidden="true" />
 
-              {/* Titolo: h1 reale (split anime.js) + overlay sheen sopra */}
-              <div className="hero-title-wrap">
-                <MotionH1 ref={titleRef} className="hero-title" variants={titleReveal} initial="hidden" animate={animState}>
+              {/* Titolo: h1 reale (split anime.js) + overlay sheen sopra.
+                  L'opacità del titolo NON è più pilotata da Framer: la possiede
+                  anime.js (reveal dei caratteri) + il pre-reveal del wrap. */}
+              <div className="hero-title-wrap" ref={titleWrapRef}>
+                <h1 ref={titleRef} className="hero-title">
                   {titleLines.map((line, i) => (
                     <Fragment key={i}>
                       {i > 0 && <br />}
                       {line}
                     </Fragment>
                   ))}
-                </MotionH1>
+                </h1>
                 <span className="hero-title-sheen" aria-hidden="true">
                   {titleLines.map((line, i) => (
                     <Fragment key={i}>
@@ -319,11 +374,11 @@ export default function HeroSection({
                 </span>
               </div>
 
-              <MotionP className="hero-subtitle" variants={fadeUp} initial="hidden" animate={animState} custom={1}>
+              <MotionP className="hero-subtitle" variants={fadeUp} initial={fadeInitial} animate={animState} custom={1}>
                 {subtitle}
               </MotionP>
 
-              <MotionDiv className="hero-cta-row" variants={fadeUp} initial="hidden" animate={animState} custom={2}>
+              <MotionDiv className="hero-cta-row" variants={fadeUp} initial={fadeInitial} animate={animState} custom={2}>
                 <Button as={Link} to={primaryCtaTo} className="hero-cta-primary" aria-label={`${primaryCtaLabel} — prenota un trattamento a Beauty Room`}>
                   {primaryCtaLabel}
                 </Button>
@@ -332,12 +387,12 @@ export default function HeroSection({
                 </Button>
               </MotionDiv>
 
-              <MotionDiv className="hero-hint" variants={fadeUp} initial="hidden" animate={animState} custom={3}>
+              <MotionDiv className="hero-hint" variants={fadeUp} initial={fadeInitial} animate={animState} custom={3}>
                 {hint}
               </MotionDiv>
 
               {/* Keywords statiche — visibili tablet+ */}
-              <MotionDiv className="hero-keywords" variants={fadeUp} initial="hidden" animate={animState} custom={4}>
+              <MotionDiv className="hero-keywords" variants={fadeUp} initial={fadeInitial} animate={animState} custom={4}>
                 {KEYWORDS.map((k, i) => (
                   <Fragment key={k}>
                     {i > 0 && (

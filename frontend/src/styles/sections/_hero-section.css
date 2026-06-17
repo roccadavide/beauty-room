@@ -463,6 +463,15 @@
   letter-spacing: -0.03em;
 }
 
+/* Pre-reveal del titolo — modificatore aggiunto da JS (HeroSection.jsx) SOLO
+   mentre l'intro gioca: nasconde il wrap prima del paint, così non lampeggia
+   il titolo intero né gli slot vuoti dello split. La regola base qui sopra
+   resta a opacity:1, quindi titolo già-giocato / reduced-motion / intro non
+   eseguito = SEMPRE visibile (mai dipendente da JS che alza l'opacità). */
+.hero-title-wrap.is-title-prereveal {
+  opacity: 0;
+}
+
 .hero-title {
   font: inherit;
   letter-spacing: inherit;
