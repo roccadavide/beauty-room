@@ -969,6 +969,22 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   // "Servizi selezionati" can't find its data and silently doesn't render.
   useEffect(() => {
     if ((isEditMode || isDuplicate) && editBooking.customerName) {
+      // Edit mode only: surface the booking's OWN online package (PackageCredit) as a
+      // selectable/deselectable card in the grid below, sourced from its FROZEN link (the
+      // linkedPackages entry with no packageAssignmentId) — NOT the per-customer bridge, which
+      // (a) needs a resolved customerId we don't have in edit and (b) returns only ACTIVE
+      // credits, so a purchase already driven to sessionsRemaining 0 → COMPLETED wouldn't
+      // appear — yet that's exactly the session Michela needs to detach. The frozen link shows
+      // it regardless of status. id = packageCreditId so the grid's `selectedPackageCreditId
+      // === pkg.id` check renders it selected and its online branch toggles it (null ⇄ id =
+      // detach ⇄ attach at save). Computed up-front (sync, from editBooking) so it survives even
+      // if the admin fetch fails. Duplicate is create-mode → never auto-attach a prepaid credit.
+      const frozenOnline = isEditMode
+        ? (editBooking.linkedPackages || []).find(lp => lp.packageAssignmentId == null)
+        : null;
+      const onlineRows = (isEditMode && editBooking.packageCreditId != null && frozenOnline)
+        ? [{ ...pkgFromFrozenLink(frozenOnline, editBooking.packageCreditId), source: "ONLINE" }]
+        : [];
       (async () => {
         try {
           const pkgs = await getClientPackageAssignmentsByName(editBooking.customerName);
@@ -976,9 +992,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           // Shape-compatible with UnifiedActivePackageDTO consumed by the package row.
           // The two DTOs share the relevant fields (id, displayName, serviceTitle,
           // serviceOptionId, totalSessions, sessionsRemaining); we only need to tag the source.
-          setActivePackages(active.map(p => ({ ...p, source: "ADMIN" })));
+          setActivePackages([...active.map(p => ({ ...p, source: "ADMIN" })), ...onlineRows]);
         } catch (err) {
           console.error("Edit-mode package pre-fetch failed (non-blocking):", err);
+          setActivePackages(onlineRows); // still surface the booking's own online package
         }
       })();
     }

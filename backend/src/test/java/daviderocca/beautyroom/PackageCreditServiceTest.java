@@ -68,7 +68,7 @@ class PackageCreditServiceTest {
         });
 
         PackageCredit result = service.createPackageCredit(
-                "cliente@test.it", 5, serviceItem, serviceOption, null, null, false);
+                "cliente@test.it", 5, serviceItem, serviceOption, null, null, null, false);
 
         assertThat(result.getSessionsTotal()).isEqualTo(5);
         assertThat(result.getSessionsRemaining()).isEqualTo(5);
@@ -85,7 +85,7 @@ class PackageCreditServiceTest {
     @DisplayName("TC-1b: createPackageCredit — serviceOption null non consentito")
     void createPackageCredit_withoutServiceOption_throwsBadRequest() {
         assertThatThrownBy(() ->
-                service.createPackageCredit("cliente@test.it", 5, serviceItem, null, null, null, false)
+                service.createPackageCredit("cliente@test.it", 5, serviceItem, null, null, null, null, false)
         ).isInstanceOf(BadRequestException.class)
          .hasMessageContaining("ServiceOption");
 
@@ -102,7 +102,7 @@ class PackageCreditServiceTest {
                 anyString(), eq(optionId), eq(PackageCreditStatus.ACTIVE))).thenReturn(true);
 
         assertThatThrownBy(() ->
-                service.createPackageCredit("cliente@test.it", 5, serviceItem, serviceOption, null, null, false)
+                service.createPackageCredit("cliente@test.it", 5, serviceItem, serviceOption, null, null, null, false)
         ).isInstanceOf(DuplicateResourceException.class)
          .hasMessageContaining("già un pacchetto ACTIVE");
 

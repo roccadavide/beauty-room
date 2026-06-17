@@ -263,12 +263,31 @@ public class StripeWebhookController {
                     log.warn("Skip pacchetto: alreadyCreated={} alreadyLinked={} bookingId={} stripeSessionId={}",
                             alreadyCreated, alreadyLinked, b.getBookingId(), session.getId());
                 } else {
+                    // V74: resolve the buyer's Customer FIRST, then pass it into createPackageCredit so
+                    // customer_id is persisted INSIDE that method's own transaction. handleCheckoutCompleted
+                    // is not a single transaction and OSIV is off (see :249) — b is detached, so a post-hoc
+                    // pc.setCustomer(...) on the returned credit would not persist. Reuse the SAME
+                    // find-or-create the MULTI webhook path uses (phone-first dedup, see
+                    // CustomerService#findOrCreate): a returning customer or a webhook retry resolves to the
+                    // existing record, never a duplicate. Best-effort — a failure must not abort the (already
+                    // paid) package linkage; the credit just stays customer_id-null (Stage 2 backfills it,
+                    // and the bookings bridge still resolves ownership until Stage 3).
+                    Customer customer = null;
+                    try {
+                        customer = customerService.findOrCreate(
+                                b.getCustomerName(), b.getCustomerPhone(), b.getCustomerEmail(), null);
+                    } catch (Exception e) {
+                        log.warn("Customer upsert failed for online package booking {}: {}",
+                                b.getBookingId(), e.getMessage());
+                    }
+
                     PackageCredit pc = packageCreditService.createPackageCredit(
                             b.getCustomerEmail(),
                             sessionsTotal,
                             b.getService(),
                             b.getServiceOption(),
                             b.getUser(),
+                            customer,
                             session.getId(),
                             // V72: the online model now mirrors admin — every session is consumed at
                             // BOOKING time, not at completion. Session-1 (this purchase) is consumed
@@ -280,20 +299,8 @@ public class StripeWebhookController {
                     b = bookingService.findBookingById(bookingId);
                     b.setPackageCredit(pc);
                     b.setCreditTrackedAtCreation(true);
-
-                    // Register the buyer as a Customer so the package is searchable under their
-                    // name in the agenda drawer and can be attached to future sessions. Reuse the
-                    // SAME find-or-create the MULTI webhook path uses (phone-first dedup, see
-                    // CustomerService#findOrCreate): a returning customer or a webhook retry resolves
-                    // to the existing record, never a duplicate. Best-effort — a failure here must
-                    // not abort the (already paid) package linkage.
-                    try {
-                        Customer customer = customerService.findOrCreate(
-                                b.getCustomerName(), b.getCustomerPhone(), b.getCustomerEmail(), null);
+                    if (customer != null) {
                         b.setCustomer(customer);
-                    } catch (Exception e) {
-                        log.warn("Customer upsert failed for online package booking {}: {}",
-                                b.getBookingId(), e.getMessage());
                     }
 
                     bookingService.save(b);

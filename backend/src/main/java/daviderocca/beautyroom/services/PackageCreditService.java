@@ -4,6 +4,7 @@ import daviderocca.beautyroom.DTO.packageDTOs.ActivePackageDTO;
 import daviderocca.beautyroom.DTO.packageDTOs.AssignPackageCreditDTO;
 import daviderocca.beautyroom.DTO.packageDTOs.MyPackageDTO;
 import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.Customer;
 import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
@@ -43,6 +44,10 @@ public class PackageCreditService {
      *
      * @param consumeFirstSession se true, la prima seduta viene subito scalata
      *                            (es. pagamento Stripe che include la seduta corrente)
+     * @param customerOrNull      owner Customer to anchor the credit to (V74). Set HERE, inside this
+     *                            method's transaction, so customer_id is persisted with the credit —
+     *                            never on the returned (detached) entity. Null for admin-assigned
+     *                            credits (Stage 1 leaves those unanchored).
      */
     @Transactional
     public PackageCredit createPackageCredit(
@@ -51,6 +56,7 @@ public class PackageCreditService {
             ServiceItem service,
             ServiceOption option,
             User userOrNull,
+            Customer customerOrNull,
             String stripeSessionId,
             boolean consumeFirstSession
     ) {
@@ -88,6 +94,10 @@ public class PackageCreditService {
         pc.setService(service);
         pc.setServiceOption(option);
         pc.setUser(userOrNull);
+        // V74: anchor to the owner inside this transaction so the FK persists with the insert. The
+        // entity has no cascade on this association, so a detached Customer (resolved in the caller's
+        // own closed tx) is fine — Hibernate only reads its id to write customer_id.
+        pc.setCustomer(customerOrNull);
         pc.setStripeSessionId(stripeSessionId);
 
         PackageCredit saved = packageCreditRepository.save(pc);
@@ -423,8 +433,9 @@ public class PackageCreditService {
                 dto.sessionsTotal(),
                 service,
                 option,
-                null,
-                null,
+                null,   // userOrNull
+                null,   // customerOrNull — V74: admin-assigned credits stay unanchored in Stage 1
+                null,   // stripeSessionId
                 false
         );
         return toActiveDTO(pc);
