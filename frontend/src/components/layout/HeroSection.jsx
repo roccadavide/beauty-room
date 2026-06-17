@@ -1,22 +1,34 @@
-import { Fragment, useRef, useEffect, useLayoutEffect, useState } from "react";
-import { Container, Button } from "react-bootstrap";
-import { motion, useReducedMotion } from "framer-motion";
+import { useRef, useEffect, useState } from "react";
+import { Button } from "react-bootstrap";
+import { motion, useReducedMotion, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import { Link } from "react-router-dom";
-import { animate, splitText, stagger } from "animejs";
 
 const MotionDiv = motion.div;
 const MotionP = motion.p;
+const MotionSpan = motion.span;
 
-/* Parole chiave statiche — sostituiscono il vecchio marquee scorrevole. */
-const KEYWORDS = ["Laser", "Permanent Make-Up", "Estetica Avanzata"];
+/* Ritaglio trasparente di Michela — un solo punto di verità per il path.
+   <picture> serve AVIF→WebP→PNG; il layout regge anche se l'asset manca
+   (l'img mostra l'alt, il resto della scena è indipendente). */
+const MICHELA = {
+  avif: "/hero/michela.avif",
+  webp: "/hero/michela.webp",
+  png: "/hero/michela.png",
+};
+
+const EASE = [0.22, 0.61, 0.36, 1];
+
+/* Mappature scroll (riprese dall'anteprima hero-v1-preview-handoff.html).
+   p = progress 0→1 della scena sticky. */
+const clampN = (v, a, b) => Math.min(b, Math.max(a, v));
+const mapRange = (v, a, b) => clampN((v - a) / (b - a), 0, 1);
 
 /* Gate "play-once-per-load" a livello di MODULO (non per-mount).
-   L'intro del titolo va in scena al massimo una volta per caricamento di
+   L'entrata della hero va in scena al massimo una volta per CARICAMENTO di
    pagina. Su navigazione SPA il flag persiste tra unmount/remount → al
-   rientro in Home il titolo è già nello stato finale, niente replay né
-   lampo. Un refresh vero del browser azzera il modulo → l'intro rigioca
-   una volta sola. NIENTE localStorage/sessionStorage: solo variabile di
-   modulo, di proposito. */
+   rientro in Home la hero è già nello stato finale: niente replay né lampo
+   (la causa del vecchio glitch). Un refresh vero azzera il modulo → l'intro
+   rigioca una volta sola. NIENTE storage: solo variabile di modulo. */
 let heroIntroPlayed = false;
 
 /* L'app è "visibile" quando lo splash-screen di index.html è sparito. */
@@ -34,24 +46,18 @@ export default function HeroSection({
   title = "La Bellezza\nÈ Un'Arte",
   subtitle = "Ogni trattamento, una cura su misura per te.",
   eyebrow = "Beauty Room · Calusco d'Adda",
-  hint = "⭐ 4.9 · Oltre 200 clienti soddisfatte",
+  // hint = "⭐ 4.9 · Oltre 200 clienti soddisfatte", // social proof rimossa dalla hero (libera una riga per Michela) — ripristinabile, vedi stub nel JSX
   primaryCtaLabel = "Prenota Ora",
   primaryCtaTo = "/trattamenti",
-  secondaryCtaLabel = "Scopri i trattamenti",
-  secondaryCtaTo = "/trattamenti",
-  imgAvif = "/hero/hero.avif",
-  imgWebp = "/hero/hero.webp",
-  imgJpg = "/hero/hero.jpeg",
   imgAlt = "Michela — Beauty Room, centro estetico a Calusco d'Adda",
 }) {
   const reduce = useReducedMotion();
-  const titleRef = useRef(null);
-  const titleWrapRef = useRef(null);
-  const dustRef = useRef(null);
+  const sceneRef = useRef(null);
+  const stageRef = useRef(null);
+  const coverRef = useRef(-1);
 
-  /* ── Gate d'ingresso ──────────────────────────────────────────────
-     Le animazioni d'INGRESSO partono solo quando lo splash è sparito.
-     Aurora, polvere e shimmer NON sono gated: sono loop ambientali. */
+  /* ── Gate d'ingresso: l'entrata parte solo quando lo splash è sparito.
+     Il respiro del glow e lo sheen del titolo NON sono gated (loop ambientali). */
   const [ready, setReady] = useState(appIsReady);
 
   useEffect(() => {
@@ -84,334 +90,173 @@ export default function HeroSection({
     };
   }, [ready]);
 
-  /* ── anime.js — split caratteri SOLO sul titolo, dopo il gate ──────
-     useLayoutEffect (non useEffect): lo split è applicato PRIMA del paint,
-     così non si vede mai il titolo intero che diventa split (niente reflow
-     a scatto). Gira solo se l'intro non è ancora andato in scena in questo
-     load (heroIntroPlayed). Il flag si setta SUBITO, appena le guardie
-     passano (non a fine animazione): se navighi via a metà intro e torni,
-     al rientro vedi il titolo finale senza replay. */
-  useLayoutEffect(() => {
-    if (reduce || !ready || heroIntroPlayed || !titleRef.current) return;
-    heroIntroPlayed = true; // commit: l'intro va in scena ORA
-
-    const titleEl = titleRef.current;
-    const wrap = titleWrapRef.current;
-    let cancelled = false;
-    let titleSplit = null;
-    let titleAnim = null;
-
-    /* Pre-reveal: nascondi il wrap PRIMA del paint (modificatore via classe,
-       aggiunto da JS solo ora che l'intro gioca). Così niente lampo del
-       titolo intero né degli slot vuoti mentre si attende il font. */
-    wrap?.classList.add("is-title-prereveal");
-
-    const runSplit = () => {
-      if (cancelled || !titleEl) return;
-
-      titleSplit = splitText(titleEl, { chars: { wrap: "clip" } });
-
-      titleAnim = animate(titleSplit.chars, {
-        y: [{ to: ["100%", "0%"] }],
-        opacity: [0, 1],
-        duration: 2000,
-        ease: "out(3)",
-        delay: stagger(52),
-      });
-
-      /* Rivela sullo stesso frame in cui split+animazione partono: ora i
-         caratteri sono già clippati a y:100% / opacity:0, quindi scoprire il
-         wrap non mostra nulla "di troppo". */
-      wrap?.classList.remove("is-title-prereveal");
-    };
-
-    /* Non misurare/splittare prima che il font del titolo (SaolDisplay-Light)
-       sia pronto, altrimenti lo split misura la metrica sbagliata. Fail-safe:
-       se document.fonts non esiste, splitta SUBITO (sincrono, prima del paint)
-       → il titolo non resta mai bloccato invisibile. */
-    if (document.fonts?.ready) {
-      // 2° arg = handler di reject: se mai la promise non si risolvesse,
-      // splittiamo comunque → il titolo non resta bloccato invisibile.
-      document.fonts.ready.then(runSplit, runSplit);
-    } else {
-      runSplit();
-    }
-
-    return () => {
-      cancelled = true;
-      titleAnim?.revert(); // 1) annulla l'animazione e ripristina gli stili inline
-      titleSplit?.revert(); // 2) ripristina il DOM originale (titolo non splittato)
-      wrap?.classList.remove("is-title-prereveal"); // mai lasciare il titolo invisibile
-    };
-  }, [reduce, ready]);
-
-  /* ── Polvere di luce (canvas) ─────────────────────────────────────
-     Granelli d'oro che CADONO lenti dall'alto del pannello crema:
-     compaiono in alto, scendono, si dissolvono in basso.
-     Pausa automatica con tab nascosta o hero fuori viewport.
-     Rispetta prefers-reduced-motion (un solo frame statico). */
+  /* Commit del gate: appena l'app è pronta (e non reduced-motion) marchiamo
+     l'intro come giocata. Se navighi via a metà e torni, al rientro si monta
+     già nello stato finale (initial=false). */
   useEffect(() => {
-    const canvas = dustRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (ready && !reduce) heroIntroPlayed = true;
+  }, [ready, reduce]);
 
-    let raf = 0;
-    let particles = [];
-    let w = 0;
-    let h = 0;
-    let dpr = 1;
-    let last = 0;
-    let running = false;
+  /* ── Reveal allo scroll — useScroll sulla SCENA sticky, come LaserSection.
+     Lenis fa scroll reale del documento → useScroll legge window.scrollY. */
+  const { scrollYProgress } = useScroll({
+    target: sceneRef,
+    offset: ["start start", "end end"],
+  });
 
-    // initial=true → sparso su tutta l'altezza · false → rientra da sopra
-    const spawn = initial => ({
-      x: Math.random() * w,
-      y: initial ? Math.random() * h : -10 - Math.random() * 50,
-      r: 0.5 + Math.random() * 1.3,
-      drift: 0.035 + Math.random() * 0.075, // caduta lenta verso il basso
-      sway: 0.15 + Math.random() * 0.5,
-      swaySpeed: 0.0004 + Math.random() * 0.0011,
-      phase: Math.random() * Math.PI * 2,
-      alpha: 0.28 + Math.random() * 0.42,
-      twinkle: 0.0006 + Math.random() * 0.0013,
-    });
+  // Layer pilotati da transform/opacity (compositor, nessun re-render React).
+  // Range DILATATI (reveal lento): il cover scuro completa ~quando la
+  // LaserSection entra (overlap in _laser.css) → flusso continuo crema → buio
+  // → card che emerge, senza tratto "tutto-buio" morto. Tarare con --cover.
+  const creamScale = useTransform(scrollYProgress, [0, 1], [1, 0.965]);
+  const glowOpacity = useTransform(scrollYProgress, [0.14, 0.55], [1, 0]);
+  const michelaY = useTransform(scrollYProgress, [0.1, 0.58], [0, 150]);
+  const michelaScale = useTransform(scrollYProgress, [0.1, 0.58], [1, 0.93]);
+  const michelaOpacity = useTransform(scrollYProgress, [0.22, 0.56], [1, 0.05]);
+  const contentOpacity = useTransform(scrollYProgress, [0.05, 0.4], [1, 0]);
+  const contentY = useTransform(scrollYProgress, [0.05, 0.4], [0, -34]);
+  const hintOpacity = useTransform(scrollYProgress, [0, 0.07], [1, 0]);
 
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-      const pw = w;
-      const ph = h;
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      w = rect.width;
-      h = rect.height;
-      canvas.width = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (particles.length === 0) {
-        const n = w < 600 ? 8 : w < 1000 ? 12 : 16;
-        particles = Array.from({ length: n }, () => spawn(true));
-      } else if (pw > 0 && ph > 0) {
-        const sx = w / pw;
-        const sy = h / ph;
-        for (const p of particles) {
-          p.x *= sx;
-          p.y *= sy;
-        }
-      }
-    };
-
-    const draw = (t, dt) => {
-      ctx.clearRect(0, 0, w, h);
-      const fadeInZone = h * 0.12;
-      const fadeOutZone = h * 0.2;
-      for (const p of particles) {
-        p.y += p.drift * dt;
-        p.x += Math.sin(t * p.swaySpeed + p.phase) * p.sway * 0.04 * dt;
-        if (p.y > h + 10) {
-          p.y = -10 - Math.random() * 40;
-          p.x = Math.random() * w;
-        }
-        // dissolve in alto (appena entrato) e in basso (prima di sparire)
-        const fadeIn = Math.min(1, p.y / fadeInZone);
-        const fadeOut = Math.min(1, (h - p.y) / fadeOutZone);
-        const edge = Math.max(0, Math.min(fadeIn, fadeOut));
-        const tw = 0.6 + 0.4 * Math.sin(t * p.twinkle + p.phase);
-        const a = p.alpha * tw * edge;
-        if (a <= 0.002) continue;
-        const rad = p.r * 3.4;
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rad);
-        // nucleo caldo luminoso + alone oro → legge come granello di luce, non punto scuro
-        g.addColorStop(0, "rgba(255, 246, 224, " + a + ")");
-        g.addColorStop(0.4, "rgba(216, 178, 116, " + a * 0.55 + ")");
-        g.addColorStop(1, "rgba(216, 178, 116, 0)");
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    };
-
-    const loop = t => {
-      const dt = last ? Math.min((t - last) / 16.67, 3) : 1;
-      last = t;
-      draw(t, dt);
-      raf = requestAnimationFrame(loop);
-    };
-
-    const start = () => {
-      if (running) return;
-      running = true;
-      last = 0;
-      raf = requestAnimationFrame(loop);
-    };
-
-    const stop = () => {
-      running = false;
-      cancelAnimationFrame(raf);
-    };
-
-    resize();
-
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const ro = new ResizeObserver(() => {
-      resize();
-      if (reduced) draw(0, 1);
-    });
-    ro.observe(canvas);
-
-    if (reduced) {
-      draw(0, 1); // frame statico, niente loop
-      return () => ro.disconnect();
-    }
-
-    const onVisibility = () => (document.hidden ? stop() : start());
-    document.addEventListener("visibilitychange", onVisibility);
-
-    const io = new IntersectionObserver(([entry]) => (entry.isIntersecting && !document.hidden ? start() : stop()), { threshold: 0 });
-    io.observe(canvas);
-
-    return () => {
-      stop();
-      ro.disconnect();
-      io.disconnect();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
+  /* Il "fiore" scuro: clip-path ellisse che cresce dal basso. Pilotato da una
+     CSS variable (--cover) aggiornata SOLO al cambio significativo (quantizzata
+     a 0.5%) → niente re-render React per frame. Mirror del BEAM_LEN_STEP di
+     LaserSection. La leading-edge oro legge la stessa var (+2%). */
+  useMotionValueEvent(scrollYProgress, "change", p => {
+    if (reduce) return;
+    const cover = mapRange(p, 0.06, 0.88) * 146;
+    const q = Math.round(cover / 0.5) * 0.5;
+    if (q === coverRef.current) return;
+    coverRef.current = q;
+    stageRef.current?.style.setProperty("--cover", q + "%");
+  });
 
   const titleLines = title.split("\n");
   const animState = ready ? "visible" : "hidden";
+  // Remount SPA o reduced-motion → nessuna entrata: montano già finali.
+  const fadeInitial = heroIntroPlayed || reduce ? false : "hidden";
+  // I transform di scroll si applicano solo quando l'animazione è consentita.
+  const scrub = !reduce;
 
+  /* ── Varianti d'ingresso (Framer). Gating identico a fadeInitial/animState
+     per ogni elemento → l'entrata gioca una sola volta per load. */
   const fadeUp = {
-    hidden: { opacity: 0, y: reduce ? 0 : 20 },
+    hidden: { opacity: 0, y: reduce ? 0 : 18 },
     visible: (i = 0) => ({
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, delay: 0.09 * i, ease: [0.22, 0.61, 0.36, 1] },
+      transition: { duration: 0.7, delay: reduce ? 0 : 0.15 + 0.1 * i, ease: EASE },
     }),
   };
-
-  /* initial degli elementi fadeUp: se l'intro è già stata giocata in questo
-     load (remount SPA) → false = niente entrata, montano già visibili.
-     Primo load → "hidden" = giocano una volta. Il titolo NON passa di qui:
-     lo gestiscono anime.js + il pre-reveal del wrap. */
-  const fadeInitial = heroIntroPlayed ? false : "hidden";
+  const ruleVar = {
+    hidden: { opacity: 0, scaleX: 0 },
+    visible: { opacity: 1, scaleX: 1, transition: { duration: 0.7, delay: reduce ? 0 : 0.3, ease: EASE } },
+  };
+  // Titolo: ogni riga sale da un wrapper overflow:hidden (line-rise CSS-style,
+  // niente splitText → niente font-race).
+  const lineVar = {
+    hidden: { y: reduce ? "0%" : "110%" },
+    visible: (i = 0) => ({
+      y: "0%",
+      transition: { duration: 0.95, delay: reduce ? 0 : 0.4 + 0.12 * i, ease: EASE },
+    }),
+  };
+  const glowEnter = {
+    hidden: { opacity: 0, scale: reduce ? 1 : 0.92 },
+    visible: { opacity: 1, scale: 1, transition: { duration: 1.5, delay: reduce ? 0 : 0.25, ease: EASE } },
+  };
+  const michelaEnter = {
+    hidden: { opacity: 0, y: reduce ? 0 : 36, scale: reduce ? 1 : 0.96 },
+    visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 1.4, delay: reduce ? 0 : 0.35, ease: EASE } },
+  };
 
   return (
-    <div className="hero-scene">
-      <div className="hero-sticky">
-        <section className={`hero-section${ready ? " hero-ready" : ""}`}>
-          {/* Foto di sfondo — Ken Burns sul frame (CSS) */}
-          <div className="hero-photo-frame">
+    <div className="hero-scene" ref={sceneRef}>
+      <div className="hero-stage" ref={stageRef}>
+        {/* z0 — fondo crema (si stringe appena allo scroll) */}
+        <MotionDiv className="hero-cream" aria-hidden="true" style={scrub ? { scale: creamScale } : undefined} />
+
+        {/* z1 — alone champagne: fade-scroll (out) › entrata › respiro (CSS) */}
+        <MotionDiv className="hero-glow" aria-hidden="true" style={scrub ? { opacity: glowOpacity } : undefined}>
+          <MotionDiv className="hero-glow-enter" variants={glowEnter} initial={fadeInitial} animate={animState}>
+            <div className="hero-glow-breath" />
+          </MotionDiv>
+        </MotionDiv>
+
+        {/* z2 — Michela: scroll (drift+fade) › entrata › <picture> */}
+        <MotionDiv className="hero-michela" aria-hidden="true" style={scrub ? { y: michelaY, scale: michelaScale, opacity: michelaOpacity } : undefined}>
+          <MotionDiv className="hero-michela-enter" variants={michelaEnter} initial={fadeInitial} animate={animState}>
             <picture>
-              <source srcSet={imgAvif} type="image/avif" />
-              <source srcSet={imgWebp} type="image/webp" />
-              <img src={imgJpg} alt={imgAlt} className="hero-media" decoding="async" fetchPriority="high" />
+              <source srcSet={MICHELA.avif} type="image/avif" />
+              <source srcSet={MICHELA.webp} type="image/webp" />
+              <img src={MICHELA.png} alt={imgAlt} className="hero-michela-img" width={1200} height={1600} decoding="async" fetchPriority="high" draggable="false" />
             </picture>
-          </div>
+          </MotionDiv>
+        </MotionDiv>
 
-          {/* Vignettatura calda in alto */}
-          <div className="hero-overlay" aria-hidden="true" />
+        {/* z3 — colonna testo centrata: scroll (fade+rise) › entrata per figlio */}
+        <MotionDiv className="hero-content" style={scrub ? { opacity: contentOpacity, y: contentY } : undefined}>
+          <div className="hero-content-col">
+            <MotionDiv className="hero-eyebrow" variants={fadeUp} initial={fadeInitial} animate={animState} custom={0}>
+              <span className="hero-eyebrow-mark" aria-hidden="true">
+                ✦
+              </span>
+              {eyebrow}
+            </MotionDiv>
 
-          {/* Velo crema */}
-          <div className="hero-gradient-veil" aria-hidden="true" />
+            <MotionDiv className="hero-rule" aria-hidden="true" variants={ruleVar} initial={fadeInitial} animate={animState} />
 
-          {/* Aurora */}
-          <div className="hero-fx-layer hero-aurora" aria-hidden="true">
-            <span className="hero-aurora-blob hero-aurora-blob--1" />
-            <span className="hero-aurora-blob hero-aurora-blob--2" />
-            <span className="hero-aurora-blob hero-aurora-blob--3" />
-            <span className="hero-aurora-blob hero-aurora-blob--4" />
-            <span className="hero-aurora-blob hero-aurora-blob--5" />
-            <span className="hero-aurora-blob hero-aurora-blob--6" />
-            <span className="hero-aurora-blob hero-aurora-blob--7" />
-          </div>
-
-          {/* Polvere di luce — granelli d'oro che cadono dall'alto (canvas) */}
-          <canvas ref={dustRef} className="hero-fx-layer hero-dust" aria-hidden="true" />
-
-          {/* Shimmer del pannello */}
-          <div className="hero-fx-layer hero-shimmer" aria-hidden="true" />
-
-          {/* Sfumatura inferiore */}
-          <div className="hero-base-fade" aria-hidden="true" />
-
-          {/* Faretto morbido — valorizza Michela al centro */}
-          <div className="hero-spotlight" aria-hidden="true" />
-
-          {/* Contenuto */}
-          <Container fluid className="hero-inner">
-            <div className="hero-text-panel">
-              <MotionDiv className="hero-eyebrow" variants={fadeUp} initial={fadeInitial} animate={animState} custom={0}>
-                <span className="hero-eyebrow-mark" aria-hidden="true">
-                  ✦
-                </span>
-                {eyebrow}
-              </MotionDiv>
-
-              <div className="hero-rule" aria-hidden="true" />
-
-              {/* Titolo: h1 reale (split anime.js) + overlay sheen sopra.
-                  L'opacità del titolo NON è più pilotata da Framer: la possiede
-                  anime.js (reveal dei caratteri) + il pre-reveal del wrap. */}
-              <div className="hero-title-wrap" ref={titleWrapRef}>
-                <h1 ref={titleRef} className="hero-title">
-                  {titleLines.map((line, i) => (
-                    <Fragment key={i}>
-                      {i > 0 && <br />}
+            <div className="hero-title-wrap">
+              <h1 className="hero-title">
+                {titleLines.map((line, i) => (
+                  <span className="hero-title-line" key={i}>
+                    <MotionSpan className="hero-title-line-inner" variants={lineVar} initial={fadeInitial} animate={animState} custom={i}>
                       {line}
-                    </Fragment>
-                  ))}
-                </h1>
-                <span className="hero-title-sheen" aria-hidden="true">
-                  {titleLines.map((line, i) => (
-                    <Fragment key={i}>
-                      {i > 0 && <br />}
-                      {line}
-                    </Fragment>
-                  ))}
-                </span>
-              </div>
-
-              <MotionP className="hero-subtitle" variants={fadeUp} initial={fadeInitial} animate={animState} custom={1}>
-                {subtitle}
-              </MotionP>
-
-              <MotionDiv className="hero-cta-row" variants={fadeUp} initial={fadeInitial} animate={animState} custom={2}>
-                <Button as={Link} to={primaryCtaTo} className="hero-cta-primary" aria-label={`${primaryCtaLabel} — prenota un trattamento a Beauty Room`}>
-                  {primaryCtaLabel}
-                </Button>
-                <Button as={Link} to={secondaryCtaTo} className="hero-cta-secondary" aria-label={secondaryCtaLabel}>
-                  {secondaryCtaLabel}
-                </Button>
-              </MotionDiv>
-
-              <MotionDiv className="hero-hint" variants={fadeUp} initial={fadeInitial} animate={animState} custom={3}>
-                {hint}
-              </MotionDiv>
-
-              {/* Keywords statiche — visibili tablet+ */}
-              <MotionDiv className="hero-keywords" variants={fadeUp} initial={fadeInitial} animate={animState} custom={4}>
-                {KEYWORDS.map((k, i) => (
-                  <Fragment key={k}>
-                    {i > 0 && (
-                      <span className="hero-keywords-sep" aria-hidden="true">
-                        ✦
-                      </span>
-                    )}
-                    <span className="hero-keyword">{k}</span>
-                  </Fragment>
+                    </MotionSpan>
+                  </span>
                 ))}
-              </MotionDiv>
+              </h1>
+              <span className="hero-title-sheen" aria-hidden="true">
+                {titleLines.map((line, i) => (
+                  <span className="hero-title-line" key={i}>
+                    <span className="hero-title-line-inner">{line}</span>
+                  </span>
+                ))}
+              </span>
             </div>
-          </Container>
 
-          {/* Pill località — solo desktop */}
-          <div className="hero-location-pill" aria-hidden="true">
-            ✦ Calusco d'Adda · Bergamo
+            <MotionP className="hero-subtitle" variants={fadeUp} initial={fadeInitial} animate={animState} custom={2.6}>
+              {subtitle}
+            </MotionP>
+
+            {/* Una sola CTA per v1. Per riaggiungere una seconda CTA *distinta*
+                (NON un altro link a /trattamenti) reinserire qui un secondo
+                <Button> con classe .hero-cta-secondary. */}
+            <MotionDiv className="hero-cta-row" variants={fadeUp} initial={fadeInitial} animate={animState} custom={3.4}>
+              <Button as={Link} to={primaryCtaTo} className="hero-cta-primary" aria-label={`${primaryCtaLabel} — prenota un trattamento a Beauty Room`}>
+                {primaryCtaLabel}
+              </Button>
+            </MotionDiv>
+
+            {/* Social proof RIMOSSA dalla hero (libera una riga → Michela più grande).
+                Ripristino: riattiva la prop `hint` sopra + questo blocco.
+            <MotionDiv className="hero-hint" variants={fadeUp} initial={fadeInitial} animate={animState} custom={4.2}>
+              {hint}
+            </MotionDiv> */}
           </div>
-        </section>
+        </MotionDiv>
+
+        {/* indizio "scorri" — entrata (interno) e fade-scroll (esterno) su
+            elementi distinti: non confliggono sull'opacity */}
+        <MotionDiv className="hero-scrollhint" aria-hidden="true" style={scrub ? { opacity: hintOpacity } : undefined}>
+          <MotionDiv className="hero-scrollhint-enter" variants={fadeUp} initial={fadeInitial} animate={animState} custom={5.5}>
+            <span>scorri</span>
+            <span className="hero-scrollhint-arrow" />
+          </MotionDiv>
+        </MotionDiv>
+
+        {/* z4 — leading-edge oro › z5 — fiore scuro (clip-path da --cover) */}
+        <div className="hero-bloom-edge" aria-hidden="true" />
+        <div className="hero-bloom" aria-hidden="true" />
       </div>
     </div>
   );

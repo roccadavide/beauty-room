@@ -93,7 +93,10 @@ export default function LaserSection() {
   // (effetto risalita marcato), poi si assesta in posizione.
   const cardY = useTransform(scrollYProgress, [0, 1], [200, 0]);
   const cardScale = useTransform(scrollYProgress, [0, 1], [0.86, 1]);
-  const cardShadow = useTransform(scrollYProgress, [0.05, 0.85], ["0px 0px 0px 0px rgba(184, 151, 106, 0)", "0px -22px 60px -14px rgba(184, 151, 106, 0.4)"]);
+  // Seam-shadow: glow morbido verso il BASSO (non verso l'alto) → quando la
+  // card risale dal buio del seam non disegna il contorno superiore (niente
+  // "doppio contenitore"); radica la card sulla crema che rientra sotto.
+  const cardShadow = useTransform(scrollYProgress, [0.05, 0.85], ["0px 0px 0px 0px rgba(184, 151, 106, 0)", "0px 26px 60px -16px rgba(140, 109, 63, 0.4)"]);
 
   // Fascio laser: la lunghezza verticale cresce dal manipolo verso il
   // basso mentre scendi. Quantizzato per limitare i re-render di LaserFlow.

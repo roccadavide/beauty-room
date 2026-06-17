@@ -3,11 +3,29 @@
    ═══════════════════════════════════════════════════════════════ */
 
 .laser-section {
-  background: #fffdf8;
+  /* SEAM con la hero v1: la sezione parte SCURA (stesso #2f2723 di hero e
+     card) e sfuma a crema più in basso → la card "emerge dal buio" e la crema
+     rientra attorno alla sua metà inferiore. */
+  background: linear-gradient(to bottom, #2f2723 0%, #2f2723 40%, #fffdf8 66%);
+  /* OVERLAP: tiriamo la sezione SU dentro la coda scura della hero (ancora
+     pinnata e scura) → la card RISALE DAL BUIO durante lo scroll invece di
+     comparire nella crema a fine corsa. Scuro-su-scuro = nessun lampo crema.
+     ⟸ KNOB: tarare insieme a .hero-scene height (300svh) e al range --cover
+     in HeroSection.jsx (mapRange 0.06→0.88). Più negativo = emerge prima. */
+  margin-top: -42svh;
   padding-top: 0;
   padding-bottom: 28px;
   position: relative;
   z-index: 3;
+}
+
+/* Reduced-motion: niente reveal → LaserSection "calma" (crema piena, nessun
+   overlap con la hero statica). */
+@media (prefers-reduced-motion: reduce) {
+  .laser-section {
+    background: #fffdf8;
+    margin-top: 0;
+  }
 }
 
 /* Wrapper: entry animation via `translate` (proprietà CSS separata,
@@ -41,13 +59,18 @@
     position: relative;
     transform-origin: center bottom;
     border-radius: 24px 24px 0 0;
-    box-shadow: 0 -20px 56px -16px rgba(184, 151, 106, 0.32);
+    /* NIENTE alone oro verso l'ALTO: contro il buio del seam disegnava il
+       contorno della card = "doppio contenitore". Ombra morbida verso il
+       BASSO → radica sulla crema sotto, senza contornare il bordo superiore.
+       (fallback statico reduced-motion; in moto è pilotata da cardShadow in
+       LaserSection.jsx, anch'essa verso il basso.) */
+    box-shadow: 0 26px 60px -18px rgba(140, 109, 63, 0.3);
   }
 }
 
 /* ── Card base ── */
 .laser-card {
-  margin-top: 30px;
+  margin-top: 0; /* niente gap sopra la card → un solo bordo pulito, nessuna banda annidata nel seam (mobile ha già 0) */
   position: relative;
   overflow: hidden;
   border-radius: 24px;
@@ -84,8 +107,12 @@
 }
 
 .laser-card--dark {
+  /* NIENTE bordo chiaro: contro la banda scura del seam (#2f2723 identico)
+     disegnava il PERIMETRO della card = "doppio contenitore". Senza bordo il
+     top scuro della card si dissolve nel buio (angoli arrotondati scuro-su-
+     scuro = invisibili); più in basso, sulla crema, il bordo è definito dal
+     solo contrasto di colore + l'ombra morbida verso il basso. */
   background: #2f2723;
-  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 /* ── WebGL beam ── (la lunghezza è pilotata dallo scroll, vedi LaserSection.jsx) */
