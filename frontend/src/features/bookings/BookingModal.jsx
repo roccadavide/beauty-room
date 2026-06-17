@@ -66,6 +66,11 @@ export const BookingFlow = ({
   // Fix 13: size the slot grid + next-slot to the SELECTED OPTION's duration (mirrors the cart),
   // not the base service duration. Declared here so the next-slot hook below can key on it.
   const effectiveDuration = initialOption?.durationMin ?? service?.durationMin;
+  // A package (sessions > 1) is paid in full up front but books only session 1 online; the
+  // remaining (already-included) sessions are scheduled in-studio with Michela. So in the slot
+  // step a full slot is "Occupato" (non-bookable, no waitlist) and a first-session notice shows.
+  // Single services (sessions null/1) keep the existing waitlist behavior unchanged.
+  const isPackage = initialOption?.sessions > 1;
 
   const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } = useNextCombinedSlot(effectiveDuration);
   // Ref used to auto-select a slot after slots are loaded (set by NextSlotBanner → onSelect)
@@ -412,6 +417,11 @@ export const BookingFlow = ({
                     month: "long",
                   })}
                 </div>
+                {isPackage && (
+                  <p className="so-pkg-note">
+                    Stai fissando la prima seduta del pacchetto · Le altre, già incluse, le concordi direttamente con me
+                  </p>
+                )}
                 {loadingSlots && (
                   <div className="bm-loading">
                     <Spinner size="sm" animation="border" /> Carico slot…
@@ -427,21 +437,34 @@ export const BookingFlow = ({
                         <div className="bm-slots">
                           {bucket.map(s => {
                             const isOccupied = s.available === false;
+                            // Package flow: a full slot is non-bookable ("Occupato"), no waitlist —
+                            // mirrors MultiServiceBookingModal. Single services keep the waitlist below.
+                            const isPackageOccupied = isPackage && isOccupied;
+                            const occupiedTitle = isPackageOccupied
+                              ? "Slot occupato"
+                              : "Slot occupato — clicca per lista d'attesa";
                             return (
                               <button
                                 key={s.start}
                                 type="button"
                                 className={`bm-slot ${slot?.start === s.start ? "is-selected" : ""} ${isOccupied ? "bm-slot--occupied" : ""}`}
+                                disabled={isPackageOccupied}
                                 onClick={() => {
+                                  if (isPackageOccupied) return;
                                   if (isOccupied) setWaitlistSlot(s);
                                   else setSlot(s);
                                 }}
-                                title={isOccupied ? "Slot occupato — clicca per lista d'attesa" : undefined}
+                                title={isOccupied ? occupiedTitle : undefined}
                               >
                                 {isOccupied ? "🔒 " : ""}
                                 {s.start}
                                 <span className="bm-slot__end">– {s.end}</span>
-                                {isOccupied && <span className="bm-slot__waitlist-hint">Lista d'attesa</span>}
+                                {isOccupied &&
+                                  (isPackageOccupied ? (
+                                    <span className="bm-slot__occupied-hint">Occupato</span>
+                                  ) : (
+                                    <span className="bm-slot__waitlist-hint">Lista d'attesa</span>
+                                  ))}
                               </button>
                             );
                           })}
