@@ -49,14 +49,18 @@ public class CustomerService {
     // ══════════════════════════════════════════════════════════════════════
 
     /**
-     * Returns an existing Customer matched by phone or email, or creates a
-     * new one.  Called automatically on every admin booking creation so that
-     * bookings accumulate a customer history over time.
+     * Returns an existing Customer matched by phone, or creates a new one.
+     * Called automatically on every admin booking creation so that bookings
+     * accumulate a customer history over time.
      *
-     * Deduplication order:
-     *   1. phone  – most stable identifier for walk-in / recurring clients
-     *   2. email  – for registered/online customers (skip walk-in emails)
-     *   3. create – truly new or anonymous walk-in
+     * Deduplication is phone-only (on the normalized digits-only key):
+     *   1. phone  – the identity key; same phone ⇒ same customer
+     *   2. create – no phone match (or no phone at all)
+     *
+     * Email is still STORED but never matched on: two different people can
+     * share one email (e.g. a family address) yet a different phone means a
+     * different person. Matching on email merged them into a single record —
+     * that is the bug this phone-only rule closes.
      *
      * Race condition:
      *   If two requests race to create the same customer (same phone) the DB
@@ -73,7 +77,6 @@ public class CustomerService {
         String ph     = phone != null ? phone.trim() : null;   // human-readable display form (stored verbatim)
         String phNorm = PhoneNormalizer.normalize(ph);         // digits-only dedup key (null when no digits)
         String em     = email != null ? email.trim().toLowerCase() : null;
-        boolean realEmail = em != null && !em.contains(WALKIN_MARKER);
 
         // 1 ── phone lookup (on the digits-only normalized key, so "347 123 4567"
         //       and "3471234567" resolve to the same customer)
@@ -85,16 +88,8 @@ public class CustomerService {
             }
         }
 
-        // 2 ── email lookup (real emails only)
-        if (realEmail) {
-            Optional<Customer> byEmail = customerRepository.findByEmail(em);
-            if (byEmail.isPresent()) {
-                log.debug("Customer found by email [{}]: {}", em, byEmail.get().getCustomerId());
-                return byEmail.get();
-            }
-        }
-
-        // 3 ── create new (store both the display phone and its normalized key)
+        // 2 ── create new (store both the display phone and its normalized key,
+        //       plus the email — we keep storing it, we just don't match on it)
         return createNew(name, ph, phNorm, em, notes);
     }
 
@@ -111,14 +106,13 @@ public class CustomerService {
             return saved;
         } catch (DataIntegrityViolationException ex) {
             // Race condition: another thread already inserted this phone.
-            // Retry the read on the SAME normalized key the unique index guards.
             log.warn("DataIntegrityViolation on customer insert (likely race on phoneNormalized={}), retrying read.", phoneNormalized);
+            // Phone-only: re-read on the SAME normalized key the unique index guards.
+            // The violation can only have come from an existing row with this phone,
+            // so this re-read resolves it. We must NOT fall back to an email match
+            // here, or a phone collision could resolve to a stranger sharing the email.
             if (phoneNormalized != null) {
                 Optional<Customer> retry = customerRepository.findByPhoneNormalized(phoneNormalized);
-                if (retry.isPresent()) return retry.get();
-            }
-            if (email != null && !email.contains(WALKIN_MARKER)) {
-                Optional<Customer> retry = customerRepository.findByEmail(email);
                 if (retry.isPresent()) return retry.get();
             }
             // If we still can't find it, re-throw so the caller is aware.
