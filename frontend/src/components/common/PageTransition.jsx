@@ -14,19 +14,16 @@ export default function PageTransition({ children, routeKey }) {
         opacity: 0,
         y: reduce ? 0 : 40,
         scale: reduce ? 1 : 0.98,
-        filter: "blur(10px)",
       }}
       animate={{
         opacity: 1,
         y: 0,
         scale: 1,
-        filter: "blur(0px)",
       }}
       exit={{
         opacity: 0,
         y: reduce ? 0 : -30,
         scale: reduce ? 1 : 0.985,
-        filter: "blur(10px)",
       }}
       transition={{
         duration: 0.9,
@@ -39,7 +36,7 @@ export default function PageTransition({ children, routeKey }) {
         document.body.style.overflow = "";
       }}
       style={{
-        willChange: "opacity, transform, filter",
+        willChange: "opacity, transform",
         transformOrigin: "center center",
       }}
     >
