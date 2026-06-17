@@ -17,6 +17,7 @@ import daviderocca.beautyroom.packages.ClientPackageAssignmentRepository;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.CustomerRepository;
 import daviderocca.beautyroom.repositories.PackageCreditRepository;
+import daviderocca.beautyroom.util.PhoneNormalizer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,14 +69,16 @@ public class CustomerService {
             throw new BadRequestException("Nome cliente obbligatorio.");
         }
 
-        String name  = fullName.trim();
-        String ph    = phone != null ? phone.trim() : null;
-        String em    = email != null ? email.trim().toLowerCase() : null;
+        String name   = fullName.trim();
+        String ph     = phone != null ? phone.trim() : null;   // human-readable display form (stored verbatim)
+        String phNorm = PhoneNormalizer.normalize(ph);         // digits-only dedup key (null when no digits)
+        String em     = email != null ? email.trim().toLowerCase() : null;
         boolean realEmail = em != null && !em.contains(WALKIN_MARKER);
 
-        // 1 ── phone lookup
-        if (ph != null && !ph.isBlank()) {
-            Optional<Customer> byPhone = customerRepository.findByPhone(ph);
+        // 1 ── phone lookup (on the digits-only normalized key, so "347 123 4567"
+        //       and "3471234567" resolve to the same customer)
+        if (phNorm != null) {
+            Optional<Customer> byPhone = customerRepository.findByPhoneNormalized(phNorm);
             if (byPhone.isPresent()) {
                 log.debug("Customer found by phone [{}]: {}", ph, byPhone.get().getCustomerId());
                 return byPhone.get();
@@ -91,15 +94,16 @@ public class CustomerService {
             }
         }
 
-        // 3 ── create new
-        return createNew(name, ph, em, notes);
+        // 3 ── create new (store both the display phone and its normalized key)
+        return createNew(name, ph, phNorm, em, notes);
     }
 
-    private Customer createNew(String fullName, String phone, String email, String notes) {
+    private Customer createNew(String fullName, String phone, String phoneNormalized, String email, String notes) {
         try {
             Customer c = new Customer();
             c.setFullName(fullName);
-            c.setPhone(phone);
+            c.setPhone(phone);                     // human-readable display form, stored verbatim
+            c.setPhoneNormalized(phoneNormalized); // digits-only dedup key (drives ux_customer_phone)
             c.setEmail(email);
             c.setNotes(notes);
             Customer saved = customerRepository.save(c);
@@ -107,10 +111,10 @@ public class CustomerService {
             return saved;
         } catch (DataIntegrityViolationException ex) {
             // Race condition: another thread already inserted this phone.
-            // Retry the read rather than propagating the constraint error.
-            log.warn("DataIntegrityViolation on customer insert (likely race on phone={}), retrying read.", phone);
-            if (phone != null) {
-                Optional<Customer> retry = customerRepository.findByPhone(phone);
+            // Retry the read on the SAME normalized key the unique index guards.
+            log.warn("DataIntegrityViolation on customer insert (likely race on phoneNormalized={}), retrying read.", phoneNormalized);
+            if (phoneNormalized != null) {
+                Optional<Customer> retry = customerRepository.findByPhoneNormalized(phoneNormalized);
                 if (retry.isPresent()) return retry.get();
             }
             if (email != null && !email.contains(WALKIN_MARKER)) {
@@ -383,7 +387,9 @@ public class CustomerService {
             c.setFullName(payload.fullName().trim());
         }
         if (payload.phone() != null) {
-            c.setPhone(payload.phone().isBlank() ? null : payload.phone().trim());
+            String displayPhone = payload.phone().isBlank() ? null : payload.phone().trim();
+            c.setPhone(displayPhone);                                     // keep human-readable display
+            c.setPhoneNormalized(PhoneNormalizer.normalize(displayPhone)); // refresh dedup key
         }
         if (payload.email() != null) {
             c.setEmail(payload.email().isBlank() ? null : payload.email().trim().toLowerCase());

@@ -21,8 +21,10 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
         """)
     List<Customer> searchByQuery(@Param("q") String q, Pageable pageable);
 
-    /** Used as primary deduplication key during findOrCreate. */
-    Optional<Customer> findByPhone(String phone);
+    /** Primary deduplication key during findOrCreate — matches on the digits-only
+     *  normalized key (see {@code PhoneNormalizer}), so the same number with
+     *  different spacing resolves to ONE customer. */
+    Optional<Customer> findByPhoneNormalized(String phoneNormalized);
 
     /** Secondary deduplication key for registered (non-walk-in) customers. */
     Optional<Customer> findByEmail(String email);
