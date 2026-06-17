@@ -607,6 +607,71 @@ class BookingServiceTest {
         verify(productRepository, times(1)).save(any(Product.class));
     }
 
+    // =========================================================================
+    // P29: hardDeleteBooking gives the online PackageCredit session back before the row
+    // is deleted — EXCEPT when the booking is COMPLETED (the session was genuinely
+    // performed, so it must not be gifted back). PackageCreditService is a @Mock here, so
+    // these assert the call-site guard added in this commit (restore invoked iff
+    // packageCredit != null && status != COMPLETED). The +1 arithmetic + idempotency live
+    // in PackageCreditService and are covered by PackageCreditServiceTest.
+    // =========================================================================
+    @Test
+    @DisplayName("P29: hard-delete of a non-COMPLETED package booking restores the credit session BEFORE the row delete")
+    void hardDeleteBooking_nonCompletedPackage_restoresCreditBeforeDelete() {
+        UUID bookingId = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        // session 2..N of an online package: not COMPLETED, no stripeSessionId → refund guard passes
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setPackageCredit(new PackageCredit());
+        booking.setCreditTrackedAtCreation(true); // holds the decrement taken at booking time
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of());
+        when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId)).thenReturn(List.of());
+        when(bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId)).thenReturn(List.of());
+        Query delQuery = mock(Query.class);
+        when(entityManager.createQuery(anyString())).thenReturn(delQuery);
+        when(delQuery.setParameter(anyString(), any())).thenReturn(delQuery);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
+
+        bookingService.hardDeleteBooking(bookingId, adminUser());
+
+        // Reuses the existing restore fn, and the +1 MUST precede the row delete (it is flushed
+        // before the entityManager.clear() inside hardDeleteBooking — see the ORDERING note there).
+        InOrder inOrder = inOrder(packageCreditService, bookingRepository);
+        inOrder.verify(packageCreditService).restoreSessionForBooking(booking);
+        inOrder.verify(bookingRepository).deleteById(bookingId);
+    }
+
+    @Test
+    @DisplayName("P29: hard-delete of a COMPLETED package booking does NOT restore the consumed session")
+    void hardDeleteBooking_completedPackage_doesNotRestoreCredit() {
+        UUID bookingId = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        // performed session: COMPLETED → excluded from restore (no stripeSessionId → guard passes)
+        booking.setBookingStatus(BookingStatus.COMPLETED);
+        booking.setPackageCredit(new PackageCredit());
+        booking.setCreditTrackedAtCreation(true);
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of());
+        when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId)).thenReturn(List.of());
+        when(bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId)).thenReturn(List.of());
+        Query delQuery = mock(Query.class);
+        when(entityManager.createQuery(anyString())).thenReturn(delQuery);
+        when(delQuery.setParameter(anyString(), any())).thenReturn(delQuery);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
+
+        bookingService.hardDeleteBooking(bookingId, adminUser());
+
+        verify(packageCreditService, never()).restoreSessionForBooking(any());
+        verify(bookingRepository).deleteById(bookingId); // still deleted, just no +1
+    }
+
     private static User adminUser() {
         User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
         admin.setRole(Role.ADMIN);

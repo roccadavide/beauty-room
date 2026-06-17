@@ -1447,6 +1447,23 @@ public class BookingService {
             );
         }
 
+        // V72: a non-COMPLETED package-backed booking still holds a prepaid session against its
+        // online PackageCredit. Deleting the row without giving the session back leaves
+        // sessions_remaining permanently decremented → a PAID session is lost. Mirror the detach
+        // (updateMultiServiceBooking) and cancel (updateBookingStatus boundary) restore: reuse the
+        // existing, flag-guarded restoreSessionForBooking — never hand-roll sessions_remaining.
+        // COMPLETED is excluded: the consume/restore model treats a performed session as genuinely
+        // consumed (flag still TRUE through COMPLETED), so restoring it here would gift back a paid
+        // session. restoreSessionForBooking is null-safe (no-op for single-service / in-person) and
+        // idempotent, so the COMPLETED exclusion is the only guard needed at this call site.
+        // ORDERING: must run BEFORE the entityManager.flush() below — restoreSessionForBooking does
+        // packageCreditRepository.save(pc) (the +1); the entityManager.clear() further down would
+        // discard it if still un-flushed. Running here lets that flush() persist the +1 so it
+        // survives clear(). found.getPackageCredit() is still readable (no detach happens above).
+        if (found.getPackageCredit() != null && found.getBookingStatus() != BookingStatus.COMPLETED) {
+            packageCreditService.restoreSessionForBooking(found);
+        }
+
         // 08.2: restore promo-product stock only while the booking is still "held"
         // (PENDING_PAYMENT / CONFIRMED); COMPLETED/NO_SHOW keep stock decremented. Then purge
         // promo artifacts — sales FIRST (booking_sales.promotion_link_id is ON DELETE SET NULL).
