@@ -2014,7 +2014,14 @@ public class BookingService {
                 // Only null the primary service when the payload itself carries no catalog
                 // service — with catalog services present, the primary FK is correctly the
                 // first catalog service (set in the hasCatalog branch above).
-                if (!hasCatalog) {
+                // ALSO skip when the booking holds an ONLINE package (package_credit_id != null):
+                // that booking has no BookingPackageLink so it reaches here as "link-less", and its
+                // edit payload sends an empty catalog set (the drawer represents the online package
+                // as a package card, not a catalog row) → hasCatalog == false. Without this clause
+                // the cleanup would null the legitimate package service. This runs BEFORE the
+                // online attach/detach reconcile below, so getPackageCredit() is still set in both
+                // the plain-edit and detach cases — preserving the service for both.
+                if (!hasCatalog && found.getPackageCredit() == null) {
                     if (found.getService() != null)       { found.setService(null);       clearedAnything = true; }
                     if (found.getServiceOption() != null) { found.setServiceOption(null); clearedAnything = true; }
                 }
@@ -2024,6 +2031,47 @@ public class BookingService {
                             bookingId, hasCatalog ? "" : " + dangling primary service/option");
                 }
             }
+        }
+
+        // ── Online package (PackageCredit) attach/detach reconcile ─────────────────────
+        // The in-person reconcile above handles ClientPackageAssignment links; the booking's
+        // single ONLINE package lives on the package_credit_id FK and was previously ignored
+        // here, so an edit could neither attach nor detach it. dto.packageCreditId() is the
+        // DESIRED state (null = no online package). Money never moves: the package is prepaid in
+        // full and sessionsRemaining is only a tally of not-yet-booked sessions. We go THROUGH
+        // the credit's own consume/restore functions (never hand-rolling sessionsRemaining) so
+        // the credit_tracked_at_creation idempotency flag — the double-restore backstop — stays
+        // correct. Mirrors create CASE D (set FK + consume) and the cancel/no-show restore in
+        // updateBookingStatus.
+        UUID currentCreditId = found.getPackageCredit() != null
+                ? found.getPackageCredit().getPackageCreditId()
+                : null;
+        UUID requestedCreditId = dto.packageCreditId();
+        if (!java.util.Objects.equals(currentCreditId, requestedCreditId)) {
+            // DETACH old (plain detach, or the detach half of a change):
+            // restore BEFORE nulling the FK. restoreSessionForBooking reads the credit off
+            // found.getPackageCredit() and only gives the session back while the flag is TRUE;
+            // null the FK first and the +1 silently no-ops, permanently losing the session.
+            if (currentCreditId != null) {
+                packageCreditService.restoreSessionForBooking(found);
+                found.setPackageCredit(null);
+            }
+            // ATTACH new (plain attach, or the attach half of a change):
+            // set the FK BEFORE consuming. consumeSessionForBooking reads the credit off
+            // found.getPackageCredit(), decrements −1 and flips the flag TRUE (idempotent).
+            if (requestedCreditId != null) {
+                found.setPackageCredit(packageCreditService.findById(requestedCreditId));
+                packageCreditService.consumeSessionForBooking(found);
+            }
+            // Persist the FK + flag change via the caller's save (same as the other
+            // consume/restore call sites). No session-counter / primary-service clearing here:
+            // online CASE D never echoes those onto the booking, and the in-person
+            // post-reconcile cleanup above already owns currentSession/totalSessions when no
+            // in-person link remains. Service / time / slot are intentionally left untouched —
+            // the appointment becomes a normal, still-paid booking.
+            updated = bookingRepository.save(found);
+            log.info("updateMultiServiceBooking: online package reconciled for bookingId={} credit {} -> {}",
+                    bookingId, currentCreditId, requestedCreditId);
         }
 
         // ── 08.2b: reconcile promotions (N → M) — mirrors the package reconcile above ──

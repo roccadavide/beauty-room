@@ -271,6 +271,38 @@ class PackageCreditServiceTest {
     }
 
     // =========================================================================
+    // TC-V72b: idempotenza lato RESTORE — il secondo restore (es. il cancel/no-show che
+    // segue il detach del pacchetto online in edit) NON restituisce una seconda seduta.
+    // Dopo il primo restore il flag torna false: è il backstop anti doppio-restore su cui
+    // si appoggia il detach in BookingService.updateMultiServiceBooking. Qui l'FK resta
+    // valorizzato per esercitare il guardiano del flag in isolamento (nel detach reale l'FK
+    // viene anche annullato dopo il restore, aggiungendo la guardia packageCredit == null).
+    // =========================================================================
+    @Test
+    @DisplayName("TC-V72b: restoreSessionForBooking — idempotente: il secondo restore è no-op (flag guard)")
+    void restoreSessionForBooking_isIdempotent_secondRestoreIsNoOp() {
+        PackageCredit pc = buildActivePackage(2, LocalDateTime.now().plusMonths(12));
+        UUID pcId = pc.getPackageCreditId();
+
+        Booking booking = new Booking();
+        booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // la booking tiene un decremento (consumato alla creazione)
+
+        when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
+        when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Primo restore (il detach): 2 → 3 e il flag torna false.
+        service.restoreSessionForBooking(booking);
+        assertThat(pc.getSessionsRemaining()).isEqualTo(3);
+        assertThat(booking.isCreditTrackedAtCreation()).isFalse();
+
+        // Secondo restore (il cancel che segue): il flag false blocca tutto → resta 3, nessun save extra.
+        service.restoreSessionForBooking(booking);
+        assertThat(pc.getSessionsRemaining()).isEqualTo(3);
+        verify(repo, times(1)).save(any());
+    }
+
+    // =========================================================================
     // TC-EXPIRED-GRACE: EXPIRED ma booking creata prima della expiry → consumo permesso
     // =========================================================================
     @Test
