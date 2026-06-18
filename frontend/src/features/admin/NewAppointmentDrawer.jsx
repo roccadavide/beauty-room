@@ -33,7 +33,9 @@ const isWalkInEmail = e => !e || e.includes(WALKIN_MARKER);
 const deriveCustomer = b => {
   const has = b != null;
   return {
-    customerId: null,
+    // Symptom 3: carry the booking's customer FK so EDIT mode can fetch the customer's
+    // online credits. Null in NEW mode (b == null) and for legacy bookings without the FK.
+    customerId: has ? (b.customerId ?? null) : null,
     fullName: has ? b.customerName || "" : "",
     phone: has ? b.customerPhone || "" : "",
     email: has && b.customerEmail && !isWalkInEmail(b.customerEmail) ? b.customerEmail : "",
@@ -1004,6 +1006,29 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         }
       }
       (async () => {
+        // Symptom 3: when the booking carries its customer FK (customerId), fetch THAT customer's
+        // ACTIVE online credits via the same /active-packages call NEW mode makes, and surface ALL
+        // of them — not just the booking's own — so Michela can re-point the booking to another
+        // prepaid credit. ONLINE rows are kept in their raw UnifiedActivePackageDTO shape, exactly
+        // as the NEW-mode [customerId] effect leaves them (for ONLINE its map is a passthrough).
+        // The booking's OWN credit is force-included even if exhausted (the endpoint returns ACTIVE
+        // only) via the frozen onlineRows fallback, and de-duped by credit id (= the unified ONLINE
+        // entry's `id`, which equals packageCreditId — CustomerController.activePackages). FK null
+        // (legacy / edit-only bookings) or a failed fetch → frozen-own-credit only (today's
+        // behaviour). No auto-selection: selection stays seeded from editBooking.packageCreditId.
+        let onlineRowsFinal = onlineRows;
+        if (isEditMode && editBooking.customerId != null) {
+          try {
+            const unified = await getActivePackages(editBooking.customerId);
+            const fetchedOnline = (unified || []).filter(p => p.status === "ACTIVE" && p.source === "ONLINE");
+            const ownInFetched = editBooking.packageCreditId != null
+              && fetchedOnline.some(p => String(p.id) === String(editBooking.packageCreditId));
+            onlineRowsFinal = ownInFetched ? fetchedOnline : [...onlineRows, ...fetchedOnline];
+          } catch (err) {
+            console.error("Edit-mode online-credit fetch failed (non-blocking):", err);
+            // Keep the frozen-own-credit fallback (onlineRowsFinal already = onlineRows).
+          }
+        }
         try {
           const pkgs = await getClientPackageAssignmentsByName(editBooking.customerName);
           const active = (pkgs || []).filter(p => p.status === "ACTIVE" && p.sessionsRemaining > 0);
@@ -1013,11 +1038,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           // Drop any frozen ADMIN row that is already a live ACTIVE card (no duplicate id).
           const activeIds = new Set(active.map(p => String(p.id)));
           const frozenAdmin = adminFrozenRows.filter(r => !activeIds.has(String(r.id)));
-          setActivePackages([...active.map(p => ({ ...p, source: "ADMIN" })), ...frozenAdmin, ...onlineRows]);
+          setActivePackages([...active.map(p => ({ ...p, source: "ADMIN" })), ...frozenAdmin, ...onlineRowsFinal]);
         } catch (err) {
           console.error("Edit-mode package pre-fetch failed (non-blocking):", err);
           // Fetch failed → no live list to dedupe against; surface every frozen row.
-          setActivePackages([...adminFrozenRows, ...onlineRows]);
+          setActivePackages([...adminFrozenRows, ...onlineRowsFinal]);
         }
       })();
     }

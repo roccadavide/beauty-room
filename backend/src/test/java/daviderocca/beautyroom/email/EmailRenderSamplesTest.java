@@ -385,7 +385,7 @@ class EmailRenderSamplesTest {
         cfg.apply(c);
         return new AdminBookingCardDTO(
                 UUID.randomUUID(), c.start, c.end, BookingStatus.CONFIRMED,
-                c.name, "+39 333 1234567", c.email,
+                c.name, "+39 333 1234567", c.email, null /* customerId */,
                 c.serviceTitle, null, c.optionName, null, null, c.optionPrice, null,
                 c.packageCreditId, c.sessionsRemaining, c.sessionsTotal, null,
                 c.paidOnline ? "cs_test_123" : null, 0,

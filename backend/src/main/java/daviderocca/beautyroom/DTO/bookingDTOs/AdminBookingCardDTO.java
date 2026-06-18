@@ -16,6 +16,10 @@ public record AdminBookingCardDTO(
         String customerName,
         String customerPhone,
         String customerEmail,
+        // Symptom 3: the booking's customer FK (Booking.customer.customerId). Surfaced so EDIT
+        // mode can fetch the customer's online package credits via the same /active-packages call
+        // NEW mode makes. Null for legacy bookings predating the FK (or whose update path never set it).
+        UUID customerId,
         String serviceTitle,
         UUID serviceId,
         String optionName,

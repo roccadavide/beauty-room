@@ -3255,6 +3255,7 @@ public class BookingService {
                 b.getCustomerName(),
                 b.getCustomerPhone(),
                 b.getCustomerEmail(),
+                b.getCustomer() != null ? b.getCustomer().getCustomerId() : null,
                 serviceTitle,
                 serviceId,
                 b.getServiceOption() != null ? b.getServiceOption().getName() : null,
