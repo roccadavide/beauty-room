@@ -92,6 +92,14 @@
     position: absolute;
     inset: 0;
     z-index: 2;
+    /* Centra la card NELL'AREA SOTTO la navbar fissa (non nel viewport pieno):
+       padding-top = altezza navbar live (75px scrolled / 115px top, da
+       _global.css --nav-current). Con align-items:center la card resta centrata
+       nello spazio visibile in ogni stato (emersione e assestata, buio e crema).
+       box-sizing:border-box (reset globale) → il box resta 100svh, si riduce solo
+       l'area-contenuto. Lo stage NON si tocca (top:0/height:100svh) → il buio
+       continua a coprire l'intero viewport, continuo con la hero. */
+    padding-top: var(--nav-current);
   }
 }
 

@@ -42,7 +42,7 @@ body.nav-scrolled {
 }
 
 main {
-  padding-top: var(--nav-current);
+  padding-top: var(--nav-current) + 50px;
   transition: padding-top 180ms ease;
   overflow-x: clip;
   width: 100%;

@@ -369,7 +369,12 @@
   inset: 0;
   z-index: 5;
   pointer-events: none;
-  background: radial-gradient(140% 120% at 50% 100%, #3a302a 0%, #2f2723 55%, #1e1814 100%);
+  /* Tinta UNIFORME #2f2723 = identica a .laser-stage e .laser-card--dark:
+     l'apertura scura della hero e lo stage laser sono lo STESSO piano → niente
+     stria al seam e niente shift di marrone durante lo scroll (il radiale di
+     prima variava la tinta col crescere della clip-path). Il calore "orizzonte"
+     resta affidato a .hero-bloom-edge (bordo oro), che NON si tocca. */
+  background: #2f2723;
   clip-path: ellipse(140% var(--cover) at 50% 100%);
 }
 
@@ -403,7 +408,7 @@
 ================================================ */
 @media (min-width: 1024px) {
   .hero-scene {
-    --michela-w: min(40vw, 640px);
+    --michela-w: min(40vw, 620px);
     --michela-bottom: -28svh;
     --content-pt: clamp(112px, 13svh, 168px);
   }
