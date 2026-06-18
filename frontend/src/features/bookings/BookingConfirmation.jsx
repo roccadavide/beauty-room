@@ -431,14 +431,17 @@ export default function BookingConfirmation() {
                         </div>
                       )}
                       <div>
-                        <div className="conf-service-name">{service?.title || b?.serviceId || "–"}{b?.serviceOptionName ? ` · ${b.serviceOptionName}` : ""}</div>
-                        {service?.durationMin != null && service?.price != null && (
+                        <div className="conf-service-name">{b?.serviceTitle || service?.title || "–"}{b?.serviceOptionName ? ` · ${b.serviceOptionName}` : ""}</div>
+                        {(service?.durationMin != null || summary?.amountPaidCents != null) && (
                           <div className="conf-service-meta">
-                            {service.durationMin} min ·{" "}
-                            {service.price.toLocaleString("it-IT", {
-                              style: "currency",
-                              currency: "EUR",
-                            })}
+                            {service?.durationMin != null ? `${service.durationMin} min` : ""}
+                            {service?.durationMin != null && summary?.amountPaidCents != null ? " · " : ""}
+                            {summary?.amountPaidCents != null
+                              ? (summary.amountPaidCents / 100).toLocaleString("it-IT", {
+                                  style: "currency",
+                                  currency: "EUR",
+                                })
+                              : ""}
                           </div>
                         )}
                       </div>
