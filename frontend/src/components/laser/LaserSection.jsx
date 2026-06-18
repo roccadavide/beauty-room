@@ -1,7 +1,7 @@
 import LaserFlow from "./LaserFlow";
 import { Button, Container } from "react-bootstrap";
 import { motion, useReducedMotion, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 const MotionDiv = motion.div;
@@ -81,43 +81,52 @@ export default function LaserSection() {
     if (reduce) setBeamLen(BEAM_LEN_MAX);
   }, [reduce]);
 
-  /* ── Scroll della sezione — pilota l'ingresso della card e la
-     crescita del fascio. offset: progress 0 = bordo alto al fondo
-     viewport; progress 1 = bordo alto al 16% dell'altezza viewport. */
+  /* ── Scroll della scena.
+     DESKTOP (≥726px) = SCENA PINNATA (mirror della hero): offset start start →
+       end end → progress 0 = top sezione al top viewport (lo stage si pinna),
+       progress 1 = bottom sezione al bottom viewport (lo stage si spinna).
+     MOBILE (<726px) = sezione IN-FLOW e CORTA (più bassa del viewport): con
+       start start/end end il range si invertirebbe → tengo l'offset storico
+       start end / start 16% che pilota il reveal mentre la sezione sale.
+     useMemo: array stabile, cambia solo al flip del breakpoint (no churn). */
+  const scrollOffset = useMemo(() => (isMobile ? ["start end", "start 16%"] : ["start start", "end end"]), [isMobile]);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
-    offset: ["start end", "start 16%"],
+    offset: scrollOffset,
   });
 
-  // La card "sale a salutarti": parte più in basso e più piccola
-  // (effetto risalita marcato), poi si assesta in posizione.
-  const cardY = useTransform(scrollYProgress, [0, 1], [200, 0]);
-  const cardScale = useTransform(scrollYProgress, [0, 1], [0.86, 1]);
-  // Seam-shadow: glow morbido verso il BASSO (non verso l'alto) → quando la
-  // card risale dal buio del seam non disegna il contorno superiore (niente
-  // "doppio contenitore"); radica la card sulla crema che rientra sotto.
-  const cardShadow = useTransform(scrollYProgress, [0.05, 0.85], ["0px 0px 0px 0px rgba(184, 151, 106, 0)", "0px 26px 60px -16px rgba(140, 109, 63, 0.4)"]);
+  // La card EMERGE dal buio IN POSIZIONE (centro viewport): sale di poco
+  // (90px, non 200 → niente "scroll dal basso"), scala e si rivela in opacità.
+  // Mirror del preview .laser-emerge (translateY 90→0, scale 0.86→1, opacity
+  // 0→1). La centratura è del LAYOUT (Container flex assoluto), NON un transform
+  // → Framer possiede liberamente y/scale/opacity (lezione Michela).
+  const cardY = useTransform(scrollYProgress, [0.08, 0.45], [90, 0]);
+  const cardScale = useTransform(scrollYProgress, [0.08, 0.45], [0.86, 1]);
+  const cardOpacity = useTransform(scrollYProgress, [0.08, 0.4], [0, 1]);
+  // Ombra morbida verso il BASSO: cresce con l'emersione e radica la card sulla
+  // crema che rientra dietro. (fallback statico per reduced-motion in CSS.)
+  const cardShadow = useTransform(scrollYProgress, [0.1, 0.6], ["0px 0px 0px 0px rgba(184, 151, 106, 0)", "0px 26px 60px -16px rgba(140, 109, 63, 0.4)"]);
 
-  // La crema rientra DIETRO la card → il buio della sezione RECEDE (parità col
-  // preview). Port di creamReturn da hero-v1-preview-handoff.html.
-  // KNOB: allarga/sposta questo range per far rientrare la crema prima/dopo.
-  // Deve iniziare DOPO che la card ha cominciato a emergere, così SI VEDE prima
-  // emergere dal buio. (Coupled: .laser-section margin-top, hero .hero-scene
-  // height + --cover. Il buio dev'essere pieno quando la card entra, poi recede.)
-  const creamReturn = useTransform(scrollYProgress, [0.35, 0.8], [0, 1]);
+  // La crema rientra DIETRO la card (z1 < container z2) → il buio dello stage
+  // RECEDE (parità col preview). Inizia DOPO che la card si è assestata (0.45),
+  // così la vedi prima EMERGERE dal buio, poi la crema entra dietro di lei.
+  // KNOB coupled: overlap .laser-section margin-top + range emersione sopra.
+  const creamReturn = useTransform(scrollYProgress, [0.45, 0.85], [0, 1]);
 
-  // Fascio laser: la lunghezza verticale cresce dal manipolo verso il
-  // basso mentre scendi. Quantizzato per limitare i re-render di LaserFlow.
+  // Fascio laser: la lunghezza cresce mentre la card EMERGE (range allineato a
+  // cardY/scale: 0.08→0.5), poi resta pieno. Quantizzato per limitare i
+  // re-render di LaserFlow.
   useMotionValueEvent(scrollYProgress, "change", v => {
     if (reduce) return;
-    const raw = BEAM_LEN_MIN + clamp(v, 0, 1) * (BEAM_LEN_MAX - BEAM_LEN_MIN);
+    const t = clamp((v - 0.08) / (0.5 - 0.08), 0, 1);
+    const raw = BEAM_LEN_MIN + t * (BEAM_LEN_MAX - BEAM_LEN_MIN);
     const q = Math.round(raw / BEAM_LEN_STEP) * BEAM_LEN_STEP;
     setBeamLen(prev => (Math.abs(prev - q) > 1e-4 ? q : prev));
   });
 
   // Scena scroll attiva solo su desktop/tablet con animazioni consentite.
   const sceneActive = !reduce && !isMobile;
-  const cardStyle = sceneActive ? { y: cardY, scale: cardScale, boxShadow: cardShadow } : {};
+  const cardStyle = sceneActive ? { y: cardY, scale: cardScale, opacity: cardOpacity, boxShadow: cardShadow } : {};
 
   // Entry animation del CONTENUTO INTERNO — osserva il wrapper.
   // (Movimento del wrapper = solo Framer; questo IO tocca solo i figli.)
@@ -164,14 +173,19 @@ export default function LaserSection() {
 
   return (
     <section ref={sectionRef} className="laser-section">
-      {/* Velo crema: rientra DIETRO la card (z-index 1 < container z-index 2)
-          → il buio della sezione recede mentre scendi. Gate su !reduce (NON
-          sceneActive) così il reveal gira anche su mobile: scrollYProgress è
-          vivo a prescindere da isMobile. Una semplice opacity su un div pieno
-          separato non ha transform/canvas/border-radius → niente fringing Safari
-          come quello che gatava i transform della card. Port di .cream-return. */}
-      <MotionDiv className="laser-cream-return" aria-hidden="true" style={!reduce ? { opacity: creamReturn } : undefined} />
-      <Container className="d-flex justify-content-center align-items-center">
+      {/* SCENA PINNATA (≥726px): lo stage sticky scuro (#2f2723) è il "buio" da
+          cui la card emerge — continuo col fondo-buio di fine hero, nessun bordo.
+          Su mobile (<726px) lo stage è display:contents → la card resta IN-FLOW
+          (path mobile intatto). */}
+      <div className="laser-stage">
+        {/* Velo crema: rientra DIETRO la card (z-index 1 < container z-index 2)
+            → il buio dello stage recede mentre scendi. Gate su !reduce (NON
+            sceneActive) così il reveal gira anche su mobile: scrollYProgress è
+            vivo a prescindere da isMobile. Una semplice opacity su un div pieno
+            separato non ha transform/canvas/border-radius → niente fringing Safari
+            come quello che gatava i transform della card. Port di .cream-return. */}
+        <MotionDiv className="laser-cream-return" aria-hidden="true" style={!reduce ? { opacity: creamReturn } : undefined} />
+        <Container className="d-flex justify-content-center align-items-center">
         <MotionDiv ref={cardRef} className="laser-card-wrapper" style={cardStyle}>
           <div className="laser-card laser-card--dark">
             {/* WebGL beam — montato in differita; la lunghezza cresce con lo scroll */}
@@ -277,7 +291,8 @@ export default function LaserSection() {
             <div className="laser-overlay" aria-hidden="true" />
           </div>
         </MotionDiv>
-      </Container>
+        </Container>
+      </div>
     </section>
   );
 }

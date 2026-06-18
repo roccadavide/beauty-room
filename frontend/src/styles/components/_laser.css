@@ -3,19 +3,17 @@
    ═══════════════════════════════════════════════════════════════ */
 
 .laser-section {
-  /* SEAM con la hero v1: la sezione parte SCURA (stesso #2f2723 di hero e
-     card). NON è più un gradiente statico — quello restava metà-buio/metà-crema
-     a OGNI scroll (transizione SPAZIALE che non recede mai). Ora è una base
-     SCURA SOLIDA su cui la crema rientra NEL TEMPO via .laser-cream-return
-     (opacità pilotata dallo scroll) → la card "emerge dal buio" e la crema
-     RIENTRA dietro di lei. Port del meccanismo .cream-return del preview
-     approvato (design-reference/hero-v1-preview-handoff.html). */
+  /* SEAM con la hero v1. La card EMERGE in una SCENA PINNATA (mirror della hero
+     e del preview hero-v1-preview-handoff.html): è lo STAGE sticky a essere
+     scuro (#2f2723, identico al fondo-buio di fine hero) → nessun bordo/stria
+     al confine, nessuna "doppia sezione". Mobile (<726px): nessun pin, lo stage
+     è display:contents e la card resta IN-FLOW (path mobile intatto); il velo
+     .laser-cream-return fa rientrare la crema nel tempo.
+     Il fondo della SEZIONE è scuro per il path mobile; su DESKTOP diventa CREMA
+     (@media ≥726px) così la coda sotto lo stage — dopo che la card si assesta e
+     lo stage si spinna — è crema continua verso la sezione successiva. */
   background: #2f2723;
-  /* OVERLAP: tiriamo la sezione SU dentro la coda scura della hero (ancora
-     pinnata e scura) → la card RISALE DAL BUIO durante lo scroll invece di
-     comparire nella crema a fine corsa. Scuro-su-scuro = nessun lampo crema.
-     ⟸ KNOB: tarare insieme a .hero-scene height (300svh) e al range --cover
-     in HeroSection.jsx (mapRange 0.06→0.88). Più negativo = emerge prima. */
+  /* OVERLAP mobile (in-flow): tiriamo la card su nella coda scura della hero. */
   margin-top: -42svh;
   padding-top: 0;
   padding-bottom: 28px;
@@ -23,10 +21,17 @@
   z-index: 3;
 }
 
-/* La crema rientra SOPRA la base scura, DIETRO la card — l'opacità è pilotata
-   dallo scroll da LaserSection.jsx (creamReturn). Port di .cream-return da
-   hero-v1-preview-handoff.html. È QUESTO che fa RECEDERE il buio (la transizione
-   è temporale, non più un gradiente statico). */
+/* Mobile/base: lo stage NON genera box → .laser-cream-return e Container restano
+   figli EFFETTIVI della sezione (struttura identica a prima del refactor). Su
+   desktop (≥726px) diventa lo stage sticky che pinna la scena. */
+.laser-stage {
+  display: contents;
+}
+
+/* La crema rientra SOPRA il buio, DIETRO la card — opacità pilotata dallo scroll
+   da LaserSection.jsx (creamReturn). Port di .cream-return da
+   hero-v1-preview-handoff.html. È QUESTO che fa RECEDERE il buio (transizione
+   temporale, non un gradiente statico). */
 .laser-cream-return {
   position: absolute;
   inset: 0;
@@ -39,17 +44,75 @@
 /* La card (Container) resta SOPRA il velo crema. Le regole mobile
    .laser-section .container toccano solo max-width/padding/width → nessun
    conflitto con position/z-index qui. */
-.laser-section > .container {
+.laser-section .container {
   position: relative;
   z-index: 2;
 }
 
-/* Reduced-motion: niente reveal → LaserSection "calma" (crema piena, nessun
-   overlap con la hero statica). */
+/* ════════════════════════════════════════════════════════════════
+   DESKTOP/TABLET ≥726px — SCENA PINNATA
+   La sezione è il BINARIO di scroll; lo .laser-stage è lo stage sticky
+   (100svh, scuro) da cui la card EMERGE in posizione (fade + risalita +
+   scala), poi la crema rientra dietro. Mirror di .hero-scene/.hero-stage.
+   ════════════════════════════════════════════════════════════════ */
+@media (min-width: 726px) {
+  .laser-section {
+    /* Binario di scroll della scena. COUPLED KNOBS: hero .hero-scene height
+       (300svh) + hero --cover (0.06→0.88 → buio pieno a scrollY ~176svh, cioè
+       0.88 × 200svh di stage pinnato) + overlap qui sotto + range
+       emersione/crema in LaserSection.jsx. */
+    height: 190svh;
+    /* OVERLAP: la hero è buio pieno a ~176svh. -110svh → lo stage laser si
+       pinna a ~190svh, SUBITO dopo il buio della hero → niente nero morto.
+       ⟸ KNOB primario: più negativo = pin più presto (verso 176). */
+    margin-top: -110svh;
+    /* Fondo CREMA: dopo l'assestamento, la coda della sezione (sotto lo stage
+       spinnato) è crema continua verso ServicesPreview — niente banda scura. */
+    background: #fffdf8;
+    padding-bottom: 0;
+  }
+
+  .laser-stage {
+    display: block;
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    overflow: hidden;
+    /* isolation: stesso motivo della hero/card — contiene il layer WebGL nel
+       compositor (no color-bleed Safari Metal con border-radius + transform). */
+    isolation: isolate;
+    background: #2f2723;
+  }
+
+  /* Container = layer assoluto che riempie lo stage e CENTRA la card via flex
+     (le utility d-flex/justify/align sono già sul Container). La centratura è
+     del LAYOUT, NON un transform → Framer possiede y/scale/opacity senza
+     clobberare la posizione (lezione Michela). */
+  .laser-stage > .container {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+}
+
+/* Reduced-motion: niente reveal → LaserSection "calma" (crema piena, niente
+   pin, niente overlap con la hero statica). Questo blocco è DOPO il @media
+   ≥726px → vince e disattiva la scena pinnata anche su desktop. */
 @media (prefers-reduced-motion: reduce) {
   .laser-section {
     background: #fffdf8;
     margin-top: 0;
+    height: auto;
+  }
+
+  /* Stage in-flow: nessun pin, la card scorre normalmente nella sezione. */
+  .laser-stage {
+    display: contents;
+  }
+
+  .laser-section .container {
+    position: relative;
+    inset: auto;
   }
 
   /* Niente reveal temporale: crema statica, nessun velo da far comparire. */
@@ -76,10 +139,13 @@
 }
 
 /* ════════════════════════════════════════════════════════════════
-   DESKTOP/TABLET — la card è un pannello che ENTRA IN SCENA.
-   L'ingresso CSS (opacity/translate) è disattivato: il wrapper è
-   mosso solo da Framer (risalita + scala + ombra calda crescente).
-   Il box-shadow qui è il fallback statico per reduced-motion.
+   DESKTOP/TABLET — la card EMERGE IN POSIZIONE (centrata nello stage).
+   L'ingresso CSS (opacity/translate) è disattivato: il wrapper è mosso
+   solo da Framer (fade + risalita + scala + ombra calda crescente).
+   transform-origin: center → scala dal centro restando centrata.
+   border-radius su tutti i 4 angoli: la card "galleggia" sulla crema che
+   rientra, non è più ancorata a un bordo basso. opacity:1 è il fallback
+   statico (Framer applica opacity inline quando sceneActive → vince).
    ════════════════════════════════════════════════════════════════ */
 @media (min-width: 726px) {
   .laser-card-wrapper {
@@ -87,11 +153,10 @@
     translate: none;
     transition: none;
     position: relative;
-    transform-origin: center bottom;
-    border-radius: 24px 24px 0 0;
-    /* NIENTE alone oro verso l'ALTO: contro il buio del seam disegnava il
-       contorno della card = "doppio contenitore". Ombra morbida verso il
-       BASSO → radica sulla crema sotto, senza contornare il bordo superiore.
+    transform-origin: center;
+    border-radius: 24px;
+    /* Ombra morbida verso il BASSO → radica la card sulla crema che rientra
+       dietro, senza contornare il bordo superiore contro il buio dello stage.
        (fallback statico reduced-motion; in moto è pilotata da cardShadow in
        LaserSection.jsx, anch'essa verso il basso.) */
     box-shadow: 0 26px 60px -18px rgba(140, 109, 63, 0.3);
@@ -143,6 +208,19 @@
      scuro = invisibili); più in basso, sulla crema, il bordo è definito dal
      solo contrasto di colore + l'ombra morbida verso il basso. */
   background: #2f2723;
+}
+
+/* Laptop BASSI (≤700px d'altezza) in scena pinnata: la card centrata nello
+   stage 100svh non deve eccedere l'altezza → riduco min-height e i padding
+   della strip così resta interamente visibile e centrata. */
+@media (min-width: 726px) and (max-height: 700px) {
+  .laser-card {
+    min-height: 520px;
+  }
+
+  .laser-strip {
+    padding: 14px 36px 16px;
+  }
 }
 
 /* ── WebGL beam ── (la lunghezza è pilotata dallo scroll, vedi LaserSection.jsx) */
