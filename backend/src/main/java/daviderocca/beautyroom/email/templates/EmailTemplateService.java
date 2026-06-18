@@ -1160,8 +1160,13 @@ public class EmailTemplateService {
                 }
             }
         }
-        if (names.isEmpty() && m.packageBlock() != null && m.packageBlock().headline() != null) {
-            names.add(m.packageBlock().headline());
+        // PROMPT 31: a package-backed booking leads the concise summary with the package name. The
+        // standalone treatment line is already suppressed upstream (buildModel), so `names` holds at
+        // most promo titles here; prepend the package headline so the package — not a linked promo —
+        // leads, and so an otherwise-empty summary still names the package. Non-package bookings have
+        // no packageBlock → unchanged.
+        if (m.packageBlock() != null && m.packageBlock().headline() != null) {
+            names.add(0, m.packageBlock().headline());
         }
         return names;
     }

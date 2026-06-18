@@ -131,28 +131,35 @@ public class BookingEmailAssembler {
         // ---------- display sections ----------
         List<EmailSection> sections = new ArrayList<>();
 
-        // Trattamento(i): catalog services + custom line (+ legacy single-service fallback)
+        // Trattamento(i): catalog services + custom line (+ legacy single-service fallback).
+        // PROMPT 31: a package-backed booking's head treatment lives in booking_services AND is already
+        // shown by the package block below — the agenda dedups it (leads with the package name), so
+        // suppress the standalone treatment section here too. isPackageSession == (creditBacked ||
+        // !pkgs.isEmpty()). Online sessions already have an empty booking_services (no-op for them);
+        // non-package bookings are unaffected — the treatment section is their only content.
         List<EmailLine> treat = new ArrayList<>();
         BigDecimal servicesGross = BigDecimal.ZERO;
-        for (ServiceSummaryDTO s : card.services()) {
-            BigDecimal linePrice = singleServiceCustomTotal ? card.customTotalPrice() : s.price();
-            servicesGross = servicesGross.add(nz(linePrice));
-            treat.add(new EmailLine(serviceLabel(s), null, money(linePrice, hidePrices), null));
-        }
-        if (showCustom) {
-            BigDecimal linePrice = singleServiceCustomTotal ? card.customTotalPrice() : card.customServicePrice();
-            servicesGross = servicesGross.add(nz(linePrice));
-            treat.add(new EmailLine(
-                    hasCustom ? card.customServiceName() : "Servizio personalizzato",
-                    null, money(linePrice, hidePrices), null));
-        }
-        if (treat.isEmpty() && legacyFallback && pkgs.isEmpty() && !creditBacked
-                && card.serviceTitle() != null) {
-            BigDecimal price = legacyPrice(card, b);
-            servicesGross = servicesGross.add(nz(price));
-            String label = card.serviceTitle()
-                    + (card.optionName() != null ? " · " + card.optionName() : "");
-            treat.add(new EmailLine(label, null, money(price, hidePrices), null));
+        if (!isPackageSession) {
+            for (ServiceSummaryDTO s : card.services()) {
+                BigDecimal linePrice = singleServiceCustomTotal ? card.customTotalPrice() : s.price();
+                servicesGross = servicesGross.add(nz(linePrice));
+                treat.add(new EmailLine(serviceLabel(s), null, money(linePrice, hidePrices), null));
+            }
+            if (showCustom) {
+                BigDecimal linePrice = singleServiceCustomTotal ? card.customTotalPrice() : card.customServicePrice();
+                servicesGross = servicesGross.add(nz(linePrice));
+                treat.add(new EmailLine(
+                        hasCustom ? card.customServiceName() : "Servizio personalizzato",
+                        null, money(linePrice, hidePrices), null));
+            }
+            if (treat.isEmpty() && legacyFallback && pkgs.isEmpty() && !creditBacked
+                    && card.serviceTitle() != null) {
+                BigDecimal price = legacyPrice(card, b);
+                servicesGross = servicesGross.add(nz(price));
+                String label = card.serviceTitle()
+                        + (card.optionName() != null ? " · " + card.optionName() : "");
+                treat.add(new EmailLine(label, null, money(price, hidePrices), null));
+            }
         }
         if (!treat.isEmpty()) {
             sections.add(new EmailSection(treat.size() > 1 ? "Trattamenti" : "Trattamento", treat));
