@@ -515,7 +515,8 @@ public class BookingCheckoutController {
                 // Webhook may not have fired yet; return a pending placeholder (no row → still processing,
                 // never a rejection: a MULTI conflict persists a CANCELLED tombstone found just above).
                 return ResponseEntity.ok(new BookingSummaryDTO(null, isPaid ? "PAID" : "PENDING",
-                        session.getCustomerDetails() != null ? session.getCustomerDetails().getEmail() : null, null));
+                        session.getCustomerDetails() != null ? session.getCustomerDetails().getEmail() : null, null,
+                        session.getAmountTotal()));
             }
             outcome = bookingService.rejectionOutcomeForSession(session.getId());
         } else {
@@ -535,7 +536,8 @@ public class BookingCheckoutController {
                 booking,
                 isPaid ? "PAID" : "PENDING",
                 email,
-                outcome
+                outcome,
+                session.getAmountTotal()   // PROMPT 27: actual Stripe charge (cents), not a recomputed/catalog price
         );
 
         return ResponseEntity.ok(dto);
