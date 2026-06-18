@@ -672,6 +672,63 @@ class BookingServiceTest {
         verify(bookingRepository).deleteById(bookingId); // still deleted, just no +1
     }
 
+    // =========================================================================
+    // P30 (Commit 2): the delete refund guard is lifted for package-backed bookings only.
+    // Discriminator is the package credit, NOT stripeSessionId — so session-1 (which carries
+    // both) passes, while a genuine single-service online booking stays blocked.
+    // =========================================================================
+    @Test
+    @DisplayName("P30: hard-delete of a package session-1 (stripeSessionId + credit) is NOT blocked — restores then deletes")
+    void hardDeleteBooking_packageSession1WithStripeSession_notBlocked() {
+        UUID bookingId = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        // session-1 of an online package: paid via Stripe (has stripeSessionId) AND package-backed.
+        // Paid in full → the refund guard must NOT block it; the session returns to the credit.
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setStripeSessionId("cs_test_pkg_session1");
+        booking.setPackageCredit(new PackageCredit());
+        booking.setCreditTrackedAtCreation(true);
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of());
+        when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId)).thenReturn(List.of());
+        when(bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId)).thenReturn(List.of());
+        Query delQuery = mock(Query.class);
+        when(entityManager.createQuery(anyString())).thenReturn(delQuery);
+        when(delQuery.setParameter(anyString(), any())).thenReturn(delQuery);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
+
+        bookingService.hardDeleteBooking(bookingId, adminUser()); // no BadRequestException thrown
+
+        InOrder inOrder = inOrder(packageCreditService, bookingRepository);
+        inOrder.verify(packageCreditService).restoreSessionForBooking(booking);
+        inOrder.verify(bookingRepository).deleteById(bookingId);
+    }
+
+    @Test
+    @DisplayName("P30: hard-delete of a single-service online booking (no package) is STILL blocked by the refund guard")
+    void hardDeleteBooking_singleServiceOnline_stillBlocked() {
+        UUID bookingId = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        // paid online, NO package credit → genuine refund case: the guard must still fire and the
+        // row must NOT be deleted (Michela uses "Rimborsa" first — that path is untouched).
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setStripeSessionId("cs_test_single_service");
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> bookingService.hardDeleteBooking(bookingId, adminUser()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("rimborso");
+
+        verify(packageCreditService, never()).restoreSessionForBooking(any());
+        verify(bookingRepository, never()).deleteById(any());
+    }
+
     private static User adminUser() {
         User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
         admin.setRole(Role.ADMIN);

@@ -1440,8 +1440,14 @@ public class BookingService {
         boolean isPaidOnline = found.getStripeSessionId() != null;
         boolean isCancelled  = found.getBookingStatus() == BookingStatus.CANCELLED;
         boolean isRefunded   = found.getBookingStatus() == BookingStatus.REFUNDED;
+        // Commit 2: the refund block applies ONLY to genuine single-service online bookings. A
+        // package-backed booking is paid in full and refund-free — deleting it returns the session
+        // to the credit (restored just below), never refunds. It must pass this guard even though
+        // session-1 also carries a stripeSessionId, so discriminate on the package credit, NOT on
+        // stripeSessionId. Refunds stay a separate, untouched path ("Rimborsa" / refundBooking).
+        boolean isPackageBacked = found.getPackageCredit() != null;
 
-        if (isPaidOnline && !isCancelled && !isRefunded) {
+        if (isPaidOnline && !isCancelled && !isRefunded && !isPackageBacked) {
             throw new BadRequestException(
                     "Questa prenotazione è stata pagata online. Gestisci prima il rimborso prima di eliminarla."
             );

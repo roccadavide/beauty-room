@@ -1400,7 +1400,12 @@ export default function AdminAgendaPage() {
   };
 
   const askCancel = b => {
-    if (b?.stripeSessionId) {
+    // A package-backed booking (online credit) is paid in full and refund-free: cancelling just
+    // returns the session to the credit — the backend restores it on the CANCELLED transition — so
+    // it skips the refund block and goes through the normal cancel-confirm flow. A genuine
+    // single-service online booking (stripeSessionId, no credit) still must be refunded via
+    // "Rimborsa" first; that path is untouched.
+    if (b?.stripeSessionId && !isBookingPackageCreditBacked(b)) {
       setErr("Questa prenotazione è stata pagata. Usa 'Rimborsa' per cancellarla e rimborsare il cliente.");
       setErrDetails(null);
       return;
@@ -2825,8 +2830,15 @@ export default function AdminAgendaPage() {
                 </>
               )}
             </div>
-            {confirmModal.type === "delete" && confirmModal.stripeSessionId && (
+            {/* Single-service online (paid via Stripe, NO package credit): real refund needed → keep the
+                refund-oriented warning. Suppressed for a package-backed booking — session-1 also carries a
+                stripeSessionId but is paid in full, so it gets the package copy below instead. */}
+            {confirmModal.type === "delete" && confirmModal.stripeSessionId && !confirmModal.booking?.packageCreditId && (
               <div className="ag-confirm-warning">⚠️ Questa prenotazione è stata pagata online. Eliminandola non verrà emesso alcun rimborso automatico.</div>
+            )}
+            {/* Package-backed, NOT completed: deleting restores the session to the credit (no refund). */}
+            {confirmModal.type === "delete" && confirmModal.booking?.packageCreditId && confirmModal.booking?.status !== "COMPLETED" && (
+              <div className="ag-confirm-warning">ℹ️ La seduta tornerà disponibile nel pacchetto e potrà essere riprenotata. Nessun rimborso: il pacchetto è già pagato.</div>
             )}
             {confirmModal.type === "delete" &&
               confirmModal.booking?.status === "COMPLETED" &&
