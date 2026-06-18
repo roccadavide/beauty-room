@@ -3629,7 +3629,9 @@ public class BookingService {
                 booking.getLinkingStatus() != null ? booking.getLinkingStatus().name() : null,
                 linkedPackage,
                 booking.isPaidInStore(),
-                sales
+                sales,
+                // PROMPT 32: online-package discriminator (canonical V63 is_package, not a sessions>1 heuristic).
+                booking.getServiceOption() != null && booking.getServiceOption().isPackage()
         );
     }
 

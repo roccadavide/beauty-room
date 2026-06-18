@@ -431,7 +431,7 @@ export default function BookingConfirmation() {
                         </div>
                       )}
                       <div>
-                        <div className="conf-service-name">{b?.serviceTitle || service?.title || "–"}{b?.serviceOptionName ? ` · ${b.serviceOptionName}` : ""}</div>
+                        <div className="conf-service-name">{b?.isPackage ? (b?.serviceOptionName || b?.serviceTitle || "–") : (<>{b?.serviceTitle || service?.title || "–"}{b?.serviceOptionName ? ` · ${b.serviceOptionName}` : ""}</>)}</div>
                         {(service?.durationMin != null || summary?.amountPaidCents != null) && (
                           <div className="conf-service-meta">
                             {service?.durationMin != null ? `${service.durationMin} min` : ""}
