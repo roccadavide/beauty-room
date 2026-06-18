@@ -985,6 +985,24 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       const onlineRows = (isEditMode && editBooking.packageCreditId != null && frozenOnline)
         ? [{ ...pkgFromFrozenLink(frozenOnline, editBooking.packageCreditId), source: "ONLINE" }]
         : [];
+      // Symptom 4: an ADMIN package with all sessions booked is EXHAUSTED, so the by-name
+      // fetch below (ACTIVE & remaining > 0) drops it — no card in "Pacchetti attivi", no way
+      // to detach a far-future booked session. Mirror the ONLINE-row pattern: synthesize a
+      // frozen row per ADMIN linkedPackages entry via pkgFromFrozenLink (built for this case).
+      // id = assignment id → already in selectedPackageIds, so the card starts selected and
+      // its existing deselect = detach. Built sync (survives a failed fetch); deduped vs the
+      // live list in the try. `exhausted` drives the "tutte le sedute fissate" label.
+      const adminFrozenRows = [];
+      if (isEditMode) {
+        const seenFrozen = new Set();
+        for (const lp of editBooking.linkedPackages || []) {
+          const aid = lp.packageAssignmentId;
+          if (aid == null || seenFrozen.has(String(aid))) continue;
+          seenFrozen.add(String(aid));
+          const row = pkgFromFrozenLink(lp, aid);
+          adminFrozenRows.push({ ...row, source: "ADMIN", exhausted: (row.sessionsRemaining ?? 0) <= 0 });
+        }
+      }
       (async () => {
         try {
           const pkgs = await getClientPackageAssignmentsByName(editBooking.customerName);
@@ -992,10 +1010,14 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           // Shape-compatible with UnifiedActivePackageDTO consumed by the package row.
           // The two DTOs share the relevant fields (id, displayName, serviceTitle,
           // serviceOptionId, totalSessions, sessionsRemaining); we only need to tag the source.
-          setActivePackages([...active.map(p => ({ ...p, source: "ADMIN" })), ...onlineRows]);
+          // Drop any frozen ADMIN row that is already a live ACTIVE card (no duplicate id).
+          const activeIds = new Set(active.map(p => String(p.id)));
+          const frozenAdmin = adminFrozenRows.filter(r => !activeIds.has(String(r.id)));
+          setActivePackages([...active.map(p => ({ ...p, source: "ADMIN" })), ...frozenAdmin, ...onlineRows]);
         } catch (err) {
           console.error("Edit-mode package pre-fetch failed (non-blocking):", err);
-          setActivePackages(onlineRows); // still surface the booking's own online package
+          // Fetch failed → no live list to dedupe against; surface every frozen row.
+          setActivePackages([...adminFrozenRows, ...onlineRows]);
         }
       })();
     }
@@ -1680,8 +1702,14 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                           )}
                         </div>
                         <div className="ag-pkg-select-card__meta">
-                          Seduta {sessionsUsed + 1}/{pkg.totalSessions}
-                          {pkg.sessionsRemaining === 1 && <span style={{ color: "#fbbf24" }}> · ultima!</span>}
+                          {pkg.exhausted ? (
+                            "Tutte le sedute fissate"
+                          ) : (
+                            <>
+                              Seduta {sessionsUsed + 1}/{pkg.totalSessions}
+                              {pkg.sessionsRemaining === 1 && <span style={{ color: "#fbbf24" }}> · ultima!</span>}
+                            </>
+                          )}
                         </div>
                         {hasMultipleItems && (
                           <>
