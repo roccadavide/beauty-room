@@ -1623,6 +1623,67 @@ public class BookingService {
         log.info("Booking rimborsato via Stripe: id={} paymentIntent={}", bookingId, paymentIntentId);
     }
 
+    // ==================== REFUND SETTLED (WEBHOOK — DASHBOARD PARITY) ====================
+    /**
+     * Prompt 23: bring the {@code charge.refunded} webhook to parity with the admin "Rimborsa" button
+     * for refunds initiated straight from the Stripe dashboard (which fire ONLY this webhook, never
+     * the admin path). Mirrors the credit invalidation {@link #refundBooking} already does, MINUS the
+     * Stripe {@code Refund.create} (the refund has already settled at Stripe).
+     *
+     * Both-with-guard: the admin button also fires {@code charge.refunded}, so this can run on a
+     * booking the synchronous path already settled — the persisted REFUNDED status guard makes that
+     * double-fire a harmless no-op. Linked bookings are left untouched on purpose (same as the admin
+     * path; D2 is out of scope). No session arithmetic: {@code markAsRefunded} only flips status,
+     * which already makes the credit vanish from /active-packages and become non-consumable.
+     *
+     * Landmine (a): every mutation happens inside this {@code @Transactional} method on managed
+     * entities (the webhook is not one tx and OSIV is off — never mutate a detached return value).
+     */
+    @Transactional
+    public void markRefundSettled(String bookingId) {
+        UUID id;
+        try {
+            id = UUID.fromString(bookingId);
+        } catch (IllegalArgumentException e) {
+            log.warn("markRefundSettled: bookingId non valido '{}' — skip", bookingId);
+            return;
+        }
+
+        Booking booking = bookingRepository.findByIdForUpdate(id).orElse(null);
+        if (booking == null) {
+            log.info("markRefundSettled: booking {} non trovato — skip", id);
+            return;
+        }
+
+        // Idempotency guard: the admin button (refundBooking) or a prior webhook fire already settled
+        // this. Returning here is what makes the admin + webhook double-fire provably harmless.
+        if (booking.getBookingStatus() == BookingStatus.REFUNDED) {
+            log.info("markRefundSettled: booking {} già REFUNDED — skip (double-fire harmless)", id);
+            return;
+        }
+
+        booking.setBookingStatus(BookingStatus.REFUNDED);
+        booking.setCanceledAt(LocalDateTime.now());
+        booking.setCancelReason("DASHBOARD_REFUND");
+        booking.setExpiresAt(null);
+        bookingRepository.save(booking);
+
+        // Invalidate the linked online PackageCredit — mirror of refundBooking's proven block. The
+        // payment-keyed fallback (findByStripeSessionId) finds the credit even after a detach, when the
+        // booking's packageCredit FK is null but the credit still exists keyed by the Checkout Session
+        // id. A single-service online booking has no credit — setting it REFUNDED is the correct parity.
+        PackageCredit pc = booking.getPackageCredit();
+        if (pc == null && booking.getStripeSessionId() != null) {
+            pc = packageCreditService.findByStripeSessionId(booking.getStripeSessionId()).orElse(null);
+        }
+        if (pc != null && pc.getStatus() != PackageCreditStatus.REFUNDED) {
+            packageCreditService.markAsRefunded(pc);
+            log.info("PackageCredit {} marked REFUNDED (dashboard refund) for bookingId={}", pc.getPackageCreditId(), id);
+        }
+
+        log.info("Booking {} marked REFUNDED via charge.refunded webhook (dashboard parity)", id);
+    }
+
     // ============================ UPDATE (ADMIN/OWNER) ============================
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO updateBooking(UUID bookingId, NewBookingDTO payload, User currentUser) {

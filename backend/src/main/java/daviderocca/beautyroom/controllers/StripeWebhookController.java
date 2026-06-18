@@ -17,6 +17,8 @@ import daviderocca.beautyroom.entities.Customer;
 import daviderocca.beautyroom.entities.Order;
 import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.entities.ProcessedStripeEvent;
+import daviderocca.beautyroom.exceptions.BadRequestException;
+import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ProcessedStripeEventRepository;
 import daviderocca.beautyroom.enums.BookingStatus;
@@ -649,6 +651,25 @@ public class StripeWebhookController {
         return null;
     }
 
+    /**
+     * Resilient Charge deserialization across Stripe API-version skew — the structural twin of
+     * {@link #deserializeSession}. The webhook endpoint renders events at a newer API version than
+     * stripe-java pins, so the strict {@code getObject()} returns empty; fall back to GSON-parsing the
+     * raw event payload so {@code charge.refunded} reaches its handlers (booking AND product-order).
+     */
+    private Charge deserializeCharge(Event event) {
+        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
+
+        StripeObject obj = deserializer.getObject().orElse(null);
+        if (obj instanceof Charge c) return c;
+
+        String rawJson = deserializer.getRawJson();
+        if (rawJson != null && !rawJson.isBlank()) {
+            return ApiResource.GSON.fromJson(rawJson, Charge.class);
+        }
+        return null;
+    }
+
     private void handlePaymentFailed(Event event) {
         EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
         PaymentIntent intent = (PaymentIntent) deserializer.getObject().orElse(null);
@@ -698,22 +719,73 @@ public class StripeWebhookController {
     }
 
     private void handleChargeRefunded(Event event) {
-        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
-        Charge charge = (Charge) deserializer.getObject().orElse(null);
+        // Parse resiliently across Stripe API-version skew (see deserializeCharge): the strict
+        // getObject() returns null when the event's API version is newer than the SDK pins, which used
+        // to make this handler bail at "senza Charge" before reaching either branch.
+        Charge charge = deserializeCharge(event);
 
         if (charge == null) {
             log.warn("charge.refunded senza Charge");
             return;
         }
 
+        // ===== PRODUCT ORDER (unchanged behaviour) =====
         String orderIdStr = charge.getMetadata() != null ? charge.getMetadata().get("orderId") : null;
-        if (orderIdStr == null) {
-            log.info("charge.refunded");
+        if (orderIdStr != null) {
+            UUID orderId = UUID.fromString(orderIdStr);
+            // Prompt 26: the parse fix made this branch reachable, but OrderService currently has no
+            // allowed transition to REFUNDED → updateOrderStatus throws and used to bubble to the 500
+            // catch-all (→ Stripe retries forever). Acknowledge with a 200 instead; we do NOT reconcile
+            // order state here (real reconciliation = ALLOWED_TRANSITIONS fix, a separate products
+            // item). Catch is scoped to the reconciliation call only and narrow to the two types
+            // updateOrderStatus throws (disallowed transition / order-not-found). The WARN is the
+            // breadcrumb a human/follow-up uses to reconcile manually.
+            try {
+                orderService.updateOrderStatus(orderId, OrderStatus.REFUNDED);
+                log.info("Rimborso completato per ordine {}", orderId);
+            } catch (BadRequestException | ResourceNotFoundException e) {
+                log.warn("charge.refunded: order {} refund received but NOT reconciled ({}) — acknowledged (200), reconcile manually",
+                        orderId, e.getMessage());
+            }
             return;
         }
 
-        UUID orderId = UUID.fromString(orderIdStr);
-        orderService.updateOrderStatus(orderId, OrderStatus.REFUNDED);
-        log.info("Rimborso completato per ordine {}", orderId);
+        // ===== BOOKING / PACKAGE (Prompt 23 — dashboard-refund parity) =====
+        // A refund initiated straight from the Stripe dashboard fires ONLY this webhook (no admin
+        // "Rimborsa" call), so without this branch a dashboard refund of a package left its
+        // PackageCredit ACTIVE and consumable. Step-0 verified the charge carries bookingId in
+        // charge.metadata (payment_intent_data.metadata propagates to the charge); we still fall back
+        // to the PaymentIntent's metadata so a charge that ever lacks it can't silently leak.
+        String bookingIdStr = charge.getMetadata() != null ? charge.getMetadata().get("bookingId") : null;
+        if (bookingIdStr == null || bookingIdStr.isBlank()) {
+            try {
+                String piId = charge.getPaymentIntent();
+                if (piId != null && !piId.isBlank()) {
+                    Stripe.apiKey = stripeSecretKey;
+                    PaymentIntent pi = PaymentIntent.retrieve(piId);
+                    if (pi.getMetadata() != null) bookingIdStr = pi.getMetadata().get("bookingId");
+                }
+            } catch (StripeException e) {
+                log.error("charge.refunded: PaymentIntent.retrieve fallito per charge {}: {}",
+                        charge.getId(), e.getMessage());
+            }
+        }
+        if (bookingIdStr == null || bookingIdStr.isBlank()) {
+            log.info("charge.refunded: né orderId né bookingId — skip (charge {})", charge.getId());
+            return;
+        }
+
+        // Full refunds only: a partial dashboard refund must NOT invalidate the credit. A sequence of
+        // partial refunds that cumulatively reaches the full amount satisfies == on the last event —
+        // that final one settles it.
+        Long amount = charge.getAmount();
+        Long amountRefunded = charge.getAmountRefunded();
+        if (amount != null && amountRefunded != null && amountRefunded < amount) {
+            log.info("charge.refunded: rimborso parziale ({}/{}) — skip, credito invariato (booking {})",
+                    amountRefunded, amount, bookingIdStr);
+            return;
+        }
+
+        bookingService.markRefundSettled(bookingIdStr);
     }
 }
