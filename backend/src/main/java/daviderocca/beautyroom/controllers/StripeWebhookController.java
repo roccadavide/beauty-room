@@ -84,7 +84,14 @@ public class StripeWebhookController {
         log.info("Stripe event: {}", event.getType());
 
         try {
-            processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
+            // Dedup gate: a re-delivered event id short-circuits with 200 BEFORE any business logic
+            // runs. The event is recorded as processed only AFTER the body succeeds (below), so a
+            // transient first-delivery failure leaves no record and stays retryable by Stripe —
+            // recording up-front would mark a paid-but-failed purchase "done" and lose the retry.
+            if (processedEventRepo.existsById(event.getId())) {
+                log.info("Stripe event già processato, skip: {}", event.getId());
+                return ResponseEntity.ok("duplicate");
+            }
 
             switch (event.getType()) {
                 case "checkout.session.completed" -> handleCheckoutCompleted(event);
@@ -94,8 +101,14 @@ public class StripeWebhookController {
                 default -> log.info("Evento non gestito: {}", event.getType());
             }
 
+            // Record only after the handler returned without throwing: a thrown handler skips this
+            // line, so the event is NOT marked processed and Stripe's retry can re-run it. A
+            // truly-concurrent duplicate that slips past existsById collides on the PK here and is
+            // caught below (200).
+            processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
+
         } catch (DataIntegrityViolationException dup) {
-            log.info("Stripe event già processato, skip: {}", event.getId());
+            log.info("Stripe event già processato (race), skip: {}", event.getId());
             return ResponseEntity.ok("duplicate");
         } catch (Exception e) {
             log.error("Errore gestione Stripe {}: {}", event.getType(), e.getMessage(), e);
