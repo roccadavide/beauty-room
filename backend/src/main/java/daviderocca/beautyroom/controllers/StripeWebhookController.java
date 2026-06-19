@@ -283,32 +283,39 @@ public class StripeWebhookController {
                                 b.getBookingId(), e.getMessage());
                     }
 
-                    PackageCredit pc = packageCreditService.createPackageCredit(
-                            b.getCustomerEmail(),
-                            sessionsTotal,
-                            b.getService(),
-                            b.getServiceOption(),
-                            b.getUser(),
-                            customer,
-                            session.getId(),
-                            // V72: the online model now mirrors admin — every session is consumed at
-                            // BOOKING time, not at completion. Session-1 (this purchase) is consumed
-                            // immediately here (remaining = total − 1); the session-1 booking is
-                            // flagged credit-tracked below so a later edit/complete never re-counts it.
-                            true
-                    );
+                    // A1: a re-purchase of an option the buyer already holds ACTIVE must NOT abort the
+                    // webhook. addToActiveOrCreate TOPS UP the existing ACTIVE credit (instead of throwing
+                    // DuplicateResourceException) or creates a new one on a first purchase — and returns the
+                    // owner the booking must link to (the credit's anchored owner on a top-up; never a
+                    // freshly find-or-create'd orphan). createPackageCredit (and its duplicate guard) stays
+                    // intact for the admin-assign path.
+                    PackageCreditService.PurchaseCreditResult result =
+                            packageCreditService.addToActiveOrCreate(
+                                    b.getCustomerEmail(),
+                                    sessionsTotal,
+                                    b.getService(),
+                                    b.getServiceOption(),
+                                    b.getUser(),
+                                    customer,
+                                    session.getId());
+                    PackageCredit pc = result.credit();
+                    Customer owner = result.owner();
 
                     b = bookingService.findBookingById(bookingId);
                     b.setPackageCredit(pc);
-                    b.setCreditTrackedAtCreation(true);
-                    if (customer != null) {
-                        b.setCustomer(customer);
+                    if (owner != null) {
+                        b.setCustomer(owner);
                     }
+                    // V72/A1: this purchase's session-1 is consumed at BOOKING time (remaining −1), ONCE,
+                    // idempotent via credit_tracked_at_creation — the same mechanism for a brand-new credit
+                    // and a topped-up one (replaces the old consumeFirstSession=true bake-in). The flag is
+                    // set inside consumeSessionForBooking and persisted by the save() below.
+                    packageCreditService.consumeSessionForBooking(b);
 
                     bookingService.save(b);
 
-                    log.info("Pacchetto creato e collegato: bookingId={} packageCreditId={} total={} remaining={}",
-                            b.getBookingId(), pc.getPackageCreditId(), pc.getSessionsTotal(), pc.getSessionsRemaining());
+                    log.info("Pacchetto collegato (create/top-up): bookingId={} packageCreditId={} total={}",
+                            b.getBookingId(), pc.getPackageCreditId(), pc.getSessionsTotal());
                 }
             }
 

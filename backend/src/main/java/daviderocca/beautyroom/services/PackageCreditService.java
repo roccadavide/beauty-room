@@ -107,6 +107,98 @@ public class PackageCreditService {
         return saved;
     }
 
+    /**
+     * Result of {@link #addToActiveOrCreate}: the ACTIVE credit (freshly created or topped-up) and the
+     * customer the buying booking must be linked to — the credit's anchored owner, resolved INSIDE the
+     * method's tx so the caller never dereferences the credit's LAZY customer association after it
+     * detaches (OSIV off).
+     */
+    public record PurchaseCreditResult(PackageCredit credit, Customer owner) {}
+
+    /**
+     * Online purchase-path credit resolution (A1). Unlike {@link #createPackageCredit}, a re-purchase of
+     * an option the customer ALREADY holds ACTIVE does NOT throw {@link DuplicateResourceException} — it
+     * TOPS UP the existing ACTIVE credit by the purchased session count. "Regola 5" (one ACTIVE credit per
+     * {@code (email, ServiceOption)}) is preserved: the second purchase adds sessions to the one credit
+     * rather than spawning a second. This stops the webhook from aborting before it links the booking +
+     * customer (the bug where account re-purchases — forced stable email — left a PAID booking with no
+     * credit and an orphan customer).
+     *
+     * <p>This method NEVER consumes the first session: the caller does that uniformly via
+     * {@link #consumeSessionForBooking} for both the new-credit and top-up paths. The top-up is a
+     * deliberate {@code +N} to BOTH {@code sessionsTotal} and {@code sessionsRemaining}; it is NOT routed
+     * through consume/restore.
+     *
+     * <p>Money-path: the mutation runs inside this committed {@code @Transactional} on a managed entity —
+     * a post-hoc setter on the returned (detached) credit would be lost.
+     *
+     * @return the ACTIVE credit and the owner the booking must point at (existing owner on a top-up; the
+     *         buyer's customer on a first purchase, or when the existing credit was unanchored).
+     */
+    @Transactional
+    public PurchaseCreditResult addToActiveOrCreate(
+            String customerEmail,
+            int sessionsTotal,
+            ServiceItem service,
+            ServiceOption option,
+            User userOrNull,
+            Customer customerOrNull,
+            String stripeSessionId
+    ) {
+        if (customerEmail == null || customerEmail.isBlank()) {
+            throw new BadRequestException("Email cliente obbligatoria.");
+        }
+        if (sessionsTotal <= 1) {
+            throw new BadRequestException("sessionsTotal deve essere > 1 per creare un pacchetto.");
+        }
+        if (option == null) {
+            throw new BadRequestException("Every package must be associated with a specific ServiceOption.");
+        }
+
+        String email = customerEmail.trim().toLowerCase();
+
+        Optional<PackageCredit> existing = packageCreditRepository
+                .findTopByCustomerEmailIgnoreCaseAndServiceOptionOptionIdAndStatusOrderByPurchasedAtAsc(
+                        email, option.getOptionId(), PackageCreditStatus.ACTIVE);
+
+        // First purchase of this option for this email → behave exactly like createPackageCredit, but
+        // WITHOUT baking in the first-session decrement (consumeFirstSession=false): the caller consumes
+        // it via consumeSessionForBooking, the same path the top-up uses. Net effect is unchanged.
+        if (existing.isEmpty()) {
+            PackageCredit created = createPackageCredit(
+                    email, sessionsTotal, service, option, userOrNull, customerOrNull, stripeSessionId, false);
+            return new PurchaseCreditResult(created, customerOrNull);
+        }
+
+        // Re-purchase → top up the existing ACTIVE credit (+N to total AND remaining; the −1 for this
+        // booking's session is applied by the caller through consumeSessionForBooking).
+        PackageCredit pc = existing.get();
+        pc.setSessionsTotal(pc.getSessionsTotal() + sessionsTotal);
+        pc.setSessionsRemaining(pc.getSessionsRemaining() + sessionsTotal);
+
+        // Owner reconciliation (V74). Keep the credit's existing owner; adopt the buyer only if the credit
+        // was unanchored. If the buyer resolved to a DIFFERENT customer than the owner (same email,
+        // different phone — phone is the dedup key), keep the owner and FLAG it: the booking must point at
+        // the credit's owner, never a freshly find-or-create'd second/orphan customer.
+        Customer owner = pc.getCustomer();
+        if (owner == null) {
+            pc.setCustomer(customerOrNull);
+            owner = customerOrNull;
+        } else if (customerOrNull != null
+                && owner.getCustomerId() != null
+                && !owner.getCustomerId().equals(customerOrNull.getCustomerId())) {
+            log.warn("Re-purchase top-up: buyer customer {} differs from credit {} owner {} "
+                    + "(same email, different phone?) — linking booking to the credit's owner.",
+                    customerOrNull.getCustomerId(), pc.getPackageCreditId(), owner.getCustomerId());
+        }
+
+        PackageCredit saved = packageCreditRepository.save(pc);
+        log.info("PackageCredit {} topped up by re-purchase: +{} sessions → total={} remaining={} status={}",
+                saved.getPackageCreditId(), sessionsTotal, saved.getSessionsTotal(),
+                saved.getSessionsRemaining(), saved.getStatus());
+        return new PurchaseCreditResult(saved, owner);
+    }
+
     // =====================================================================
     // SCALATURA SEDUTA (chiamata da BookingService al cambio di stato)
     // =====================================================================
