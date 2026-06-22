@@ -365,7 +365,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         LEFT JOIN service_options so ON so.option_id = bs.option_id
         -- PROMPT 40: NO package_credit_id guard on the booking_services branch — an unpaid EXTRA
         -- on a credit-backed booking must surface. The prepaid online session has no row here, so
-        -- it can't leak via this branch; the legacy-principal branch below KEEPS the guard (R2).
+        -- it cannot leak via this branch; the legacy-principal branch below KEEPS the guard (R2).
         WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL
           AND b.custom_total_price IS NULL
           AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
