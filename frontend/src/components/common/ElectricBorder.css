@@ -15,6 +15,11 @@
 }
 .eb-canvas {
   display: block;
+  /* The global reset (img, canvas, svg { max-width: 100% }) clamps this canvas to its
+     shrink-to-fit, left:50%-anchored container (~half width) and squashes the stroke to a
+     small centred shape. The canvas is sized explicitly in JS, not a fluid image — opt it
+     out of the cap so it renders at its real width. */
+  max-width: none;
 }
 .eb-content {
   position: relative;
