@@ -929,17 +929,16 @@
 /* ════════════════════════════════════════════════════════════════════════
    LOCKED NAV ENTRY — feature-flagged "Occasioni" (coming-soon).
    Non-interactive: rendered as <span>/<div>, not a link. Label dimmed,
-   "In arrivo" badge with a soft shimmer sweep. Desktop = label/badge stacked
-   (column), mobile = badge on the next line.
+   "In arrivo" badge with a soft shimmer sweep. Desktop = single-line label with
+   the badge floated just below (out of flow), mobile = badge on the next line.
    ════════════════════════════════════════════════════════════════════════ */
 
-/* Desktop: neutralize the silk-shine gradient-clip + underline of .beauty-link
-   and stack the label over the badge. */
+/* Desktop: neutralize the silk-shine gradient-clip + underline of .beauty-link.
+   Stay a single-line inline box (same height as the other links) and anchor the
+   absolutely-positioned badge below it. */
 .beauty-link--locked {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
+  position: relative;
+  display: inline-block;
   cursor: not-allowed;
   background: none;
   animation: none;
@@ -974,6 +973,18 @@
   line-height: 1.2;
   color: #b06a4f;
   -webkit-text-fill-color: #b06a4f;
+}
+
+/* Desktop only: lift the badge out of flow so the locked item keeps a single-line
+   height (label aligned with the other links) and "In arrivo" tucks just below the
+   label. Scoped to .beauty-link--locked so the mobile badge is left untouched. */
+.beauty-link--locked .nav-soon-badge {
+  position: absolute;
+  top: 80%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 3px;
+  white-space: nowrap;
 }
 
 .nav-soon-badge__sweep {
