@@ -29,6 +29,7 @@ public class Result {
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "result_images", joinColumns = @JoinColumn(name = "result_id"))
     @Column(name = "image_url")
+    @OrderColumn(name = "position")
     private List<String> images;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
