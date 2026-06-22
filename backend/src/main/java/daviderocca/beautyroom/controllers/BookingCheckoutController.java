@@ -118,6 +118,7 @@ public class BookingCheckoutController {
             option = serviceOptionRepository.findById(payload.serviceOptionId())
                     .orElseThrow(() -> new BadRequestException("Opzione non trovata."));
         }
+        assertOptionPubliclyBuyable(option);
 
         BigDecimal amount;
         if (payload.promoPrice() != null && payload.promotionId() != null) {
@@ -264,6 +265,7 @@ public class BookingCheckoutController {
                                 "L'opzione selezionata non appartiene al servizio '" + svc.getTitle() + "'."));
                 anyOption = true;
             }
+            assertOptionPubliclyBuyable(option);
 
             BigDecimal unitPrice = (option != null) ? option.getPrice() : svc.getPrice();
             if (unitPrice == null || unitPrice.signum() <= 0) {
@@ -541,6 +543,20 @@ public class BookingCheckoutController {
         );
 
         return ResponseEntity.ok(dto);
+    }
+
+    /**
+     * Launch guard (single services only): no PUBLIC checkout may create or mint a package. The webhook
+     * mints a PackageCredit whenever the option has sessions > 1 — independently of is_package — so we
+     * reject is_package OR sessions > 1 here, before any Stripe session, sealing the money-path on every
+     * public entry point (create-session, create-session-guest, create-session-multi). Admin booking
+     * paths do not pass through this controller, so packages stay fully usable in admin.
+     */
+    private void assertOptionPubliclyBuyable(ServiceOption option) {
+        if (option == null) return;
+        if (option.isPackage() || (option.getSessions() != null && option.getSessions() > 1)) {
+            throw new BadRequestException("Questa opzione non è acquistabile online.");
+        }
     }
 
     private BigDecimal computeServerPromoPrice(
