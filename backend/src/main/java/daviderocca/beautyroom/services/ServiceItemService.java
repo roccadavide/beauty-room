@@ -159,7 +159,7 @@ public class ServiceItemService {
     // ---------------------------- FIND METHODS ----------------------------
 
     @Transactional(readOnly = true)
-    public Page<ServiceItemResponseDTO> findAllServiceItems(int pageNumber, int pageSize, String sort, boolean includeInactive) {
+    public Page<ServiceItemResponseDTO> findAllServiceItems(int pageNumber, int pageSize, String sort, boolean includeInactive, boolean includePackages) {
         Sort sortObj = "displayOrder".equals(sort)
                 ? Sort.by(Sort.Order.asc("displayOrder"), Sort.Order.asc("title"))
                 : Sort.by(sort);
@@ -167,7 +167,7 @@ public class ServiceItemService {
         Page<ServiceItem> page = includeInactive
                 ? serviceItemRepository.findAllWithDetails(pageable)
                 : serviceItemRepository.findAllActiveWithDetails(pageable);
-        List<ServiceItemResponseDTO> dtoList = page.getContent().stream().map(this::convertToDTO).toList();
+        List<ServiceItemResponseDTO> dtoList = page.getContent().stream().map(si -> convertToDTO(si, includePackages)).toList();
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
 
@@ -193,7 +193,7 @@ public class ServiceItemService {
         if (!serviceItem.isActive()) {
             throw new ResourceNotFoundException(serviceItemId);
         }
-        return convertToDTO(serviceItem);
+        return convertToDTO(serviceItem, false); // public-only detail endpoint: never expose package options
     }
 
     // ---------------------------- CREATE ----------------------------
@@ -225,7 +225,7 @@ public class ServiceItemService {
         log.info("Servizio '{}' (ID: {}) creato (categoria: {})",
                 saved.getTitle(), saved.getServiceId(), relatedCategory.getCategoryKey());
 
-        return convertToDTO(saved);
+        return convertToDTO(saved, true); // admin create response — keep packages
     }
 
     // ---------------------------- UPDATE ----------------------------
@@ -277,7 +277,7 @@ public class ServiceItemService {
             wishlistService.notifyWishlistersOnReactivation(WishlistItemType.SERVICE, updated.getServiceId(), updated.getTitle());
         }
 
-        return convertToDTO(updated);
+        return convertToDTO(updated, true); // admin update response — keep packages
     }
 
     // ---------------------------- DELETE ----------------------------
@@ -309,7 +309,7 @@ public class ServiceItemService {
             throw new IllegalStateException("Massimo 5 trattamenti in evidenza");
         }
         entity.setFeatured(value);
-        return convertToDTO(serviceItemRepository.save(entity));
+        return convertToDTO(serviceItemRepository.save(entity), true); // admin response — keep packages
     }
 
     @Transactional
@@ -353,9 +353,12 @@ public class ServiceItemService {
     }
 
     // ---------------------------- CONVERTER ----------------------------
-    private ServiceItemResponseDTO convertToDTO(ServiceItem serviceItem) {
+    // includePackages=false (public reads) drops is_package options so they never reach the public site;
+    // admin reads pass true → option output stays unchanged. The active filter is unrelated and kept.
+    private ServiceItemResponseDTO convertToDTO(ServiceItem serviceItem, boolean includePackages) {
         List<ServiceOptionResponseDTO> optionDTOs = serviceItem.getOptions().stream()
                 .filter(ServiceOption::isActive)
+                .filter(o -> includePackages || !o.isPackage())
                 .map(this::toOptionDTO)
                 .toList();
 
