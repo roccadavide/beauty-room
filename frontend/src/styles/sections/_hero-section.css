@@ -408,7 +408,7 @@
 ================================================ */
 @media (min-width: 1024px) {
   .hero-scene {
-    --michela-w: min(40vw, 620px);
+    --michela-w: min(37vw, 610px);
     --michela-bottom: -28svh;
     --content-pt: clamp(112px, 13svh, 168px);
   }
