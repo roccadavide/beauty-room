@@ -6,6 +6,7 @@ import CustomSelect from "../../components/common/CustomSelect";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import MultiImageUpload from "../../components/common/MultiImageUpload";
 import { BadgesPicker } from "../../components/common/BadgeFlag";
+import HighlightPicker from "../../components/common/HighlightPicker";
 import { buildMultipartForm } from "../../api/utils/multipart";
 
 const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => {
@@ -20,6 +21,8 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
     price: "",
     durationMin: "",
     categoryId: "",
+    highlightEnabled: false,
+    highlightColor: "#b8976a",
   });
   const [newFiles, setNewFiles] = useState([]);
   const [removedUrls, setRemovedUrls] = useState([]);
@@ -61,6 +64,8 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
       price: "",
       durationMin: "",
       categoryId: "",
+      highlightEnabled: false,
+      highlightColor: "#b8976a",
     });
     setNewFiles([]);
     setRemovedUrls([]);
@@ -86,6 +91,8 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
           price: service.price || "",
           durationMin: service.durationMin || "",
           categoryId: service.categoryId || "",
+          highlightEnabled: service.highlightEnabled ?? false,
+          highlightColor: service.highlightColor ?? "#b8976a",
         });
         setBadges(service.badges ?? []);
       } else {
@@ -240,6 +247,8 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
         categoryId: form.categoryId,
         removedImageUrls: removedUrls,
         badges: badges.length > 0 ? badges : null,
+        highlightEnabled: form.highlightEnabled,
+        highlightColor: form.highlightColor,
       };
 
       const formData = buildMultipartForm(payload, newFiles);
@@ -389,6 +398,15 @@ const ServiceModal = ({ show, onHide, categories, onServiceSaved, service }) => 
 
         <Form.Group>
           <BadgesPicker value={badges} onChange={setBadges} />
+        </Form.Group>
+
+        <Form.Group>
+          <HighlightPicker
+            enabled={form.highlightEnabled}
+            color={form.highlightColor}
+            onEnabledChange={v => handleChange("highlightEnabled", v)}
+            onColorChange={v => handleChange("highlightColor", v)}
+          />
         </Form.Group>
 
         <Form.Group>
