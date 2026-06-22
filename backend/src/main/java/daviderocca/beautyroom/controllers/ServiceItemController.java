@@ -54,7 +54,7 @@ public class ServiceItemController {
         boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         log.info("Richiesta elenco servizi [page={}, size={}, sort={}, includeInactive={}]", page, size, sort, isAdmin && includeInactive);
-        Page<ServiceItemResponseDTO> services = serviceItemService.findAllServiceItems(page, size, sort, isAdmin && includeInactive);
+        Page<ServiceItemResponseDTO> services = serviceItemService.findAllServiceItems(page, size, sort, isAdmin && includeInactive, isAdmin);
         return ResponseEntity.ok(services);
     }
 

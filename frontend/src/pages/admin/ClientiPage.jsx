@@ -336,31 +336,41 @@ function ClientSummary({ customer, loading, error, onNotesChange, onSettle }) {
           </div>
         </div>
 
-        {customer.packages?.length > 0 && (
+        {pkgError && <div className="cli-error">{pkgError}</div>}
+
+        {/* Pacchetti del cliente — online (Stripe, FK-bridged) e in sede (admin), distinti per
+            origine. Entrambi arrivano dallo stesso endpoint /active-packages; il campo `source`
+            li separa. Gli online sono read-only: dietro non c'è un ClientPackageAssignment, quindi
+            le azioni modifica/cancella (che colpiscono endpoint assignment) non si applicano. */}
+        {inStorePkgsLoading && (
           <div className="cli-packages-block">
-            <div className="cli-section-title">Pacchetti attivi (online)</div>
+            <div className="cli-loading" style={{ padding: "8px 0" }}>
+              <Spinner animation="border" size="sm" />
+            </div>
+          </div>
+        )}
+
+        {!inStorePkgsLoading && inStorePkgs.some(p => p.source === "ONLINE") && (
+          <div className="cli-packages-block">
+            <div className="cli-section-title">Pacchetti online</div>
             <div className="cli-packages">
-              {customer.packages.map(p => {
-                const total = p.sessionsTotal || 0;
+              {inStorePkgs.filter(p => p.source === "ONLINE").map(p => {
+                const total = p.totalSessions || 0;
                 const remaining = p.sessionsRemaining || 0;
                 const ratio = total > 0 ? remaining / total : 0;
                 const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
                 let barCls = "cli-pkg-bar-fill--good";
                 if (remaining <= 1) barCls = "cli-pkg-bar-fill--critical";
                 else if (pct <= 50) barCls = "cli-pkg-bar-fill--warn";
-
                 const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
-
                 return (
-                  <div key={p.packageCreditId} className="cli-pkg-card">
-                    <div className="cli-pkg-name">{p.serviceOptionName || "Pacchetto"}</div>
+                  <div key={p.id} className="cli-pkg-card">
+                    <div className="cli-pkg-name">{p.displayName || p.serviceTitle || "Pacchetto"}</div>
                     <div className="cli-pkg-bar">
                       <div className={`cli-pkg-bar-fill ${barCls}`} style={{ width: `${pct}%` }} />
                     </div>
                     <div className="cli-pkg-meta">
-                      <span>
-                        {remaining} / {total} sedute rimanenti
-                      </span>
+                      <span>{remaining} / {total} sedute rimanenti</span>
                       {expiry && <span>Scade il {expiry}</span>}
                     </div>
                   </div>
@@ -370,59 +380,51 @@ function ClientSummary({ customer, loading, error, onNotesChange, onSettle }) {
           </div>
         )}
 
-        {pkgError && <div className="cli-error">{pkgError}</div>}
-
-        {(inStorePkgsLoading || inStorePkgs.length > 0) && (
+        {!inStorePkgsLoading && inStorePkgs.some(p => p.source === "ADMIN") && (
           <div className="cli-packages-block">
             <div className="cli-section-title">Pacchetti in sede</div>
-            {inStorePkgsLoading ? (
-              <div className="cli-loading" style={{ padding: "8px 0" }}>
-                <Spinner animation="border" size="sm" />
-              </div>
-            ) : (
-              <div className="cli-packages">
-                {inStorePkgs.map(p => {
-                  const total = p.totalSessions || 0;
-                  const remaining = p.sessionsRemaining || 0;
-                  const ratio = total > 0 ? remaining / total : 0;
-                  const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-                  let barCls = "cli-pkg-bar-fill--good";
-                  if (remaining <= 1) barCls = "cli-pkg-bar-fill--critical";
-                  else if (pct <= 50) barCls = "cli-pkg-bar-fill--warn";
-                  return (
-                    <div key={p.id} className="cli-pkg-card cli-pkg-card--instore">
-                      <div className="cli-pkg-card-header">
-                        <div className="cli-pkg-name">{p.displayName || p.serviceOptionName || "Pacchetto"}</div>
-                        <div className="cli-pkg-actions">
-                          <button
-                            className="cli-icon-btn"
-                            title="Modifica"
-                            onClick={() => setEditPkg(p)}
-                            type="button"
-                          >
-                            ✏
-                          </button>
-                          <button
-                            className="cli-icon-btn cli-icon-btn--danger"
-                            title="Cancella pacchetto"
-                            onClick={() => setDeletePkgId(p.id)}
-                            type="button"
-                          >
-                            🗑
-                          </button>
-                        </div>
-                      </div>
-                      <div className="cli-pkg-bar">
-                        <div className={`cli-pkg-bar-fill ${barCls}`} style={{ width: `${pct}%` }} />
-                      </div>
-                      <div className="cli-pkg-meta">
-                        <span>{remaining} / {total} sedute rimanenti</span>
+            <div className="cli-packages">
+              {inStorePkgs.filter(p => p.source === "ADMIN").map(p => {
+                const total = p.totalSessions || 0;
+                const remaining = p.sessionsRemaining || 0;
+                const ratio = total > 0 ? remaining / total : 0;
+                const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+                let barCls = "cli-pkg-bar-fill--good";
+                if (remaining <= 1) barCls = "cli-pkg-bar-fill--critical";
+                else if (pct <= 50) barCls = "cli-pkg-bar-fill--warn";
+                return (
+                  <div key={p.id} className="cli-pkg-card cli-pkg-card--instore">
+                    <div className="cli-pkg-card-header">
+                      <div className="cli-pkg-name">{p.displayName || p.serviceOptionName || "Pacchetto"}</div>
+                      <div className="cli-pkg-actions">
+                        <button
+                          className="cli-icon-btn"
+                          title="Modifica"
+                          onClick={() => setEditPkg(p)}
+                          type="button"
+                        >
+                          ✏
+                        </button>
+                        <button
+                          className="cli-icon-btn cli-icon-btn--danger"
+                          title="Cancella pacchetto"
+                          onClick={() => setDeletePkgId(p.id)}
+                          type="button"
+                        >
+                          🗑
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <div className="cli-pkg-bar">
+                      <div className={`cli-pkg-bar-fill ${barCls}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="cli-pkg-meta">
+                      <span>{remaining} / {total} sedute rimanenti</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

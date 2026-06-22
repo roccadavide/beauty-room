@@ -65,6 +65,28 @@ public interface PackageCreditRepository extends JpaRepository<PackageCredit, UU
             PackageCreditStatus status
     );
 
+    /**
+     * Bridge: a customer's online packages of the given status, resolved directly through the
+     * credit's own owner FK (package_credits.customer_id, V74 — forward-filled at purchase,
+     * backfilled for existing unambiguous rows). Keying on customer_id instead of the customer's
+     * bookings means a credit that has been detached from every booking but is still paid + ACTIVE
+     * stays visible, and shared-email collision is structurally impossible (the FK is per-customer).
+     * service/serviceOption are fetched eagerly because OSIV is off and the caller maps them into
+     * the DTO after the tx closes. Credits with a null customer_id (admin-assigned / un-backfilled)
+     * never match here and surface only in the admin global view.
+     */
+    @Query("""
+            SELECT DISTINCT pc FROM PackageCredit pc
+            LEFT JOIN FETCH pc.service
+            LEFT JOIN FETCH pc.serviceOption
+            WHERE pc.status = :status
+              AND pc.customer.customerId = :customerId
+            """)
+    List<PackageCredit> findActiveOnlineByCustomerId(
+            @Param("customerId") UUID customerId,
+            @Param("status") PackageCreditStatus status
+    );
+
     // ---- lookup stripe (idempotenza webhook) ----
     Optional<PackageCredit> findByStripeSessionId(String stripeSessionId);
 

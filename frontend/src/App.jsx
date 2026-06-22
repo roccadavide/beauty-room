@@ -17,6 +17,7 @@ import { useSplashScreen } from "./hooks/useSplashScreen";
 import { logout } from "./features/auth/slices/auth.slice";
 import Toaster from "./components/feedback/Toaster";
 import { clearAccessToken } from "./utils/token";
+import { FEATURE_OCCASIONI_ENABLED } from "./utils/constants";
 import { logoutUser } from "./api/modules/auth.api";
 import Map from "./components/layout/Map";
 import ScrollVelocity from "./components/common/ScrollVelocity";
@@ -33,6 +34,7 @@ const MyProfile = lazy(() => import("./features/profile/MyProfile"));
 const MyArea = lazy(() => import("./pages/user/MyArea"));
 const ResultsPage = lazy(() => import("./features/results/ResultsPage"));
 const OccasioniPage = lazy(() => import("./features/occasioni/OccasioniPage"));
+const OccasioniComingSoon = lazy(() => import("./features/occasioni/OccasioniComingSoon"));
 const Login = lazy(() => import("./features/auth/Login"));
 const Register = lazy(() => import("./features/auth/Register"));
 const CartPage = lazy(() => import("./features/cart/CartPage"));
@@ -261,11 +263,13 @@ function App() {
                   </PageTransition>
                 }
               />
+              {/* Gated behind FEATURE_OCCASIONI_ENABLED (default OFF). A direct
+                  /occasioni URL hit renders the coming-soon, not the real page. */}
               <Route
                 path="/occasioni"
                 element={
                   <PageTransition routeKey={location.pathname}>
-                    <OccasioniPage />
+                    {FEATURE_OCCASIONI_ENABLED ? <OccasioniPage /> : <OccasioniComingSoon />}
                   </PageTransition>
                 }
               />

@@ -20,7 +20,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Setter
-@ToString(exclude = {"service", "serviceOption", "user"})
+@ToString(exclude = {"service", "serviceOption", "user", "customer"})
 public class PackageCredit {
 
     @Id
@@ -63,6 +63,16 @@ public class PackageCredit {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="user_id")
     private User user;
+
+    /**
+     * Stable owner of this credit (V74). Set at purchase from the resolved buyer Customer so a paid
+     * credit keeps its owner even when its last booking is detached. Nullable: existing rows and
+     * admin-assigned credits have none. Mirrors {@code Booking.customer} — ON DELETE SET NULL,
+     * no cascade (Hibernate only writes the FK from the associated id).
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name="customer_id")
+    private Customer customer;
 
     @PrePersist
     protected void onCreate() {

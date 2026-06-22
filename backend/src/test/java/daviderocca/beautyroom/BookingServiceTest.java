@@ -114,11 +114,14 @@ class BookingServiceTest {
     private BookingService bookingService;
 
     // =========================================================================
-    // TC-B1: doppio update COMPLETED non scala due volte (idempotenza)
+    // TC-B1: V72 — completing an online-package booking is counter-neutral.
+    // The session is consumed at BOOKING time, so CONFIRMED→COMPLETED (and a repeated
+    // COMPLETED→COMPLETED no-op) must NOT touch the online counter. The decrement/restore
+    // now key on crossing the CANCELLED/NO_SHOW occupancy boundary, not on completion.
     // =========================================================================
     @Test
-    @DisplayName("TC-B1: updateBookingStatus — doppio COMPLETED non scala due volte")
-    void updateBookingStatus_doubleCompleted_isIdempotentOnPackage() {
+    @DisplayName("TC-B1: updateBookingStatus — V72: completion does not consume the online package")
+    void updateBookingStatus_completion_isCounterNeutralForOnlinePackage() {
         UUID bookingId = UUID.randomUUID();
         Booking booking = new Booking();
         setFieldReflectively(booking, "bookingId", bookingId);
@@ -127,6 +130,7 @@ class BookingServiceTest {
 
         PackageCredit pc = new PackageCredit();
         booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // V72: already consumed at booking time
 
         when(bookingRepository.findByIdForUpdate(bookingId)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -134,15 +138,15 @@ class BookingServiceTest {
         User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
         admin.setRole(Role.ADMIN);
 
-        // Primo passaggio: CONFIRMED -> COMPLETED (consuma 1)
+        // CONFIRMED -> COMPLETED: within the occupancy boundary → no counter movement.
         BookingResponseDTO r1 = bookingService.updateBookingStatus(bookingId, BookingStatus.COMPLETED, admin);
         assertThat(r1.bookingStatus()).isEqualTo(BookingStatus.COMPLETED);
 
-        // Secondo passaggio: COMPLETED -> COMPLETED (no-op idempotente, nessun consumo)
+        // COMPLETED -> COMPLETED: same-status no-op.
         BookingResponseDTO r2 = bookingService.updateBookingStatus(bookingId, BookingStatus.COMPLETED, admin);
         assertThat(r2.bookingStatus()).isEqualTo(BookingStatus.COMPLETED);
 
-        verify(packageCreditService, times(1)).consumeSessionForBooking(any());
+        verify(packageCreditService, never()).consumeSessionForBooking(any());
         verify(packageCreditService, never()).restoreSessionForBooking(any());
     }
 
@@ -601,6 +605,128 @@ class BookingServiceTest {
         // Exactly one restore: stock 5 -> 8 (not 11), Product saved a single time across BOTH calls.
         assertThat(product.getStock()).isEqualTo(8);
         verify(productRepository, times(1)).save(any(Product.class));
+    }
+
+    // =========================================================================
+    // P29: hardDeleteBooking gives the online PackageCredit session back before the row
+    // is deleted — EXCEPT when the booking is COMPLETED (the session was genuinely
+    // performed, so it must not be gifted back). PackageCreditService is a @Mock here, so
+    // these assert the call-site guard added in this commit (restore invoked iff
+    // packageCredit != null && status != COMPLETED). The +1 arithmetic + idempotency live
+    // in PackageCreditService and are covered by PackageCreditServiceTest.
+    // =========================================================================
+    @Test
+    @DisplayName("P29: hard-delete of a non-COMPLETED package booking restores the credit session BEFORE the row delete")
+    void hardDeleteBooking_nonCompletedPackage_restoresCreditBeforeDelete() {
+        UUID bookingId = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        // session 2..N of an online package: not COMPLETED, no stripeSessionId → refund guard passes
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setPackageCredit(new PackageCredit());
+        booking.setCreditTrackedAtCreation(true); // holds the decrement taken at booking time
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of());
+        when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId)).thenReturn(List.of());
+        when(bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId)).thenReturn(List.of());
+        Query delQuery = mock(Query.class);
+        when(entityManager.createQuery(anyString())).thenReturn(delQuery);
+        when(delQuery.setParameter(anyString(), any())).thenReturn(delQuery);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
+
+        bookingService.hardDeleteBooking(bookingId, adminUser());
+
+        // Reuses the existing restore fn, and the +1 MUST precede the row delete (it is flushed
+        // before the entityManager.clear() inside hardDeleteBooking — see the ORDERING note there).
+        InOrder inOrder = inOrder(packageCreditService, bookingRepository);
+        inOrder.verify(packageCreditService).restoreSessionForBooking(booking);
+        inOrder.verify(bookingRepository).deleteById(bookingId);
+    }
+
+    @Test
+    @DisplayName("P29: hard-delete of a COMPLETED package booking does NOT restore the consumed session")
+    void hardDeleteBooking_completedPackage_doesNotRestoreCredit() {
+        UUID bookingId = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        // performed session: COMPLETED → excluded from restore (no stripeSessionId → guard passes)
+        booking.setBookingStatus(BookingStatus.COMPLETED);
+        booking.setPackageCredit(new PackageCredit());
+        booking.setCreditTrackedAtCreation(true);
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of());
+        when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId)).thenReturn(List.of());
+        when(bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId)).thenReturn(List.of());
+        Query delQuery = mock(Query.class);
+        when(entityManager.createQuery(anyString())).thenReturn(delQuery);
+        when(delQuery.setParameter(anyString(), any())).thenReturn(delQuery);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
+
+        bookingService.hardDeleteBooking(bookingId, adminUser());
+
+        verify(packageCreditService, never()).restoreSessionForBooking(any());
+        verify(bookingRepository).deleteById(bookingId); // still deleted, just no +1
+    }
+
+    // =========================================================================
+    // P30 (Commit 2): the delete refund guard is lifted for package-backed bookings only.
+    // Discriminator is the package credit, NOT stripeSessionId — so session-1 (which carries
+    // both) passes, while a genuine single-service online booking stays blocked.
+    // =========================================================================
+    @Test
+    @DisplayName("P30: hard-delete of a package session-1 (stripeSessionId + credit) is NOT blocked — restores then deletes")
+    void hardDeleteBooking_packageSession1WithStripeSession_notBlocked() {
+        UUID bookingId = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        // session-1 of an online package: paid via Stripe (has stripeSessionId) AND package-backed.
+        // Paid in full → the refund guard must NOT block it; the session returns to the credit.
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setStripeSessionId("cs_test_pkg_session1");
+        booking.setPackageCredit(new PackageCredit());
+        booking.setCreditTrackedAtCreation(true);
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of());
+        when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId)).thenReturn(List.of());
+        when(bookingPromotionLinkRepository.findAllByBookingBookingId(bookingId)).thenReturn(List.of());
+        Query delQuery = mock(Query.class);
+        when(entityManager.createQuery(anyString())).thenReturn(delQuery);
+        when(delQuery.setParameter(anyString(), any())).thenReturn(delQuery);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
+
+        bookingService.hardDeleteBooking(bookingId, adminUser()); // no BadRequestException thrown
+
+        InOrder inOrder = inOrder(packageCreditService, bookingRepository);
+        inOrder.verify(packageCreditService).restoreSessionForBooking(booking);
+        inOrder.verify(bookingRepository).deleteById(bookingId);
+    }
+
+    @Test
+    @DisplayName("P30: hard-delete of a single-service online booking (no package) is STILL blocked by the refund guard")
+    void hardDeleteBooking_singleServiceOnline_stillBlocked() {
+        UUID bookingId = UUID.randomUUID();
+
+        Booking booking = new Booking();
+        setFieldReflectively(booking, "bookingId", bookingId);
+        // paid online, NO package credit → genuine refund case: the guard must still fire and the
+        // row must NOT be deleted (Michela uses "Rimborsa" first — that path is untouched).
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setStripeSessionId("cs_test_single_service");
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> bookingService.hardDeleteBooking(bookingId, adminUser()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("rimborso");
+
+        verify(packageCreditService, never()).restoreSessionForBooking(any());
+        verify(bookingRepository, never()).deleteById(any());
     }
 
     private static User adminUser() {

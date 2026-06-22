@@ -13,14 +13,18 @@ import com.stripe.net.Webhook;
 import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.Customer;
 import daviderocca.beautyroom.entities.Order;
 import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.entities.ProcessedStripeEvent;
+import daviderocca.beautyroom.exceptions.BadRequestException;
+import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ProcessedStripeEventRepository;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.OrderStatus;
 import daviderocca.beautyroom.services.BookingService;
+import daviderocca.beautyroom.services.CustomerService;
 import daviderocca.beautyroom.services.OrderService;
 import daviderocca.beautyroom.services.PackageCreditService;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +61,7 @@ public class StripeWebhookController {
 
     private final OrderService orderService;
     private final BookingService bookingService;
+    private final CustomerService customerService;
     private final PackageCreditService packageCreditService;
     private final EmailOutboxService emailOutboxService;
     private final BookingRepository bookingRepository;
@@ -79,7 +84,14 @@ public class StripeWebhookController {
         log.info("Stripe event: {}", event.getType());
 
         try {
-            processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
+            // Dedup gate: a re-delivered event id short-circuits with 200 BEFORE any business logic
+            // runs. The event is recorded as processed only AFTER the body succeeds (below), so a
+            // transient first-delivery failure leaves no record and stays retryable by Stripe —
+            // recording up-front would mark a paid-but-failed purchase "done" and lose the retry.
+            if (processedEventRepo.existsById(event.getId())) {
+                log.info("Stripe event già processato, skip: {}", event.getId());
+                return ResponseEntity.ok("duplicate");
+            }
 
             switch (event.getType()) {
                 case "checkout.session.completed" -> handleCheckoutCompleted(event);
@@ -89,8 +101,14 @@ public class StripeWebhookController {
                 default -> log.info("Evento non gestito: {}", event.getType());
             }
 
+            // Record only after the handler returned without throwing: a thrown handler skips this
+            // line, so the event is NOT marked processed and Stripe's retry can re-run it. A
+            // truly-concurrent duplicate that slips past existsById collides on the PK here and is
+            // caught below (200).
+            processedEventRepo.save(new ProcessedStripeEvent(event.getId()));
+
         } catch (DataIntegrityViolationException dup) {
-            log.info("Stripe event già processato, skip: {}", event.getId());
+            log.info("Stripe event già processato (race), skip: {}", event.getId());
             return ResponseEntity.ok("duplicate");
         } catch (Exception e) {
             log.error("Errore gestione Stripe {}: {}", event.getType(), e.getMessage(), e);
@@ -243,10 +261,14 @@ public class StripeWebhookController {
             emailOutboxService.enqueueBookingConfirmed(b);
 
             // ===== PACCHETTI =====
-            int sessionsTotal = 1;
-            if (b.getServiceOption() != null && b.getServiceOption().getSessions() != null) {
-                sessionsTotal = b.getServiceOption().getSessions();
-            }
+            // OSIV is off (spring.jpa.open-in-view=false) and findBookingById's transaction is
+            // already closed, so b is detached and b.getServiceOption() is an uninitialized lazy
+            // proxy — touching getSessions() on it threw LazyInitializationException here, which
+            // aborted package-credit creation (booking stayed paid but packageCreditId = null).
+            // Resolve the sessions count via a scalar projection that reads it inside the
+            // repository's own session, returning a plain Integer instead of dereferencing the proxy.
+            Integer optionSessions = bookingRepository.findServiceOptionSessionsByBookingId(bookingId);
+            int sessionsTotal = optionSessions != null ? optionSessions : 1;
 
             if (sessionsTotal > 1) {
                 boolean alreadyCreated = packageCreditService.findByStripeSessionId(session.getId()).isPresent();
@@ -256,22 +278,57 @@ public class StripeWebhookController {
                     log.warn("Skip pacchetto: alreadyCreated={} alreadyLinked={} bookingId={} stripeSessionId={}",
                             alreadyCreated, alreadyLinked, b.getBookingId(), session.getId());
                 } else {
-                    PackageCredit pc = packageCreditService.createPackageCredit(
-                            b.getCustomerEmail(),
-                            sessionsTotal,
-                            b.getService(),
-                            b.getServiceOption(),
-                            b.getUser(),
-                            session.getId(),
-                            true
-                    );
+                    // V74: resolve the buyer's Customer FIRST, then pass it into createPackageCredit so
+                    // customer_id is persisted INSIDE that method's own transaction. handleCheckoutCompleted
+                    // is not a single transaction and OSIV is off (see :249) — b is detached, so a post-hoc
+                    // pc.setCustomer(...) on the returned credit would not persist. Reuse the SAME
+                    // find-or-create the MULTI webhook path uses (phone-first dedup, see
+                    // CustomerService#findOrCreate): a returning customer or a webhook retry resolves to the
+                    // existing record, never a duplicate. Best-effort — a failure must not abort the (already
+                    // paid) package linkage; the credit just stays customer_id-null (Stage 2 backfills it,
+                    // and the bookings bridge still resolves ownership until Stage 3).
+                    Customer customer = null;
+                    try {
+                        customer = customerService.findOrCreate(
+                                b.getCustomerName(), b.getCustomerPhone(), b.getCustomerEmail(), null);
+                    } catch (Exception e) {
+                        log.warn("Customer upsert failed for online package booking {}: {}",
+                                b.getBookingId(), e.getMessage());
+                    }
+
+                    // A1: a re-purchase of an option the buyer already holds ACTIVE must NOT abort the
+                    // webhook. addToActiveOrCreate TOPS UP the existing ACTIVE credit (instead of throwing
+                    // DuplicateResourceException) or creates a new one on a first purchase — and returns the
+                    // owner the booking must link to (the credit's anchored owner on a top-up; never a
+                    // freshly find-or-create'd orphan). createPackageCredit (and its duplicate guard) stays
+                    // intact for the admin-assign path.
+                    PackageCreditService.PurchaseCreditResult result =
+                            packageCreditService.addToActiveOrCreate(
+                                    b.getCustomerEmail(),
+                                    sessionsTotal,
+                                    b.getService(),
+                                    b.getServiceOption(),
+                                    b.getUser(),
+                                    customer,
+                                    session.getId());
+                    PackageCredit pc = result.credit();
+                    Customer owner = result.owner();
 
                     b = bookingService.findBookingById(bookingId);
                     b.setPackageCredit(pc);
+                    if (owner != null) {
+                        b.setCustomer(owner);
+                    }
+                    // V72/A1: this purchase's session-1 is consumed at BOOKING time (remaining −1), ONCE,
+                    // idempotent via credit_tracked_at_creation — the same mechanism for a brand-new credit
+                    // and a topped-up one (replaces the old consumeFirstSession=true bake-in). The flag is
+                    // set inside consumeSessionForBooking and persisted by the save() below.
+                    packageCreditService.consumeSessionForBooking(b);
+
                     bookingService.save(b);
 
-                    log.info("Pacchetto creato e collegato: bookingId={} packageCreditId={} total={} remaining={}",
-                            b.getBookingId(), pc.getPackageCreditId(), pc.getSessionsTotal(), pc.getSessionsRemaining());
+                    log.info("Pacchetto collegato (create/top-up): bookingId={} packageCreditId={} total={}",
+                            b.getBookingId(), pc.getPackageCreditId(), pc.getSessionsTotal());
                 }
             }
 
@@ -614,6 +671,25 @@ public class StripeWebhookController {
         return null;
     }
 
+    /**
+     * Resilient Charge deserialization across Stripe API-version skew — the structural twin of
+     * {@link #deserializeSession}. The webhook endpoint renders events at a newer API version than
+     * stripe-java pins, so the strict {@code getObject()} returns empty; fall back to GSON-parsing the
+     * raw event payload so {@code charge.refunded} reaches its handlers (booking AND product-order).
+     */
+    private Charge deserializeCharge(Event event) {
+        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
+
+        StripeObject obj = deserializer.getObject().orElse(null);
+        if (obj instanceof Charge c) return c;
+
+        String rawJson = deserializer.getRawJson();
+        if (rawJson != null && !rawJson.isBlank()) {
+            return ApiResource.GSON.fromJson(rawJson, Charge.class);
+        }
+        return null;
+    }
+
     private void handlePaymentFailed(Event event) {
         EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
         PaymentIntent intent = (PaymentIntent) deserializer.getObject().orElse(null);
@@ -663,22 +739,73 @@ public class StripeWebhookController {
     }
 
     private void handleChargeRefunded(Event event) {
-        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
-        Charge charge = (Charge) deserializer.getObject().orElse(null);
+        // Parse resiliently across Stripe API-version skew (see deserializeCharge): the strict
+        // getObject() returns null when the event's API version is newer than the SDK pins, which used
+        // to make this handler bail at "senza Charge" before reaching either branch.
+        Charge charge = deserializeCharge(event);
 
         if (charge == null) {
             log.warn("charge.refunded senza Charge");
             return;
         }
 
+        // ===== PRODUCT ORDER (unchanged behaviour) =====
         String orderIdStr = charge.getMetadata() != null ? charge.getMetadata().get("orderId") : null;
-        if (orderIdStr == null) {
-            log.info("charge.refunded");
+        if (orderIdStr != null) {
+            UUID orderId = UUID.fromString(orderIdStr);
+            // Prompt 26: the parse fix made this branch reachable, but OrderService currently has no
+            // allowed transition to REFUNDED → updateOrderStatus throws and used to bubble to the 500
+            // catch-all (→ Stripe retries forever). Acknowledge with a 200 instead; we do NOT reconcile
+            // order state here (real reconciliation = ALLOWED_TRANSITIONS fix, a separate products
+            // item). Catch is scoped to the reconciliation call only and narrow to the two types
+            // updateOrderStatus throws (disallowed transition / order-not-found). The WARN is the
+            // breadcrumb a human/follow-up uses to reconcile manually.
+            try {
+                orderService.updateOrderStatus(orderId, OrderStatus.REFUNDED);
+                log.info("Rimborso completato per ordine {}", orderId);
+            } catch (BadRequestException | ResourceNotFoundException e) {
+                log.warn("charge.refunded: order {} refund received but NOT reconciled ({}) — acknowledged (200), reconcile manually",
+                        orderId, e.getMessage());
+            }
             return;
         }
 
-        UUID orderId = UUID.fromString(orderIdStr);
-        orderService.updateOrderStatus(orderId, OrderStatus.REFUNDED);
-        log.info("Rimborso completato per ordine {}", orderId);
+        // ===== BOOKING / PACKAGE (Prompt 23 — dashboard-refund parity) =====
+        // A refund initiated straight from the Stripe dashboard fires ONLY this webhook (no admin
+        // "Rimborsa" call), so without this branch a dashboard refund of a package left its
+        // PackageCredit ACTIVE and consumable. Step-0 verified the charge carries bookingId in
+        // charge.metadata (payment_intent_data.metadata propagates to the charge); we still fall back
+        // to the PaymentIntent's metadata so a charge that ever lacks it can't silently leak.
+        String bookingIdStr = charge.getMetadata() != null ? charge.getMetadata().get("bookingId") : null;
+        if (bookingIdStr == null || bookingIdStr.isBlank()) {
+            try {
+                String piId = charge.getPaymentIntent();
+                if (piId != null && !piId.isBlank()) {
+                    Stripe.apiKey = stripeSecretKey;
+                    PaymentIntent pi = PaymentIntent.retrieve(piId);
+                    if (pi.getMetadata() != null) bookingIdStr = pi.getMetadata().get("bookingId");
+                }
+            } catch (StripeException e) {
+                log.error("charge.refunded: PaymentIntent.retrieve fallito per charge {}: {}",
+                        charge.getId(), e.getMessage());
+            }
+        }
+        if (bookingIdStr == null || bookingIdStr.isBlank()) {
+            log.info("charge.refunded: né orderId né bookingId — skip (charge {})", charge.getId());
+            return;
+        }
+
+        // Full refunds only: a partial dashboard refund must NOT invalidate the credit. A sequence of
+        // partial refunds that cumulatively reaches the full amount satisfies == on the last event —
+        // that final one settles it.
+        Long amount = charge.getAmount();
+        Long amountRefunded = charge.getAmountRefunded();
+        if (amount != null && amountRefunded != null && amountRefunded < amount) {
+            log.info("charge.refunded: rimborso parziale ({}/{}) — skip, credito invariato (booking {})",
+                    amountRefunded, amount, bookingIdStr);
+            return;
+        }
+
+        bookingService.markRefundSettled(bookingIdStr);
     }
 }

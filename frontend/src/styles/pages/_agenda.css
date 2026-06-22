@@ -3008,6 +3008,25 @@ button.ag-pill:hover,
   padding: 0 6px;
   line-height: 1.5;
 }
+
+/* Part B: "Pagato online" marker on the ONLINE package selection card. Mirrors the
+   agenda's .ag-badge-paid-online green palette for consistency; margin-left:auto pins
+   it to the right of the name row (the card's top-right corner). */
+.nad-online-pkg-paid {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #2e7d32;
+  background: #e8f5e9;
+  border: 1px solid rgba(46, 125, 50, 0.3);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
 .ag-pkg-select-card__meta {
   font-size: 0.74rem;
   color: #9a7a50;

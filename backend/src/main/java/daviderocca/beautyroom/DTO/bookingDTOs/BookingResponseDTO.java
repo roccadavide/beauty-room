@@ -38,5 +38,9 @@ public record BookingResponseDTO(
         PackageSummaryDTO linkedPackage,
         boolean paidInStore,
         // Standalone product sales attached to this booking (online-paid cart products).
-        List<SaleSummaryDTO> sales
+        List<SaleSummaryDTO> sales,
+        // PROMPT 32: V63 is_package discriminator — true when this booking's ServiceOption is a sellable
+        // package, so the confirmation page can lead with the package label (serviceOptionName) instead
+        // of "serviceTitle · serviceOptionName". False when there is no option.
+        boolean isPackage
 ) {}

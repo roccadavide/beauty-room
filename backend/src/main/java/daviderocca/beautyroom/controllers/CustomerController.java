@@ -81,7 +81,6 @@ public class CustomerController {
     @GetMapping("/{id}/active-packages")
     public ResponseEntity<List<UnifiedActivePackageDTO>> activePackages(@PathVariable UUID id) {
         String fullName = customerService.getFullName(id);
-        String email    = customerService.getEmail(id);
 
         List<UnifiedActivePackageDTO> result = new ArrayList<>();
 
@@ -102,31 +101,35 @@ public class CustomerController {
                 a.pricePaid(),
                 a.notes(),
                 a.linkedUserId(),
-                a.paidUpfront()
+                a.paidUpfront(),
+                null   // ADMIN packages: no expiry surfaced on this card
             ))
         );
 
-        // ONLINE packages (Stripe-purchased PackageCredit) — always paid upfront.
-        if (email != null && !email.isBlank()) {
-            for (PackageCredit pc : packageCreditService.findActiveByEmail(email)) {
-                String displayName = pc.getServiceOption() != null
-                        ? pc.getServiceOption().getName()
-                        : (pc.getService() != null ? pc.getService().getTitle() : "Pacchetto online");
-                String serviceTitle = pc.getService() != null ? pc.getService().getTitle() : null;
-                result.add(new UnifiedActivePackageDTO(
-                    pc.getPackageCreditId(),
-                    displayName,
-                    serviceTitle,
-                    pc.getServiceOption() != null ? pc.getServiceOption().getOptionId() : null,
-                    pc.getSessionsTotal(),
-                    pc.getSessionsRemaining(),
-                    null,
-                    pc.getStatus().name(),
-                    "ONLINE",
-                    null, null, null, null, null,
-                    true
-                ));
-            }
+        // ONLINE packages (Stripe-purchased PackageCredit) — resolved through the customer's OWN
+        // bookings (FK bridge), NOT by email. The purchase webhook links booking.customer and
+        // booking.packageCredit, so this returns only THIS customer's credits: collision-free
+        // (no shared-email leakage between two customers) and immune to a stale/blank Customer.email
+        // left by the phone-first find-or-create. Always paid upfront (prepaid via Stripe).
+        for (PackageCredit pc : packageCreditService.findActiveByCustomerId(id)) {
+            String displayName = pc.getServiceOption() != null
+                    ? pc.getServiceOption().getName()
+                    : (pc.getService() != null ? pc.getService().getTitle() : "Pacchetto online");
+            String serviceTitle = pc.getService() != null ? pc.getService().getTitle() : null;
+            result.add(new UnifiedActivePackageDTO(
+                pc.getPackageCreditId(),
+                displayName,
+                serviceTitle,
+                pc.getServiceOption() != null ? pc.getServiceOption().getOptionId() : null,
+                pc.getSessionsTotal(),
+                pc.getSessionsRemaining(),
+                null,
+                pc.getStatus().name(),
+                "ONLINE",
+                null, null, null, null, null,
+                true,
+                pc.getExpiryDate()
+            ));
         }
 
         return ResponseEntity.ok(result);

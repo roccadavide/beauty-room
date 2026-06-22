@@ -24,6 +24,22 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     List<Booking> findByCustomerEmailIgnoreCase(String customerEmail);
 
+    /**
+     * Scalar projection of the booking's ServiceOption.sessions (null when the booking has no
+     * option, or the option's sessions is null). Used by the Stripe webhook to decide package vs
+     * single service WITHOUT dereferencing a detached lazy ServiceOption proxy: OSIV is off, so by
+     * the time the webhook reads the (re-fetched, then detached) booking, option.getSessions() would
+     * throw LazyInitializationException. This reads the value inside the repository's own session
+     * and returns a plain Integer. LEFT JOIN so an option-less booking still resolves (to null).
+     */
+    @Query("""
+        select o.sessions
+        from Booking b
+        left join b.serviceOption o
+        where b.bookingId = :bookingId
+    """)
+    Integer findServiceOptionSessionsByBookingId(@Param("bookingId") UUID bookingId);
+
     @Query("""
         select b
         from Booking b
@@ -99,6 +115,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     LEFT JOIN FETCH b.packageCredit pc
     LEFT JOIN FETCH b.user
     LEFT JOIN FETCH b.linkedUser
+    LEFT JOIN FETCH b.customer
     WHERE b.startTime < :to
       AND b.endTime   > :from
     ORDER BY b.startTime ASC
@@ -211,10 +228,12 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     // via bookings.paid_in_store (settled by the completion drawer). See the
     // "legacy principal" branch below.
     //
-    // KNOWN LIMIT (out of scope): package_credit_id IS NULL excludes a credit-backed
-    // booking ENTIRELY. Unpaid EXTRA lines on a fully credit-backed booking are not
-    // surfaced as arretrati — the covered session is not row-identifiable, and the
-    // whole-booking exclusion stays consistent with frontend isLineSettled.
+    // PROMPT 40: the package_credit_id IS NULL guard is now PER-BRANCH. The booking_services
+    // (extras) branch DROPS it so an unpaid EXTRA on a credit-backed booking surfaces as an
+    // arretrato — the prepaid online session has NO booking_services row, so it can't leak via
+    // that branch. Every OTHER branch — legacy-principal especially — KEEPS the guard so a pure
+    // prepaid session never surfaces (R2). The same per-branch split is mirrored in all THREE
+    // methods below (existsUnsettled… / findPhonesWithOutstanding / findArretratiForCustomer).
     //
     // KEYED BY PHONE (not email): the salon is walk-in-heavy — most bookings carry a
     // generated walkin+…@beautyroom.local email but a REAL phone, so email never
@@ -242,25 +261,30 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             FROM bookings b
             WHERE b.booking_status = 'COMPLETED'
               AND b.paid_at IS NULL
-              AND b.package_credit_id IS NULL
               AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
               AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')
               AND (
+                    -- PROMPT 40: extras surface even on a credit-backed booking (the prepaid
+                    -- online session has NO booking_services row) → NO package_credit_id guard here.
                     EXISTS (SELECT 1 FROM booking_services bs
                              WHERE bs.booking_id = b.booking_id AND bs.paid = false)
-                 OR EXISTS (SELECT 1 FROM booking_package_link bpl
-                              JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
-                             WHERE bpl.booking_id = b.booking_id AND bpl.paid = false
-                               AND cpa.paid_upfront = false)
-                 OR (b.is_custom_service = true AND b.custom_service_paid = false)
-                 OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
-                       AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
-                 OR EXISTS (SELECT 1 FROM booking_sales sl
-                             WHERE sl.booking_id = b.booking_id
-                               AND sl.promotion_link_id IS NULL AND sl.paid = false)
-                 OR EXISTS (SELECT 1 FROM booking_promotion_link bpl
-                             WHERE bpl.booking_id = b.booking_id
-                               AND bpl.paid = false AND bpl.promotion_id IS NOT NULL)
+                    -- All OTHER line kinds stay whole-booking-excluded for credit-backed bookings
+                    -- (R2: a pure prepaid session must never surface as an arretrato).
+                 OR (b.package_credit_id IS NULL AND (
+                       EXISTS (SELECT 1 FROM booking_package_link bpl
+                                JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
+                               WHERE bpl.booking_id = b.booking_id AND bpl.paid = false
+                                 AND cpa.paid_upfront = false)
+                    OR (b.is_custom_service = true AND b.custom_service_paid = false)
+                    OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
+                          AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
+                    OR EXISTS (SELECT 1 FROM booking_sales sl
+                                WHERE sl.booking_id = b.booking_id
+                                  AND sl.promotion_link_id IS NULL AND sl.paid = false)
+                    OR EXISTS (SELECT 1 FROM booking_promotion_link bpl
+                                WHERE bpl.booking_id = b.booking_id
+                                  AND bpl.paid = false AND bpl.promotion_id IS NOT NULL)
+                 ))
               )
         )
         """, nativeQuery = true)
@@ -285,25 +309,30 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         FROM bookings b
         WHERE b.booking_status = 'COMPLETED'
           AND b.paid_at IS NULL
-          AND b.package_credit_id IS NULL
           AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
           AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') IN (:phones)
           AND (
+                -- PROMPT 40: extras surface even on a credit-backed booking (the prepaid
+                -- online session has NO booking_services row) → NO package_credit_id guard here.
                 EXISTS (SELECT 1 FROM booking_services bs
                          WHERE bs.booking_id = b.booking_id AND bs.paid = false)
-             OR EXISTS (SELECT 1 FROM booking_package_link bpl
-                          JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
-                         WHERE bpl.booking_id = b.booking_id AND bpl.paid = false
-                           AND cpa.paid_upfront = false)
-             OR (b.is_custom_service = true AND b.custom_service_paid = false)
-             OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
-                   AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
-             OR EXISTS (SELECT 1 FROM booking_sales sl
-                         WHERE sl.booking_id = b.booking_id
-                           AND sl.promotion_link_id IS NULL AND sl.paid = false)
-             OR EXISTS (SELECT 1 FROM booking_promotion_link bpl
-                         WHERE bpl.booking_id = b.booking_id
-                           AND bpl.paid = false AND bpl.promotion_id IS NOT NULL)
+                -- All OTHER line kinds stay whole-booking-excluded for credit-backed bookings
+                -- (R2: a pure prepaid session must never surface as an arretrato).
+             OR (b.package_credit_id IS NULL AND (
+                   EXISTS (SELECT 1 FROM booking_package_link bpl
+                            JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id
+                           WHERE bpl.booking_id = b.booking_id AND bpl.paid = false
+                             AND cpa.paid_upfront = false)
+                OR (b.is_custom_service = true AND b.custom_service_paid = false)
+                OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false
+                      AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id))
+                OR EXISTS (SELECT 1 FROM booking_sales sl
+                            WHERE sl.booking_id = b.booking_id
+                              AND sl.promotion_link_id IS NULL AND sl.paid = false)
+                OR EXISTS (SELECT 1 FROM booking_promotion_link bpl
+                            WHERE bpl.booking_id = b.booking_id
+                              AND bpl.paid = false AND bpl.promotion_id IS NOT NULL)
+             ))
           )
         """, nativeQuery = true)
     List<String> findPhonesWithOutstanding(@Param("phones") Collection<String> phones);
@@ -334,7 +363,10 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         JOIN bookings b ON b.booking_id = bs.booking_id
         LEFT JOIN services s         ON s.service_id = bs.service_id
         LEFT JOIN service_options so ON so.option_id = bs.option_id
-        WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL
+        -- PROMPT 40: NO package_credit_id guard on the booking_services branch — an unpaid EXTRA
+        -- on a credit-backed booking must surface. The prepaid online session has no row here, so
+        -- it cannot leak via this branch; the legacy-principal branch below KEEPS the guard (R2).
+        WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL
           AND b.custom_total_price IS NULL
           AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') <> ''
           AND regexp_replace(b.customer_phone, '[^0-9]', '', 'g') = regexp_replace(:phone, '[^0-9]', '', 'g')

@@ -34,6 +34,15 @@ public class Customer {
     @Column(name = "phone", length = 50)
     private String phone;
 
+    /**
+     * Digits-only normalization of {@link #phone}, used ONLY for deduplication /
+     * lookup and the partial unique index {@code ux_customer_phone}. Never shown to
+     * users — {@link #phone} stays human-readable for display. Kept in sync by
+     * {@code CustomerService} via {@code PhoneNormalizer.normalize(...)}.
+     */
+    @Column(name = "phone_normalized", columnDefinition = "TEXT")
+    private String phoneNormalized;
+
     @Column(name = "email", length = 255)
     private String email;
 

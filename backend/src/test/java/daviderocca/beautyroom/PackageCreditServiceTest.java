@@ -68,7 +68,7 @@ class PackageCreditServiceTest {
         });
 
         PackageCredit result = service.createPackageCredit(
-                "cliente@test.it", 5, serviceItem, serviceOption, null, null, false);
+                "cliente@test.it", 5, serviceItem, serviceOption, null, null, null, false);
 
         assertThat(result.getSessionsTotal()).isEqualTo(5);
         assertThat(result.getSessionsRemaining()).isEqualTo(5);
@@ -85,7 +85,7 @@ class PackageCreditServiceTest {
     @DisplayName("TC-1b: createPackageCredit — serviceOption null non consentito")
     void createPackageCredit_withoutServiceOption_throwsBadRequest() {
         assertThatThrownBy(() ->
-                service.createPackageCredit("cliente@test.it", 5, serviceItem, null, null, null, false)
+                service.createPackageCredit("cliente@test.it", 5, serviceItem, null, null, null, null, false)
         ).isInstanceOf(BadRequestException.class)
          .hasMessageContaining("ServiceOption");
 
@@ -102,7 +102,7 @@ class PackageCreditServiceTest {
                 anyString(), eq(optionId), eq(PackageCreditStatus.ACTIVE))).thenReturn(true);
 
         assertThatThrownBy(() ->
-                service.createPackageCredit("cliente@test.it", 5, serviceItem, serviceOption, null, null, false)
+                service.createPackageCredit("cliente@test.it", 5, serviceItem, serviceOption, null, null, null, false)
         ).isInstanceOf(DuplicateResourceException.class)
          .hasMessageContaining("già un pacchetto ACTIVE");
 
@@ -160,6 +160,7 @@ class PackageCreditServiceTest {
 
         Booking booking = new Booking();
         booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // V72: restore only acts on a credit-tracked booking
 
         when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -183,6 +184,7 @@ class PackageCreditServiceTest {
 
         Booking booking = new Booking();
         booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // V72: tracked, so restore reaches the over-total guard
 
         when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
 
@@ -204,6 +206,7 @@ class PackageCreditServiceTest {
 
         Booking booking = new Booking();
         booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // V72: restore only acts on a credit-tracked booking
 
         when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -237,6 +240,66 @@ class PackageCreditServiceTest {
         verify(repo).save(captor.capture());
         assertThat(captor.getValue().getSessionsRemaining()).isEqualTo(0);
         assertThat(captor.getValue().getStatus()).isEqualTo(PackageCreditStatus.COMPLETED);
+    }
+
+    // =========================================================================
+    // TC-V72: idempotenza — consumare due volte la stessa booking scala UNA sola volta.
+    // È la proprietà di sicurezza centrale del modello online V72 (un re-save/edit non
+    // deve mai ri-scalare). Il flag creditTrackedAtCreation è il guardiano.
+    // =========================================================================
+    @Test
+    @DisplayName("TC-V72: consumeSessionForBooking — idempotente quando già credit-tracked")
+    void consumeSessionForBooking_isIdempotent_whenAlreadyTracked() {
+        PackageCredit pc = buildActivePackage(3, LocalDateTime.now().plusMonths(12));
+        UUID pcId = pc.getPackageCreditId();
+
+        Booking booking = new Booking();
+        booking.setPackageCredit(pc);
+
+        when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
+        when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Primo consumo: scala 3 → 2 e marca la booking come tracciata.
+        service.consumeSessionForBooking(booking);
+        assertThat(pc.getSessionsRemaining()).isEqualTo(2);
+        assertThat(booking.isCreditTrackedAtCreation()).isTrue();
+
+        // Secondo consumo (re-save/edit): il flag blocca la scalatura → resta 2, nessun save extra.
+        service.consumeSessionForBooking(booking);
+        assertThat(pc.getSessionsRemaining()).isEqualTo(2);
+        verify(repo, times(1)).save(any());
+    }
+
+    // =========================================================================
+    // TC-V72b: idempotenza lato RESTORE — il secondo restore (es. il cancel/no-show che
+    // segue il detach del pacchetto online in edit) NON restituisce una seconda seduta.
+    // Dopo il primo restore il flag torna false: è il backstop anti doppio-restore su cui
+    // si appoggia il detach in BookingService.updateMultiServiceBooking. Qui l'FK resta
+    // valorizzato per esercitare il guardiano del flag in isolamento (nel detach reale l'FK
+    // viene anche annullato dopo il restore, aggiungendo la guardia packageCredit == null).
+    // =========================================================================
+    @Test
+    @DisplayName("TC-V72b: restoreSessionForBooking — idempotente: il secondo restore è no-op (flag guard)")
+    void restoreSessionForBooking_isIdempotent_secondRestoreIsNoOp() {
+        PackageCredit pc = buildActivePackage(2, LocalDateTime.now().plusMonths(12));
+        UUID pcId = pc.getPackageCreditId();
+
+        Booking booking = new Booking();
+        booking.setPackageCredit(pc);
+        booking.setCreditTrackedAtCreation(true); // la booking tiene un decremento (consumato alla creazione)
+
+        when(repo.findByIdForUpdate(pcId)).thenReturn(Optional.of(pc));
+        when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Primo restore (il detach): 2 → 3 e il flag torna false.
+        service.restoreSessionForBooking(booking);
+        assertThat(pc.getSessionsRemaining()).isEqualTo(3);
+        assertThat(booking.isCreditTrackedAtCreation()).isFalse();
+
+        // Secondo restore (il cancel che segue): il flag false blocca tutto → resta 3, nessun save extra.
+        service.restoreSessionForBooking(booking);
+        assertThat(pc.getSessionsRemaining()).isEqualTo(3);
+        verify(repo, times(1)).save(any());
     }
 
     // =========================================================================

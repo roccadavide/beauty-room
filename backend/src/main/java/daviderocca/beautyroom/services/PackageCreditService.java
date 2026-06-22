@@ -4,6 +4,7 @@ import daviderocca.beautyroom.DTO.packageDTOs.ActivePackageDTO;
 import daviderocca.beautyroom.DTO.packageDTOs.AssignPackageCreditDTO;
 import daviderocca.beautyroom.DTO.packageDTOs.MyPackageDTO;
 import daviderocca.beautyroom.entities.Booking;
+import daviderocca.beautyroom.entities.Customer;
 import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.entities.ServiceOption;
@@ -43,6 +44,10 @@ public class PackageCreditService {
      *
      * @param consumeFirstSession se true, la prima seduta viene subito scalata
      *                            (es. pagamento Stripe che include la seduta corrente)
+     * @param customerOrNull      owner Customer to anchor the credit to (V74). Set HERE, inside this
+     *                            method's transaction, so customer_id is persisted with the credit —
+     *                            never on the returned (detached) entity. Null for admin-assigned
+     *                            credits (Stage 1 leaves those unanchored).
      */
     @Transactional
     public PackageCredit createPackageCredit(
@@ -51,6 +56,7 @@ public class PackageCreditService {
             ServiceItem service,
             ServiceOption option,
             User userOrNull,
+            Customer customerOrNull,
             String stripeSessionId,
             boolean consumeFirstSession
     ) {
@@ -88,6 +94,10 @@ public class PackageCreditService {
         pc.setService(service);
         pc.setServiceOption(option);
         pc.setUser(userOrNull);
+        // V74: anchor to the owner inside this transaction so the FK persists with the insert. The
+        // entity has no cascade on this association, so a detached Customer (resolved in the caller's
+        // own closed tx) is fine — Hibernate only reads its id to write customer_id.
+        pc.setCustomer(customerOrNull);
         pc.setStripeSessionId(stripeSessionId);
 
         PackageCredit saved = packageCreditRepository.save(pc);
@@ -95,6 +105,98 @@ public class PackageCreditService {
                 saved.getPackageCreditId(), saved.getCustomerEmail(),
                 saved.getSessionsTotal(), saved.getSessionsRemaining(), saved.getStatus());
         return saved;
+    }
+
+    /**
+     * Result of {@link #addToActiveOrCreate}: the ACTIVE credit (freshly created or topped-up) and the
+     * customer the buying booking must be linked to — the credit's anchored owner, resolved INSIDE the
+     * method's tx so the caller never dereferences the credit's LAZY customer association after it
+     * detaches (OSIV off).
+     */
+    public record PurchaseCreditResult(PackageCredit credit, Customer owner) {}
+
+    /**
+     * Online purchase-path credit resolution (A1). Unlike {@link #createPackageCredit}, a re-purchase of
+     * an option the customer ALREADY holds ACTIVE does NOT throw {@link DuplicateResourceException} — it
+     * TOPS UP the existing ACTIVE credit by the purchased session count. "Regola 5" (one ACTIVE credit per
+     * {@code (email, ServiceOption)}) is preserved: the second purchase adds sessions to the one credit
+     * rather than spawning a second. This stops the webhook from aborting before it links the booking +
+     * customer (the bug where account re-purchases — forced stable email — left a PAID booking with no
+     * credit and an orphan customer).
+     *
+     * <p>This method NEVER consumes the first session: the caller does that uniformly via
+     * {@link #consumeSessionForBooking} for both the new-credit and top-up paths. The top-up is a
+     * deliberate {@code +N} to BOTH {@code sessionsTotal} and {@code sessionsRemaining}; it is NOT routed
+     * through consume/restore.
+     *
+     * <p>Money-path: the mutation runs inside this committed {@code @Transactional} on a managed entity —
+     * a post-hoc setter on the returned (detached) credit would be lost.
+     *
+     * @return the ACTIVE credit and the owner the booking must point at (existing owner on a top-up; the
+     *         buyer's customer on a first purchase, or when the existing credit was unanchored).
+     */
+    @Transactional
+    public PurchaseCreditResult addToActiveOrCreate(
+            String customerEmail,
+            int sessionsTotal,
+            ServiceItem service,
+            ServiceOption option,
+            User userOrNull,
+            Customer customerOrNull,
+            String stripeSessionId
+    ) {
+        if (customerEmail == null || customerEmail.isBlank()) {
+            throw new BadRequestException("Email cliente obbligatoria.");
+        }
+        if (sessionsTotal <= 1) {
+            throw new BadRequestException("sessionsTotal deve essere > 1 per creare un pacchetto.");
+        }
+        if (option == null) {
+            throw new BadRequestException("Every package must be associated with a specific ServiceOption.");
+        }
+
+        String email = customerEmail.trim().toLowerCase();
+
+        Optional<PackageCredit> existing = packageCreditRepository
+                .findTopByCustomerEmailIgnoreCaseAndServiceOptionOptionIdAndStatusOrderByPurchasedAtAsc(
+                        email, option.getOptionId(), PackageCreditStatus.ACTIVE);
+
+        // First purchase of this option for this email → behave exactly like createPackageCredit, but
+        // WITHOUT baking in the first-session decrement (consumeFirstSession=false): the caller consumes
+        // it via consumeSessionForBooking, the same path the top-up uses. Net effect is unchanged.
+        if (existing.isEmpty()) {
+            PackageCredit created = createPackageCredit(
+                    email, sessionsTotal, service, option, userOrNull, customerOrNull, stripeSessionId, false);
+            return new PurchaseCreditResult(created, customerOrNull);
+        }
+
+        // Re-purchase → top up the existing ACTIVE credit (+N to total AND remaining; the −1 for this
+        // booking's session is applied by the caller through consumeSessionForBooking).
+        PackageCredit pc = existing.get();
+        pc.setSessionsTotal(pc.getSessionsTotal() + sessionsTotal);
+        pc.setSessionsRemaining(pc.getSessionsRemaining() + sessionsTotal);
+
+        // Owner reconciliation (V74). Keep the credit's existing owner; adopt the buyer only if the credit
+        // was unanchored. If the buyer resolved to a DIFFERENT customer than the owner (same email,
+        // different phone — phone is the dedup key), keep the owner and FLAG it: the booking must point at
+        // the credit's owner, never a freshly find-or-create'd second/orphan customer.
+        Customer owner = pc.getCustomer();
+        if (owner == null) {
+            pc.setCustomer(customerOrNull);
+            owner = customerOrNull;
+        } else if (customerOrNull != null
+                && owner.getCustomerId() != null
+                && !owner.getCustomerId().equals(customerOrNull.getCustomerId())) {
+            log.warn("Re-purchase top-up: buyer customer {} differs from credit {} owner {} "
+                    + "(same email, different phone?) — linking booking to the credit's owner.",
+                    customerOrNull.getCustomerId(), pc.getPackageCreditId(), owner.getCustomerId());
+        }
+
+        PackageCredit saved = packageCreditRepository.save(pc);
+        log.info("PackageCredit {} topped up by re-purchase: +{} sessions → total={} remaining={} status={}",
+                saved.getPackageCreditId(), sessionsTotal, saved.getSessionsTotal(),
+                saved.getSessionsRemaining(), saved.getStatus());
+        return new PurchaseCreditResult(saved, owner);
     }
 
     // =====================================================================
@@ -115,6 +217,14 @@ public class PackageCreditService {
     @Transactional
     public void consumeSessionForBooking(Booking booking) {
         if (booking.getPackageCredit() == null) return;
+
+        // Idempotency (V72): this booking already holds a decrement against its credit, so a
+        // re-save / edit / repeated transition must NOT decrement again. The flag is flipped to
+        // TRUE only on the actual decrement below, and back to FALSE by restoreSessionForBooking.
+        if (booking.isCreditTrackedAtCreation()) {
+            log.debug("consumeSession skip: booking {} already credit-tracked", booking.getBookingId());
+            return;
+        }
 
         UUID pcId = booking.getPackageCredit().getPackageCreditId();
 
@@ -157,6 +267,9 @@ public class PackageCreditService {
         }
 
         packageCreditRepository.save(pc);
+        // V72: mark this booking as holding the decrement (persisted by the caller's save).
+        // Set only here, on the real decrement — the remaining<=0 early-return above does not.
+        booking.setCreditTrackedAtCreation(true);
         log.info("PackageCredit {} seduta scalata — remaining={} status={}",
                 pcId, pc.getSessionsRemaining(), pc.getStatus());
     }
@@ -171,6 +284,15 @@ public class PackageCreditService {
     @Transactional
     public void restoreSessionForBooking(Booking booking) {
         if (booking.getPackageCredit() == null) return;
+
+        // Idempotency (V72): only restore if this booking actually holds a decrement. A booking
+        // that was never tracked (e.g. an unpaid PENDING_PAYMENT cancel, or a second restore on
+        // the same transition) gives nothing back. The flag is flipped to FALSE on the real
+        // restore below.
+        if (!booking.isCreditTrackedAtCreation()) {
+            log.debug("restoreSession skip: booking {} holds no tracked credit decrement", booking.getBookingId());
+            return;
+        }
 
         UUID pcId = booking.getPackageCredit().getPackageCreditId();
 
@@ -193,6 +315,8 @@ public class PackageCreditService {
         }
 
         packageCreditRepository.save(pc);
+        // V72: this booking no longer holds a decrement (persisted by the caller's save).
+        booking.setCreditTrackedAtCreation(false);
         log.info("PackageCredit {} seduta ripristinata (rollback) — remaining={} status={}",
                 pcId, pc.getSessionsRemaining(), pc.getStatus());
     }
@@ -300,6 +424,20 @@ public class PackageCreditService {
     }
 
     /**
+     * A customer's ACTIVE online packages, resolved through THEIR OWN bookings (the FK bridge the
+     * purchase webhook sets: booking.customer + booking.packageCredit) instead of by email. This
+     * is the visibility fix: it returns only this customer's credits (collision-free, no shared-email
+     * leakage) and keeps working when Customer.email is stale/blank after a phone-first find-or-create.
+     * Used by the agenda drawer selector and the Clienti customer-detail panel.
+     */
+    @Transactional(readOnly = true)
+    public List<PackageCredit> findActiveByCustomerId(UUID customerId) {
+        if (customerId == null) return List.of();
+        return packageCreditRepository.findActiveOnlineByCustomerId(
+                customerId, PackageCreditStatus.ACTIVE);
+    }
+
+    /**
      * Recupera il pacchetto ACTIVE più vecchio (FIFO) per email + serviceOption.
      * Utile per futuri flow automatici di selezione pacchetto.
      */
@@ -387,8 +525,9 @@ public class PackageCreditService {
                 dto.sessionsTotal(),
                 service,
                 option,
-                null,
-                null,
+                null,   // userOrNull
+                null,   // customerOrNull — V74: admin-assigned credits stay unanchored in Stage 1
+                null,   // stripeSessionId
                 false
         );
         return toActiveDTO(pc);

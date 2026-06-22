@@ -29,7 +29,7 @@ import java.util.UUID;
 public class ClosureService {
 
     private static final List<BookingStatus> BLOCKING_STATUSES =
-            List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
+            List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
 
     private final ClosureRepository closureRepository;
     private final BookingRepository bookingRepository;

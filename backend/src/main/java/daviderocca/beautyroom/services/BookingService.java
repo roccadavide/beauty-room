@@ -18,6 +18,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.SaleEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SettlementRequestDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PackageItemSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoLineSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
@@ -129,7 +130,7 @@ public class BookingService {
     @Value("${app.booking.max-advance-days:150}")
     private int maxAdvanceDays;
 
-    private static final List<BookingStatus> BLOCKING = List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
+    private static final List<BookingStatus> BLOCKING = List.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
 
     /**
      * Finestra di sicurezza per il padding: valore massimo ragionevole di paddingMinutes.
@@ -418,6 +419,10 @@ public class BookingService {
             PackageCredit pc = packageCreditService.findById(payload.packageCreditId());
             booking.setPackageCredit(pc);
             packageCreditService.validateBookingWithPackage(booking);
+            // V72: online package consumes at BOOKING time (same lifecycle as admin CASE A/B/C and
+            // the multi-service CASE D). Flag-guarded; the session is restored on cancel/no-show.
+            // The flag is persisted by the bookingRepository.save(booking) below.
+            packageCreditService.consumeSessionForBooking(booking);
         }
 
         booking.setBookingStatus(BookingStatus.CONFIRMED);
@@ -685,8 +690,18 @@ public class BookingService {
         if (Boolean.TRUE.equals(dto.paidInStore())) booking.setPaidInStore(true);
         if (hasPkgCredit && packageCredit != null) {
             booking.setPackageCredit(packageCredit);
-            if (primaryOption == null && packageCredit.getServiceOption() != null) {
-                booking.setServiceOption(packageCredit.getServiceOption());
+            // PROMPT 40: adopt the credit's option as the booking-level option ONLY for a pure
+            // package session (no extra primary service) or when the primary service IS the
+            // package's own service. When the primary is an EXTRA service, adopting it here pairs
+            // the extra's service with the package's option — the "<service> · 5 Sedute Mani"
+            // name fusion + the "l'opzione non appartiene al servizio scelto" failure on deselect.
+            ServiceOption creditOption = packageCredit.getServiceOption();
+            boolean primaryIsPackageService = primaryService != null && creditOption != null
+                    && creditOption.getService() != null
+                    && creditOption.getService().getServiceId().equals(primaryService.getServiceId());
+            if (primaryOption == null && creditOption != null
+                    && (primaryService == null || primaryIsPackageService)) {
+                booking.setServiceOption(creditOption);
             }
         }
 
@@ -813,11 +828,16 @@ public class BookingService {
             saved.setTotalSessions(firstTotalSessions);
             bookingRepository.save(saved);
         } else if (hasPkgCredit) {
-            // CASE D — packageCreditId provided: PackageCredit FK already set before save.
-            // Session will be decremented by packageCreditService.consumeSessionForBooking()
-            // when the booking is marked COMPLETED (wired in updateBookingStatus).
-            log.info("CASE D: bookingId={} linked to packageCreditId={}",
-                    saved.getBookingId(), packageCredit.getPackageCreditId());
+            // CASE D — online PackageCredit. V72: consume the session at BOOKING time (mirrors
+            // admin CASE A/B/C), setting the credit-tracked flag so completion / re-save never
+            // double-counts; the session is restored on cancel/no-show. Validity (ACTIVE +
+            // remaining > 0) was already checked at Step 2 (~:544-549). Flag-guarded + persisted
+            // by the explicit save below.
+            packageCreditService.consumeSessionForBooking(saved);
+            bookingRepository.save(saved);
+            log.info("CASE D: bookingId={} linked to packageCreditId={} — session consumed at booking (remaining={})",
+                    saved.getBookingId(), packageCredit.getPackageCreditId(),
+                    packageCredit.getSessionsRemaining());
 
         } else if (hasSessionNumbers) {
             // CASE A / CASE B — explicit session numbers provided without a preselected package.
@@ -1430,11 +1450,34 @@ public class BookingService {
         boolean isPaidOnline = found.getStripeSessionId() != null;
         boolean isCancelled  = found.getBookingStatus() == BookingStatus.CANCELLED;
         boolean isRefunded   = found.getBookingStatus() == BookingStatus.REFUNDED;
+        // Commit 2: the refund block applies ONLY to genuine single-service online bookings. A
+        // package-backed booking is paid in full and refund-free — deleting it returns the session
+        // to the credit (restored just below), never refunds. It must pass this guard even though
+        // session-1 also carries a stripeSessionId, so discriminate on the package credit, NOT on
+        // stripeSessionId. Refunds stay a separate, untouched path ("Rimborsa" / refundBooking).
+        boolean isPackageBacked = found.getPackageCredit() != null;
 
-        if (isPaidOnline && !isCancelled && !isRefunded) {
+        if (isPaidOnline && !isCancelled && !isRefunded && !isPackageBacked) {
             throw new BadRequestException(
                     "Questa prenotazione è stata pagata online. Gestisci prima il rimborso prima di eliminarla."
             );
+        }
+
+        // V72: a non-COMPLETED package-backed booking still holds a prepaid session against its
+        // online PackageCredit. Deleting the row without giving the session back leaves
+        // sessions_remaining permanently decremented → a PAID session is lost. Mirror the detach
+        // (updateMultiServiceBooking) and cancel (updateBookingStatus boundary) restore: reuse the
+        // existing, flag-guarded restoreSessionForBooking — never hand-roll sessions_remaining.
+        // COMPLETED is excluded: the consume/restore model treats a performed session as genuinely
+        // consumed (flag still TRUE through COMPLETED), so restoring it here would gift back a paid
+        // session. restoreSessionForBooking is null-safe (no-op for single-service / in-person) and
+        // idempotent, so the COMPLETED exclusion is the only guard needed at this call site.
+        // ORDERING: must run BEFORE the entityManager.flush() below — restoreSessionForBooking does
+        // packageCreditRepository.save(pc) (the +1); the entityManager.clear() further down would
+        // discard it if still un-flushed. Running here lets that flush() persist the +1 so it
+        // survives clear(). found.getPackageCredit() is still readable (no detach happens above).
+        if (found.getPackageCredit() != null && found.getBookingStatus() != BookingStatus.COMPLETED) {
+            packageCreditService.restoreSessionForBooking(found);
         }
 
         // 08.2: restore promo-product stock only while the booking is still "held"
@@ -1588,6 +1631,67 @@ public class BookingService {
         // non la "slot occupato" (che resta solo per il vero PAID_CONFLICT nel webhook).
         emailOutboxService.enqueueBookingRefundConfirmed(booking);
         log.info("Booking rimborsato via Stripe: id={} paymentIntent={}", bookingId, paymentIntentId);
+    }
+
+    // ==================== REFUND SETTLED (WEBHOOK — DASHBOARD PARITY) ====================
+    /**
+     * Prompt 23: bring the {@code charge.refunded} webhook to parity with the admin "Rimborsa" button
+     * for refunds initiated straight from the Stripe dashboard (which fire ONLY this webhook, never
+     * the admin path). Mirrors the credit invalidation {@link #refundBooking} already does, MINUS the
+     * Stripe {@code Refund.create} (the refund has already settled at Stripe).
+     *
+     * Both-with-guard: the admin button also fires {@code charge.refunded}, so this can run on a
+     * booking the synchronous path already settled — the persisted REFUNDED status guard makes that
+     * double-fire a harmless no-op. Linked bookings are left untouched on purpose (same as the admin
+     * path; D2 is out of scope). No session arithmetic: {@code markAsRefunded} only flips status,
+     * which already makes the credit vanish from /active-packages and become non-consumable.
+     *
+     * Landmine (a): every mutation happens inside this {@code @Transactional} method on managed
+     * entities (the webhook is not one tx and OSIV is off — never mutate a detached return value).
+     */
+    @Transactional
+    public void markRefundSettled(String bookingId) {
+        UUID id;
+        try {
+            id = UUID.fromString(bookingId);
+        } catch (IllegalArgumentException e) {
+            log.warn("markRefundSettled: bookingId non valido '{}' — skip", bookingId);
+            return;
+        }
+
+        Booking booking = bookingRepository.findByIdForUpdate(id).orElse(null);
+        if (booking == null) {
+            log.info("markRefundSettled: booking {} non trovato — skip", id);
+            return;
+        }
+
+        // Idempotency guard: the admin button (refundBooking) or a prior webhook fire already settled
+        // this. Returning here is what makes the admin + webhook double-fire provably harmless.
+        if (booking.getBookingStatus() == BookingStatus.REFUNDED) {
+            log.info("markRefundSettled: booking {} già REFUNDED — skip (double-fire harmless)", id);
+            return;
+        }
+
+        booking.setBookingStatus(BookingStatus.REFUNDED);
+        booking.setCanceledAt(LocalDateTime.now());
+        booking.setCancelReason("DASHBOARD_REFUND");
+        booking.setExpiresAt(null);
+        bookingRepository.save(booking);
+
+        // Invalidate the linked online PackageCredit — mirror of refundBooking's proven block. The
+        // payment-keyed fallback (findByStripeSessionId) finds the credit even after a detach, when the
+        // booking's packageCredit FK is null but the credit still exists keyed by the Checkout Session
+        // id. A single-service online booking has no credit — setting it REFUNDED is the correct parity.
+        PackageCredit pc = booking.getPackageCredit();
+        if (pc == null && booking.getStripeSessionId() != null) {
+            pc = packageCreditService.findByStripeSessionId(booking.getStripeSessionId()).orElse(null);
+        }
+        if (pc != null && pc.getStatus() != PackageCreditStatus.REFUNDED) {
+            packageCreditService.markAsRefunded(pc);
+            log.info("PackageCredit {} marked REFUNDED (dashboard refund) for bookingId={}", pc.getPackageCreditId(), id);
+        }
+
+        log.info("Booking {} marked REFUNDED via charge.refunded webhook (dashboard parity)", id);
     }
 
     // ============================ UPDATE (ADMIN/OWNER) ============================
@@ -2004,7 +2108,14 @@ public class BookingService {
                 // Only null the primary service when the payload itself carries no catalog
                 // service — with catalog services present, the primary FK is correctly the
                 // first catalog service (set in the hasCatalog branch above).
-                if (!hasCatalog) {
+                // ALSO skip when the booking holds an ONLINE package (package_credit_id != null):
+                // that booking has no BookingPackageLink so it reaches here as "link-less", and its
+                // edit payload sends an empty catalog set (the drawer represents the online package
+                // as a package card, not a catalog row) → hasCatalog == false. Without this clause
+                // the cleanup would null the legitimate package service. This runs BEFORE the
+                // online attach/detach reconcile below, so getPackageCredit() is still set in both
+                // the plain-edit and detach cases — preserving the service for both.
+                if (!hasCatalog && found.getPackageCredit() == null) {
                     if (found.getService() != null)       { found.setService(null);       clearedAnything = true; }
                     if (found.getServiceOption() != null) { found.setServiceOption(null); clearedAnything = true; }
                 }
@@ -2014,6 +2125,47 @@ public class BookingService {
                             bookingId, hasCatalog ? "" : " + dangling primary service/option");
                 }
             }
+        }
+
+        // ── Online package (PackageCredit) attach/detach reconcile ─────────────────────
+        // The in-person reconcile above handles ClientPackageAssignment links; the booking's
+        // single ONLINE package lives on the package_credit_id FK and was previously ignored
+        // here, so an edit could neither attach nor detach it. dto.packageCreditId() is the
+        // DESIRED state (null = no online package). Money never moves: the package is prepaid in
+        // full and sessionsRemaining is only a tally of not-yet-booked sessions. We go THROUGH
+        // the credit's own consume/restore functions (never hand-rolling sessionsRemaining) so
+        // the credit_tracked_at_creation idempotency flag — the double-restore backstop — stays
+        // correct. Mirrors create CASE D (set FK + consume) and the cancel/no-show restore in
+        // updateBookingStatus.
+        UUID currentCreditId = found.getPackageCredit() != null
+                ? found.getPackageCredit().getPackageCreditId()
+                : null;
+        UUID requestedCreditId = dto.packageCreditId();
+        if (!java.util.Objects.equals(currentCreditId, requestedCreditId)) {
+            // DETACH old (plain detach, or the detach half of a change):
+            // restore BEFORE nulling the FK. restoreSessionForBooking reads the credit off
+            // found.getPackageCredit() and only gives the session back while the flag is TRUE;
+            // null the FK first and the +1 silently no-ops, permanently losing the session.
+            if (currentCreditId != null) {
+                packageCreditService.restoreSessionForBooking(found);
+                found.setPackageCredit(null);
+            }
+            // ATTACH new (plain attach, or the attach half of a change):
+            // set the FK BEFORE consuming. consumeSessionForBooking reads the credit off
+            // found.getPackageCredit(), decrements −1 and flips the flag TRUE (idempotent).
+            if (requestedCreditId != null) {
+                found.setPackageCredit(packageCreditService.findById(requestedCreditId));
+                packageCreditService.consumeSessionForBooking(found);
+            }
+            // Persist the FK + flag change via the caller's save (same as the other
+            // consume/restore call sites). No session-counter / primary-service clearing here:
+            // online CASE D never echoes those onto the booking, and the in-person
+            // post-reconcile cleanup above already owns currentSession/totalSessions when no
+            // in-person link remains. Service / time / slot are intentionally left untouched —
+            // the appointment becomes a normal, still-paid booking.
+            updated = bookingRepository.save(found);
+            log.info("updateMultiServiceBooking: online package reconciled for bookingId={} credit {} -> {}",
+                    bookingId, currentCreditId, requestedCreditId);
         }
 
         // ── 08.2b: reconcile promotions (N → M) — mirrors the package reconcile above ──
@@ -2107,6 +2259,16 @@ public class BookingService {
         }
         if (old == BookingStatus.CANCELLED) throw new BadRequestException("Prenotazione CANCELLED: non modificabile.");
 
+        // Un-complete (COMPLETED → CONFIRMED) is allowed only on the appointment's own
+        // calendar day (Europe/Rome); from the next day a completed booking is locked.
+        // Gated narrowly so the package-credit boundary + CANCELLED/NO_SHOW branches below
+        // stay untouched. This is the only server path that performs COMPLETED → CONFIRMED.
+        if (old == BookingStatus.COMPLETED && newStatus == BookingStatus.CONFIRMED) {
+            if (!found.getStartTime().toLocalDate().isEqual(LocalDate.now(AvailabilityService.BUSINESS_ZONE)))
+                throw new BadRequestException("Puoi annullare il completamento solo nella giornata dell'appuntamento.");
+            found.setCompletedAt(null); // symmetric reversal: completion set it, un-complete clears it
+        }
+
         if (newStatus == BookingStatus.COMPLETED) found.setCompletedAt(LocalDateTime.now());
         if (newStatus == BookingStatus.CANCELLED) {
             found.setCanceledAt(LocalDateTime.now());
@@ -2135,11 +2297,21 @@ public class BookingService {
             }
         }
 
-        boolean wasCompleted    = (old == BookingStatus.COMPLETED);
-        boolean willBeCompleted = (newStatus == BookingStatus.COMPLETED);
+        // V72: online PackageCredit is consumed at BOOKING time and mirrors the admin recalc
+        // filter — a booking consumes a session IFF it is NOT CANCELLED and NOT NO_SHOW. So the
+        // counter only moves when this transition CROSSES the occupancy boundary:
+        //   occupying → released  (CANCELLED / NO_SHOW)  ⇒ restore  (give the prepaid session back)
+        //   released  → occupying (e.g. un-no-show)      ⇒ consume  (re-take it)
+        // Within-occupancy transitions (notably CONFIRMED→COMPLETED and COMPLETED→CONFIRMED) are
+        // counter-NEUTRAL now — completion no longer consumes, un-completion no longer restores.
+        // Both calls are flag-guarded (idempotent) and persisted by the save below. The COMPLETED→
+        // CANCELLED/NO_SHOW edge restores correctly because the decrement was taken at booking
+        // (flag still TRUE through COMPLETED). The admin in-person recalc below is untouched.
+        boolean wasOccupying = old != BookingStatus.CANCELLED && old != BookingStatus.NO_SHOW;
+        boolean willOccupy   = newStatus != BookingStatus.CANCELLED && newStatus != BookingStatus.NO_SHOW;
 
-        if (!wasCompleted && willBeCompleted)  packageCreditService.consumeSessionForBooking(found);
-        else if (wasCompleted && !willBeCompleted) packageCreditService.restoreSessionForBooking(found);
+        if (wasOccupying && !willOccupy)        packageCreditService.restoreSessionForBooking(found);
+        else if (!wasOccupying && willOccupy)   packageCreditService.consumeSessionForBooking(found);
 
         found.setBookingStatus(newStatus);
         Booking updated = bookingRepository.save(found);
@@ -2290,9 +2462,11 @@ public class BookingService {
         bookingRepository.save(found);
 
         // alsoComplete — idempotent transition to COMPLETED.
+        // V72: completion is counter-NEUTRAL for online packages now — the session was consumed at
+        // BOOKING time (CONFIRMED→COMPLETED stays within the occupancy boundary). No consume here.
+        // The admin in-person recalc below is untouched.
         if (req.alsoComplete() && found.getBookingStatus() != BookingStatus.COMPLETED) {
             found.setCompletedAt(LocalDateTime.now());
-            packageCreditService.consumeSessionForBooking(found);
             found.setBookingStatus(BookingStatus.COMPLETED);
             bookingRepository.save(found);
             maybeRecalculatePackage(bookingId);
@@ -2768,6 +2942,12 @@ public class BookingService {
         found.setCancelReason((reason == null || reason.trim().isEmpty()) ? (admin ? "ADMIN_CANCEL" : "USER_CANCEL") : reason.trim());
         found.setExpiresAt(null);
 
+        // V72: cancelling releases the online prepaid session (occupancy boundary crossed).
+        // Flag-guarded — a no-op for bookings that never held a decrement (e.g. an unpaid
+        // PENDING_PAYMENT cancel). Persisted by the save below. The admin in-person recalc
+        // (maybeRecalculatePackage) is separate and stays exactly as-is.
+        packageCreditService.restoreSessionForBooking(found);
+
         bookingRepository.save(found);
         maybeRecalculatePackage(bookingId);
         // 08.2: restore promo-product stock on cancel. Already-CANCELLED returned at the
@@ -3040,6 +3220,53 @@ public class BookingService {
             log.warn("Could not resolve linkedPackages for booking {}: {}", b.getBookingId(), e.getMessage());
         }
 
+        // Online prepaid package (PackageCredit, born from a Stripe purchase): there is no
+        // BookingPackageLink/ClientPackageAssignment behind it, so the admin-path loop above
+        // leaves linkedPkgs empty. Synthesize ONE PackageSummaryDTO so the agenda card renders
+        // it through the SAME markup as an admin package (📦 icon, "Seduta X/Y", treatment line).
+        // Display-only: no assignment exists → packageAssignmentId is null (the frontend already
+        // coalesces it), and the package is fully prepaid via Stripe → paid/paidUpfront/paidLocked
+        // = true with per-session price €0, mirroring the admin paidUpfront rule so it never
+        // double-counts in the day's estimated-revenue KPI. The single intended visual difference
+        // from an admin package is the existing "💳 Pagato online" badge.
+        if (linkedPkgs.isEmpty() && pkg != null) {
+            ServiceOption pkgOption = pkg.getServiceOption() != null ? pkg.getServiceOption() : b.getServiceOption();
+            ServiceItem pkgService = pkg.getService() != null ? pkg.getService() : b.getService();
+            String optName = pkgOption != null ? pkgOption.getName() : null;
+            String svcTitle = pkgService != null ? pkgService.getTitle() : serviceTitle;
+            // Match buildPackageSummary's "service · option" label so the agenda dedup
+            // (pkgLabelsNorm) folds away any duplicate catalog line carrying the same name.
+            String onlinePkgName;
+            if (svcTitle != null && optName != null) onlinePkgName = svcTitle + " · " + optName;
+            else if (optName != null)               onlinePkgName = optName;
+            else if (svcTitle != null)              onlinePkgName = svcTitle;
+            else                                    onlinePkgName = "Pacchetto";
+            // An online package's composition is its single ServiceOption — one descriptive line.
+            PackageItemSummaryDTO onlineItem = new PackageItemSummaryDTO(
+                    1,
+                    pkgService != null ? pkgService.getServiceId() : null,
+                    svcTitle,
+                    pkgOption != null ? pkgOption.getOptionId() : null,
+                    optName,
+                    null);
+            PackageSummaryDTO onlinePkg = new PackageSummaryDTO(
+                    null,                              // no ClientPackageAssignment behind an online package
+                    onlinePkgName,
+                    packageSessionNumber(b),           // 1-based rank over the shared PackageCredit (mirrors the email layer)
+                    pkg.getSessionsTotal(),
+                    pkg.getSessionsRemaining(),
+                    BigDecimal.ZERO,                   // prepaid → €0 to estimated revenue (admin paidUpfront rule)
+                    true,                              // paidUpfront — fully prepaid via Stripe
+                    List.of(onlineItem),
+                    true,                              // paid
+                    true,                              // paidLocked — settlement not editable in the drawer
+                    null,                              // notes — PackageCredit carries none
+                    ClientPackagePaymentMode.UPFRONT); // not INSTALLMENTS → normal "✓ Pagato" pill
+            linkedPkgs = List.of(onlinePkg);
+            // Keep the deprecated singular in sync with linkedPackages.get(0) (its documented invariant).
+            linkedPkg  = onlinePkg;
+        }
+
         // BE-2: fetch the booking's sales ONCE. Standalone sales (promotionLinkId == null)
         // become linkedSales; promo-tagged sales feed the linkedPromotions grouping below.
         List<BookingSale> allSales = bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(b.getBookingId());
@@ -3099,6 +3326,7 @@ public class BookingService {
                 b.getCustomerName(),
                 b.getCustomerPhone(),
                 b.getCustomerEmail(),
+                b.getCustomer() != null ? b.getCustomer().getCustomerId() : null,
                 serviceTitle,
                 serviceId,
                 b.getServiceOption() != null ? b.getServiceOption().getName() : null,
@@ -3411,7 +3639,9 @@ public class BookingService {
                 booking.getLinkingStatus() != null ? booking.getLinkingStatus().name() : null,
                 linkedPackage,
                 booking.isPaidInStore(),
-                sales
+                sales,
+                // PROMPT 32: online-package discriminator (canonical V63 is_package, not a sessions>1 heuristic).
+                booking.getServiceOption() != null && booking.getServiceOption().isPackage()
         );
     }
 

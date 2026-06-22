@@ -33,7 +33,9 @@ const isWalkInEmail = e => !e || e.includes(WALKIN_MARKER);
 const deriveCustomer = b => {
   const has = b != null;
   return {
-    customerId: null,
+    // Symptom 3: carry the booking's customer FK so EDIT mode can fetch the customer's
+    // online credits. Null in NEW mode (b == null) and for legacy bookings without the FK.
+    customerId: has ? (b.customerId ?? null) : null,
     fullName: has ? b.customerName || "" : "",
     phone: has ? b.customerPhone || "" : "",
     email: has && b.customerEmail && !isWalkInEmail(b.customerEmail) ? b.customerEmail : "",
@@ -220,6 +222,28 @@ function SelectedProductRow({ prod, maxQty, isPaidOnline, onQty, onPrice, onPaid
   );
 }
 
+// Builds an activePackages-shaped object from a booking's frozen package link
+// (editBooking.linkedPackages[] → PackageSummaryDTO). Used in edit mode when a
+// booking's own ADMIN package is no longer in the live ACTIVE list — e.g. it
+// became EXHAUSTED once its last session was booked — so the already-linked row
+// stays visible/editable. serviceTitle/serviceOptionId are lifted from the
+// representative item (position 0) so resolvePkgDuration finds the same
+// per-session duration an active row would show.
+function pkgFromFrozenLink(frozen, pkgId) {
+  const items = Array.isArray(frozen?.items) ? frozen.items : [];
+  const head = items.find(it => it.position === 0) ?? items[0] ?? null;
+  return {
+    id: pkgId,
+    displayName: frozen?.packageName ?? null,
+    serviceTitle: head?.serviceTitle ?? null,
+    serviceOptionId: head?.serviceOptionId ?? null,
+    totalSessions: frozen?.totalSessions ?? 0,
+    sessionsRemaining: frozen?.sessionsRemaining ?? 0,
+    items,
+    paidUpfront: frozen?.paidUpfront ?? false,
+  };
+}
+
 // Phase 6d removed the dedicated ServiceItemCard component: custom services are
 // now first-class rows in "Servizi selezionati" (added via an inline form
 // triggered from "+ Servizio personalizzato"). See AppointmentForm below for
@@ -261,10 +285,15 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         }
         return catalogSvc?.durationMin ?? 30;
       };
+      // PROMPT 40: for a PackageCredit-backed booking the booking-level option is the package's
+      // own option (belongs to the package session, never to an extra service row). Do NOT inherit
+      // it onto the single catalog extra — that produced the "· 5 Sedute Mani" name fusion and the
+      // "l'opzione non appartiene al servizio scelto" save failure. The extra keeps its own option.
+      const inheritBookingOption = isSingle && editBooking.packageCreditId == null;
       return editBooking.services.map(s => {
         const baseTitle = s.title ?? s.name ?? s.serviceName ?? "";
-        const optId = s.optionId ?? (isSingle ? (editBooking.optionId ?? null) : null);
-        const optName = s.optionName ?? (isSingle ? (editBooking.optionName ?? null) : null);
+        const optId = s.optionId ?? (inheritBookingOption ? (editBooking.optionId ?? null) : null);
+        const optName = s.optionName ?? (inheritBookingOption ? (editBooking.optionName ?? null) : null);
         return {
           uid: crypto.randomUUID(),
           serviceId: s.serviceId ?? s.id,
@@ -406,6 +435,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [customServicePaid, setCustomServicePaid] = useState(() => (isEditMode ? editBooking?.customServicePaid === true : (initialDraft?.customServicePaid ?? false)));
   // paidOnline → every line is settled and locked. Read at render time.
   const isPaidOnline = !!editBooking?.paidOnline;
+  // PROMPT 40: a PackageCredit-backed booking's online payment covers ONLY the package session
+  // (rendered as its own locked "💳 Già pagato" row). Extra/custom/product lines added alongside
+  // it are NOT prepaid, so their per-line paid toggles must stay editable. Lock them only for a
+  // genuinely all-online (non-package) booking.
+  const linePaidLocked = isPaidOnline && editBooking?.packageCreditId == null;
 
   // ── Customer inline edit ───────────────────────────────────────────────────
   const [activePackages, setActivePackages] = useState([]);
@@ -810,9 +844,16 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       base += resolvePkgDuration(pkg, packageDurationOverrides.get(pkgId));
     }
 
-    // Online package credit (still single, unchanged contract).
+    // Online package credit (still single, unchanged contract). In edit mode the live
+    // activePackages list is ADMIN-only, so fall back to the booking's frozen online link
+    // (the synthesized linkedPackages entry with no packageAssignmentId) — without it the
+    // package contributes 0 here and saving the edit would write a 0-minute duration.
     if (selectedPackageCreditId) {
-      const pkg = activePackages.find(p => p.id === selectedPackageCreditId);
+      const live = activePackages.find(p => p.id === selectedPackageCreditId);
+      const frozen = (!live && isEditMode)
+        ? (editBooking?.linkedPackages || []).find(lp => lp.packageAssignmentId == null)
+        : null;
+      const pkg = live ?? (frozen ? pkgFromFrozenLink(frozen, selectedPackageCreditId) : null);
       if (pkg) base += resolvePkgDuration(pkg, null);
     }
 
@@ -822,7 +863,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     }
 
     return totalDurationOverride ?? base;
-  }, [selectedServices, totalDurationOverride, serviceItems, selectedPackageIds, selectedPackageCreditId, activePackages, packageDurationOverrides, resolvePkgDuration, selectedPromotionIds, resolvePromoDuration]);
+  }, [selectedServices, totalDurationOverride, serviceItems, selectedPackageIds, selectedPackageCreditId, activePackages, packageDurationOverrides, resolvePkgDuration, selectedPromotionIds, resolvePromoDuration, isEditMode, editBooking]);
 
   const ensureWalkInEmail = useCallback(() => {
     const d = new Date();
@@ -940,16 +981,78 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   // "Servizi selezionati" can't find its data and silently doesn't render.
   useEffect(() => {
     if ((isEditMode || isDuplicate) && editBooking.customerName) {
+      // Edit mode only: surface the booking's OWN online package (PackageCredit) as a
+      // selectable/deselectable card in the grid below, sourced from its FROZEN link (the
+      // linkedPackages entry with no packageAssignmentId) — NOT the per-customer bridge, which
+      // (a) needs a resolved customerId we don't have in edit and (b) returns only ACTIVE
+      // credits, so a purchase already driven to sessionsRemaining 0 → COMPLETED wouldn't
+      // appear — yet that's exactly the session Michela needs to detach. The frozen link shows
+      // it regardless of status. id = packageCreditId so the grid's `selectedPackageCreditId
+      // === pkg.id` check renders it selected and its online branch toggles it (null ⇄ id =
+      // detach ⇄ attach at save). Computed up-front (sync, from editBooking) so it survives even
+      // if the admin fetch fails. Duplicate is create-mode → never auto-attach a prepaid credit.
+      const frozenOnline = isEditMode
+        ? (editBooking.linkedPackages || []).find(lp => lp.packageAssignmentId == null)
+        : null;
+      const onlineRows = (isEditMode && editBooking.packageCreditId != null && frozenOnline)
+        ? [{ ...pkgFromFrozenLink(frozenOnline, editBooking.packageCreditId), source: "ONLINE" }]
+        : [];
+      // Symptom 4: an ADMIN package with all sessions booked is EXHAUSTED, so the by-name
+      // fetch below (ACTIVE & remaining > 0) drops it — no card in "Pacchetti attivi", no way
+      // to detach a far-future booked session. Mirror the ONLINE-row pattern: synthesize a
+      // frozen row per ADMIN linkedPackages entry via pkgFromFrozenLink (built for this case).
+      // id = assignment id → already in selectedPackageIds, so the card starts selected and
+      // its existing deselect = detach. Built sync (survives a failed fetch); deduped vs the
+      // live list in the try. `exhausted` drives the "tutte le sedute fissate" label.
+      const adminFrozenRows = [];
+      if (isEditMode) {
+        const seenFrozen = new Set();
+        for (const lp of editBooking.linkedPackages || []) {
+          const aid = lp.packageAssignmentId;
+          if (aid == null || seenFrozen.has(String(aid))) continue;
+          seenFrozen.add(String(aid));
+          const row = pkgFromFrozenLink(lp, aid);
+          adminFrozenRows.push({ ...row, source: "ADMIN", exhausted: (row.sessionsRemaining ?? 0) <= 0 });
+        }
+      }
       (async () => {
+        // Symptom 3: when the booking carries its customer FK (customerId), fetch THAT customer's
+        // ACTIVE online credits via the same /active-packages call NEW mode makes, and surface ALL
+        // of them — not just the booking's own — so Michela can re-point the booking to another
+        // prepaid credit. ONLINE rows are kept in their raw UnifiedActivePackageDTO shape, exactly
+        // as the NEW-mode [customerId] effect leaves them (for ONLINE its map is a passthrough).
+        // The booking's OWN credit is force-included even if exhausted (the endpoint returns ACTIVE
+        // only) via the frozen onlineRows fallback, and de-duped by credit id (= the unified ONLINE
+        // entry's `id`, which equals packageCreditId — CustomerController.activePackages). FK null
+        // (legacy / edit-only bookings) or a failed fetch → frozen-own-credit only (today's
+        // behaviour). No auto-selection: selection stays seeded from editBooking.packageCreditId.
+        let onlineRowsFinal = onlineRows;
+        if (isEditMode && editBooking.customerId != null) {
+          try {
+            const unified = await getActivePackages(editBooking.customerId);
+            const fetchedOnline = (unified || []).filter(p => p.status === "ACTIVE" && p.source === "ONLINE");
+            const ownInFetched = editBooking.packageCreditId != null
+              && fetchedOnline.some(p => String(p.id) === String(editBooking.packageCreditId));
+            onlineRowsFinal = ownInFetched ? fetchedOnline : [...onlineRows, ...fetchedOnline];
+          } catch (err) {
+            console.error("Edit-mode online-credit fetch failed (non-blocking):", err);
+            // Keep the frozen-own-credit fallback (onlineRowsFinal already = onlineRows).
+          }
+        }
         try {
           const pkgs = await getClientPackageAssignmentsByName(editBooking.customerName);
           const active = (pkgs || []).filter(p => p.status === "ACTIVE" && p.sessionsRemaining > 0);
           // Shape-compatible with UnifiedActivePackageDTO consumed by the package row.
           // The two DTOs share the relevant fields (id, displayName, serviceTitle,
           // serviceOptionId, totalSessions, sessionsRemaining); we only need to tag the source.
-          setActivePackages(active.map(p => ({ ...p, source: "ADMIN" })));
+          // Drop any frozen ADMIN row that is already a live ACTIVE card (no duplicate id).
+          const activeIds = new Set(active.map(p => String(p.id)));
+          const frozenAdmin = adminFrozenRows.filter(r => !activeIds.has(String(r.id)));
+          setActivePackages([...active.map(p => ({ ...p, source: "ADMIN" })), ...frozenAdmin, ...onlineRowsFinal]);
         } catch (err) {
           console.error("Edit-mode package pre-fetch failed (non-blocking):", err);
+          // Fetch failed → no live list to dedupe against; surface every frozen row.
+          setActivePackages([...adminFrozenRows, ...onlineRowsFinal]);
         }
       })();
     }
@@ -1575,8 +1678,21 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
             <>
               <div className="d-flex flex-wrap gap-2 mt-1">
                 {activePackages.map(pkg => {
-                  const sessionsUsed = pkg.totalSessions - pkg.sessionsRemaining;
                   const isOnline = pkg.source === "ONLINE";
+                  // Mirror the "Servizi selezionati" rows (:2149 admin / :2287 online): in
+                  // edit mode prefer the booking's FROZEN per-link sessionNumber over the live
+                  // counter. Online credits consume at booking time (V72), so the live
+                  // `total - remaining` already counts THIS session — the +1 fallback would
+                  // overshoot (Seduta 6/5). Admin packages consume on completion, so for a
+                  // not-yet-completed edit the fallback already equals sessionNumber → unchanged.
+                  const frozenLink = isEditMode
+                    ? (editBooking?.linkedPackages || []).find(lp =>
+                        isOnline
+                          ? lp.packageAssignmentId == null
+                          : String(lp.packageAssignmentId) === String(pkg.id))
+                    : null;
+                  const sessionNum = frozenLink?.sessionNumber ?? (pkg.totalSessions - pkg.sessionsRemaining + 1);
+                  const totalSess = frozenLink?.totalSessions ?? pkg.totalSessions;
                   const isSelected = isOnline ? selectedPackageCreditId === pkg.id : selectedPackageIds.has(pkg.id);
                   const handleClick = () => {
                     if (isOnline) {
@@ -1626,10 +1742,22 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                         <div className="ag-pkg-select-card__name">
                           {pkg.displayName || pkg.serviceTitle || "—"}
                           {isOnline && <span className="nad-online-pkg-badge">Online</span>}
+                          {/* Part B: an ONLINE package is a Stripe-prepaid PackageCredit —
+                              flag it as already paid, reusing the agenda's "💳 Pagato online"
+                              language. margin-left:auto pins it to the card's top-right. */}
+                          {isOnline && (
+                            <span className="nad-online-pkg-paid" title="Pacchetto pagato online">💳 Pagato online</span>
+                          )}
                         </div>
                         <div className="ag-pkg-select-card__meta">
-                          Seduta {sessionsUsed + 1}/{pkg.totalSessions}
-                          {pkg.sessionsRemaining === 1 && <span style={{ color: "#fbbf24" }}> · ultima!</span>}
+                          {pkg.exhausted ? (
+                            "Tutte le sedute fissate"
+                          ) : (
+                            <>
+                              Seduta {sessionNum}/{totalSess}
+                              {sessionNum === totalSess && <span style={{ color: "#fbbf24" }}> · ultima!</span>}
+                            </>
+                          )}
                         </div>
                         {hasMultipleItems && (
                           <>
@@ -1954,10 +2082,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         )}
 
         {/* ── Selected services panel ───────────────────────────────────────── */}
-        {(selectedPackageIds.size > 0 || selectedPromotionIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0 || selectedProducts.length > 0) && (
+        {(selectedPackageIds.size > 0 || selectedPackageCreditId != null || selectedPromotionIds.size > 0 || selectedServices.length > 0 || serviceItems.length > 0 || selectedProducts.length > 0) && (
           <div className="ag-selected-services">
             <div className="ag-selected-services__label">
-              Servizi selezionati ({selectedPackageIds.size + selectedPromotionIds.size + selectedServices.length + serviceItems.length + selectedProducts.length})
+              Servizi selezionati ({selectedPackageIds.size + (selectedPackageCreditId ? 1 : 0) + selectedPromotionIds.size + selectedServices.length + serviceItems.length + selectedProducts.length})
             </div>
             {/* V62: bulk paid toggle. Counts editable lines (catalog rows +
                 non-paidUpfront packages + custom-service line if present); a
@@ -2008,8 +2136,19 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 editBooking.linkedPackages[] keyed by packageAssignmentId, NOT the
                 live activePackages counter (which advances with later bookings). */}
             {Array.from(selectedPackageIds).map(pkgId => {
-              const pkg = activePackages.find(p => p.id === pkgId);
-              if (!pkg) return null;
+              // The booking's frozen link (captured at creation) drives both the
+              // "Seduta X/Y" badge and the exhausted-package fallback below.
+              const frozen = isEditMode
+                ? (editBooking?.linkedPackages || []).find(lp => String(lp.packageAssignmentId) === String(pkgId))
+                : null;
+              // Prefer the live ACTIVE package. When it's gone from the active list
+              // (e.g. the package became EXHAUSTED once its last session was booked)
+              // fall back to the booking's own frozen link so its already-linked row
+              // stays visible/editable. The selectable "Pacchetti attivi" card list
+              // stays ACTIVE-only — this only rescues a booking's OWN linked row.
+              const live = activePackages.find(p => p.id === pkgId);
+              if (!live && !frozen) return null;
+              const pkg = live ?? pkgFromFrozenLink(frozen, pkgId);
               const overrideDur = packageDurationOverrides.get(pkgId) ?? null;
               const defaultDur = resolvePkgDuration(pkg, null);
               const displayDur = overrideDur ?? defaultDur;
@@ -2020,9 +2159,6 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
               //     sessionNumber/totalSessions (the values captured at booking creation).
               //   - otherwise (create mode, or a package added during this edit session
               //     that has no link yet) → compute from the live package counter.
-              const frozen = isEditMode
-                ? (editBooking?.linkedPackages || []).find(lp => String(lp.packageAssignmentId) === String(pkgId))
-                : null;
               const sessionNum = frozen?.sessionNumber ?? pkg.totalSessions - pkg.sessionsRemaining + 1;
               const totalSess = frozen?.totalSessions ?? pkg.totalSessions;
               const pkgItems = Array.isArray(pkg.items) ? [...pkg.items].sort((a, b) => a.position - b.position) : [];
@@ -2148,6 +2284,52 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                 </div>
               );
             })}
+            {/* Online package (PackageCredit) row — counterpart of the ADMIN block above.
+                Keyed on selectedPackageCreditId (online stays single). Create mode reads the
+                live row from activePackages (the FK-bridged endpoint); edit mode's live list is
+                ADMIN-only, so fall back to the booking's frozen synthesized online link
+                (linkedPackages entry with no packageAssignmentId) — the row then renders even for
+                an exhausted package. Always prepaid via Stripe → locked "💳 Già pagato". */}
+            {selectedPackageCreditId && (() => {
+              const frozen = isEditMode
+                ? (editBooking?.linkedPackages || []).find(lp => lp.packageAssignmentId == null)
+                : null;
+              const live = activePackages.find(p => p.id === selectedPackageCreditId);
+              if (!live && !frozen) return null;
+              const pkg = live ?? pkgFromFrozenLink(frozen, selectedPackageCreditId);
+              const sessionNum = frozen?.sessionNumber ?? (pkg.totalSessions - pkg.sessionsRemaining + 1);
+              const totalSess = frozen?.totalSessions ?? pkg.totalSessions;
+              const dur = resolvePkgDuration(pkg, null);
+              return (
+                <div
+                  key={`credit-${selectedPackageCreditId}`}
+                  className="ag-selected-service-row"
+                  style={{ background: "rgba(184, 151, 106, 0.08)", borderLeft: "3px solid var(--card-gold, #b8976a)", flexWrap: "wrap" }}
+                >
+                  <span className="ag-selected-service-row__name">
+                    📦 {pkg.displayName || pkg.serviceTitle || "Pacchetto"}
+                    <span className="nad-online-pkg-badge" style={{ marginLeft: 8 }}>Online</span>
+                    <span className="ag-pkg-session-badge" style={{ marginLeft: 8 }}>
+                      Seduta {sessionNum}/{totalSess}
+                    </span>
+                  </span>
+                  <span className="ag-selected-service-row__dur">{formatDuration(dur)}</span>
+                  <span className="ag-pill ag-pill--paid" title="Pacchetto pagato online" aria-disabled="true">
+                    💳 Già pagato
+                  </span>
+                  {!isEditMode && (
+                    <button
+                      type="button"
+                      className="ag-selected-service-row__remove"
+                      title="Rimuovi pacchetto"
+                      onClick={() => setSelectedPackageCreditId(null)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
             {/* 08.5: promo rows — 🏷️ title + duration + paid toggle. No session
                 badge (promos have no sessions). Removable only in create, mirroring
                 packages; in edit the top selector still toggles attach. */}
@@ -2213,10 +2395,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                     €{Number(ss.prezzoOverride).toFixed(0)} <span className="ag-selected-service-row__price-tag">modificato</span>
                   </span>
                 )}
-                {/* V62: per-line paid toggle (catalog row). Locked when paidOnline. */}
+                {/* V62: per-line paid toggle (catalog row). PROMPT 40: locked only for a
+                    genuinely all-online (non-package) booking — a credit-backed extra stays editable. */}
                 {(() => {
-                  const settled = isPaidOnline || ss.paid === true;
-                  if (isPaidOnline) {
+                  const settled = linePaidLocked || ss.paid === true;
+                  if (linePaidLocked) {
                     return <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>;
                   }
                   return (
@@ -2267,8 +2450,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       custom_service_name), so all toggles bind to the same
                       customServicePaid state. */}
                   {(() => {
-                    const settled = isPaidOnline || customServicePaid;
-                    if (isPaidOnline) {
+                    const settled = linePaidLocked || customServicePaid;
+                    if (linePaidLocked) {
                       return <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>;
                     }
                     return (
@@ -2316,7 +2499,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       key={prod.productId}
                       prod={prod}
                       maxQty={maxQty}
-                      isPaidOnline={isPaidOnline}
+                      isPaidOnline={linePaidLocked}
                       onQty={changeProductQty}
                       onPrice={setProductUnitPrice}
                       onPaid={setProductPaid}

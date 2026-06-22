@@ -24,6 +24,7 @@ public class EmailOutboxService {
     @Value("${app.admin.email:admin@beautyroom.local}")
     private String adminEmail;
 
+    @Transactional
     public void enqueueBookingConfirmed(Booking booking) {
         if (booking == null || booking.getBookingId() == null) return;
 
@@ -38,6 +39,7 @@ public class EmailOutboxService {
         enqueueBookingReminder24h(booking);
     }
 
+    @Transactional
     public void enqueueBookingReminder24h(Booking booking) {
         if (booking == null || booking.getBookingId() == null) return;
         if (booking.getStartTime() == null) return;
@@ -121,6 +123,7 @@ public class EmailOutboxService {
 
     // PROMPT B: appuntamento spostato (from→to). Delete-first così ogni nuovo spostamento ri-invia:
     // il vincolo uk_email_event_agg bloccherebbe altrimenti il re-insert, lasciando la mail vecchia.
+    @Transactional
     public void enqueueBookingRescheduled(Booking booking) {
         if (booking == null || booking.getBookingId() == null) return;
 
@@ -138,6 +141,7 @@ public class EmailOutboxService {
 
     // PROMPT B: appuntamento annullato (generico). Delete-first così una seconda cancellazione (o
     // entrambi i path cancelBooking/updateBookingStatus per la stessa cancellazione) restano una mail.
+    @Transactional
     public void enqueueBookingCancelled(Booking booking) {
         if (booking == null || booking.getBookingId() == null) return;
 

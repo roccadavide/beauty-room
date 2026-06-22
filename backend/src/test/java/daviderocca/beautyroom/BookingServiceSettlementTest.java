@@ -114,9 +114,15 @@ class BookingServiceSettlementTest {
         BookingResponseDTO res = bookingService.settleBookingLines(id, req, admin());
 
         // Two per-line UPDATEs, each targeting a specific service_id (not the bulk form).
+        // convertToDTO's response mapping also issues a read-only loadServiceSummaries SELECT,
+        // so scope the assertion to the settlement writes (UPDATE booking_services ...).
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(entityManager, times(2)).createNativeQuery(sql.capture());
-        assertThat(sql.getAllValues()).allMatch(s -> s.contains("service_id ="));
+        verify(entityManager, atLeastOnce()).createNativeQuery(sql.capture());
+        List<String> serviceUpdates = sql.getAllValues().stream()
+                .filter(s -> s.startsWith("UPDATE booking_services"))
+                .toList();
+        assertThat(serviceUpdates).hasSize(2);
+        assertThat(serviceUpdates).allMatch(s -> s.contains("service_id ="));
         // No completion requested → status untouched, no session consumed.
         assertThat(res.bookingStatus()).isEqualTo(BookingStatus.CONFIRMED);
         verify(packageCreditService, never()).consumeSessionForBooking(any());
@@ -149,9 +155,15 @@ class BookingServiceSettlementTest {
         bookingService.settleBookingLines(id, req, admin());
 
         // Only the BULK UPDATE (no service_id predicate) is issued — never the per-line form.
+        // convertToDTO's loadServiceSummaries SELECT carries a "s.service_id = bs.service_id"
+        // JOIN, so scope the per-line check to the settlement writes (UPDATE booking_services ...).
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager, atLeastOnce()).createNativeQuery(sql.capture());
-        assertThat(sql.getAllValues()).noneMatch(s -> s.contains("service_id ="));
+        List<String> serviceUpdates = sql.getAllValues().stream()
+                .filter(s -> s.startsWith("UPDATE booking_services"))
+                .toList();
+        assertThat(serviceUpdates).isNotEmpty();
+        assertThat(serviceUpdates).noneMatch(s -> s.contains("service_id ="));
         // Everything flipped to the single derived value (true), regardless of svcB=false.
         assertThat(booking.isCustomServicePaid()).isTrue();
         verify(packageCreditService, never()).consumeSessionForBooking(any());
@@ -172,18 +184,20 @@ class BookingServiceSettlementTest {
 
         SettlementRequestDTO req = new SettlementRequestDTO(Boolean.TRUE, null, null, null, true, null, null);
 
-        // First settle: CONFIRMED → COMPLETED, consumes one session, stamps completedAt.
+        // First settle: CONFIRMED → COMPLETED, stamps completedAt. V72: completion is
+        // counter-neutral for online packages (the session is consumed at booking time).
         BookingResponseDTO r1 = bookingService.settleBookingLines(id, req, admin());
         assertThat(r1.bookingStatus()).isEqualTo(BookingStatus.COMPLETED);
         LocalDateTime firstCompletedAt = booking.getCompletedAt();
         assertThat(firstCompletedAt).isNotNull();
 
-        // Second settle on an already-COMPLETED booking: no re-consume, completedAt preserved.
+        // Second settle on an already-COMPLETED booking: completedAt preserved.
         BookingResponseDTO r2 = bookingService.settleBookingLines(id, req, admin());
         assertThat(r2.bookingStatus()).isEqualTo(BookingStatus.COMPLETED);
         assertThat(booking.getCompletedAt()).isEqualTo(firstCompletedAt);
 
-        verify(packageCreditService, times(1)).consumeSessionForBooking(any());
+        // V72: settle/complete never touches the online counter (decrement moved to booking time).
+        verify(packageCreditService, never()).consumeSessionForBooking(any());
         verify(packageCreditService, never()).restoreSessionForBooking(any());
     }
 
@@ -232,6 +246,7 @@ class BookingServiceSettlementTest {
         when(bookingRepository.findByIdForUpdate(id)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(id)).thenReturn(List.of(sale));
+        stubNativeQuery(); // convertToDTO → loadServiceSummaries issues a read-only native SELECT
 
         Map<UUID, Boolean> salePaid = new LinkedHashMap<>();
         salePaid.put(saleId, true);
@@ -253,6 +268,7 @@ class BookingServiceSettlementTest {
         when(bookingRepository.findByIdForUpdate(id)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(id)).thenReturn(List.of(promoSale));
+        stubNativeQuery(); // convertToDTO → loadServiceSummaries issues a read-only native SELECT
 
         Map<UUID, Boolean> salePaid = new LinkedHashMap<>();
         salePaid.put(saleId, true);

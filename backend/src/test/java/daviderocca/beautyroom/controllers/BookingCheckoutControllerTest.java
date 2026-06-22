@@ -1,9 +1,11 @@
 package daviderocca.beautyroom.controllers;
 
+import daviderocca.beautyroom.DTO.bookingDTOs.NewBookingDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ProductEntryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PublicMultiServiceBookingDTO;
 import daviderocca.beautyroom.entities.Product;
 import daviderocca.beautyroom.entities.ServiceItem;
+import daviderocca.beautyroom.entities.ServiceOption;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
@@ -21,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -101,6 +104,79 @@ class BookingCheckoutControllerTest {
         assertThatThrownBy(() -> controller.createSessionMulti(payload))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("non appartiene");
+    }
+
+    @Test
+    @DisplayName("Prompt 44: create-session rejects an is_package option (unbuyable online)")
+    void createSession_rejectsPackageOption() {
+        UUID serviceId = UUID.randomUUID();
+        UUID optionId  = UUID.randomUUID();
+
+        when(serviceItemService.findServiceItemById(serviceId)).thenReturn(mock(ServiceItem.class));
+
+        ServiceOption option = mock(ServiceOption.class);
+        when(option.isPackage()).thenReturn(true); // short-circuits → getSessions() not consulted
+        when(serviceOptionRepository.findById(optionId)).thenReturn(Optional.of(option));
+
+        NewBookingDTO payload = packageCheckoutPayload(serviceId, optionId);
+
+        assertThatThrownBy(() -> controller.createSessionGuest(payload))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("acquistabile online");
+    }
+
+    @Test
+    @DisplayName("Prompt 44: create-session rejects a multi-session option (sessions > 1)")
+    void createSession_rejectsMultiSessionOption() {
+        UUID serviceId = UUID.randomUUID();
+        UUID optionId  = UUID.randomUUID();
+
+        when(serviceItemService.findServiceItemById(serviceId)).thenReturn(mock(ServiceItem.class));
+
+        ServiceOption option = mock(ServiceOption.class);
+        when(option.isPackage()).thenReturn(false);   // not flagged as package…
+        when(option.getSessions()).thenReturn(2);      // …but sessions > 1 would still mint a credit
+        when(serviceOptionRepository.findById(optionId)).thenReturn(Optional.of(option));
+
+        NewBookingDTO payload = packageCheckoutPayload(serviceId, optionId);
+
+        assertThatThrownBy(() -> controller.createSessionGuest(payload))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("acquistabile online");
+    }
+
+    @Test
+    @DisplayName("Prompt 44: create-session-multi rejects an is_package option (unbuyable online)")
+    void createSessionMulti_rejectsPackageOption() {
+        UUID serviceId = UUID.randomUUID();
+        UUID optionId  = UUID.randomUUID();
+
+        when(serviceItemService.findServiceItemById(serviceId)).thenReturn(mock(ServiceItem.class));
+
+        ServiceOption option = mock(ServiceOption.class);
+        when(option.isPackage()).thenReturn(true);
+        when(serviceOptionRepository.findByOptionIdAndService_ServiceId(optionId, serviceId))
+                .thenReturn(Optional.of(option));
+
+        PublicMultiServiceBookingDTO payload = new PublicMultiServiceBookingDTO(
+                "Mario Rossi", "mario@test.it", "3331234567", null,
+                LocalDate.now().plusDays(1), LocalTime.of(10, 0),
+                List.of(serviceId), 30, null,
+                null, false, false,
+                List.of(optionId));
+
+        assertThatThrownBy(() -> controller.createSessionMulti(payload))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("acquistabile online");
+    }
+
+    // Single-service guest checkout payload carrying a chosen option (15-field NewBookingDTO ctor).
+    private static NewBookingDTO packageCheckoutPayload(UUID serviceId, UUID optionId) {
+        return new NewBookingDTO(
+                "Mario Rossi", "mario@test.it", "3331234567",
+                LocalDateTime.now().plusDays(1), null,
+                serviceId, null, optionId, null,
+                false, false, null, null, null, false);
     }
 
     private static void setField(Object target, String name, Object value) {
