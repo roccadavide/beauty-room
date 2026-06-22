@@ -100,16 +100,19 @@ public class BookingEmailAssembler {
         for (PackageSummaryDTO p : pkgs) {
             items.add(new Item(p.sessionPrice(), "package", paidOnline || creditBacked || p.paid()));
         }
+        // PROMPT 40: extra/custom/promo lines on a credit-backed booking are NOT covered by
+        // the online package payment — they keep their own paid flag (mirrors the agenda
+        // isLineSettled). The package row above (line "package") stays settled via creditBacked.
         for (ServiceSummaryDTO s : card.services()) {
-            items.add(new Item(s.price(), "extra", paidOnline || creditBacked || s.paid()));
+            items.add(new Item(s.price(), "extra", paidOnline || s.paid()));
         }
         if (showCustom) {
             items.add(new Item(card.customServicePrice(), "custom",
-                    paidOnline || creditBacked || card.customServicePaid()));
+                    paidOnline || card.customServicePaid()));
         }
         for (PromoSummaryDTO promo : card.linkedPromotions()) {
             items.add(new Item(promo.totalDiscounted(), "promotion",
-                    paidOnline || creditBacked || promo.paid()));
+                    paidOnline || promo.paid()));
         }
         for (SaleSummaryDTO sale : card.linkedSales()) {
             items.add(new Item(lineTotal(sale), "sale", sale.paid())); // products: own flag only

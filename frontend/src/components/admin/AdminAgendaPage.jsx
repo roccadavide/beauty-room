@@ -130,16 +130,21 @@ function isBookingPackageCreditBacked(b) {
   return b?.packageCreditId != null;
 }
 function isLineSettled(line, booking) {
-  if (booking?.paidOnline || isBookingPackageCreditBacked(booking)) return true;
+  // PROMPT 40: a PackageCredit-backed booking no longer settles every line. The online
+  // payment covers ONLY the package session — surfaced as a synthesized linkedPackages
+  // row that self-reports paid=true — so an extra/custom line added alongside it must
+  // fall back to its OWN paid flag (default da-pagare). paidOnline still settles a
+  // genuinely all-online (non-package) booking.
+  if (booking?.paidOnline) return true;
   return line?.paid === true;
 }
 function isCustomSettled(booking) {
-  if (booking?.paidOnline || isBookingPackageCreditBacked(booking)) return true;
+  if (booking?.paidOnline) return true;
   return booking?.customServicePaid === true;
 }
 function isAppointmentFullySettled(booking) {
   if (!booking) return false;
-  if (booking.paidOnline || isBookingPackageCreditBacked(booking)) return true;
+  if (booking.paidOnline) return true;
   const pkgs = booking.linkedPackages?.length
     ? booking.linkedPackages
     : booking.linkedPackage ? [booking.linkedPackage] : [];
