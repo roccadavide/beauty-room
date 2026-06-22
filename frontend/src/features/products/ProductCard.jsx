@@ -10,6 +10,7 @@ import WishlistHeart from "../../components/common/WishlistHeart";
 import { useLike } from "../../hooks/useLike";
 import LikePill from "../../components/common/LikePill";
 import LikeBurst from "../../components/common/LikeBurst";
+import CardGlow from "../../components/common/CardGlow";
 
 function ProductCard({
   p,
@@ -96,6 +97,7 @@ function ProductCard({
       data-scroll-id={dataScrollId}
       {...(sortableAttributes || {})}
     >
+      <CardGlow enabled={p.highlightEnabled} color={p.highlightColor}>
       <Card
         className={`br-card beauty-product-card h-100${p.stock === 0 ? " bpc--sold-out" : ""}${isAdmin && !(p.active ?? true) ? " admin-entity--inactive" : ""}`}
         onClick={handleCardClick}
@@ -147,6 +149,7 @@ function ProductCard({
           </div>
         </Card.Body>
       </Card>
+      </CardGlow>
     </Col>
   );
 }

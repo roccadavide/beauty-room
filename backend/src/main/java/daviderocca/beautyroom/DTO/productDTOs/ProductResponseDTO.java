@@ -16,5 +16,7 @@ public record ProductResponseDTO(
         boolean active,
         List<String> badges,
         List<ProductOptionResponse> options,
-        int likesCount
+        int likesCount,
+        boolean highlightEnabled,
+        String highlightColor
 ) {}

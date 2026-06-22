@@ -10,6 +10,7 @@ import WishlistHeart from "../../components/common/WishlistHeart";
 import { useLike } from "../../hooks/useLike";
 import LikePill from "../../components/common/LikePill";
 import LikeBurst from "../../components/common/LikeBurst";
+import CardGlow from "../../components/common/CardGlow";
 
 function ServiceCard({
   s,
@@ -111,6 +112,7 @@ function ServiceCard({
       data-scroll-id={dataScrollId}
       {...(sortableAttributes || {})}
     >
+      <CardGlow enabled={s.highlightEnabled} color={s.highlightColor}>
       <Card
         className={`br-card beauty-service-card h-100${isAdmin && !(s.active ?? true) ? " admin-entity--inactive" : ""}`}
         onClick={handleCardClick}
@@ -161,6 +163,7 @@ function ServiceCard({
           </div>
         </Card.Body>
       </Card>
+      </CardGlow>
     </Col>
   );
 }

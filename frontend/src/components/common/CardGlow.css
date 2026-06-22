@@ -1,0 +1,16 @@
+/* Make ElectricBorder stretch exactly like the bare card inside a d-flex <Col>:
+   fill the column's width + the row's height, and let the inner card fill the
+   wrapper so equal-height rows are preserved. Targets ElectricBorder's internal
+   .eb-content by design — CardGlow always wraps ElectricBorder. */
+.electric-border.eb-card-fill {
+  display: flex;
+  flex: 1 1 auto;
+}
+.electric-border.eb-card-fill > .eb-content {
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+}
+.electric-border.eb-card-fill > .eb-content > .card {
+  width: 100%;
+}

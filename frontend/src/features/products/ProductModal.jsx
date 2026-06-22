@@ -6,6 +6,7 @@ import CustomSelect from "../../components/common/CustomSelect";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import MultiImageUpload from "../../components/common/MultiImageUpload";
 import { BadgesPicker } from "../../components/common/BadgeFlag";
+import HighlightPicker from "../../components/common/HighlightPicker";
 import { buildMultipartForm } from "../../api/utils/multipart";
 
 const EMPTY_DRAFT = { name: "", optionGroup: "", price: "", stock: "", imageUrl: "" };
@@ -22,6 +23,8 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
     description: "",
     stock: "",
     categoryId: "",
+    highlightEnabled: false,
+    highlightColor: "#b8976a",
   });
   const [newFiles, setNewFiles] = useState([]);
   const [removedUrls, setRemovedUrls] = useState([]);
@@ -41,7 +44,7 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
   const categoryOptions = useMemo(() => categories.map(c => ({ value: c.categoryId, label: c.label })), [categories]);
 
   const resetForm = () => {
-    setForm({ name: "", price: "", shortDescription: "", description: "", stock: "", categoryId: "" });
+    setForm({ name: "", price: "", shortDescription: "", description: "", stock: "", categoryId: "", highlightEnabled: false, highlightColor: "#b8976a" });
     setNewFiles([]);
     setRemovedUrls([]);
     setBadges([]);
@@ -66,6 +69,8 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
           description: product.description || "",
           stock: product.stock || "",
           categoryId: product.categoryId || "",
+          highlightEnabled: product.highlightEnabled ?? false,
+          highlightColor: product.highlightColor ?? "#b8976a",
         });
         setBadges(product.badges ?? []);
       } else {
@@ -216,6 +221,8 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
         categoryId: form.categoryId,
         removedImageUrls: removedUrls,
         badges: badges.length > 0 ? badges : null,
+        highlightEnabled: form.highlightEnabled,
+        highlightColor: form.highlightColor,
       };
 
       const formData = buildMultipartForm(payload, newFiles);
@@ -358,6 +365,15 @@ const ProductModal = ({ show, onHide, categories, onProductSaved, product }) => 
 
         <Form.Group>
           <BadgesPicker value={badges} onChange={setBadges} />
+        </Form.Group>
+
+        <Form.Group>
+          <HighlightPicker
+            enabled={form.highlightEnabled}
+            color={form.highlightColor}
+            onEnabledChange={v => handleChange("highlightEnabled", v)}
+            onColorChange={v => handleChange("highlightColor", v)}
+          />
         </Form.Group>
 
         <Form.Group>
