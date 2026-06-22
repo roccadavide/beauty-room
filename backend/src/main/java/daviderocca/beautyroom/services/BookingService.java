@@ -690,8 +690,18 @@ public class BookingService {
         if (Boolean.TRUE.equals(dto.paidInStore())) booking.setPaidInStore(true);
         if (hasPkgCredit && packageCredit != null) {
             booking.setPackageCredit(packageCredit);
-            if (primaryOption == null && packageCredit.getServiceOption() != null) {
-                booking.setServiceOption(packageCredit.getServiceOption());
+            // PROMPT 40: adopt the credit's option as the booking-level option ONLY for a pure
+            // package session (no extra primary service) or when the primary service IS the
+            // package's own service. When the primary is an EXTRA service, adopting it here pairs
+            // the extra's service with the package's option — the "<service> · 5 Sedute Mani"
+            // name fusion + the "l'opzione non appartiene al servizio scelto" failure on deselect.
+            ServiceOption creditOption = packageCredit.getServiceOption();
+            boolean primaryIsPackageService = primaryService != null && creditOption != null
+                    && creditOption.getService() != null
+                    && creditOption.getService().getServiceId().equals(primaryService.getServiceId());
+            if (primaryOption == null && creditOption != null
+                    && (primaryService == null || primaryIsPackageService)) {
+                booking.setServiceOption(creditOption);
             }
         }
 
