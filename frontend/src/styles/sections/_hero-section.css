@@ -13,9 +13,9 @@
   /* Michela: --michela-bottom NEGATIVO → corpo inferiore croppato fuori
      frame e testa sotto il blocco testo (crop dal basso voluto). Larghezza
      per breakpoint sotto. KNOB principali per la composizione. */
-  --michela-w: min(88vw, 380px);
+  --michela-w: min(87vw, 380px);
   --michela-bottom: -10svh;
-  --content-pt: clamp(96px, 13svh, 140px);
+  --content-pt: clamp(105px, 16svh, 160px);
   --cover: 0%; /* pilotata dallo scroll (HeroSection.jsx → setProperty) */
 
   position: relative;
@@ -408,7 +408,7 @@
 ================================================ */
 @media (min-width: 1024px) {
   .hero-scene {
-    --michela-w: min(37vw, 610px);
+    --michela-w: clamp(580px, 44vw, 590px);
     --michela-bottom: -28svh;
     --content-pt: clamp(112px, 13svh, 168px);
   }
