@@ -1,7 +1,7 @@
 import LaserFlow from "./LaserFlow";
 import { Button, Container } from "react-bootstrap";
 import { motion, useReducedMotion, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const MotionDiv = motion.div;
@@ -9,8 +9,8 @@ const MotionDiv = motion.div;
 // ID stabile in produzione — aggiornare solo se il record viene ricreato
 const LASER_SERVICE_UUID = "ea41a8cd-bfec-49d3-bfa4-206c297ecd9d";
 
-// Soglia mobile: sotto questa larghezza la card non usa transform Framer
-// (i breakpoint mobile della LaserSection restano intatti).
+// Soglia mobile: sotto questa larghezza il beam usa fog basso (vedi getFog).
+// La card ora EMERGE con Framer anche su mobile (sceneActive = !reduce).
 const MOBILE_BP = 725;
 
 // Lunghezza verticale del fascio: cresce dal manipolo verso il basso man
@@ -31,8 +31,6 @@ const getFog = () => {
   return isSafari ? 2.1 / (dpr * 2.5) : 4.1 / dpr;
 };
 
-const getIsMobile = () => typeof window !== "undefined" && window.innerWidth <= MOBILE_BP;
-
 export default function LaserSection() {
   const reduce = useReducedMotion();
   const sectionRef = useRef(null);
@@ -41,7 +39,6 @@ export default function LaserSection() {
   const navigate = useNavigate();
 
   const [fogValue, setFogValue] = useState(getFog);
-  const [isMobile, setIsMobile] = useState(getIsMobile);
   // Montaggio differito di LaserFlow: lo shader WebGL si compila a
   // pagina ferma (idle), NON al primo paint → niente scatto iniziale.
   const [showBeam, setShowBeam] = useState(false);
@@ -52,7 +49,6 @@ export default function LaserSection() {
   useEffect(() => {
     const handler = () => {
       setFogValue(getFog());
-      setIsMobile(getIsMobile());
     };
     handler();
     window.addEventListener("resize", handler);
@@ -81,18 +77,14 @@ export default function LaserSection() {
     if (reduce) setBeamLen(BEAM_LEN_MAX);
   }, [reduce]);
 
-  /* ── Scroll della scena.
-     DESKTOP (≥726px) = SCENA PINNATA (mirror della hero): offset start start →
-       end end → progress 0 = top sezione al top viewport (lo stage si pinna),
-       progress 1 = bottom sezione al bottom viewport (lo stage si spinna).
-     MOBILE (<726px) = sezione IN-FLOW e CORTA (più bassa del viewport): con
-       start start/end end il range si invertirebbe → tengo l'offset storico
-       start end / start 16% che pilota il reveal mentre la sezione sale.
-     useMemo: array stabile, cambia solo al flip del breakpoint (no churn). */
-  const scrollOffset = useMemo(() => (isMobile ? ["start end", "start 16%"] : ["start start", "end end"]), [isMobile]);
+  /* ── Scroll della scena (SCENA PINNATA su tutti i viewport, mirror della hero).
+     offset start start → end end: progress 0 = top sezione al top viewport (lo
+     stage si pinna), progress 1 = bottom sezione al bottom viewport (si spinna).
+     Mobile pinna come desktop (vedi blocco MOBILE PIN in _laser.css); la card
+     emerge con gli stessi transform Framer (sceneActive = !reduce). */
   const { scrollYProgress } = useScroll({
     target: sectionRef,
-    offset: scrollOffset,
+    offset: ["start start", "end end"],
   });
 
   // La card EMERGE dal buio IN POSIZIONE (centro viewport): sale di poco
@@ -105,7 +97,7 @@ export default function LaserSection() {
   const cardOpacity = useTransform(scrollYProgress, [0.08, 0.4], [0, 1]);
   // Ombra morbida verso il BASSO: cresce con l'emersione e radica la card sulla
   // crema che rientra dietro. (fallback statico per reduced-motion in CSS.)
-  const cardShadow = useTransform(scrollYProgress, [0.1, 0.6], ["0px 0px 0px 0px rgba(184, 151, 106, 0)", "0px 26px 60px -16px rgba(140, 109, 63, 0.4)"]);
+  const cardShadow = useTransform(scrollYProgress, [0.1, 0.6], ["0px 0px 0px 0px rgba(47, 39, 35, 0)", "0px 22px 48px -30px rgba(47, 39, 35, 0.2)"]);
 
   // La crema rientra DIETRO la card (z1 < container z2) → il buio dello stage
   // RECEDE (parità col preview). Inizia DOPO che la card si è assestata (0.45),
@@ -125,7 +117,7 @@ export default function LaserSection() {
   });
 
   // Scena scroll attiva solo su desktop/tablet con animazioni consentite.
-  const sceneActive = !reduce && !isMobile;
+  const sceneActive = !reduce;
   const cardStyle = sceneActive ? { y: cardY, scale: cardScale, opacity: cardOpacity, boxShadow: cardShadow } : {};
 
   // Entry animation del CONTENUTO INTERNO — osserva il wrapper.
@@ -186,111 +178,111 @@ export default function LaserSection() {
             come quello che gatava i transform della card. Port di .cream-return. */}
         <MotionDiv className="laser-cream-return" aria-hidden="true" style={!reduce ? { opacity: creamReturn } : undefined} />
         <Container className="d-flex justify-content-center align-items-center">
-        <MotionDiv ref={cardRef} className="laser-card-wrapper" style={cardStyle}>
-          <div className="laser-card laser-card--dark">
-            {/* WebGL beam — montato in differita; la lunghezza cresce con lo scroll */}
-            <div className="laser-fx" aria-hidden="true">
-              <div className="laser-fx-inner">
-                {showBeam && (
-                  <LaserFlow
-                    background="#2F2723"
-                    color="#FFD7A1"
-                    horizontalBeamOffset={0.25}
-                    verticalBeamOffset={-0.3}
-                    wispDensity={5.0}
-                    wispSpeed={2.8}
-                    wispIntensity={6.5}
-                    flowSpeed={0.85}
-                    flowStrength={0.18}
-                    fogIntensity={fogValue}
-                    fogScale={0.11}
-                    decay={2.8}
-                    verticalSizing={beamLen}
-                    horizontalSizing={0.5}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Handpiece */}
-            <img src="/handpiece.png" alt="Manipolo laser" className="laser-handpiece" draggable="false" />
-
-            {/* Beam mask — solo mobile, gestita da CSS */}
-            <div className="laser-beam-mask" aria-hidden="true" />
-
-            <div className="laser-content">
-              <div className="laser-top">
-                {/* Colonna sinistra: macchinario (desktop/tablet) */}
-                <div className="laser-left">
-                  <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
+          <MotionDiv ref={cardRef} className="laser-card-wrapper" style={cardStyle}>
+            <div className="laser-card laser-card--dark">
+              {/* WebGL beam — montato in differita; la lunghezza cresce con lo scroll */}
+              <div className="laser-fx" aria-hidden="true">
+                <div className="laser-fx-inner">
+                  {showBeam && (
+                    <LaserFlow
+                      background="#2F2723"
+                      color="#FFD7A1"
+                      horizontalBeamOffset={0.25}
+                      verticalBeamOffset={-0.3}
+                      wispDensity={5.0}
+                      wispSpeed={2.8}
+                      wispIntensity={6.5}
+                      flowSpeed={0.85}
+                      flowStrength={0.18}
+                      fogIntensity={fogValue}
+                      fogScale={0.11}
+                      decay={2.8}
+                      verticalSizing={beamLen}
+                      horizontalSizing={0.5}
+                    />
+                  )}
                 </div>
+              </div>
 
-                {/* Wrapper mobile */}
-                <div className="laser-wrapper-mobile">
-                  <div className="laser-body-mobile">
-                    {/* Macchina — solo mobile */}
-                    <div className="laser-machine-mobile">
-                      <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
-                    </div>
+              {/* Handpiece */}
+              <img src="/handpiece.png" alt="Manipolo laser" className="laser-handpiece" draggable="false" />
 
-                    <div className="laser-copy">
-                      <div className="laser-kicker">
-                        <span className="laser-kicker-dot" aria-hidden="true" />
-                        Laser • Estetica avanzata
+              {/* Beam mask — solo mobile, gestita da CSS */}
+              <div className="laser-beam-mask" aria-hidden="true" />
+
+              <div className="laser-content">
+                <div className="laser-top">
+                  {/* Colonna sinistra: macchinario (desktop/tablet) */}
+                  <div className="laser-left">
+                    <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
+                  </div>
+
+                  {/* Wrapper mobile */}
+                  <div className="laser-wrapper-mobile">
+                    <div className="laser-body-mobile">
+                      {/* Macchina — solo mobile */}
+                      <div className="laser-machine-mobile">
+                        <img src="/laser.png" alt="Macchinario laser" className="laser-machine" draggable="false" />
                       </div>
 
-                      <h2 className="laser-title">
-                        Stanca di lamette e cerette <span className="laser-title--gold">ogni settimana?</span>
-                      </h2>
+                      <div className="laser-copy">
+                        <div className="laser-kicker">
+                          <span className="laser-kicker-dot" aria-hidden="true" />
+                          Laser • Estetica avanzata
+                        </div>
 
-                      <div className="laser-divider" aria-hidden="true" />
+                        <h2 className="laser-title">
+                          Stanca di lamette e cerette <span className="laser-title--gold">ogni settimana?</span>
+                        </h2>
 
-                      {/* Testo breve — solo mobile */}
-                      <p className="laser-text-mobile">
-                        Con <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni una pelle più liscia.
-                      </p>
+                        <div className="laser-divider" aria-hidden="true" />
 
-                      {/* Testo lungo — tablet/desktop */}
-                      <p className="laser-text">
-                        Con il nuovo macchinario <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni
-                        una pelle più liscia.
-                        <br />
-                        <span className="laser-subtle">
-                          Spesso si nota una differenza già dalle prime sedute (i risultati possono variare in base al tipo di pelle e pelo).
-                        </span>
-                      </p>
+                        {/* Testo breve — solo mobile */}
+                        <p className="laser-text-mobile">
+                          Con <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni una pelle più liscia.
+                        </p>
 
-                      {/* Benefit pills — solo desktop */}
-                      <div className="laser-benefits">
-                        <span className="laser-benefit-pill">✦ Zero rasatura</span>
-                        <span className="laser-benefit-pill">✦ Visibile già dalla 1ª seduta</span>
-                        <span className="laser-benefit-pill">✦ HiTek Milano</span>
+                        {/* Testo lungo — tablet/desktop */}
+                        <p className="laser-text">
+                          Con il nuovo macchinario <strong>HILED KUBE</strong> di <strong>HiTek Milano</strong> riduci progressivamente la ricrescita e ottieni
+                          una pelle più liscia.
+                          <br />
+                          <span className="laser-subtle">
+                            Spesso si nota una differenza già dalle prime sedute (i risultati possono variare in base al tipo di pelle e pelo).
+                          </span>
+                        </p>
+
+                        {/* Benefit pills — solo desktop */}
+                        <div className="laser-benefits">
+                          <span className="laser-benefit-pill">✦ Zero rasatura</span>
+                          <span className="laser-benefit-pill">✦ Visibile già dalla 1ª seduta</span>
+                          <span className="laser-benefit-pill">✦ HiTek Milano</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Strip CTA — visibile su tutti i viewport */}
-            <div ref={stripRef} className="laser-strip">
-              <Button className="laser-btn-gold" onClick={() => navigate(`/trattamenti/${LASER_SERVICE_UUID}`)}>
-                Prenota la tua seduta
-              </Button>
-              <div className="laser-strip-meta">
-                <span className="laser-info">
-                  Per info rapide:{" "}
-                  <a href="https://wa.me/393780921723" target="_blank" rel="noreferrer" className="laser-whatsapp">
-                    WhatsApp
-                  </a>
-                </span>
-                <span className="laser-pay">Pagamento con carta o PayPal</span>
+              {/* Strip CTA — visibile su tutti i viewport */}
+              <div ref={stripRef} className="laser-strip">
+                <Button className="laser-btn-gold" onClick={() => navigate(`/trattamenti/${LASER_SERVICE_UUID}`)}>
+                  Prenota la tua seduta
+                </Button>
+                <div className="laser-strip-meta">
+                  <span className="laser-info">
+                    Per info rapide:{" "}
+                    <a href="https://wa.me/393780921723" target="_blank" rel="noreferrer" className="laser-whatsapp">
+                      WhatsApp
+                    </a>
+                  </span>
+                  <span className="laser-pay">Pagamento con carta o PayPal</span>
+                </div>
               </div>
-            </div>
 
-            <div className="laser-overlay" aria-hidden="true" />
-          </div>
-        </MotionDiv>
+              <div className="laser-overlay" aria-hidden="true" />
+            </div>
+          </MotionDiv>
         </Container>
       </div>
     </section>

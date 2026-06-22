@@ -167,7 +167,7 @@
        dietro, senza contornare il bordo superiore contro il buio dello stage.
        (fallback statico reduced-motion; in moto è pilotata da cardShadow in
        LaserSection.jsx, anch'essa verso il basso.) */
-    box-shadow: 0 26px 60px -18px rgba(140, 109, 63, 0.3);
+    box-shadow: 0 22px 48px -30px rgba(47, 39, 35, 0.2);
   }
 }
 
@@ -689,16 +689,17 @@
     */
   .laser-card-wrapper {
     width: 100%;
-    margin-top: 24px;
-    border-radius: 20px 20px 0 0;
-    overflow: hidden;
-    box-shadow:
-      0 -4px 24px rgba(47, 39, 35, 0.18),
-      0 18px 40px rgba(47, 39, 35, 0.1);
+    margin-top: 0;
+    border-radius: 20px;
+    opacity: 1;
+    translate: none;
+    transition: none;
+    transform-origin: center;
+    box-shadow: 0 22px 48px -30px rgba(47, 39, 35, 0.22);
   }
 
   .laser-card {
-    border-radius: 0;
+    border-radius: 20px;
     margin-top: 0;
     width: 100%;
     min-height: 0;
@@ -1221,5 +1222,31 @@
 
   .laser-kicker-dot {
     animation: none !important;
+  }
+}
+
+/* MOBILE PIN — mirror desktop, ma la card NON usa Framer (Safari).
+   La cream-return fa l'emersione. */
+@media (max-width: 725px) and (prefers-reduced-motion: no-preference) {
+  .laser-section {
+    height: 190svh; /* ⟸ KNOB: lunghezza binario */
+    margin-top: -110svh; /* ⟸ KNOB: overlap nel buio della hero */
+    background: #fffdf8; /* coda crema dopo l'assestamento */
+    padding-bottom: 0;
+  }
+  .laser-stage {
+    display: block;
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    overflow: hidden;
+    isolation: isolate;
+    background: #2f2723;
+  }
+  .laser-stage > .container {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding-top: var(--nav-current);
   }
 }
