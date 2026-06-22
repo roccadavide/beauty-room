@@ -50,6 +50,12 @@ public class ServiceItem {
     @Column(name = "consent_required", nullable = false)
     private boolean consentRequired = false;
 
+    @Column(name = "highlight_enabled", nullable = false)
+    private boolean highlightEnabled = false;
+
+    @Column(name = "highlight_color", length = 9)
+    private String highlightColor;
+
     @Column(name = "likes_count", nullable = false)
     private int likesCount = 0;
 

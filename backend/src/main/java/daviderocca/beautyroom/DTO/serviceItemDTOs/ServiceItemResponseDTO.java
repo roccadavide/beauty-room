@@ -19,5 +19,7 @@ public record ServiceItemResponseDTO(
         List<String> badges,
         boolean featured,
         boolean consentRequired,
-        int likesCount
+        int likesCount,
+        boolean highlightEnabled,
+        String highlightColor
 ) {}

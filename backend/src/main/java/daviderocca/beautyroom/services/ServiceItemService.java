@@ -220,6 +220,8 @@ public class ServiceItemService {
         newServiceItem.setActive(payload.active() == null || payload.active());
         newServiceItem.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
         newServiceItem.setDisplayOrder(serviceItemRepository.findMaxDisplayOrder() + 1);
+        newServiceItem.setHighlightEnabled(payload.highlightEnabled() != null && payload.highlightEnabled());
+        newServiceItem.setHighlightColor(payload.highlightColor());
 
         ServiceItem saved = serviceItemRepository.save(newServiceItem);
         log.info("Servizio '{}' (ID: {}) creato (categoria: {})",
@@ -268,6 +270,8 @@ public class ServiceItemService {
             found.setActive(payload.active());
         }
         found.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
+        found.setHighlightEnabled(payload.highlightEnabled() != null && payload.highlightEnabled());
+        found.setHighlightColor(payload.highlightColor());
 
         ServiceItem updated = serviceItemRepository.save(found);
         log.info("Servizio '{}' (ID: {}) aggiornato (categoria: {})",
@@ -377,7 +381,9 @@ public class ServiceItemService {
                 BadgesUtil.fromJson(serviceItem.getBadges()),
                 serviceItem.isFeatured(),
                 serviceItem.isConsentRequired(),
-                serviceItem.getLikesCount()
+                serviceItem.getLikesCount(),
+                serviceItem.isHighlightEnabled(),
+                serviceItem.getHighlightColor()
         );
     }
 }

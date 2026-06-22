@@ -53,6 +53,12 @@ public class Product {
     @Column(name = "display_order", nullable = false)
     private int displayOrder = 0;
 
+    @Column(name = "highlight_enabled", nullable = false)
+    private boolean highlightEnabled = false;
+
+    @Column(name = "highlight_color", length = 9)
+    private String highlightColor;
+
     @Column(name = "likes_count", nullable = false)
     private int likesCount = 0;
 

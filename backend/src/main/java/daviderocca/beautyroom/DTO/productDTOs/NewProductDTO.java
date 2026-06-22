@@ -31,6 +31,10 @@ public record NewProductDTO (
                             // nullable — URL immagini da rimuovere (cleanup lista; Cloudinary TODO)
                             List<String> removedImageUrls,
                             /** Badge attivi, es. ["new","sale"]. Valori ammessi: new, sale, promo, limited, bestseller, coming_soon */
-                            List<String> badges
+                            List<String> badges,
+                            /** null = nessun highlight (default false in persistenza) */
+                            Boolean highlightEnabled,
+                            /** Colore bordo highlight in hex (#RRGGBB o #RRGGBBAA); null = default lato app quando attivo */
+                            String highlightColor
 )
 {}

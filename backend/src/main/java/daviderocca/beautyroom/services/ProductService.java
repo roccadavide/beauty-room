@@ -102,6 +102,8 @@ public class ProductService {
         newProduct.setActive(payload.active() == null || payload.active());
         newProduct.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
         newProduct.setDisplayOrder(productRepository.findMaxDisplayOrder() + 1);
+        newProduct.setHighlightEnabled(payload.highlightEnabled() != null && payload.highlightEnabled());
+        newProduct.setHighlightColor(payload.highlightColor());
 
         Product saved = productRepository.save(newProduct);
         log.info("Prodotto '{}' (ID: {}) creato con categoria '{}'",
@@ -152,6 +154,8 @@ public class ProductService {
             found.setActive(payload.active());
         }
         found.setBadges(BadgesUtil.toJson(BadgesUtil.validate(payload.badges())));
+        found.setHighlightEnabled(payload.highlightEnabled() != null && payload.highlightEnabled());
+        found.setHighlightColor(payload.highlightColor());
 
         Product updated = productRepository.save(found);
         log.info("Prodotto '{}' (ID: {}) aggiornato correttamente (categoria: {})",
@@ -255,7 +259,9 @@ public class ProductService {
                 product.isActive(),
                 BadgesUtil.fromJson(product.getBadges()),
                 options,
-                product.getLikesCount()
+                product.getLikesCount(),
+                product.isHighlightEnabled(),
+                product.getHighlightColor()
         );
     }
 }
