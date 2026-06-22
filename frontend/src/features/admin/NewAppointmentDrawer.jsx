@@ -1678,8 +1678,21 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
             <>
               <div className="d-flex flex-wrap gap-2 mt-1">
                 {activePackages.map(pkg => {
-                  const sessionsUsed = pkg.totalSessions - pkg.sessionsRemaining;
                   const isOnline = pkg.source === "ONLINE";
+                  // Mirror the "Servizi selezionati" rows (:2149 admin / :2287 online): in
+                  // edit mode prefer the booking's FROZEN per-link sessionNumber over the live
+                  // counter. Online credits consume at booking time (V72), so the live
+                  // `total - remaining` already counts THIS session — the +1 fallback would
+                  // overshoot (Seduta 6/5). Admin packages consume on completion, so for a
+                  // not-yet-completed edit the fallback already equals sessionNumber → unchanged.
+                  const frozenLink = isEditMode
+                    ? (editBooking?.linkedPackages || []).find(lp =>
+                        isOnline
+                          ? lp.packageAssignmentId == null
+                          : String(lp.packageAssignmentId) === String(pkg.id))
+                    : null;
+                  const sessionNum = frozenLink?.sessionNumber ?? (pkg.totalSessions - pkg.sessionsRemaining + 1);
+                  const totalSess = frozenLink?.totalSessions ?? pkg.totalSessions;
                   const isSelected = isOnline ? selectedPackageCreditId === pkg.id : selectedPackageIds.has(pkg.id);
                   const handleClick = () => {
                     if (isOnline) {
@@ -1741,8 +1754,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                             "Tutte le sedute fissate"
                           ) : (
                             <>
-                              Seduta {sessionsUsed + 1}/{pkg.totalSessions}
-                              {pkg.sessionsRemaining === 1 && <span style={{ color: "#fbbf24" }}> · ultima!</span>}
+                              Seduta {sessionNum}/{totalSess}
+                              {sessionNum === totalSess && <span style={{ color: "#fbbf24" }}> · ultima!</span>}
                             </>
                           )}
                         </div>
