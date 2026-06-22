@@ -182,13 +182,37 @@ export default function HeroSection({
           </MotionDiv>
         </MotionDiv>
 
+        {/* z1 — campo di bagliori colorati (coreografia accendi/spegni, CSS puro,
+    statico: nessun transform Framer → niente fringing). Coperto dal bloom
+    scuro durante lo scroll → svanisce da solo. */}
+        <div className="hero-orbs" aria-hidden="true">
+          <span className="hero-orb o-gold hero-orb--1" />
+          <span className="hero-orb o-violet hero-orb--2" />
+          <span className="hero-orb o-peach hero-orb--3" />
+          <span className="hero-orb o-lav hero-orb--4" />
+          <span className="hero-orb o-blush hero-orb--5" />
+          <span className="hero-orb o-mauve hero-orb--6" />
+          <span className="hero-orb o-gold hero-orb--7" />
+          <span className="hero-orb o-lav hero-orb--8" />
+          <span className="hero-orb o-violet hero-orb--9" />
+        </div>
+
         {/* z2 — Michela: scroll (drift+fade) › entrata › <picture> */}
         <MotionDiv className="hero-michela" aria-hidden="true" style={scrub ? { y: michelaY, scale: michelaScale, opacity: michelaOpacity } : undefined}>
           <MotionDiv className="hero-michela-enter" variants={michelaEnter} initial={fadeInitial} animate={animState}>
             <picture>
               <source srcSet={MICHELA.avif} type="image/avif" />
               <source srcSet={MICHELA.webp} type="image/webp" />
-              <img src={MICHELA.png} alt={imgAlt} className="hero-michela-img" width={1200} height={1600} decoding="async" fetchPriority="high" draggable="false" />
+              <img
+                src={MICHELA.png}
+                alt={imgAlt}
+                className="hero-michela-img"
+                width={1200}
+                height={1600}
+                decoding="async"
+                fetchPriority="high"
+                draggable="false"
+              />
             </picture>
           </MotionDiv>
         </MotionDiv>
