@@ -2,480 +2,209 @@
 @import url("https://db.onlinewebfonts.com/c/7b9ef47e477d7db975da9dda4b155d02?family=SaolDisplay-Light");
 
 /* ================================================
-   HERO SECTION — "Editorial Beauty"
-   Mobile-first · breakpoints: 768px, 1024px
-   Round 2.1: aurora a luci distinte, polvere che cade, sheen
+   HERO SECTION v1 — "cream → dark reveal"
+   Scena sticky + Framer useScroll (come LaserSection).
+   NIENTE GSAP pin · NIENTE filter:blur · svh only.
+   Choreografia: vedi design-reference/hero-v1-preview-handoff.html
 ================================================ */
 
-/* ── Scene track — il binario alto su cui la hero resta pinnata ── */
-/* Stable height: svh on modern browsers, vh as fallback for old ones.
-   svh does NOT change when the mobile browser bars hide/show during scroll,
-   so the hero doesn't "jump" mid-scroll. */
+/* ── Manopole di taratura (un posto solo) ── */
 .hero-scene {
+  /* Michela: --michela-bottom NEGATIVO → corpo inferiore croppato fuori
+     frame e testa sotto il blocco testo (crop dal basso voluto). Larghezza
+     per breakpoint sotto. KNOB principali per la composizione. */
+  --michela-w: min(87vw, 380px);
+  --michela-bottom: -10svh;
+  --content-pt: clamp(105px, 16svh, 160px);
+  --cover: 0%; /* pilotata dallo scroll (HeroSection.jsx → setProperty) */
+
   position: relative;
-  height: 100vh;
-  height: 100svh;
+  /* Binario lungo → stesso progress = più scroll di dito → reveal più LENTO.
+     Tarato col range --cover (0.06→0.88) e l'overlap della LaserSection.
+     svh: non salta con le barre mobile. */
+  height: 300svh;
+  /* Sotto la stage non si vede mai crema: tinta scura = assicurazione
+     contro qualsiasi hairline al confine con la LaserSection. */
+  background: #2f2723;
 }
 
-/* ── Sticky shell — ciò che resta inchiodato a schermo ── */
-.hero-sticky {
-  position: relative;
-  height: 100vh;
-  height: 100svh;
-}
-
-/* ── Section shell ── */
-.hero-section {
-  position: relative;
-  height: 100%;
-  overflow: clip;
-  isolation: isolate;
-}
-
-/* ── Ken Burns wrapper ── (parte solo con .hero-ready, vedi gate JS) */
-.hero-photo-frame {
-  position: absolute;
+/* ── Stage sticky: ciò che resta inchiodato a schermo ── */
+.hero-stage {
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
-  height: 115%;
-  transform-origin: center top;
-  transform: scale(1.04);
+  height: 100svh;
+  overflow: hidden;
+  isolation: isolate;
+  background: #fffdf8;
 }
 
-.hero-ready .hero-photo-frame {
-  animation: hero-kb 3.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-}
-
-@keyframes hero-kb {
-  from {
-    transform: scale(1.04);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-.hero-media {
+/* ════════════════════════════════════════════════
+   z0 — fondo crema
+════════════════════════════════════════════════ */
+.hero-cream {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: contrast(1.02) saturate(1.04);
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 80% at 50% 8%, #fffdf8 0%, #fef7ef 60%, #fdeedd 100%);
+  transform-origin: center 42%;
   will-change: transform;
 }
 
-/* ── Warm top vignette ── */
-.hero-overlay {
+/* ════════════════════════════════════════════════
+   z1 — alone champagne (l'aura di Michela, "respira")
+   3 livelli annidati: scroll-fade · entrata · respiro.
+   Morbidezza = gradiente radiale, MAI filter:blur.
+════════════════════════════════════════════════ */
+.hero-glow {
   position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 70% 38% at 50% 0%, rgba(0, 0, 0, 0.18) 0%, transparent 70%);
+  left: 50%;
+  bottom: -6%;
+  transform: translateX(-50%);
+  width: min(86vw, 560px);
+  height: min(86vw, 560px);
   z-index: 1;
   pointer-events: none;
+  will-change: opacity;
 }
-
-/* ── Faretto morbido — pilotato dallo scroll (vedi HeroSection.jsx) ──
-   Valorizza Michela: il centro resta limpido, i bordi si attenuano.
-   Il punto focale "at X Y" va allineato a dove Michela finisce dopo
-   la spinta — TARARE assieme ai valori PUSH del JSX. */
-.hero-spotlight {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  opacity: 0;
-  pointer-events: none;
+.hero-glow-enter {
+  width: 100%;
+  height: 100%;
+}
+.hero-glow-breath {
+  width: 100%;
+  height: 100%;
   background: radial-gradient(
-    ellipse 60% 68% at 50% 44%,
-    rgba(22, 15, 10, 0) 0%,
-    rgba(22, 15, 10, 0) 40%,
-    rgba(22, 15, 10, 0.32) 74%,
-    rgba(22, 15, 10, 0.62) 100%
+    circle at 50% 50%,
+    rgba(238, 194, 140, 0.72) 0%,
+    rgba(238, 194, 140, 0.42) 32%,
+    rgba(238, 194, 140, 0.16) 56%,
+    rgba(238, 194, 140, 0) 74%
   );
+  animation: hero-glow-breath 7s ease-in-out infinite;
 }
-
-/* ── Gradient veil ── (mobile: dal basso · tablet+: pannello sinistro) */
-.hero-gradient-veil {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 68%;
-  background: linear-gradient(to bottom, transparent 0%, rgba(255, 253, 248, 0.42) 20%, rgba(255, 253, 248, 0.86) 48%, #fffdf8 70%);
-  z-index: 2;
-  pointer-events: none;
-}
-
-/* ════════════════════════════════════════════════
-   FX LAYER — base condivisa da aurora, polvere e shimmer.
-   Copre tutta l'area crema e si dissolve verso la foto con una mask.
-════════════════════════════════════════════════ */
-.hero-fx-layer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 68%;
-  z-index: 2;
-  pointer-events: none;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 60%, transparent 96%);
-  mask-image: linear-gradient(to top, #000 0%, #000 60%, transparent 96%);
-}
-
-/* ════════════════════════════════════════════════
-   AURORA — luci di colore distinte
-   7 zone di colore sparse su TUTTO il pannello crema. Ognuna deriva
-   lenta E "respira" in opacità con timing diversi → si accendono e
-   si spengono in punti diversi, illuminando tutta la zona bianca.
-   Blending normale (niente multiply) → i colori restano distinti.
-   Tutto compositor GPU, niente blur: costo prestazionale ~0.
-
-   MANOPOLE: l'alpha nei gradienti radiali = intensità del colore.
-             i picchi nei @keyframes hero-breathe-* = quanto si accende.
-════════════════════════════════════════════════ */
-.hero-aurora-blob {
-  position: absolute;
-  border-radius: 50%;
-  /* niente filter:blur — la morbidezza è nel gradiente radiale */
-}
-
-/* champagne */
-.hero-aurora-blob--1 {
-  width: clamp(190px, 32vw, 350px);
-  height: clamp(190px, 32vw, 350px);
-  left: -8%;
-  bottom: 50%;
-  background: radial-gradient(circle, rgba(234, 208, 152, 0.66) 0%, rgba(234, 208, 152, 0) 68%);
-  animation:
-    hero-drift-1 28s ease-in-out infinite alternate,
-    hero-breathe-1 13s ease-in-out infinite;
-  animation-delay:
-    0s,
-    -3s;
-}
-
-/* blush — rosa cipria */
-.hero-aurora-blob--2 {
-  width: clamp(170px, 29vw, 300px);
-  height: clamp(170px, 29vw, 300px);
-  left: 52%;
-  bottom: 58%;
-  background: radial-gradient(circle, rgba(236, 178, 174, 0.64) 0%, rgba(236, 178, 174, 0) 68%);
-  animation:
-    hero-drift-2 34s ease-in-out infinite alternate,
-    hero-breathe-2 16s ease-in-out infinite;
-  animation-delay:
-    0s,
-    -7s;
-}
-
-/* lilla — contrappunto freddo, ben separato */
-.hero-aurora-blob--3 {
-  width: clamp(185px, 31vw, 330px);
-  height: clamp(185px, 31vw, 330px);
-  left: 28%;
-  bottom: 30%;
-  background: radial-gradient(circle, rgba(196, 180, 228, 0.66) 0%, rgba(196, 180, 228, 0) 70%);
-  animation:
-    hero-drift-3 26s ease-in-out infinite alternate,
-    hero-breathe-3 12s ease-in-out infinite;
-  animation-delay:
-    0s,
-    -1s;
-}
-
-/* ambra — caldo profondo, alpha più contenuta */
-.hero-aurora-blob--4 {
-  width: clamp(185px, 31vw, 330px);
-  height: clamp(185px, 31vw, 330px);
-  left: -6%;
-  bottom: 6%;
-  background: radial-gradient(circle, rgba(218, 164, 104, 0.54) 0%, rgba(218, 164, 104, 0) 70%);
-  animation:
-    hero-drift-4 38s ease-in-out infinite alternate,
-    hero-breathe-4 19s ease-in-out infinite;
-  animation-delay:
-    0s,
-    -11s;
-}
-
-/* pesca — albicocca */
-.hero-aurora-blob--5 {
-  width: clamp(175px, 30vw, 310px);
-  height: clamp(175px, 30vw, 310px);
-  left: 46%;
-  bottom: 16%;
-  background: radial-gradient(circle, rgba(240, 196, 156, 0.62) 0%, rgba(240, 196, 156, 0) 70%);
-  animation:
-    hero-drift-5 30s ease-in-out infinite alternate,
-    hero-breathe-5 14s ease-in-out infinite;
-  animation-delay:
-    0s,
-    -5s;
-}
-
-/* oro tenue */
-.hero-aurora-blob--6 {
-  width: clamp(185px, 31vw, 330px);
-  height: clamp(185px, 31vw, 330px);
-  left: 6%;
-  bottom: 40%;
-  background: radial-gradient(circle, rgba(228, 198, 138, 0.62) 0%, rgba(228, 198, 138, 0) 70%);
-  animation:
-    hero-drift-6 32s ease-in-out infinite alternate,
-    hero-breathe-6 17s ease-in-out infinite;
-  animation-delay:
-    0s,
-    -9s;
-}
-
-/* malva — secondo accento freddo-rosato */
-.hero-aurora-blob--7 {
-  width: clamp(170px, 28vw, 290px);
-  height: clamp(170px, 28vw, 290px);
-  left: 38%;
-  bottom: -6%;
-  background: radial-gradient(circle, rgba(216, 186, 206, 0.58) 0%, rgba(216, 186, 206, 0) 70%);
-  animation:
-    hero-drift-7 24s ease-in-out infinite alternate,
-    hero-breathe-7 15s ease-in-out infinite;
-  animation-delay:
-    0s,
-    -2s;
-}
-
-/* deriva lenta — solo transform */
-@keyframes hero-drift-1 {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(8%, -7%, 0) scale(1.16);
-  }
-}
-@keyframes hero-drift-2 {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.1);
-  }
-  to {
-    transform: translate3d(-8%, 6%, 0) scale(0.92);
-  }
-}
-@keyframes hero-drift-3 {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(7%, 8%, 0) scale(1.18);
-  }
-}
-@keyframes hero-drift-4 {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.06);
-  }
-  to {
-    transform: translate3d(-6%, -7%, 0) scale(0.94);
-  }
-}
-@keyframes hero-drift-5 {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(9%, -6%, 0) scale(1.14);
-  }
-}
-@keyframes hero-drift-6 {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.04);
-  }
-  to {
-    transform: translate3d(-7%, 7%, 0) scale(0.9);
-  }
-}
-@keyframes hero-drift-7 {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(6%, -9%, 0) scale(1.2);
-  }
-}
-
-/* respiro — solo opacity, picchi e durate sfasati → si accendono in tempi diversi */
-@keyframes hero-breathe-1 {
+@keyframes hero-glow-breath {
   0%,
   100% {
-    opacity: 0.1;
-  }
-  48% {
-    opacity: 0.92;
-  }
-}
-@keyframes hero-breathe-2 {
-  0%,
-  100% {
-    opacity: 0.06;
-  }
-  56% {
-    opacity: 0.8;
-  }
-}
-@keyframes hero-breathe-3 {
-  0%,
-  100% {
-    opacity: 0.12;
-  }
-  44% {
-    opacity: 0.9;
-  }
-}
-@keyframes hero-breathe-4 {
-  0%,
-  100% {
-    opacity: 0.05;
-  }
-  60% {
-    opacity: 0.72;
-  }
-}
-@keyframes hero-breathe-5 {
-  0%,
-  100% {
-    opacity: 0.09;
+    opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.85;
-  }
-}
-@keyframes hero-breathe-6 {
-  0%,
-  100% {
-    opacity: 0.07;
-  }
-  42% {
-    opacity: 0.88;
-  }
-}
-@keyframes hero-breathe-7 {
-  0%,
-  100% {
-    opacity: 0.11;
-  }
-  54% {
-    opacity: 0.82;
+    opacity: 0.6;
+    transform: scale(1.09);
   }
 }
 
-/* ── Polvere di luce (canvas) — granelli d'oro che CADONO dall'alto ──
-   Bitmap e loop rAF gestiti dal JS (pausa con tab nascosta / hero fuori
-   viewport). Qui solo box e mask via .hero-fx-layer. */
-.hero-dust {
-  display: block;
-}
-
-/* ── Shimmer del pannello: scia di luce che attraversa la zona crema ── */
-.hero-shimmer::before {
-  content: "";
+/* ════════════════════════════════════════════════
+   z2 — Michela (ritaglio trasparente)
+   Centrata SENZA transform (margin-inline:auto) così Framer può
+   possedere il transform (drift+scala) senza perdere la centratura.
+════════════════════════════════════════════════ */
+.hero-michela {
   position: absolute;
-  top: -20%;
-  bottom: -20%;
   left: 0;
-  width: 40%;
-  background: linear-gradient(115deg, transparent 38%, rgba(244, 228, 196, 0) 44%, rgba(248, 234, 205, 0.55) 50%, rgba(244, 228, 196, 0) 56%, transparent 62%);
-  transform: translateX(-185%);
-  animation: hero-shimmer 9s ease-in-out infinite;
+  right: 0;
+  bottom: var(--michela-bottom);
+  margin-inline: auto;
+  width: var(--michela-w);
+  z-index: 2;
+  pointer-events: none;
+  transform-origin: 50% 100%;
+  will-change: transform, opacity;
+}
+.hero-michela-enter {
+  width: 100%;
+  transform-origin: 50% 100%;
+}
+.hero-michela-img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
-@keyframes hero-shimmer {
-  0%,
-  78% {
-    transform: translateX(-185%);
-  }
-  93%,
-  100% {
-    transform: translateX(360%);
-  }
-}
-
-/* ── Sfumatura inferiore (solo tablet+) — discreta ── */
-.hero-base-fade {
-  display: none;
-}
-
-/* ── Inner layout container ── */
-.hero-inner {
+/* ════════════════════════════════════════════════
+   z3 — colonna testo centrata
+════════════════════════════════════════════════ */
+.hero-content {
   position: absolute;
   inset: 0;
   z-index: 3;
   display: flex;
-  align-items: flex-end;
-  padding: 0 !important;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--content-pt) clamp(20px, 5.5vw, 40px) 0;
+  text-align: center;
   pointer-events: none;
+  will-change: transform, opacity;
 }
-
-/* ── Text panel ── */
-.hero-text-panel {
-  width: 100%;
-  padding: 0 clamp(20px, 5.5vw, 32px) clamp(28px, 4vh, 56px);
-  pointer-events: auto;
+.hero-content-col {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  max-width: 640px;
+  pointer-events: auto;
 }
 
 /* ── Eyebrow ── */
 .hero-eyebrow {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-family: "Montserrat", sans-serif;
-  font-size: 0.65rem;
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #8a6d3e;
-  margin-bottom: 10px;
+  color: #8c6d3f;
 }
-
 .hero-eyebrow-mark {
   color: #b8976a;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   line-height: 1;
 }
 
-/* ── Gold horizontal rule — nascosta mobile, visibile tablet+ ── */
+/* ── Filetto oro (scaleX in entrata) ── */
 .hero-rule {
-  display: none;
+  width: 46px;
+  height: 1px;
+  background: #b8976a;
+  margin: 11px 0 13px; /* compatto: stringe il gap eyebrow→titolo (mobile) */
+  transform-origin: center;
 }
 
-/* ── Headline ──
-   Il wrap porta la tipografia: titolo reale + overlay sheen la ereditano. */
+/* ── Titolo: righe che salgono da un wrapper overflow:hidden ── */
 .hero-title-wrap {
   position: relative;
   display: inline-block;
-  margin: 0 0 14px;
+  /* La tipografia vive sul WRAP → titolo e sheen la EREDITANO, sempre
+     allineati a qualunque breakpoint/wrapping. Mobile (<768px): due righe. */
   font-family: "SaolDisplay-Light", serif;
-  font-size: clamp(2.6rem, 9.5vw, 3.2rem);
   font-weight: 400;
-  line-height: 1;
-  letter-spacing: -0.03em;
+  font-size: clamp(2.7rem, 9vw, 3.3rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
 }
-
 .hero-title {
   font: inherit;
   letter-spacing: inherit;
   margin: 0;
   color: #2a1c10;
 }
+.hero-title-line {
+  display: block;
+  overflow: hidden;
+}
+.hero-title-line-inner {
+  display: block;
+}
 
-/* sheen del titolo — gleam oro che attraversa l'headline.
-   Cadenza ~8.5s, passata più lenta (~2s) → si nota meglio. */
+/* sheen del titolo — gleam oro che attraversa l'headline (ambientale).
+   Overlay con stesso testo: testo trasparente, si vede solo la banda oro. */
 .hero-title-sheen {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  margin: 0;
   font: inherit;
   letter-spacing: inherit;
   color: transparent;
@@ -488,7 +217,6 @@
   -webkit-text-fill-color: transparent;
   animation: hero-title-sheen 8.5s ease-in-out infinite;
 }
-
 @keyframes hero-title-sheen {
   0%,
   70% {
@@ -500,39 +228,36 @@
   }
 }
 
-/* ── Subtitle ── */
+/* ── Sottotitolo ── */
 .hero-subtitle {
   font-family: "Petrona", serif;
   font-style: italic;
-  font-size: clamp(0.98rem, 2.6vw, 1.08rem);
   font-weight: 400;
+  font-size: clamp(1rem, 2.6vw, 1.16rem);
   line-height: 1.6;
   color: #5a3d28;
-  max-width: 40ch;
-  margin: 0 0 24px 0;
+  max-width: 32ch;
+  margin: 13px 0 0;
 }
 
-/* ── CTA row ── */
+/* ── CTA ── */
 .hero-cta-row {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 12px;
-  width: 100%;
-  margin-bottom: 20px;
+  margin-top: 18px;
 }
-
-/* ── Primary CTA ── */
 .hero-cta-primary {
   background: #b8976a !important;
   color: #2a1c10 !important;
   border: none !important;
   border-radius: 999px !important;
-  min-height: 48px;
-  width: 100%;
-  padding: 0 32px !important;
+  min-height: 46px;
+  padding: 0 28px !important;
   font-family: "Montserrat", sans-serif;
   font-weight: 700 !important;
-  font-size: 0.84rem !important;
+  font-size: 0.8rem !important;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   position: relative;
@@ -543,7 +268,6 @@
     box-shadow 0.3s ease,
     transform 0.25s ease !important;
 }
-
 .hero-cta-primary::before {
   content: "";
   position: absolute;
@@ -553,291 +277,382 @@
   transition: transform 0.65s ease;
   pointer-events: none;
 }
-
 .hero-cta-primary:hover,
 .hero-cta-primary:focus-visible {
-  background: #9a7c54 !important;
-  color: #2a1c10 !important;
-  box-shadow: 0 8px 28px rgba(154, 124, 84, 0.48) !important;
+  background: #8c6d3f !important;
+  color: #fff !important;
+  box-shadow: 0 8px 28px rgba(140, 109, 63, 0.48) !important;
   transform: translateY(-1px);
 }
-
 .hero-cta-primary:hover::before {
   transform: translateX(170%);
 }
-
-/* ── Secondary CTA ── */
 .hero-cta-secondary {
   background: transparent !important;
   color: #3d2b1a !important;
   border: 1.5px solid #b8976a !important;
   border-radius: 999px !important;
-  min-height: 48px;
-  width: 100%;
+  min-height: 46px;
   padding: 0 28px !important;
   font-family: "Montserrat", sans-serif;
   font-weight: 600 !important;
-  font-size: 0.84rem !important;
+  font-size: 0.8rem !important;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   transition:
     background 0.25s ease,
     border-color 0.25s ease !important;
 }
-
 .hero-cta-secondary:hover,
 .hero-cta-secondary:focus-visible {
-  background: rgba(184, 151, 106, 0.11) !important;
+  background: rgba(184, 151, 106, 0.12) !important;
   color: #3d2b1a !important;
-  border-color: #9a7c54 !important;
+  border-color: #8c6d3f !important;
 }
 
 /* ── Social proof ── */
 .hero-hint {
-  font-size: 0.82rem;
   font-family: "Petrona", serif;
+  font-size: 0.84rem;
   color: #5a3d28;
-  letter-spacing: 0.01em;
-  margin: 0;
+  margin-top: 16px;
 }
 
-/* ── Keywords statiche ── */
-.hero-keywords {
-  display: none;
+/* ── Indizio "scorri" ── */
+.hero-scrollhint {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
+}
+.hero-scrollhint-enter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8c6d3f;
+}
+.hero-scrollhint-arrow {
+  width: 1px;
+  height: 26px;
+  background: linear-gradient(#b8976a, transparent);
+  animation: hero-hint-pulse 1.8s ease-in-out infinite;
+}
+@keyframes hero-hint-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
-/* ── Elementi solo desktop ── */
-.hero-location-pill {
-  display: none;
+/* ════════════════════════════════════════════════
+   z4/z5 — l'apertura scura (clip-path che cresce dal basso)
+   ry = var(--cover): 0% → 146% riempie tutto il viewport.
+════════════════════════════════════════════════ */
+.hero-bloom-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(234, 208, 152, 0.9), rgba(184, 151, 106, 0.7));
+  clip-path: ellipse(141% calc(var(--cover) + 2%) at 50% 100%);
+}
+.hero-bloom {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  /* Tinta UNIFORME #2f2723 = identica a .laser-stage e .laser-card--dark:
+     l'apertura scura della hero e lo stage laser sono lo STESSO piano → niente
+     stria al seam e niente shift di marrone durante lo scroll (il radiale di
+     prima variava la tinta col crescere della clip-path). Il calore "orizzonte"
+     resta affidato a .hero-bloom-edge (bordo oro), che NON si tocca. */
+  background: #2f2723;
+  clip-path: ellipse(140% var(--cover) at 50% 100%);
 }
 
 /* ================================================
-   TABLET  ≥ 768px
+   TABLET ≥ 768px
 ================================================ */
 @media (min-width: 768px) {
-  .hero-media {
-    object-position: 58% center;
+  .hero-scene {
+    --michela-w: min(64vw, 500px);
+    --michela-bottom: -16svh;
+    --content-pt: clamp(104px, 13svh, 160px);
   }
-
-  .hero-gradient-veil {
-    top: 0;
-    bottom: 0;
-    height: 100%;
-    width: 62%;
-    right: auto;
-    background: linear-gradient(to right, #fffdf8 0%, #fffdf8 60%, rgba(255, 253, 248, 0.72) 82%, transparent 100%);
-  }
-
-  /* fx layer segue il pannello: colonna verticale, dissolve verso destra */
-  .hero-fx-layer {
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: auto;
-    width: 62%;
-    height: auto;
-    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 68%, transparent 100%);
-    mask-image: linear-gradient(to right, #000 0%, #000 68%, transparent 100%);
-  }
-
-  /* aurora sparsa su TUTTO il pannello verticale (dall'alto al basso) */
-  .hero-aurora-blob--1 {
-    top: 5%;
-    bottom: auto;
-    left: -8%;
-  }
-  .hero-aurora-blob--2 {
-    top: 16%;
-    bottom: auto;
-    left: 46%;
-  }
-  .hero-aurora-blob--3 {
-    top: 38%;
-    bottom: auto;
-    left: -12%;
-  }
-  .hero-aurora-blob--4 {
-    top: 52%;
-    bottom: auto;
-    left: 28%;
-  }
-  .hero-aurora-blob--5 {
-    top: 66%;
-    bottom: auto;
-    left: 2%;
-  }
-  .hero-aurora-blob--6 {
-    top: 76%;
-    bottom: auto;
-    left: 40%;
-  }
-  .hero-aurora-blob--7 {
-    top: 88%;
-    bottom: auto;
-    left: -4%;
-  }
-
-  /* sfumatura inferiore discreta */
-  .hero-base-fade {
-    display: block;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 150px;
-    z-index: 2;
-    pointer-events: none;
-    background: linear-gradient(to bottom, rgba(255, 253, 248, 0) 0%, rgba(255, 253, 248, 0.55) 72%, #fffdf8 100%);
-  }
-
-  .hero-inner {
-    align-items: center;
-  }
-
-  .hero-text-panel {
-    width: 56%;
-    max-width: 480px;
-    padding: clamp(32px, 4vh, 72px) 0 clamp(32px, 4vh, 72px) clamp(28px, 4vw, 56px);
-  }
-
-  .hero-title-wrap {
-    font-size: clamp(2.8rem, 5.5vw, 3.8rem);
-  }
-
-  .hero-rule {
-    display: block;
-    width: 44px;
-    height: 1px;
-    background: #b8976a;
-    border: none;
-    margin-bottom: 18px;
-  }
-
-  .hero-cta-row {
-    flex-direction: row;
-    width: auto;
-  }
-
-  .hero-cta-primary,
-  .hero-cta-secondary {
-    width: auto;
-    min-width: 160px;
-  }
-
-  .hero-keywords {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 22px;
-  }
-
-  .hero-keyword {
-    font-family: "Montserrat", sans-serif;
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: #8a6d3e;
-  }
-
-  .hero-keywords-sep {
-    color: #b8976a;
-    font-size: 0.6rem;
-    line-height: 1;
-  }
-}
-
-/* ================================================
-   DESKTOP  ≥ 1024px
-================================================ */
-@media (min-width: 1024px) {
-  .hero-media {
-    object-position: 30% center;
-  }
-
-  .hero-photo-frame {
-    left: 20%;
-    right: 0;
-    width: 100%;
-  }
-
-  .hero-gradient-veil {
-    width: 54%;
-    background: linear-gradient(to right, #fffdf8 0%, #fffdf8 70%, rgba(255, 253, 248, 0.65) 87%, transparent 100%);
-  }
-
-  .hero-fx-layer {
-    width: 54%;
-  }
-
-  .hero-text-panel {
-    width: 50%;
-    max-width: 540px;
-    padding: 0 0 clamp(52px, 5.5vh, 88px) clamp(48px, 4.5vw, 88px);
-  }
-
-  .hero-title-wrap {
-    font-size: clamp(3.6rem, 4.8vw, 5.4rem);
-  }
-
   .hero-subtitle {
     max-width: 34ch;
   }
-
-  /* ── Location pill ── */
-  .hero-location-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    position: absolute;
-    bottom: 56px;
-    right: clamp(28px, 3.5vw, 60px);
-    z-index: 4;
-    background: rgba(255, 253, 248, 0.82);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
-    border: 1px solid rgba(184, 151, 106, 0.42);
-    border-radius: 999px;
-    padding: 9px 20px;
-    font-family: "Montserrat", sans-serif;
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #7a5c2e;
-    pointer-events: none;
+  /* Titolo: prova UNA riga; se non entra va a capo con grazia (due righe). */
+  .hero-title-wrap {
+    font-size: clamp(3rem, 6vw, 4rem);
+  }
+  .hero-title-line {
+    display: inline-block;
+    vertical-align: top;
+  }
+  .hero-title-line + .hero-title-line {
+    margin-left: 0.28em;
   }
 }
 
-/* ── Reduced motion ── */
+/* ================================================
+   DESKTOP ≥ 1024px
+================================================ */
+@media (min-width: 1024px) {
+  .hero-scene {
+    --michela-w: clamp(580px, 44vw, 590px);
+    --michela-bottom: -28svh;
+    --content-pt: clamp(112px, 13svh, 168px);
+  }
+  /* Titolo su UNA riga: colonna più larga + nowrap → niente wrap. Le due
+     righe inline-block (da ≥768) restano sulla stessa riga; lo sheen eredita
+     tutto, quindi resta allineato. */
+  .hero-content-col {
+    max-width: min(94vw, 1000px);
+  }
+  .hero-title-wrap {
+    font-size: clamp(3.4rem, 4.4vw, 4.7rem);
+    white-space: nowrap;
+  }
+}
+
+/* ================================================
+   prefers-reduced-motion — hero statica e leggibile
+   Niente scena alta, niente sticky, niente reveal scrubbato.
+================================================ */
 @media (prefers-reduced-motion: reduce) {
   .hero-scene {
-    height: 100vh;
+    height: 100svh;
+    background: #fffdf8;
+  }
+  .hero-stage {
+    position: relative;
     height: 100svh;
   }
-  .hero-sticky {
-    position: static;
+  .hero-cream {
+    transform: none !important;
   }
-  .hero-photo-frame {
-    animation: none !important;
-    transform: scale(1);
-  }
-  .hero-aurora-blob {
-    animation: none !important;
-    opacity: 0.34;
-  }
-  .hero-shimmer::before {
+  .hero-glow-breath,
+  .hero-title-sheen,
+  .hero-scrollhint-arrow {
     animation: none !important;
   }
-  .hero-title-sheen {
-    animation: none !important;
+  /* l'apertura scura non parte: niente reveal in reduced-motion */
+  .hero-bloom,
+  .hero-bloom-edge {
+    display: none;
+  }
+  .hero-scrollhint {
+    display: none;
   }
 }
 
-/* ── Fallback: no backdrop-filter support ── */
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .hero-location-pill {
-    background: rgba(255, 253, 248, 0.98);
+/* ════════════════════════════════════════════════
+   BAGLIORI COLORATI HERO — via di mezzo aurora/orbs
+   6 tinte soffuse che si accendono/spengono sfasate. CSS puro, z1 dietro
+   Michela, coperto dal bloom durante lo scroll. Mobile: 5 colori; ≥768px: 9.
+   KNOB: visibilità = picco opacity nel keyframe + alpha/raggio nei .o-*;
+   posizione/size/timing = nei .hero-orb--N.
+================================================ */
+.hero-orbs {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: hero-glow-spark 8s ease-in-out infinite;
+}
+
+/* Nucleo più denso (.82) + bordo più netto (0 a 66%): un filo più definiti. */
+.o-gold {
+  background: radial-gradient(circle, rgba(234, 208, 152, 0.82) 0%, rgba(234, 208, 152, 0.5) 40%, rgba(234, 208, 152, 0) 66%);
+}
+.o-peach {
+  background: radial-gradient(circle, rgba(244, 196, 162, 0.82) 0%, rgba(244, 196, 162, 0.5) 40%, rgba(244, 196, 162, 0) 66%);
+}
+.o-blush {
+  background: radial-gradient(circle, rgba(240, 190, 200, 0.82) 0%, rgba(240, 190, 200, 0.5) 40%, rgba(240, 190, 200, 0) 66%);
+}
+.o-mauve {
+  background: radial-gradient(circle, rgba(216, 160, 188, 0.8) 0%, rgba(216, 160, 188, 0.48) 40%, rgba(216, 160, 188, 0) 66%);
+}
+.o-lav {
+  background: radial-gradient(circle, rgba(198, 178, 226, 0.8) 0%, rgba(198, 178, 226, 0.48) 40%, rgba(198, 178, 226, 0) 66%);
+}
+.o-violet {
+  background: radial-gradient(circle, rgba(176, 150, 214, 0.82) 0%, rgba(176, 150, 214, 0.5) 40%, rgba(176, 150, 214, 0) 66%);
+}
+
+@keyframes hero-glow-spark {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  18% {
+    opacity: 0.88;
+    transform: scale(1.05);
+  }
+  42% {
+    opacity: 0.32;
+    transform: scale(0.92);
+  }
+  66% {
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+}
+
+/* ── MOBILE (base): 5 colori, un po' più dentro e sparsi ── */
+.hero-orb--1 {
+  top: 8%;
+  left: 2%;
+  width: 140px;
+  height: 140px;
+  animation-duration: 9s;
+  animation-delay: 0s;
+}
+.hero-orb--2 {
+  top: 20%;
+  right: 0%;
+  width: 120px;
+  height: 120px;
+  animation-duration: 7s;
+  animation-delay: 1.6s;
+}
+.hero-orb--3 {
+  top: 32%;
+  left: 2%;
+  width: 130px;
+  height: 130px;
+  animation-duration: 8s;
+  animation-delay: 0.7s;
+}
+.hero-orb--4 {
+  bottom: 10%;
+  right: 0%;
+  width: 115px;
+  height: 115px;
+  animation-duration: 8.5s;
+  animation-delay: 2.3s;
+}
+.hero-orb--5 {
+  bottom: 20%;
+  left: 0%;
+  width: 125px;
+  height: 125px;
+  animation-duration: 7.5s;
+  animation-delay: 1.2s;
+}
+
+.hero-orb--6 {
+  top: 45%;
+  right: 4%;
+  width: 125px;
+  height: 125px;
+  animation-duration: 7.5s;
+  animation-delay: 1.2s;
+}
+
+.hero-orb--7,
+.hero-orb--8,
+.hero-orb--9 {
+  display: none;
+}
+
+/* ── TABLET/DESKTOP ≥768px: 9 orbs, più sparsi, vicini a titolo e Michela ── */
+@media (min-width: 768px) {
+  .hero-orb--7,
+  .hero-orb--8,
+  .hero-orb--9 {
+    display: block;
+  }
+
+  .hero-orb--1 {
+    top: 11%;
+    left: 6%;
+    width: 290px;
+    height: 290px;
+  } /* alto sx */
+  .hero-orb--2 {
+    top: 9%;
+    right: 7%;
+    width: 240px;
+    height: 240px;
+  } /* alto dx */
+  .hero-orb--3 {
+    top: 35%;
+    left: 18%;
+    width: 250px;
+    height: 250px;
+  } /* medio sx, verso il bordo */
+  .hero-orb--4 {
+    bottom: 9%;
+    right: 9%;
+    width: 270px;
+    height: 270px;
+  } /* medio dx, verso il bordo */
+  .hero-orb--5 {
+    bottom: 2%;
+    left: 2%;
+    width: 240px;
+    height: 240px;
+  } /* basso sx */
+  .hero-orb--6 {
+    top: 37%;
+    right: 22%;
+    width: 220px;
+    height: 220px;
+    animation-duration: 8.5s;
+    animation-delay: 3.2s;
+  } /* basso dx */
+  .hero-orb--7 {
+    top: 38%;
+    right: 7%;
+    width: 180px;
+    height: 180px;
+    animation-duration: 7.5s;
+    animation-delay: 2s;
+  } /* alto-medio dx */
+  .hero-orb--8 {
+    top: 64%;
+    left: 16%;
+    width: 200px;
+    height: 200px;
+    animation-duration: 9.5s;
+    animation-delay: 0.4s;
+  } /* basso-medio sx */
+  .hero-orb--9 {
+    bottom: 35%;
+    left: 4%;
+    width: 210px;
+    height: 210px;
+    animation-duration: 6.5s;
+    animation-delay: 1.1s;
+  } /* basso centro, sotto Michela */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-orbs {
+    display: none;
   }
 }
