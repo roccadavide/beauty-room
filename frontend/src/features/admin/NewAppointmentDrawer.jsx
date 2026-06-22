@@ -285,10 +285,15 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
         }
         return catalogSvc?.durationMin ?? 30;
       };
+      // PROMPT 40: for a PackageCredit-backed booking the booking-level option is the package's
+      // own option (belongs to the package session, never to an extra service row). Do NOT inherit
+      // it onto the single catalog extra — that produced the "· 5 Sedute Mani" name fusion and the
+      // "l'opzione non appartiene al servizio scelto" save failure. The extra keeps its own option.
+      const inheritBookingOption = isSingle && editBooking.packageCreditId == null;
       return editBooking.services.map(s => {
         const baseTitle = s.title ?? s.name ?? s.serviceName ?? "";
-        const optId = s.optionId ?? (isSingle ? (editBooking.optionId ?? null) : null);
-        const optName = s.optionName ?? (isSingle ? (editBooking.optionName ?? null) : null);
+        const optId = s.optionId ?? (inheritBookingOption ? (editBooking.optionId ?? null) : null);
+        const optName = s.optionName ?? (inheritBookingOption ? (editBooking.optionName ?? null) : null);
         return {
           uid: crypto.randomUUID(),
           serviceId: s.serviceId ?? s.id,
@@ -430,6 +435,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [customServicePaid, setCustomServicePaid] = useState(() => (isEditMode ? editBooking?.customServicePaid === true : (initialDraft?.customServicePaid ?? false)));
   // paidOnline → every line is settled and locked. Read at render time.
   const isPaidOnline = !!editBooking?.paidOnline;
+  // PROMPT 40: a PackageCredit-backed booking's online payment covers ONLY the package session
+  // (rendered as its own locked "💳 Già pagato" row). Extra/custom/product lines added alongside
+  // it are NOT prepaid, so their per-line paid toggles must stay editable. Lock them only for a
+  // genuinely all-online (non-package) booking.
+  const linePaidLocked = isPaidOnline && editBooking?.packageCreditId == null;
 
   // ── Customer inline edit ───────────────────────────────────────────────────
   const [activePackages, setActivePackages] = useState([]);
@@ -2372,10 +2382,11 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                     €{Number(ss.prezzoOverride).toFixed(0)} <span className="ag-selected-service-row__price-tag">modificato</span>
                   </span>
                 )}
-                {/* V62: per-line paid toggle (catalog row). Locked when paidOnline. */}
+                {/* V62: per-line paid toggle (catalog row). PROMPT 40: locked only for a
+                    genuinely all-online (non-package) booking — a credit-backed extra stays editable. */}
                 {(() => {
-                  const settled = isPaidOnline || ss.paid === true;
-                  if (isPaidOnline) {
+                  const settled = linePaidLocked || ss.paid === true;
+                  if (linePaidLocked) {
                     return <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>;
                   }
                   return (
@@ -2426,8 +2437,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       custom_service_name), so all toggles bind to the same
                       customServicePaid state. */}
                   {(() => {
-                    const settled = isPaidOnline || customServicePaid;
-                    if (isPaidOnline) {
+                    const settled = linePaidLocked || customServicePaid;
+                    if (linePaidLocked) {
                       return <span className="ag-pill ag-pill--paid" title="Pagato online">✓ Già pagato</span>;
                     }
                     return (
@@ -2475,7 +2486,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       key={prod.productId}
                       prod={prod}
                       maxQty={maxQty}
-                      isPaidOnline={isPaidOnline}
+                      isPaidOnline={linePaidLocked}
                       onQty={changeProductQty}
                       onPrice={setProductUnitPrice}
                       onPaid={setProductPaid}
