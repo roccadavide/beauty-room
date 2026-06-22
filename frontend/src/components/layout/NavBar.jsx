@@ -12,12 +12,15 @@ import { logoutUser } from "../../api/modules/auth.api";
 import { invalidateCache } from "../../api/apiCache";
 import { fetchExpiringCount } from "../../api/modules/postits.api";
 import { fetchUnreadNotifCount } from "../../api/modules/notifications.api";
+import { FEATURE_OCCASIONI_ENABLED } from "../../utils/constants";
 
 const LINKS = [
   { to: "/trattamenti", label: "Trattamenti" },
   { to: "/prodotti", label: "Prodotti" },
   { to: "/risultati", label: "Risultati" },
-  { to: "/occasioni", label: "Occasioni" },
+  // Locked while the feature flag is OFF: rendered as a non-interactive,
+  // dimmed entry with an "In arrivo" badge (both desktop + mobile renders).
+  { to: "/occasioni", label: "Occasioni", locked: !FEATURE_OCCASIONI_ENABLED },
   { to: "/chisono", label: "Chi sono" },
 ];
 
@@ -202,11 +205,21 @@ export default function NavBar() {
 
           <Navbar.Collapse className="d-none d-lg-flex flex-grow-1 justify-content-center">
             <Nav className="nav-links">
-              {LINKS.map(({ to, label }) => (
-                <Nav.Link key={to} as={NavLink} to={to} className="beauty-link">
-                  {label}
-                </Nav.Link>
-              ))}
+              {LINKS.map(({ to, label, locked }) =>
+                locked ? (
+                  <span key={to} className="beauty-link beauty-link--locked" aria-disabled="true" title="In arrivo">
+                    <span className="nav-locked-label">{label}</span>
+                    <span className="nav-soon-badge">
+                      In arrivo
+                      <span className="nav-soon-badge__sweep" aria-hidden="true" />
+                    </span>
+                  </span>
+                ) : (
+                  <Nav.Link key={to} as={NavLink} to={to} className="beauty-link">
+                    {label}
+                  </Nav.Link>
+                ),
+              )}
             </Nav>
           </Navbar.Collapse>
 
@@ -315,18 +328,31 @@ export default function NavBar() {
           <div className="spacer-top"></div>
 
           <nav className="mobile-nav-list">
-            {LINKS.map(({ to, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={closeMenu}
-                className={({ isActive }) => `mobile-link-elegant${isActive ? " active" : ""}`}
-                tabIndex={expanded ? 0 : -1}
-              >
-                <span className="deco-bar"></span>
-                <span className="link-text">{label}</span>
-              </NavLink>
-            ))}
+            {LINKS.map(({ to, label, locked }) =>
+              locked ? (
+                <div key={to} className="mobile-link-elegant mobile-link-elegant--locked" aria-disabled="true" title="In arrivo">
+                  <span className="deco-bar"></span>
+                  <span className="link-text">
+                    <span className="nav-locked-label">{label}</span>
+                    <span className="nav-soon-badge nav-soon-badge--mobile">
+                      In arrivo
+                      <span className="nav-soon-badge__sweep" aria-hidden="true" />
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={closeMenu}
+                  className={({ isActive }) => `mobile-link-elegant${isActive ? " active" : ""}`}
+                  tabIndex={expanded ? 0 : -1}
+                >
+                  <span className="deco-bar"></span>
+                  <span className="link-text">{label}</span>
+                </NavLink>
+              ),
+            )}
           </nav>
 
           <hr className="drawer-divider" />

@@ -925,3 +925,96 @@
   z-index: 1055 !important;
   overflow: visible !important;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   LOCKED NAV ENTRY — feature-flagged "Occasioni" (coming-soon).
+   Non-interactive: rendered as <span>/<div>, not a link. Label dimmed,
+   "In arrivo" badge with a soft shimmer sweep. Desktop = label/badge stacked
+   (column), mobile = badge on the next line.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Desktop: neutralize the silk-shine gradient-clip + underline of .beauty-link
+   and stack the label over the badge. */
+.beauty-link--locked {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: not-allowed;
+  background: none;
+  animation: none;
+  color: var(--nav-text);
+  -webkit-text-fill-color: currentColor;
+}
+.beauty-link--locked::after {
+  display: none;
+}
+/* Inner content non-interactive; the container keeps pointer events so the
+   title="In arrivo" tooltip still surfaces on hover. */
+.beauty-link--locked > * {
+  pointer-events: none;
+}
+
+/* Dimmed label (works on both desktop column + mobile line; container opacity
+   is left untouched so the mobile stagger reveal still applies). */
+.nav-locked-label {
+  opacity: 0.42;
+  -webkit-text-fill-color: currentColor;
+}
+
+/* "In arrivo" badge — clay, with a light-gradient sweep clipped to the badge. */
+.nav-soon-badge {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.56rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #b06a4f;
+  -webkit-text-fill-color: #b06a4f;
+}
+
+.nav-soon-badge__sweep {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.7) 50%, transparent 70%);
+  transform: translateX(-130%);
+  animation: nav-soon-sweep 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Mobile: dim the label only (container opacity drives the stagger reveal),
+   put the badge on its own line under the label. */
+.mobile-link-elegant--locked {
+  cursor: not-allowed;
+}
+.mobile-link-elegant--locked > * {
+  pointer-events: none;
+}
+.mobile-link-elegant--locked .nav-locked-label {
+  opacity: 0.4;
+}
+.nav-soon-badge--mobile {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.62rem;
+}
+
+@keyframes nav-soon-sweep {
+  0% {
+    transform: translateX(-130%);
+  }
+  60%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-soon-badge__sweep {
+    animation: none;
+    opacity: 0;
+  }
+}
