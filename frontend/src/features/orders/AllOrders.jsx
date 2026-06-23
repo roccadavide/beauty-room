@@ -6,6 +6,7 @@ import DeleteOrderModal from "./DeleteOrderModal";
 import { deleteOrder, fetchOrders, refundOrder, updateOrderStatus } from "../../api/modules/orders.api";
 import { fetchProductById } from "../../api/modules/products.api";
 import SEO from "../../components/common/SEO";
+import { normalizeItalianPhone } from "../../utils/reminders";
 
 const STATUS_LABELS = {
   PAID:              { label: "Pagato",     color: "#2d6a4f", bg: "rgba(45,106,79,0.1)" },
@@ -304,7 +305,7 @@ const AllOrders = () => {
                         {/* WhatsApp — always shown */}
                         {order.customerPhone && (
                           <a
-                            href={`https://wa.me/${order.customerPhone.replace(/\D/g, "")}?text=Ciao%20${order.customerName},%20riguardo%20al%20tuo%20ordine...`}
+                            href={`https://wa.me/${normalizeItalianPhone(order.customerPhone)}?text=Ciao%20${order.customerName},%20riguardo%20al%20tuo%20ordine...`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="ao-wa-btn"
