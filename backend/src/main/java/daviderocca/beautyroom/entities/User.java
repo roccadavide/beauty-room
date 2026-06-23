@@ -3,6 +3,7 @@ package daviderocca.beautyroom.entities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import daviderocca.beautyroom.enums.Role;
+import daviderocca.beautyroom.util.EmailNormalizer;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
@@ -68,6 +69,14 @@ public class User implements UserDetails {
         this.email = email;
         this.password = password;
         this.phone = phone;
+    }
+
+    // Rete di sicurezza a livello di persistenza: l'email è la chiave di login,
+    // quindi viene sempre normalizzata (trim + lowercase) prima di insert/update.
+    @PrePersist
+    @PreUpdate
+    private void normalizeEmail() {
+        this.email = EmailNormalizer.normalize(this.email);
     }
 
     // Spring Security - Ruoli

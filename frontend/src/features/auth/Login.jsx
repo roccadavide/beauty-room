@@ -115,11 +115,16 @@ const Login = () => {
               <input
                 id="email"
                 name="email"
+                type="email"
                 value={form.email}
                 onChange={onChange}
                 aria-invalid={errors.email ? "true" : "false"}
                 placeholder=""
                 inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="email"
               />
               {errors.email && <span className="field-error">{errors.email}</span>}
             </div>

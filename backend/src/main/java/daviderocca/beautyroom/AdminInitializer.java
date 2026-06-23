@@ -3,6 +3,7 @@ package daviderocca.beautyroom;
 import daviderocca.beautyroom.entities.User;
 import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.repositories.UserRepository;
+import daviderocca.beautyroom.util.EmailNormalizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -31,11 +32,13 @@ public class AdminInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        if (userRepository.findByEmail(adminEmail).isEmpty()) {
+        String normalizedAdminEmail = EmailNormalizer.normalize(adminEmail);
+
+        if (userRepository.findByEmail(normalizedAdminEmail).isEmpty()) {
             User admin = new User();
             admin.setName(adminName);
             admin.setSurname(adminSurname);
-            admin.setEmail(adminEmail);
+            admin.setEmail(normalizedAdminEmail);
             admin.setPassword(bcrypt.encode(adminPassword));
             admin.setPhone(adminPhone);
             admin.setRole(Role.ADMIN);
