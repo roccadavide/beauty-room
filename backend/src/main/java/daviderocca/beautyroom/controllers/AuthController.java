@@ -54,6 +54,9 @@ public class AuthController {
     @Value("${app.jwt.refresh-cookie.domain:}")
     private String cookieDomain;
 
+    @Value("${app.jwt.refresh-cookie.path:/auth}")
+    private String cookiePath;
+
     // ---------------------------------- LOGIN ----------------------------------
     @PostMapping("/login")
     public ResponseEntity<LoginUserRespDTO> login(
@@ -158,7 +161,7 @@ public class AuthController {
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(cookieName, rawToken)
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .path("/auth")
+                .path(cookiePath)
                 .maxAge(rememberMe ? refreshExpirationMs / 1000 : -1)
                 .sameSite(cookieSameSite);
 
@@ -172,7 +175,7 @@ public class AuthController {
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(cookieName, "")
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .path("/auth")
+                .path(cookiePath)
                 .maxAge(0)
                 .sameSite(cookieSameSite);
 
