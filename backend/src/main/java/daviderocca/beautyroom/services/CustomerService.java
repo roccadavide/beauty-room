@@ -53,7 +53,7 @@ public class CustomerService {
      * Called automatically on every admin booking creation so that bookings
      * accumulate a customer history over time.
      *
-     * Deduplication is phone-only (on the normalized digits-only key):
+     * Deduplication is phone-only (on the normalized E.164 key):
      *   1. phone  – the identity key; same phone ⇒ same customer
      *   2. create – no phone match (or no phone at all)
      *
@@ -75,10 +75,10 @@ public class CustomerService {
 
         String name   = fullName.trim();
         String ph     = phone != null ? phone.trim() : null;   // human-readable display form (stored verbatim)
-        String phNorm = PhoneNormalizer.normalize(ph);         // digits-only dedup key (null when no digits)
+        String phNorm = PhoneNormalizer.normalize(ph);         // E.164 dedup key (null when no digits)
         String em     = email != null ? email.trim().toLowerCase() : null;
 
-        // 1 ── phone lookup (on the digits-only normalized key, so "347 123 4567"
+        // 1 ── phone lookup (on the E.164 normalized key, so "347 123 4567"
         //       and "3471234567" resolve to the same customer)
         if (phNorm != null) {
             Optional<Customer> byPhone = customerRepository.findByPhoneNormalized(phNorm);
@@ -98,7 +98,7 @@ public class CustomerService {
             Customer c = new Customer();
             c.setFullName(fullName);
             c.setPhone(phone);                     // human-readable display form, stored verbatim
-            c.setPhoneNormalized(phoneNormalized); // digits-only dedup key (drives ux_customer_phone)
+            c.setPhoneNormalized(phoneNormalized); // E.164 dedup key (drives ux_customer_phone)
             c.setEmail(email);
             c.setNotes(notes);
             Customer saved = customerRepository.save(c);
