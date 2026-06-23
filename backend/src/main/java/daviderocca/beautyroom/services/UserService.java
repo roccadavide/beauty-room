@@ -9,6 +9,7 @@ import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.exceptions.*;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.repositories.UserRepository;
+import daviderocca.beautyroom.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -49,7 +50,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public User findUserByEmail(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmail(EmailNormalizer.normalize(email))
                 .orElseThrow(() -> new ResourceNotFoundException(email));
     }
 
@@ -62,7 +63,9 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO saveUser(NewUserDTO payload) {
-        userRepository.findByEmail(payload.email()).ifPresent(u -> {
+        String normalizedEmail = EmailNormalizer.normalize(payload.email());
+
+        userRepository.findByEmail(normalizedEmail).ifPresent(u -> {
             throw new DuplicateResourceException("L'email appartiene già ad un altro utente");
         });
 
@@ -73,7 +76,7 @@ public class UserService {
         User newUser = new User(
                 payload.name(),
                 payload.surname(),
-                payload.email(),
+                normalizedEmail,
                 bcrypt.encode(payload.password()),
                 payload.phone()
         );
@@ -96,8 +99,10 @@ public class UserService {
     public UserResponseDTO updateUserProfile(UUID idUser, UpdateUserDTO payload) {
         User found = findUserById(idUser);
 
-        if (!found.getEmail().equals(payload.email())) {
-            userRepository.findByEmail(payload.email()).ifPresent(u -> {
+        String normalizedEmail = EmailNormalizer.normalize(payload.email());
+
+        if (!found.getEmail().equals(normalizedEmail)) {
+            userRepository.findByEmail(normalizedEmail).ifPresent(u -> {
                 throw new DuplicateResourceException("Email già esistente: " + u.getEmail());
             });
         }
@@ -110,7 +115,7 @@ public class UserService {
 
         found.setName(payload.name());
         found.setSurname(payload.surname());
-        found.setEmail(payload.email());
+        found.setEmail(normalizedEmail);
         found.setPhone(payload.phone());
 
         User updated = userRepository.save(found);
