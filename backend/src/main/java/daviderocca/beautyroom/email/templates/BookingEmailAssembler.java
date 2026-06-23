@@ -11,6 +11,7 @@ import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.services.BookingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -58,6 +59,7 @@ public class BookingEmailAssembler {
             DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ITALY);
 
     /** Fetch the card and build the model. Must run inside the worker's REQUIRES_NEW tx. */
+    @Transactional(readOnly = true)
     public BookingEmailModel toModel(Booking b, boolean reminder) {
         AdminBookingCardDTO card = bookingService.assembleBookingCard(b);
         // Online-package session number (0 for non-credit bookings). The DB hit lives here so the
