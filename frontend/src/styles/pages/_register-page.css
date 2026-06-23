@@ -161,6 +161,25 @@
   color: var(--card-gold, #b8976a);
 }
 
+.remember-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.85rem;
+  color: #9c8880;
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--card-gold, #b8976a);
+  cursor: pointer;
+}
+
 .actions {
   display: flex;
   gap: 12px;

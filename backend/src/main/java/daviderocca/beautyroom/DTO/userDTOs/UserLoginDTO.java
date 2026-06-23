@@ -11,5 +11,8 @@ public record UserLoginDTO(
         String email,
         @NotEmpty(message = "La password è obbligatoria")
         @Size(min = 6, message = "La password deve avere almeno 6 caratteri")
-        String password
+        String password,
+        // Object (nullable) on purpose: an absent/null flag from any caller is treated as the
+        // default (true), preserving the current always-persistent login — not as false.
+        Boolean rememberMe
 ) {}

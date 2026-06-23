@@ -83,7 +83,7 @@ class OrdersSecurityIntegrationTest {
     }
 
     private String loginAndGetToken(String email, String password) throws Exception {
-        UserLoginDTO credentials = new UserLoginDTO(email, password);
+        UserLoginDTO credentials = new UserLoginDTO(email, password, true);
         ResultActions result = mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(credentials)))

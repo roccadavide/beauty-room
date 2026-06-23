@@ -35,7 +35,7 @@ class AuthIntegrationTest {
 
     @Test
     void login_withValidCredentials_returnsJwt() throws Exception {
-        UserLoginDTO credentials = new UserLoginDTO(adminEmail, adminPassword);
+        UserLoginDTO credentials = new UserLoginDTO(adminEmail, adminPassword, true);
 
         ResultActions result = mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -49,7 +49,7 @@ class AuthIntegrationTest {
 
     @Test
     void login_withInvalidPassword_returns4xx() throws Exception {
-        UserLoginDTO credentials = new UserLoginDTO(adminEmail, "wrong-password");
+        UserLoginDTO credentials = new UserLoginDTO(adminEmail, "wrong-password", true);
 
         mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -59,7 +59,7 @@ class AuthIntegrationTest {
 
     @Test
     void login_withUnknownEmail_returns4xx() throws Exception {
-        UserLoginDTO credentials = new UserLoginDTO("unknown@test.local", adminPassword);
+        UserLoginDTO credentials = new UserLoginDTO("unknown@test.local", adminPassword, true);
 
         mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

@@ -47,7 +47,10 @@ public class RefreshToken {
     @Column(name = "ip", columnDefinition = "TEXT")
     private String ip;
 
-    public RefreshToken(User user, String tokenHash, Instant expiresAt, String parentHash, String userAgent, String ip) {
+    @Column(name = "remember_me", nullable = false)
+    private boolean rememberMe;
+
+    public RefreshToken(User user, String tokenHash, Instant expiresAt, String parentHash, String userAgent, String ip, boolean rememberMe) {
         this.user = user;
         this.tokenHash = tokenHash;
         this.createdAt = Instant.now();
@@ -55,6 +58,7 @@ public class RefreshToken {
         this.parentHash = parentHash;
         this.userAgent = userAgent;
         this.ip = ip;
+        this.rememberMe = rememberMe;
     }
 
     public boolean isExpired() {
