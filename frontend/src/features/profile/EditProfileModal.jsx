@@ -1,12 +1,10 @@
 // Migrated to UnifiedDrawer — 2026-03-20 — see _unified-drawer.css
 import { useState, useEffect } from "react";
 import { Form, Spinner } from "react-bootstrap";
-import { useSelector } from "react-redux";
 import { updateUser } from "../../api/modules/users.api";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 
 const EditProfileModal = ({ show, onHide, user, onProfileUpdated }) => {
-  const { accessToken } = useSelector(state => state.auth);
   const [form, setForm] = useState({
     name: "",
     surname: "",
@@ -67,7 +65,7 @@ const EditProfileModal = ({ show, onHide, user, onProfileUpdated }) => {
 
     try {
       setLoading(true);
-      const updated = await updateUser(form, user.id, accessToken);
+      const updated = await updateUser(user.id, form);
       onProfileUpdated(updated);
 
       onHide();
