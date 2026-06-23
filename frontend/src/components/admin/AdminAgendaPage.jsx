@@ -17,7 +17,7 @@ import {
   getClosuresRange,
   fetchArretratiForBooking,
 } from "../../api/modules/adminAgenda.api";
-import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking } from "../../utils/reminders";
+import { buildReminderMessage, buildWhatsAppUrl, isLaserBooking, normalizeItalianPhone } from "../../utils/reminders";
 import { formatEuro } from "../../utils/formatEuro";
 import BookingModal from "./BookingModal";
 import CompletionDrawer from "./CompletionDrawer";
@@ -90,9 +90,8 @@ const categoryColor = cat => {
 };
 
 const openWhatsApp = phone => {
-  if (!phone) return;
-  const clean = phone.replace(/[\s\-().+]/g, "");
-  const number = clean.startsWith("39") ? clean : `39${clean}`;
+  const number = normalizeItalianPhone(phone);
+  if (!number) return;
   window.open(`https://wa.me/${number}`, "_blank", "noopener,noreferrer");
 };
 

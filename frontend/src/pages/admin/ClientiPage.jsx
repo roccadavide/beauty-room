@@ -11,6 +11,7 @@ import { markLatestNoShowForUser } from "../../api/modules/bookings.api";
 import SEO from "../../components/common/SEO";
 import { buildArretratoSettlePayload } from "../../components/admin/settlePayload";
 import { formatEuro } from "../../utils/formatEuro";
+import { normalizeItalianPhone } from "../../utils/reminders";
 
 const STATUS_META = {
   PENDING: { label: "In attesa", tone: "pending" },
@@ -46,9 +47,8 @@ function formatDateTimeIT(iso) {
 }
 
 const openWhatsApp = phone => {
-  if (!phone) return;
-  const clean = phone.replace(/[\s\-().+]/g, "");
-  const number = clean.startsWith("39") ? clean : `39${clean}`;
+  const number = normalizeItalianPhone(phone);
+  if (!number) return;
   window.open(`https://wa.me/${number}`, "_blank", "noopener,noreferrer");
 };
 
@@ -996,7 +996,7 @@ export default function ClientiPage() {
                         {u.phone && (
                           <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.35rem", flexWrap: "wrap" }}>
                             <a
-                              href={`https://wa.me/39${u.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Ciao ${u.name}, ti scrivo da Beauty Room.`)}`}
+                              href={`https://wa.me/${normalizeItalianPhone(u.phone)}?text=${encodeURIComponent(`Ciao ${u.name}, ti scrivo da Beauty Room.`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="cli-btn cli-btn--sm cli-btn--ghost"
