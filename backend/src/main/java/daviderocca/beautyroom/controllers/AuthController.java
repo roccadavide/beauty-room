@@ -54,6 +54,9 @@ public class AuthController {
     @Value("${app.jwt.refresh-cookie.domain:}")
     private String cookieDomain;
 
+    @Value("${app.jwt.refresh-cookie.path:/auth}")
+    private String cookiePath;
+
     // ---------------------------------- LOGIN ----------------------------------
     @PostMapping("/login")
     public ResponseEntity<LoginUserRespDTO> login(
@@ -66,10 +69,13 @@ public class AuthController {
             User user = authService.checkAccessAndGetUser(credentials);
             String accessToken = jwtTools.createTokenUser(user);
 
+            // null/absent => true: preserves the always-persistent login for any caller (e.g. an
+            // old client) that doesn't send the flag.
+            boolean rememberMe = credentials.rememberMe() == null ? true : credentials.rememberMe();
             RefreshTokenService.RawAndEntity refresh = refreshTokenService.create(
-                    user, request.getHeader("User-Agent"), request.getRemoteAddr()
+                    user, request.getHeader("User-Agent"), request.getRemoteAddr(), rememberMe
             );
-            addRefreshCookie(response, refresh.rawToken());
+            addRefreshCookie(response, refresh.rawToken(), rememberMe);
 
             log.info("Login riuscito per {}", credentials.email());
             return ResponseEntity.ok(new LoginUserRespDTO(accessToken));
@@ -107,7 +113,7 @@ public class AuthController {
         // On grace-hit, the client already holds the child refresh cookie from the prior
         // rotation — re-setting it would be redundant and rawToken is null anyway.
         if (!rotated.graceHit()) {
-            addRefreshCookie(response, rotated.rawToken());
+            addRefreshCookie(response, rotated.rawToken(), rotated.rememberMe());
         }
 
         log.info("Token refreshed for user={} graceHit={}", user.getEmail(), rotated.graceHit());
@@ -149,12 +155,14 @@ public class AuthController {
 
     // ---------------------------------- COOKIE HELPERS ----------------------------------
 
-    private void addRefreshCookie(HttpServletResponse response, String rawToken) {
+    private void addRefreshCookie(HttpServletResponse response, String rawToken, boolean rememberMe) {
+        // remembered => full 14-day Max-Age (persistent cookie); not remembered => negative Max-Age,
+        // which emits NO Max-Age attribute = a session cookie that dies when the browser closes.
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(cookieName, rawToken)
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .path("/auth")
-                .maxAge(refreshExpirationMs / 1000)
+                .path(cookiePath)
+                .maxAge(rememberMe ? refreshExpirationMs / 1000 : -1)
                 .sameSite(cookieSameSite);
 
         if (cookieDomain != null && !cookieDomain.isBlank()) {
@@ -167,7 +175,7 @@ public class AuthController {
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(cookieName, "")
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .path("/auth")
+                .path(cookiePath)
                 .maxAge(0)
                 .sameSite(cookieSameSite);
 

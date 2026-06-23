@@ -42,12 +42,12 @@ public class RefreshTokenService {
     // -------------------- CREATE --------------------
 
     @Transactional
-    public RawAndEntity create(User user, String userAgent, String ip) {
+    public RawAndEntity create(User user, String userAgent, String ip, boolean rememberMe) {
         String rawToken = generateRawToken();
         String hash = hash(rawToken);
 
         Instant expiresAt = Instant.now().plusMillis(refreshExpirationMs);
-        RefreshToken entity = new RefreshToken(user, hash, expiresAt, null, userAgent, ip);
+        RefreshToken entity = new RefreshToken(user, hash, expiresAt, null, userAgent, ip, rememberMe);
         repo.save(entity);
 
         log.info("Refresh token created for user={}", user.getEmail());
@@ -86,7 +86,7 @@ public class RefreshTokenService {
                 RefreshToken child = repo.findByTokenHash(existing.getReplacedByHash()).orElse(null);
                 if (child != null && !child.isRevoked() && !child.isExpired() && !child.isUsed()) {
                     log.info("refresh-grace-hit user={} delta={}ms", existing.getUser().getEmail(), deltaMs);
-                    return new RotateResult(null, child, existing.getUser(), true);
+                    return new RotateResult(null, child, existing.getUser(), true, child.isRememberMe());
                 }
             }
 
@@ -103,13 +103,14 @@ public class RefreshTokenService {
         existing.setReplacedByHash(newHash);
         existing.setRevokedAt(Instant.now());
 
-        // Save new token with parent chain
+        // Save new token with parent chain. The "remember me" intent is copied parent->child so it
+        // survives rotation — every /auth/refresh re-issues a cookie with the same persistence.
         Instant expiresAt = Instant.now().plusMillis(refreshExpirationMs);
-        RefreshToken newEntity = new RefreshToken(existing.getUser(), newHash, expiresAt, incomingHash, userAgent, ip);
+        RefreshToken newEntity = new RefreshToken(existing.getUser(), newHash, expiresAt, incomingHash, userAgent, ip, existing.isRememberMe());
         repo.save(newEntity);
 
         log.info("Refresh token rotated for user={}", existing.getUser().getEmail());
-        return new RotateResult(newRaw, newEntity, existing.getUser(), false);
+        return new RotateResult(newRaw, newEntity, existing.getUser(), false, newEntity.isRememberMe());
     }
 
     // -------------------- REVOKE --------------------
@@ -176,5 +177,5 @@ public class RefreshTokenService {
 
     // Result of rotate(): when graceHit is true, rawToken is null and AuthController must
     // skip Set-Cookie (the client keeps using the child cookie issued by the prior rotation).
-    public record RotateResult(String rawToken, RefreshToken entity, User user, boolean graceHit) {}
+    public record RotateResult(String rawToken, RefreshToken entity, User user, boolean graceHit, boolean rememberMe) {}
 }

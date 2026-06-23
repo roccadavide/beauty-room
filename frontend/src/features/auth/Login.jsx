@@ -14,7 +14,7 @@ const Login = () => {
   const location = useLocation();
   const redirectTo = location.state?.from || "/";
   const dispatch = useDispatch();
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "", rememberMe: true });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,8 @@ const Login = () => {
   const [successMessage, setSuccessMessage] = useState(null);
 
   function onChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm({ ...form, [e.target.name]: value });
     setErrors(prev => ({ ...prev, [e.target.name]: null }));
   }
 
@@ -50,6 +51,7 @@ const Login = () => {
       const data = await loginUser({
         email: form.email,
         password: form.password,
+        rememberMe: form.rememberMe,
       });
 
       const token = data.accessToken;
@@ -181,6 +183,17 @@ const Login = () => {
               </div>
               {errors.password && <span className="field-error">{errors.password}</span>}
             </div>
+
+            <label className="remember-toggle">
+              <input
+                type="checkbox"
+                name="rememberMe"
+                checked={form.rememberMe}
+                onChange={onChange}
+              />
+              <span>Resta connesso</span>
+            </label>
+
             <div className="actions">
               <button className="btn-primary" type="submit" disabled={loading}>
                 {loading && <span className="btn-spinner" aria-hidden="true"></span>}
