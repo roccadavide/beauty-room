@@ -88,12 +88,13 @@ class EmailRenderSamplesTest {
             b.name = "Sara Neri"; b.email = "sara@example.com";
             b.linkedPackages = List.of(new PackageSummaryDTO(
                     UUID.randomUUID(), "Laser ascelle", 3, 6, 3, bd("50.00"), false,
-                    List.of(), false, false, null, ClientPackagePaymentMode.PER_SESSION));
+                    List.of(), false, false, null, ClientPackagePaymentMode.PER_SESSION,
+                    null, false, 0, 0));
         });
         BookingEmailModel mC = asm.buildModel(cardC, null, true);
         EmailContent c = t.bookingReminder(mC);
         write("c-reminder-package-admin", c);
-        assertTrue(c.html().contains("Pacchetto: 6 sedute di Laser ascelle"), "pkg headline");
+        assertTrue(c.html().contains("Laser ascelle"), "pkg name headline");
         assertTrue(c.html().contains("Seduta 3 di 6 · ne restano 3"), "session progress");
         // PATCH 3b: a package-session reminder shows NO price / amount-due at all.
         assertTrue(!c.html().contains("Da saldare"), "reminder package: no amount-due label");
@@ -106,7 +107,8 @@ class EmailRenderSamplesTest {
             x.name = "Sara Neri"; x.email = "sara@example.com";
             x.linkedPackages = List.of(new PackageSummaryDTO(
                     UUID.randomUUID(), "Laser ascelle", 4, 6, 2, bd("50.00"), false,
-                    List.of(), true, false, null, ClientPackagePaymentMode.PER_SESSION)); // paid = true
+                    List.of(), true, false, null, ClientPackagePaymentMode.PER_SESSION,
+                    null, false, 0, 0)); // paid = true
         });
         EmailContent c2 = t.bookingReminder(asm.buildModel(cardC2, null, true));
         write("c2-reminder-package-admin-paid", c2);
@@ -130,7 +132,7 @@ class EmailRenderSamplesTest {
         EmailContent d = t.bookingConfirmed(mD);
         write("d-confirmed-package-online", d);
         assertTrue(d.html().contains("valido fino al 12 giu 2028"), "validity");
-        assertTrue(d.html().contains("✓ Incluso nel pacchetto"), "covered tag");
+        assertTrue(d.html().contains("Già saldato ✦"), "covered tag");
         assertTrue(d.html().contains("Incluso nel pacchetto (già pagato)"), "covered payment label");
 
         // (d1) PROMPT C+D: online package PURCHASE (rank 1) — unified "Seduta X di N" + amount paid.
@@ -216,6 +218,87 @@ class EmailRenderSamplesTest {
                 "e-confirmed-bundle-sconto", "h-confirmed-single-custom-price")) {
             System.out.println("  /tmp/beautyroom-email-" + f + ".html");
         }
+    }
+
+    /**
+     * INSTALLMENTS package emails render the REAL payment state (display-only fix) instead of a
+     * false "Già pagato": the rata due at this visit, a settled plan, or a neutral "a rate
+     * concordato" when nothing is due. Plus the PER_SESSION unpaid+unpriced companion fix.
+     * Mirrors renderSamples' DTO-direct pattern — no DB, no PackageInstallment.
+     */
+    @Test
+    void renderInstallmentSamples() throws Exception {
+        EmailTemplateService t = brandedTemplate();
+        LocalDateTime start = LocalDateTime.of(2026, 6, 15, 13, 30);
+
+        // (k) INSTALLMENTS confirmation — a rata falls due at this visit → show the amount + "rata N di M"
+        AdminBookingCardDTO cardK = card(b -> {
+            b.start = start; b.end = start.plusMinutes(30);
+            b.name = "Sara Neri"; b.email = "sara@example.com";
+            b.linkedPackages = List.of(new PackageSummaryDTO(
+                    UUID.randomUUID(), "Laser ascelle", 2, 4, 3, BigDecimal.ZERO, false,
+                    List.of(), false, false, null, ClientPackagePaymentMode.INSTALLMENTS,
+                    bd("50.00"), false, 2, 4));
+        });
+        EmailContent k = t.bookingConfirmed(asm.buildModel(cardK, null, false));
+        write("k-confirmed-installment-due", k);
+        assertTrue(k.html().contains("Prezzo da pagare alla seduta"), "rata-due label (html)");
+        assertTrue(k.html().contains("€ 50,00"), "rata amount (html)");
+        assertTrue(k.html().contains("rata 2 di 4"), "rata ordinal (html)");
+        assertTrue(k.text().contains("Prezzo da pagare alla seduta"), "rata-due label (text)");
+        assertTrue(k.text().contains("rata 2 di 4"), "rata ordinal (text)");
+        assertTrue(!k.html().contains("Già pagato"), "rata due is NOT a false 'Già pagato'");
+
+        // (k2) same rata-due fixture as a REMINDER → the rata line passes the carve-out,
+        // but service prices and the Totale row stay hidden.
+        EmailContent k2 = t.bookingReminder(asm.buildModel(cardK, null, true));
+        write("k2-reminder-installment-due", k2);
+        assertTrue(k2.html().contains("Prezzo da pagare alla seduta"), "reminder shows rata-due line");
+        assertTrue(k2.html().contains("rata 2 di 4"), "reminder rata ordinal");
+        assertTrue(!k2.html().contains("Totale"), "reminder still hides the Totale row");
+        assertTrue(!k2.html().contains("Da saldare"), "reminder shows no in-studio amount-due");
+
+        // (l) INSTALLMENTS fully settled → block "Già saldato ✦" + payment line "Già pagato"
+        AdminBookingCardDTO cardL = card(b -> {
+            b.start = start; b.end = start.plusMinutes(30);
+            b.name = "Sara Neri"; b.email = "sara@example.com";
+            b.linkedPackages = List.of(new PackageSummaryDTO(
+                    UUID.randomUUID(), "Laser ascelle", 4, 4, 0, BigDecimal.ZERO, false,
+                    List.of(), false, false, null, ClientPackagePaymentMode.INSTALLMENTS,
+                    null, true, 0, 4));
+        });
+        EmailContent l = t.bookingConfirmed(asm.buildModel(cardL, null, false));
+        write("l-confirmed-installment-paid", l);
+        assertTrue(l.html().contains("Già saldato ✦"), "settled plan shows covered tag");
+        assertTrue(l.html().contains("Già pagato"), "settled plan payment line");
+
+        // (m) INSTALLMENTS open but nothing due today → neutral "Pagamento a rate concordato"
+        AdminBookingCardDTO cardM = card(b -> {
+            b.start = start; b.end = start.plusMinutes(30);
+            b.name = "Sara Neri"; b.email = "sara@example.com";
+            b.linkedPackages = List.of(new PackageSummaryDTO(
+                    UUID.randomUUID(), "Laser ascelle", 2, 4, 2, BigDecimal.ZERO, false,
+                    List.of(), false, false, null, ClientPackagePaymentMode.INSTALLMENTS,
+                    null, false, 0, 4));
+        });
+        EmailContent m = t.bookingConfirmed(asm.buildModel(cardM, null, false));
+        write("m-confirmed-installment-open", m);
+        assertTrue(m.html().contains("Pagamento a rate concordato"), "open plan neutral line");
+        assertTrue(!m.html().contains("Già pagato"), "open plan is NOT a false 'Già pagato'");
+
+        // (n) PER_SESSION companion: unpaid session with an unresolvable price → "Pagamento alla seduta"
+        AdminBookingCardDTO cardN = card(b -> {
+            b.start = start; b.end = start.plusMinutes(30);
+            b.name = "Sara Neri"; b.email = "sara@example.com";
+            b.linkedPackages = List.of(new PackageSummaryDTO(
+                    UUID.randomUUID(), "Laser ascelle", 1, 4, 4, null, false,
+                    List.of(), false, false, null, ClientPackagePaymentMode.PER_SESSION,
+                    null, false, 0, 0));
+        });
+        EmailContent n = t.bookingConfirmed(asm.buildModel(cardN, null, false));
+        write("n-confirmed-persession-unpriced", n);
+        assertTrue(n.html().contains("Pagamento alla seduta"), "unpriced unpaid per-session line");
+        assertTrue(!n.html().contains("Già pagato"), "unpriced per-session is NOT a false 'Già pagato'");
     }
 
     /** PROMPT A: neutral refund-confirmed emails (booking + order) — no "slot occupato" wording. */

@@ -209,12 +209,15 @@ public class PackageInstallmentService {
     }
 
     /**
-     * Phase 5d — snap "da definire" (date-less) installments onto an appointment's
-     * date. For each of the given packages, every UNPAID rata with no due date gets
-     * its dueDate set to {@code date} (the booking just created for that package),
-     * turning a floating rata back into an ordinary dated one — so it resurfaces on
-     * its day, gates "Completa" there, and settles/postpones normally. No-op when
-     * there are no packages or no date. Strictly additive: dated rate are untouched.
+     * Phase 5d — snap a "da definire" (date-less) installment onto an appointment's
+     * date. For each of the given packages, only the EARLIEST (lowest-position) UNPAID
+     * rata with no due date gets its dueDate set to {@code date} (the booking just
+     * created for that package), turning a floating rata back into an ordinary dated
+     * one — so it resurfaces on its day, gates "Completa" there, and settles/postpones
+     * normally. The remaining floating rate stay date-less, so successive appointments
+     * snap successive rate (one per visit) instead of clustering the whole balance on
+     * the first one. No-op when there are no packages or no date. Strictly additive:
+     * dated rate are untouched.
      */
     @Transactional
     public void snapDatelessInstallments(Collection<UUID> assignmentIds, LocalDate date) {
@@ -223,10 +226,42 @@ public class PackageInstallmentService {
         }
         List<PackageInstallment> dateless =
                 installmentRepo.findByAssignmentIdInAndPaidFalseAndDueDateIsNull(assignmentIds);
+
+        // One rata per appointment: for each assignment, pin only the earliest
+        // (lowest-position) floating unpaid rata to this date; leave the rest
+        // floating so they distribute across the package's subsequent appointments.
+        Map<UUID, PackageInstallment> earliestPerAssignment = new HashMap<>();
         for (PackageInstallment inst : dateless) {
+            UUID assignmentId = inst.getAssignment().getId();
+            PackageInstallment current = earliestPerAssignment.get(assignmentId);
+            if (current == null || inst.getPosition() < current.getPosition()) {
+                earliestPerAssignment.put(assignmentId, inst);
+            }
+        }
+
+        List<PackageInstallment> toSnap = new ArrayList<>(earliestPerAssignment.values());
+        for (PackageInstallment inst : toSnap) {
             inst.setDueDate(date);
         }
-        installmentRepo.saveAll(dateless);
+        installmentRepo.saveAll(toSnap);
+    }
+
+    /**
+     * Reschedule-follow: when an appointment moves, the unpaid rata pinned to its
+     * old date moves with it. Writes only dueDate, only paid==false rate.
+     */
+    @Transactional
+    public void moveDueDate(Collection<UUID> assignmentIds, LocalDate fromDate, LocalDate toDate) {
+        if (assignmentIds == null || assignmentIds.isEmpty()
+                || fromDate == null || toDate == null || fromDate.equals(toDate)) {
+            return;
+        }
+        List<PackageInstallment> toMove =
+                installmentRepo.findByAssignmentIdInAndPaidFalseAndDueDate(assignmentIds, fromDate);
+        for (PackageInstallment inst : toMove) {
+            inst.setDueDate(toDate);
+        }
+        installmentRepo.saveAll(toMove);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

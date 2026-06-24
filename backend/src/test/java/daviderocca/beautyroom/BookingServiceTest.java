@@ -134,6 +134,7 @@ class BookingServiceTest {
 
         when(bookingRepository.findByIdForUpdate(bookingId)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubServiceSummariesQuery(); // updateBookingStatus returns via convertToDTO → loadServiceSummaries
 
         User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
         admin.setRole(Role.ADMIN);
@@ -198,6 +199,7 @@ class BookingServiceTest {
 
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(bookingRepository.findByIdWithDetails(any())).thenAnswer(inv -> Optional.of(invocationBookingWithId(inv.getArgument(0))));
+        stubServiceSummariesQuery(); // createManualConfirmedBookingAsAdmin returns via convertToDTO → loadServiceSummaries
 
         User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
         admin.setRole(Role.ADMIN);
@@ -306,6 +308,7 @@ class BookingServiceTest {
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(bookingRepository.findByIdWithDetails(any()))
                 .thenAnswer(inv -> Optional.of(invocationBookingWithId(inv.getArgument(0))));
+        stubServiceSummariesQuery(); // createManualConfirmedBookingAsAdmin returns via convertToDTO → loadServiceSummaries
 
         User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
         admin.setRole(Role.ADMIN);
@@ -348,6 +351,7 @@ class BookingServiceTest {
         linkB.setAssignment(b);
         when(bookingPackageLinkRepository.findAllByBookingBookingIdWithAssignment(bookingId))
                 .thenReturn(List.of(linkA, linkB));
+        stubServiceSummariesQuery(); // updateBookingStatus returns via convertToDTO → loadServiceSummaries
 
         User admin = new User("Admin", "Test", "admin@test.it", "pwd", "000");
         admin.setRole(Role.ADMIN);
@@ -1031,6 +1035,19 @@ class BookingServiceTest {
         s.setUnitPrice(new BigDecimal("19.90"));
         // promotionLinkId stays null -> standalone
         return s;
+    }
+
+    // convertToDTO → loadServiceSummaries runs a read-only native SELECT against booking_services.
+    // @InjectMocks resolves BookingService via constructor injection, which does NOT field-inject the
+    // @PersistenceContext EntityManager — so wire the mock into the field by hand, then stub the
+    // native-query chain. getResultList() is left to Mockito's default (empty list) → zero summaries,
+    // which is all these tests need (they assert on customer/status/recalc, not on the service rows).
+    // Same recipe the webhook/hard-delete tests already apply inline; mirrors BookingServiceSettlementTest.
+    private void stubServiceSummariesQuery() {
+        Query q = mock(Query.class);
+        when(entityManager.createNativeQuery(anyString())).thenReturn(q);
+        when(q.setParameter(anyString(), any())).thenReturn(q);
+        setFieldReflectively(bookingService, "entityManager", entityManager);
     }
 
     // Invokes the private reconcileStandaloneSales on the @InjectMocks instance. The test

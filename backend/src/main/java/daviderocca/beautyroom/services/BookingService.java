@@ -37,6 +37,8 @@ import daviderocca.beautyroom.packages.BookingPackageLink;
 import daviderocca.beautyroom.packages.BookingPackageLinkRepository;
 import daviderocca.beautyroom.packages.ClientPackageAssignment;
 import daviderocca.beautyroom.packages.ClientPackageService;
+import daviderocca.beautyroom.packages.PackageInstallment;
+import daviderocca.beautyroom.packages.PackageInstallmentRepository;
 import daviderocca.beautyroom.packages.PackageInstallmentService;
 import daviderocca.beautyroom.personalappointments.PersonalAppointmentRepository;
 import daviderocca.beautyroom.exceptions.BadRequestException;
@@ -109,6 +111,7 @@ public class BookingService {
     private final BookingPackageLinkRepository bookingPackageLinkRepository;
     // Phase 5d: snap "da definire" (date-less) installments onto the next appointment.
     private final PackageInstallmentService packageInstallmentService;
+    private final PackageInstallmentRepository packageInstallmentRepository;
     // 08.2: promotions <-> agenda wiring
     private final BookingPromotionLinkRepository bookingPromotionLinkRepository;
     private final BookingSaleRepository bookingSaleRepository;
@@ -2090,6 +2093,24 @@ public class BookingService {
         // Recalc every assignment still linked to this booking (covers added + unchanged).
         maybeRecalculatePackage(bookingId);
 
+        // ── Leva 2: reschedule-follow — an unpaid rata pinned to this appointment's old
+        // date moves with it, so it doesn't orphan on a now-empty day. Reuses oldStart
+        // (captured pre-overwrite above). The in-person package links are final here (the
+        // N→M reconcile just ran); read them fresh, mirroring the create-side Step 6c snap.
+        LocalDate previousDueAnchor = oldStart != null ? oldStart.toLocalDate() : null;
+        LocalDate newDueAnchor = start.toLocalDate();
+        if (previousDueAnchor != null && !newDueAnchor.equals(previousDueAnchor)) {
+            List<UUID> linkedAssignmentIds = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(found.getBookingId())
+                    .stream()
+                    .map(l -> l.getAssignment().getId())
+                    .distinct()
+                    .toList();
+            if (!linkedAssignmentIds.isEmpty()) {
+                packageInstallmentService.moveDueDate(linkedAssignmentIds, previousDueAnchor, newDueAnchor);
+            }
+        }
+
         // ── post-reconcile cleanup (Bug C + Bug D): once the package reconcile above has run, the booking
         // may legitimately retain other content (a catalog service, a custom service, or
         // a promotion) while having NO in-person package link left. In that case the
@@ -3212,7 +3233,7 @@ public class BookingService {
                 if (first.getSessionNumber() > 0) linkSessionNumber = first.getSessionNumber();
                 linkTotalSessions = first.getAssignment().getTotalSessions();
                 linkedPkgs = links.stream()
-                        .map(this::buildPackageSummary)
+                        .map(l -> buildPackageSummary(l, b.getStartTime().toLocalDate()))
                         .toList();
                 linkedPkg = linkedPkgs.get(0);
             }
@@ -3261,7 +3282,8 @@ public class BookingService {
                     true,                              // paid
                     true,                              // paidLocked — settlement not editable in the drawer
                     null,                              // notes — PackageCredit carries none
-                    ClientPackagePaymentMode.UPFRONT); // not INSTALLMENTS → normal "✓ Pagato" pill
+                    ClientPackagePaymentMode.UPFRONT, // not INSTALLMENTS → normal "✓ Pagato" pill
+                    null, false, 0, 0);               // installment fields inert (online package is UPFRONT)
             linkedPkgs = List.of(onlinePkg);
             // Keep the deprecated singular in sync with linkedPackages.get(0) (its documented invariant).
             linkedPkg  = onlinePkg;
@@ -3478,7 +3500,7 @@ public class BookingService {
      * The link carries this booking's session position AND (V62) the per-session
      * paid flag — different links on the same assignment can be paid independently.
      */
-    private PackageSummaryDTO buildPackageSummary(BookingPackageLink link) {
+    private PackageSummaryDTO buildPackageSummary(BookingPackageLink link, LocalDate bookingDate) {
         ClientPackageAssignment a = link.getAssignment();
         ServiceItem pkgSvc = a.getService() != null
                 ? a.getService()
@@ -3506,6 +3528,36 @@ public class BookingService {
         BigDecimal sessionPrice = nonPerSessionBilled
                 ? BigDecimal.ZERO
                 : clientPackageService.computeSessionPrice(a);
+        // ── Installment state (display only) — computed only for INSTALLMENTS ──
+        // INSTALLMENTS forces sessionPrice=0 above (its money lives in the registry, not
+        // per-session), so the email layer can't infer payment state from the price. Read it
+        // straight from the registry: is the plan settled, and is a rata due at THIS visit?
+        BigDecimal installmentDueHere = null;
+        boolean installmentFullyPaid = false;
+        int installmentDueIndex = 0;
+        int installmentCount = 0;
+        if (mode == ClientPackagePaymentMode.INSTALLMENTS) {
+            List<PackageInstallment> rate =
+                    packageInstallmentRepository.findByAssignmentIdOrderByPositionAscDueDateAsc(a.getId());
+            installmentCount = rate.size();
+            // Plan total: the agreed gross (pricePaid) when set, else the sum of the rate
+            // (rate may not yet break the whole price — pricePaid is the authoritative gross).
+            BigDecimal total = (a.getPricePaid() != null && a.getPricePaid().signum() > 0)
+                    ? a.getPricePaid()
+                    : rate.stream().map(PackageInstallment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal collected = rate.stream().filter(PackageInstallment::isPaid)
+                    .map(PackageInstallment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            installmentFullyPaid = total.signum() > 0 && collected.compareTo(total) >= 0;
+            // Next UNPAID rata dated exactly to this booking's day — a single rata, never summed.
+            for (int idx = 0; idx < rate.size(); idx++) {
+                PackageInstallment r = rate.get(idx);
+                if (!r.isPaid() && bookingDate != null && bookingDate.equals(r.getDueDate())) {
+                    installmentDueHere = r.getAmount();
+                    installmentDueIndex = idx + 1;
+                    break;
+                }
+            }
+        }
         return new PackageSummaryDTO(
                 a.getId(),
                 pkgName,
@@ -3518,7 +3570,8 @@ public class BookingService {
                 paid,
                 paidLocked,
                 a.getNotes(),
-                mode);
+                mode,
+                installmentDueHere, installmentFullyPaid, installmentDueIndex, installmentCount);
     }
 
     /**
@@ -3598,7 +3651,7 @@ public class BookingService {
         try {
             linkedPackage = bookingPackageLinkRepository
                     .findByBookingBookingIdWithAssignment(booking.getBookingId())
-                    .map(this::buildPackageSummary)
+                    .map(l -> buildPackageSummary(l, booking.getStartTime().toLocalDate()))
                     .orElse(null);
         } catch (Exception e) {
             log.warn("Could not resolve package summary for booking {}: {}", booking.getBookingId(), e.getMessage());

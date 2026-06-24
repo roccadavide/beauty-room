@@ -516,7 +516,8 @@ public class ClientPackageService {
                     paid,
                     paidLocked,
                     a.getNotes(),
-                    mode);
+                    mode,
+                    null, false, 0, 0); // installment fields unused here (dead mirror; no callers)
         });
     }
 
