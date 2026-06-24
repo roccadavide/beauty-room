@@ -9,6 +9,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.SaleSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.PackageCredit;
+import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
 import daviderocca.beautyroom.services.BookingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -225,20 +226,47 @@ public class BookingEmailAssembler {
         PackageBlock packageBlock = buildPackageBlock(card, b, pkgs, reminder, creditBacked, onlineSessionRank);
 
         // ---------- payment label (authoritative amount due) ----------
+        // Installment package on this booking (if any) → resolve its payment line (display only).
+        // INSTALLMENTS forces sessionPrice=0 (revenue rule), so amountDue falls to 0 and the
+        // generic "Già pagato" below would be a false claim while the rate plan is still open.
+        PackageSummaryDTO instPkg = pkgs.stream()
+                .filter(p -> p.paymentMode() == ClientPackagePaymentMode.INSTALLMENTS)
+                .findFirst().orElse(null);
+        String installmentLabel = null;
+        if (instPkg != null) {
+            if (instPkg.installmentFullyPaid()) {
+                installmentLabel = "Già pagato";
+            } else if (instPkg.installmentDueHere() != null) {
+                String suffix = (instPkg.installmentDueIndex() > 0 && instPkg.installmentCount() > 0)
+                        ? " (rata " + instPkg.installmentDueIndex() + " di " + instPkg.installmentCount() + ")"
+                        : "";
+                installmentLabel = "Prezzo da pagare alla seduta: " + money(instPkg.installmentDueHere(), false) + suffix;
+            } else {
+                installmentLabel = "Pagamento a rate concordato";
+            }
+        }
+
         String paymentLabel;
         if (creditBacked) {
             paymentLabel = "Incluso nel pacchetto (già pagato)";
         } else if (reminder && isPackageSession) {
-            // PATCH 3b: admin package-session reminder — never show an amount due.
-            // "Già pagato" only when every linked package is actually settled
-            // (assignment.paidUpfront || link.paid, folded into PackageSummaryDTO.paid());
-            // otherwise no money line at all.
-            boolean covered = !pkgs.isEmpty() && pkgs.stream().allMatch(PackageSummaryDTO::paid);
-            paymentLabel = covered ? "Già pagato" : null;
+            // PATCH 3b: admin package-session reminder — never show an amount due. The rata-due
+            // line is the ONLY money allowed through here; otherwise "Già pagato" when every
+            // linked package is settled (PackageSummaryDTO.paid()), else no money line at all.
+            if (installmentLabel != null) {
+                paymentLabel = installmentLabel;                       // reminder carve-out: only this line passes
+            } else {
+                boolean covered = !pkgs.isEmpty() && pkgs.stream().allMatch(PackageSummaryDTO::paid);
+                paymentLabel = covered ? "Già pagato" : null;
+            }
         } else if (paidOnline) {
             paymentLabel = "Già pagato online";
+        } else if (installmentLabel != null) {
+            paymentLabel = installmentLabel;                            // confirmation: states 1/2/3
         } else if (amountDue.signum() <= 0) {
-            paymentLabel = "Già pagato";
+            boolean unpaidUnpricedPkg = isPackageSession && pkgs.stream()
+                    .anyMatch(p -> !p.paid() && (p.sessionPrice() == null || p.sessionPrice().signum() == 0));
+            paymentLabel = unpaidUnpricedPkg ? "Pagamento alla seduta" : "Già pagato";   // companion fix
         } else {
             paymentLabel = "Da saldare in studio: " + money(amountDue, false);
         }
@@ -318,7 +346,9 @@ public class BookingEmailAssembler {
                     ? "Seduta " + p.sessionNumber() + " di " + p.totalSessions()
                         + " · ne " + (p.sessionsRemaining() == 1 ? "resta " : "restano ") + p.sessionsRemaining()
                     : p.totalSessions() + " " + sedute(p.totalSessions()) + " · " + p.sessionsRemaining() + " rimanenti";
-            return new PackageBlock(name, sessionInfo, p.paid(), attachedTreatments(p));
+            boolean covered = p.paid()
+                    || (p.paymentMode() == ClientPackagePaymentMode.INSTALLMENTS && p.installmentFullyPaid());
+            return new PackageBlock(name, sessionInfo, covered, attachedTreatments(p));
         }
         return null;
     }

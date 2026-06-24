@@ -54,5 +54,15 @@ public record PackageSummaryDTO(
         // paidLocked: an INSTALLMENTS package is not "prepaid/locked" yet still
         // contributes €0 to the booking's per-session revenue (its money lives in
         // the installment registry, mirrored by the sessionPrice=0 rule below).
-        ClientPackagePaymentMode paymentMode
+        ClientPackagePaymentMode paymentMode,
+        // ── Installment payment state (display-only; meaningful only for INSTALLMENTS) ──
+        // installmentDueHere : the single unpaid rata whose dueDate == this booking's date,
+        //                      null when none is due at this visit (never a sum of rate).
+        // installmentFullyPaid: collected >= plan total (pricePaid, or sum of rate when unset).
+        // installmentDueIndex : 1-based ordinal of the due rata in registry order (0 = none).
+        // installmentCount    : total rata count, for the "(rata N di M)" suffix.
+        BigDecimal installmentDueHere,
+        boolean installmentFullyPaid,
+        int installmentDueIndex,
+        int installmentCount
 ) {}
