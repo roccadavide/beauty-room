@@ -91,7 +91,7 @@ public class EmailTemplateService {
                 + packageBlockRow(m.packageBlock())
                 + paymentRow(m.paymentLabel())
                 + labeledLineRow("Dove", brandAddress, false)
-                + kvRow("Email di conferma", safe(m.customerEmail()))
+                + labeledLineRow("Email di conferma", safe(m.customerEmail()), false)
                 + buttonRow("Visualizza prenotazione", viewUrl)
                 + helperRow("Devi spostare o modificare l'appuntamento? Scrivimi, ci penso io.")
                 + contactPillsRow()
@@ -399,7 +399,9 @@ public class EmailTemplateService {
         String prevTime = m.previousStartTime() != null ? m.previousStartTime().format(IT_TIME) : null;
 
         String treatment = String.join(" · ", treatmentNames(m));
-        String treatmentRow = treatment.isBlank() ? "" : labeledLineRow("Trattamento", treatment, false);
+        String treatmentRow = (m.packageBlock() != null)
+                ? packageBlockRow(m.packageBlock())
+                : (treatment.isBlank() ? "" : labeledLineRow("Trattamento", treatment, false));
 
         String inner = heroRow("Appuntamento aggiornato", "Spostato")
                 + introRow("Ciao " + inkB(customerName) + ", ti avviso che il tuo appuntamento è stato spostato.")
@@ -417,7 +419,11 @@ public class EmailTemplateService {
         t.append("Ciao ").append(customerName).append(", ti avviso che il tuo appuntamento è stato spostato.\n\n");
         if (prevDate != null) t.append("Prima: ").append(prevDate).append(", ore ").append(prevTime).append("\n");
         t.append("Ora: ").append(m.whenDate()).append(", ore ").append(m.whenTime()).append("\n");
-        if (!treatment.isBlank()) t.append("\nTrattamento: ").append(treatment).append("\n");
+        if (m.packageBlock() != null) {
+            t.append(packageTextBlock(m.packageBlock()));
+        } else if (!treatment.isBlank()) {
+            t.append("\nTrattamento: ").append(treatment).append("\n");
+        }
         t.append("\nSe la nuova data non ti va bene, scrivimi e troviamo un'alternativa.\n");
         t.append("WhatsApp: https://wa.me/").append(waNum()).append("\n");
 
@@ -438,7 +444,9 @@ public class EmailTemplateService {
                 : "Ciao " + inkB(customerName) + ", il tuo appuntamento è stato annullato.";
 
         String treatment = String.join(" · ", treatmentNames(m));
-        String treatmentRow = treatment.isBlank() ? "" : labeledLineRow("Trattamento", treatment, false);
+        String treatmentRow = (m.packageBlock() != null)
+                ? packageBlockRow(m.packageBlock())
+                : (treatment.isBlank() ? "" : labeledLineRow("Trattamento", treatment, false));
 
         String inner = heroRow("Appuntamento", "Annullato")
                 + introRow(intro)
@@ -455,7 +463,11 @@ public class EmailTemplateService {
         t.append(date != null
                 ? "Ciao " + customerName + ", il tuo appuntamento del " + lcFirst(date) + " è stato annullato.\n"
                 : "Ciao " + customerName + ", il tuo appuntamento è stato annullato.\n");
-        if (!treatment.isBlank()) t.append("\nTrattamento: ").append(treatment).append("\n");
+        if (m.packageBlock() != null) {
+            t.append(packageTextBlock(m.packageBlock()));
+        } else if (!treatment.isBlank()) {
+            t.append("\nTrattamento: ").append(treatment).append("\n");
+        }
         t.append("\nPer fissarne uno nuovo, scrivimi quando vuoi.\n");
         t.append("WhatsApp: https://wa.me/").append(waNum()).append("\n");
 
@@ -876,30 +888,41 @@ public class EmailTemplateService {
                 + "<td align=\"right\" style=\"white-space:nowrap;\"><span class=\"br-ink\" style=\"" + amtStyle + "\">" + esc(amount) + "</span></td></tr>";
     }
 
-    /** Tinted package box (contextual; never a priced line). */
+    /** Tinted package box (contextual; never a priced line). Stacked: eyebrow label, prominent
+     *  name, session line, optional "Già saldato ✦", then the attached-treatments list. */
     private String packageBlockRow(PackageBlock pb) {
         if (pb == null) return "";
+        String eyebrow = "<div class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#8c6d3f;font-weight:700;margin-bottom:7px;\">Il tuo pacchetto</div>";
+        String name = "<div class=\"br-ink\" style=\"font-family:" + SERIF + ";font-size:22px;color:#3a2e27;line-height:1.3;\">" + esc(pb.headline()) + "</div>";
         String sub = (pb.sessionInfo() == null || pb.sessionInfo().isBlank()) ? ""
                 : "<div class=\"br-body\" style=\"font-family:" + SANS + ";font-size:14px;color:#574a41;margin-top:5px;\">" + esc(pb.sessionInfo()) + "</div>";
-        String coveredTag = pb.covered()
-                ? "<div class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:12px;color:#8c6d3f;font-weight:700;margin-top:8px;\">✓ Incluso nel pacchetto</div>"
+        String paidTag = pb.covered()
+                ? "<div class=\"br-gold\" style=\"font-family:" + SANS + ";font-size:12px;color:#8c6d3f;font-weight:700;margin-top:8px;\">Già saldato ✦</div>"
                 : "";
+        String attached = "";
+        if (pb.attachedTreatments() != null && !pb.attachedTreatments().isEmpty()) {
+            StringBuilder li = new StringBuilder();
+            for (String t : pb.attachedTreatments()) {
+                li.append("<div class=\"br-muted\" style=\"font-family:").append(SANS)
+                  .append(";font-size:13px;color:#9c8c7d;line-height:1.65;\">· ").append(esc(t)).append("</div>");
+            }
+            attached = "<div class=\"br-rowhair\" style=\"border-top:1px solid #ece0d0;margin-top:12px;padding-top:10px;\">" + li + "</div>";
+        }
         return "<tr><td class=\"br-pad\" style=\"padding:18px 40px 0;\">"
                 + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"br-panel\" style=\"background:rgba(184,151,106,0.10);border:1px solid #e7dbca;border-radius:14px;\">"
                 + "<tr><td style=\"padding:16px 18px;\">"
-                + "<div class=\"br-ink\" style=\"font-family:" + SERIF + ";font-size:20px;color:#3a2e27;line-height:1.3;\">" + esc(pb.headline()) + "</div>"
-                + sub + coveredTag
+                + eyebrow + name + sub + paidTag + attached
                 + "</td></tr></table></td></tr>";
     }
 
-    /** Payment-state line ("Già pagato online" / "Da saldare in studio: € X" / "Incluso..."). */
+    /** Payment-state line ("Già pagato online" / "Da saldare in studio: € X" / "Incluso..."),
+     *  stacked: "Pagamento" label above the value. */
     private String paymentRow(String label) {
         if (label == null || label.isBlank()) return "";
         return "<tr><td class=\"br-pad\" style=\"padding:18px 40px 0;\">"
-                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"><tr>"
-                + "<td><span class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9c8c7d;font-weight:600;\">Pagamento</span></td>"
-                + "<td align=\"right\"><span class=\"br-ink\" style=\"font-family:" + SANS + ";font-size:14px;color:#3a2e27;font-weight:700;\">" + esc(label) + "</span></td>"
-                + "</tr></table></td></tr>";
+                + "<div class=\"br-muted\" style=\"font-family:" + SANS + ";font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9c8c7d;font-weight:600;margin-bottom:5px;\">Pagamento</div>"
+                + "<div class=\"br-ink\" style=\"font-family:" + SANS + ";font-size:14px;color:#3a2e27;font-weight:700;\">" + esc(label) + "</div>"
+                + "</td></tr>";
     }
 
     private String labeledLineRow(String label, String value, boolean serif) {
@@ -1124,11 +1147,7 @@ public class EmailTemplateService {
             sb.append(m.totalLabel()).append(": ").append(m.totalStr()).append("\n");
         }
         if (m.packageBlock() != null) {
-            sb.append("\n").append(m.packageBlock().headline()).append("\n");
-            if (m.packageBlock().sessionInfo() != null && !m.packageBlock().sessionInfo().isBlank()) {
-                sb.append(m.packageBlock().sessionInfo()).append("\n");
-            }
-            if (m.packageBlock().covered()) sb.append("Incluso nel pacchetto\n");
+            sb.append(packageTextBlock(m.packageBlock()));
         }
         if (m.paymentLabel() != null && !m.paymentLabel().isBlank()) {
             sb.append("\nPagamento: ").append(m.paymentLabel()).append("\n");
@@ -1139,6 +1158,22 @@ public class EmailTemplateService {
         }
         sb.append("\nScrivimi su WhatsApp: https://wa.me/").append(waNum()).append("\n");
         sb.append("\nGrazie di avermi scelto. Non vedo l'ora di prendermi cura di te.\n");
+        return sb.toString();
+    }
+
+    /** Plain-text twin of packageBlockRow: eyebrow, name, session line, "Già saldato ✦"
+     *  (when covered), then the attached-treatments list as a compact comma list. */
+    private String packageTextBlock(PackageBlock pb) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\nIL TUO PACCHETTO\n");
+        sb.append(pb.headline()).append("\n");
+        if (pb.sessionInfo() != null && !pb.sessionInfo().isBlank()) {
+            sb.append(pb.sessionInfo()).append("\n");
+        }
+        if (pb.covered()) sb.append("Già saldato ✦\n");
+        if (pb.attachedTreatments() != null && !pb.attachedTreatments().isEmpty()) {
+            sb.append(String.join(", ", pb.attachedTreatments())).append("\n");
+        }
         return sb.toString();
     }
 
@@ -1160,14 +1195,9 @@ public class EmailTemplateService {
                 }
             }
         }
-        // PROMPT 31: a package-backed booking leads the concise summary with the package name. The
-        // standalone treatment line is already suppressed upstream (buildModel), so `names` holds at
-        // most promo titles here; prepend the package headline so the package — not a linked promo —
-        // leads, and so an otherwise-empty summary still names the package. Non-package bookings have
-        // no packageBlock → unchanged.
-        if (m.packageBlock() != null && m.packageBlock().headline() != null) {
-            names.add(0, m.packageBlock().headline());
-        }
+        // The package name is now rendered by the package block itself (packageBlockRow) wherever the
+        // booking emails show a package, so it must NOT be prepended here too — that would print it
+        // twice. Non-package bookings have no packageBlock → `names` is just their treatment/promo names.
         return names;
     }
 

@@ -93,7 +93,7 @@ class EmailRenderSamplesTest {
         BookingEmailModel mC = asm.buildModel(cardC, null, true);
         EmailContent c = t.bookingReminder(mC);
         write("c-reminder-package-admin", c);
-        assertTrue(c.html().contains("Pacchetto: 6 sedute di Laser ascelle"), "pkg headline");
+        assertTrue(c.html().contains("Laser ascelle"), "pkg name headline");
         assertTrue(c.html().contains("Seduta 3 di 6 · ne restano 3"), "session progress");
         // PATCH 3b: a package-session reminder shows NO price / amount-due at all.
         assertTrue(!c.html().contains("Da saldare"), "reminder package: no amount-due label");
@@ -130,7 +130,7 @@ class EmailRenderSamplesTest {
         EmailContent d = t.bookingConfirmed(mD);
         write("d-confirmed-package-online", d);
         assertTrue(d.html().contains("valido fino al 12 giu 2028"), "validity");
-        assertTrue(d.html().contains("✓ Incluso nel pacchetto"), "covered tag");
+        assertTrue(d.html().contains("Già saldato ✦"), "covered tag");
         assertTrue(d.html().contains("Incluso nel pacchetto (già pagato)"), "covered payment label");
 
         // (d1) PROMPT C+D: online package PURCHASE (rank 1) — unified "Seduta X di N" + amount paid.

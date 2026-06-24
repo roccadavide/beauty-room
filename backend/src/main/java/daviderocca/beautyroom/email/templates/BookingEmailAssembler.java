@@ -1,6 +1,7 @@
 package daviderocca.beautyroom.email.templates;
 
 import daviderocca.beautyroom.DTO.bookingDTOs.AdminBookingCardDTO;
+import daviderocca.beautyroom.DTO.bookingDTOs.PackageItemSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PackageSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoLineSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoSummaryDTO;
@@ -304,20 +305,42 @@ public class BookingEmailAssembler {
             } else {
                 sessionInfo = total + " " + sedute(total) + " · " + remaining + " rimanenti";
             }
-            return new PackageBlock(headline, sessionInfo, true);
+            // Online packages keep their own headline (expiry/credit semantics); no attached-treatment
+            // list (the composition lives in admin ClientPackageAssignment.items, not on the credit).
+            return new PackageBlock(headline, sessionInfo, true, List.of());
         }
         // Admin/in-person package (ClientPackageAssignment via BookingPackageLink). No expiry exists.
         if (!pkgs.isEmpty()) {
             PackageSummaryDTO p = pkgs.get(0);
+            // Prominent name line (the "N sedute di" framing now lives in sessionInfo below).
             String name = p.packageName() != null ? p.packageName() : "trattamento";
-            String headline = "Pacchetto: " + p.totalSessions() + " " + sedute(p.totalSessions()) + " di " + name;
             String sessionInfo = p.sessionNumber() > 0
                     ? "Seduta " + p.sessionNumber() + " di " + p.totalSessions()
                         + " · ne " + (p.sessionsRemaining() == 1 ? "resta " : "restano ") + p.sessionsRemaining()
                     : p.totalSessions() + " " + sedute(p.totalSessions()) + " · " + p.sessionsRemaining() + " rimanenti";
-            return new PackageBlock(headline, sessionInfo, p.paid());
+            return new PackageBlock(name, sessionInfo, p.paid(), attachedTreatments(p));
         }
         return null;
+    }
+
+    /** The package's composition for the email's attached-treatments list: customName when present,
+     *  else "{serviceTitle} · {serviceOptionName}" (option dropped when absent). */
+    private static List<String> attachedTreatments(PackageSummaryDTO p) {
+        List<String> names = new ArrayList<>();
+        if (p.items() == null) return names;
+        for (PackageItemSummaryDTO it : p.items()) {
+            if (it == null) continue;
+            if (it.customName() != null && !it.customName().isBlank()) {
+                names.add(it.customName());
+                continue;
+            }
+            String label = it.serviceTitle() != null ? it.serviceTitle() : "";
+            if (it.serviceOptionName() != null && !it.serviceOptionName().isBlank()) {
+                label = label.isBlank() ? it.serviceOptionName() : label + " · " + it.serviceOptionName();
+            }
+            if (!label.isBlank()) names.add(label);
+        }
+        return names;
     }
 
     private String durationRange(AdminBookingCardDTO card, Booking b) {
