@@ -2093,6 +2093,24 @@ public class BookingService {
         // Recalc every assignment still linked to this booking (covers added + unchanged).
         maybeRecalculatePackage(bookingId);
 
+        // ── Leva 2: reschedule-follow — an unpaid rata pinned to this appointment's old
+        // date moves with it, so it doesn't orphan on a now-empty day. Reuses oldStart
+        // (captured pre-overwrite above). The in-person package links are final here (the
+        // N→M reconcile just ran); read them fresh, mirroring the create-side Step 6c snap.
+        LocalDate previousDueAnchor = oldStart != null ? oldStart.toLocalDate() : null;
+        LocalDate newDueAnchor = start.toLocalDate();
+        if (previousDueAnchor != null && !newDueAnchor.equals(previousDueAnchor)) {
+            List<UUID> linkedAssignmentIds = bookingPackageLinkRepository
+                    .findAllByBookingBookingIdWithAssignment(found.getBookingId())
+                    .stream()
+                    .map(l -> l.getAssignment().getId())
+                    .distinct()
+                    .toList();
+            if (!linkedAssignmentIds.isEmpty()) {
+                packageInstallmentService.moveDueDate(linkedAssignmentIds, previousDueAnchor, newDueAnchor);
+            }
+        }
+
         // ── post-reconcile cleanup (Bug C + Bug D): once the package reconcile above has run, the booking
         // may legitimately retain other content (a catalog service, a custom service, or
         // a promotion) while having NO in-person package link left. In that case the

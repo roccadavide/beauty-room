@@ -246,6 +246,24 @@ public class PackageInstallmentService {
         installmentRepo.saveAll(toSnap);
     }
 
+    /**
+     * Reschedule-follow: when an appointment moves, the unpaid rata pinned to its
+     * old date moves with it. Writes only dueDate, only paid==false rate.
+     */
+    @Transactional
+    public void moveDueDate(Collection<UUID> assignmentIds, LocalDate fromDate, LocalDate toDate) {
+        if (assignmentIds == null || assignmentIds.isEmpty()
+                || fromDate == null || toDate == null || fromDate.equals(toDate)) {
+            return;
+        }
+        List<PackageInstallment> toMove =
+                installmentRepo.findByAssignmentIdInAndPaidFalseAndDueDate(assignmentIds, fromDate);
+        for (PackageInstallment inst : toMove) {
+            inst.setDueDate(toDate);
+        }
+        installmentRepo.saveAll(toMove);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**

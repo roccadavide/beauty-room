@@ -40,6 +40,14 @@ public interface PackageInstallmentRepository extends JpaRepository<PackageInsta
     List<PackageInstallment> findByAssignmentIdInAndPaidFalseAndDueDateIsNull(Collection<UUID> assignmentIds);
 
     /**
+     * Reschedule-follow companion to {@link #findByAssignmentIdInAndPaidFalseAndDueDateIsNull}:
+     * UNPAID installments across a set of packages whose due date is exactly {@code dueDate}.
+     * Used to move an unpaid rata off an appointment's old date onto its new one. Derives
+     * {@code assignment.id IN (...) AND paid = false AND dueDate = :dueDate}.
+     */
+    List<PackageInstallment> findByAssignmentIdInAndPaidFalseAndDueDate(Collection<UUID> assignmentIds, LocalDate dueDate);
+
+    /**
      * Cross-package feed of UNPAID installments due in [from, to], excluding
      * installments of CANCELLED assignments. Fetch-joins the parent assignment and
      * its nullable service so the DTO mapping reads clientName / service title in a
