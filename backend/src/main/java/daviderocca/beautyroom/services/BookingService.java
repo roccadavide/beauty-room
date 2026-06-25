@@ -1351,6 +1351,17 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public NextAvailableSlotDTO findNextAvailableSlot(int durationMin, LocalDateTime after) {
+        return findNextAvailableSlot(durationMin, after, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public NextAvailableSlotDTO findNextAvailableSlot(
+            int durationMin,
+            LocalDateTime after,
+            Set<DayOfWeek> allowedDays,
+            LocalTime windowStart,
+            LocalTime windowEnd
+    ) {
         LocalDate startDate = after.toLocalDate();
         LocalTime afterTime = after.toLocalTime();
 
