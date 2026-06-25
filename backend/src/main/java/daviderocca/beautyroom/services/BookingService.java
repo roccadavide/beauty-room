@@ -1368,6 +1368,7 @@ public class BookingService {
         for (int i = 0; i < maxAdvanceDays; i++) {
             LocalDate day = startDate.plusDays(i);
             DayOfWeek dow = day.getDayOfWeek();
+            if (allowedDays != null && !allowedDays.isEmpty() && !allowedDays.contains(dow)) continue;
 
             WorkingHours wh = workingHoursRepository.findByDayOfWeek(dow).orElse(null);
             if (wh == null || wh.isClosed()) continue;
