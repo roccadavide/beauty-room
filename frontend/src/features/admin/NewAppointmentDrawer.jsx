@@ -407,6 +407,9 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [nextSlotResult, setNextSlotResult] = useState(null); // { dateStr, timeStr } | { notFound } | { error }
   const [nextSlotLoading, setNextSlotLoading] = useState(false);
   const lastSuggestedSlotRef = useRef(null); // ISO datetime "YYYY-MM-DDTHH:mm:ss" for cycling
+  const [allowedDows, setAllowedDows] = useState(() => new Set()); // Set<string> of DayOfWeek enum names
+  const [windowStart, setWindowStart] = useState(""); // "HH:mm" or ""
+  const [windowEnd, setWindowEnd] = useState("");     // "HH:mm" or ""
 
   // ── Buffer ────────────────────────────────────────────────────────────────
   const [paddingMinutes, setPaddingMinutes] = useState(() => (isEditMode ? (editBooking.paddingMinutes ?? 0) : (initialDraft?.paddingMinutes ?? 0)));
@@ -1270,12 +1273,34 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     setServiceItems(prev => prev.filter(item => item.id !== id));
   }, []);
 
+  // ── "Prossimo disponibile" filter helpers ────────────────────────────────
+  // Any filter change must restart the search from "now": null the cursor and
+  // clear the current suggestion, exactly like a date change does.
+  const resetNextSlotSearch = useCallback(() => {
+    lastSuggestedSlotRef.current = null;
+    setNextSlotResult(null);
+  }, []);
+
+  // TimePicker has no min bound, so enforce "Alle ≥ Dalle" here. "HH:mm" strings
+  // compare correctly lexicographically for 24h times. Declared before
+  // handleFindNext on purpose: it is one of that callback's deps (TDZ-safe).
+  const windowInvalid = windowStart !== "" && windowEnd !== "" && windowEnd <= windowStart;
+
   // ── "Prossimo disponibile" handler ───────────────────────────────────────
   const handleFindNext = useCallback(async () => {
     if (totalDuration <= 0) return;
+    if (windowInvalid) {
+      setNextSlotResult({ error: "L'orario finale deve essere successivo a quello iniziale." });
+      return;
+    }
     setNextSlotLoading(true);
     try {
-      const result = await getNextAvailableSlot(totalDuration, lastSuggestedSlotRef.current);
+      const filters = {
+        daysOfWeek: Array.from(allowedDows),
+        windowStart: windowStart || undefined,
+        windowEnd: windowEnd || undefined,
+      };
+      const result = await getNextAvailableSlot(totalDuration, lastSuggestedSlotRef.current, filters);
       if (!result?.found || !result.slot) {
         setNextSlotResult({ notFound: true });
         return;
@@ -1296,7 +1321,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
     } finally {
       setNextSlotLoading(false);
     }
-  }, [totalDuration]);
+  }, [totalDuration, allowedDows, windowStart, windowEnd, windowInvalid]);
 
   // ── Derived: effective time (custom input takes priority over slot grid) ──
   const effectiveTime = customTime || selectedSlot;
@@ -2636,6 +2661,64 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       <div className="nad-section">
         <div className="nad-section__title">Data e ora</div>
 
+        {/* "Prossimo disponibile" — optional day-of-week + time-window filters */}
+        <div className="nad-next-slot-filters">
+          <span className="nad-next-slot-filters__label">Filtra disponibilità (opzionale)</span>
+
+          <div className="nad-dow-pills">
+            {[
+              ["MONDAY", "Lun"],
+              ["TUESDAY", "Mar"],
+              ["WEDNESDAY", "Mer"],
+              ["THURSDAY", "Gio"],
+              ["FRIDAY", "Ven"],
+              ["SATURDAY", "Sab"],
+            ].map(([value, label]) => {
+              const active = allowedDows.has(value);
+              return (
+                <button
+                  type="button"
+                  key={value}
+                  className={`nad-chip${active ? " is-active" : ""}`}
+                  aria-pressed={active}
+                  onClick={() => {
+                    setAllowedDows((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(value)) next.delete(value);
+                      else next.add(value);
+                      return next;
+                    });
+                    resetNextSlotSearch();
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="nad-window-row">
+            <TimePicker
+              label="Dalle"
+              value={windowStart}
+              minuteStep={15}
+              onChange={(v) => { setWindowStart(v); resetNextSlotSearch(); }}
+            />
+            <TimePicker
+              label="Alle"
+              value={windowEnd}
+              minuteStep={15}
+              onChange={(v) => { setWindowEnd(v); resetNextSlotSearch(); }}
+            />
+          </div>
+
+          {windowInvalid && (
+            <span className="nad-next-slot-hint nad-next-slot-hint--error">
+              L'orario finale deve essere successivo a quello iniziale.
+            </span>
+          )}
+        </div>
+
         {/* "Prossimo disponibile" button */}
         <div className="nad-next-slot-row">
           <button
@@ -2653,7 +2736,7 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           {nextSlotResult && !nextSlotResult.notFound && !nextSlotResult.error && (
             <span className="nad-next-slot-hint">✦ {formatItalianSlot(nextSlotResult.dateStr, nextSlotResult.timeStr)}</span>
           )}
-          {nextSlotResult?.notFound && <span className="nad-next-slot-hint">Nessuna disponibilità trovata nei prossimi 60 giorni.</span>}
+          {nextSlotResult?.notFound && <span className="nad-next-slot-hint">Nessuno slot con questi filtri. Prova ad aggiungere giorni o allargare l'orario.</span>}
           {nextSlotResult?.error && <span className="nad-next-slot-hint nad-next-slot-hint--error">{nextSlotResult.error}</span>}
         </div>
 
