@@ -1286,6 +1286,10 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   // handleFindNext on purpose: it is one of that callback's deps (TDZ-safe).
   const windowInvalid = windowStart !== "" && windowEnd !== "" && windowEnd <= windowStart;
 
+  // Any day-of-week pill or time-window bound makes the search constrained — drives
+  // the filter-aware "no slot" copy (render-only, so no TDZ/dep-array concern).
+  const hasActiveFilters = allowedDows.size > 0 || windowStart !== "" || windowEnd !== "";
+
   // ── "Prossimo disponibile" handler ───────────────────────────────────────
   const handleFindNext = useCallback(async () => {
     if (totalDuration <= 0) return;
@@ -2736,7 +2740,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
           {nextSlotResult && !nextSlotResult.notFound && !nextSlotResult.error && (
             <span className="nad-next-slot-hint">✦ {formatItalianSlot(nextSlotResult.dateStr, nextSlotResult.timeStr)}</span>
           )}
-          {nextSlotResult?.notFound && <span className="nad-next-slot-hint">Nessuno slot con questi filtri. Prova ad aggiungere giorni o allargare l'orario.</span>}
+          {nextSlotResult?.notFound && (
+            <span className="nad-next-slot-hint">
+              {hasActiveFilters
+                ? "Nessuno slot con questi filtri. Prova ad aggiungere giorni o allargare l'orario."
+                : "Nessuna disponibilità trovata nei prossimi mesi."}
+            </span>
+          )}
           {nextSlotResult?.error && <span className="nad-next-slot-hint nad-next-slot-hint--error">{nextSlotResult.error}</span>}
         </div>
 

@@ -1059,6 +1059,46 @@
   padding: 2px 0;
 }
 
+/* ── "Prossimo disponibile" filtri (B-filters) ───────────────────────────── */
+.nad-next-slot-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(184, 151, 106, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.6);
+}
+
+.nad-next-slot-filters__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.nad-dow-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nad-window-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+/* Keep the two TimePickers from stretching full-width on desktop; let them wrap
+   to two rows on narrow viewports (Michela on iPad/M3) without overflowing. */
+.nad-window-row > * {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
 /* ── "Prossimo disponibile" button (B1) ─────────────────────────────────── */
 .nad-next-slot-row {
   display: flex;
