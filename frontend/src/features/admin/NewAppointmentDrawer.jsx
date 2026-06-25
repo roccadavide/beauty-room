@@ -15,6 +15,7 @@ import {
   getAdminAvailableSlots,
   getClientPackageAssignmentsByName,
   getNextAvailableSlot,
+  getWorkingHoursAll,
   updateBooking,
   updatePersonalAppointment,
 } from "../../api/modules/adminAgenda.api";
@@ -249,6 +250,23 @@ function pkgFromFrozenLink(frozen, pkgId) {
 // triggered from "+ Servizio personalizzato"). See AppointmentForm below for
 // the new customForm state and the row rendering.
 
+// Earliest open / latest close across the selected weekdays, ignoring closed or
+// missing days. "HH:mm" strings compare correctly lexicographically for 24h times.
+// Empty Set → { "", "" } (clears the window). Used to auto-fill the next-slot window.
+const computeWindowUnion = (daySet, byDay) => {
+  let minOpen = null;
+  let maxClose = null;
+  daySet.forEach((dayName) => {
+    const wh = byDay[dayName];
+    if (!wh || wh.closed) return;
+    const open = wh.morningStart || wh.afternoonStart; // "HH:mm" or null
+    const close = wh.afternoonEnd || wh.morningEnd;
+    if (open && (minOpen === null || open < minOpen)) minOpen = open;
+    if (close && (maxClose === null || close > maxClose)) maxClose = close;
+  });
+  return { minOpen: minOpen || "", maxClose: maxClose || "" };
+};
+
 // ══════════════════════════════════════════════════════════════════════════════
 // AppointmentForm — rendered when activeTab === "appointment"
 // Unmounts on tab switch / close → state is rebuilt from props on remount.
@@ -410,6 +428,8 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
   const [allowedDows, setAllowedDows] = useState(() => new Set()); // Set<string> of DayOfWeek enum names
   const [windowStart, setWindowStart] = useState(""); // "HH:mm" or ""
   const [windowEnd, setWindowEnd] = useState("");     // "HH:mm" or ""
+  const [weeklyHours, setWeeklyHours] = useState({}); // { "MONDAY": {morningStart,…}, … } keyed by DayOfWeek enum name
+  const [windowEdited, setWindowEdited] = useState(false); // true once Michela hand-edits the window → stop auto-filling the union
 
   // ── Buffer ────────────────────────────────────────────────────────────────
   const [paddingMinutes, setPaddingMinutes] = useState(() => (isEditMode ? (editBooking.paddingMinutes ?? 0) : (initialDraft?.paddingMinutes ?? 0)));
@@ -1088,6 +1108,23 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
       } catch (err) {
         console.error("Product catalog fetch failed (non-blocking):", err);
         setProductCatalog([]);
+      }
+    })();
+  }, []);
+
+  // Fetch the weekly working hours once on mount (V2). Powers the auto-fill of the
+  // "Prossimo disponibile" Dalle/Alle window from the union of the selected day pills.
+  // Non-blocking, mirrors the promotions/products catalog fetches above.
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await getWorkingHoursAll();
+        const byDay = {};
+        (Array.isArray(rows) ? rows : []).forEach((r) => { byDay[r.dayOfWeek] = r; });
+        setWeeklyHours(byDay);
+      } catch (err) {
+        console.error("Working hours fetch failed (non-blocking):", err);
+        setWeeklyHours({});
       }
     })();
   }, []);
@@ -2690,6 +2727,13 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
                       const next = new Set(prev);
                       if (next.has(value)) next.delete(value);
                       else next.add(value);
+                      // Auto-fill the window with the selected days' union until Michela
+                      // hand-edits it. Computed inside the updater so it sees the post-toggle Set.
+                      if (!windowEdited) {
+                        const { minOpen, maxClose } = computeWindowUnion(next, weeklyHours);
+                        setWindowStart(minOpen);
+                        setWindowEnd(maxClose);
+                      }
                       return next;
                     });
                     resetNextSlotSearch();
@@ -2701,18 +2745,43 @@ function AppointmentForm({ services = [], selectedDate, onSuccess, editBooking =
             })}
           </div>
 
+          {/* Daypart shortcuts — one-shot setters (no persistent is-active state). Mattina's
+              "Dalle" is empty = opening time; Sera's 17:00–19:00 deliberately crosses a typical
+              18:00 close so the V2 after-hours extension fires. Setting windowEdited stops the union. */}
+          <div className="nad-daypart-presets">
+            {[
+              ["Mattina", "", "13:00"],
+              ["Pomeriggio", "13:00", "17:00"],
+              ["Sera", "17:00", "19:00"],
+            ].map(([label, from, to]) => (
+              <button
+                type="button"
+                key={label}
+                className="nad-chip"
+                onClick={() => {
+                  setWindowStart(from);
+                  setWindowEnd(to);
+                  setWindowEdited(true);
+                  resetNextSlotSearch();
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="nad-window-row">
             <TimePicker
               label="Dalle"
               value={windowStart}
               minuteStep={15}
-              onChange={(v) => { setWindowStart(v); resetNextSlotSearch(); }}
+              onChange={(v) => { setWindowStart(v); setWindowEdited(true); resetNextSlotSearch(); }}
             />
             <TimePicker
               label="Alle"
               value={windowEnd}
               minuteStep={15}
-              onChange={(v) => { setWindowEnd(v); resetNextSlotSearch(); }}
+              onChange={(v) => { setWindowEnd(v); setWindowEdited(true); resetNextSlotSearch(); }}
             />
           </div>
 

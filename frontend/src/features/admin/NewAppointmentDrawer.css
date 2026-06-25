@@ -1085,6 +1085,12 @@
   gap: 8px;
 }
 
+.nad-daypart-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .nad-window-row {
   display: flex;
   flex-wrap: wrap;
