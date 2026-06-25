@@ -1398,6 +1398,8 @@ public class BookingService {
 
                 if (i == 0 && rangeEnd.isBefore(afterTime)) continue;
                 if (i == 0 && rangeStart.isBefore(afterTime)) rangeStart = afterTime;
+                if (windowStart != null && rangeStart.isBefore(windowStart)) rangeStart = windowStart;
+                if (windowEnd != null && rangeEnd.isAfter(windowEnd)) rangeEnd = windowEnd;
                 if (!rangeStart.isBefore(rangeEnd)) continue;
 
                 List<LocalTime[]> booked = new ArrayList<>();
