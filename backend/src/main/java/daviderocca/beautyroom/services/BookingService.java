@@ -1392,9 +1392,15 @@ public class BookingService {
                     .map(c -> new LocalTime[]{c.getStartTime(), c.getEndTime()})
                     .toList();
 
-            for (LocalTime[] range : openRanges) {
+            for (int idx = 0; idx < openRanges.size(); idx++) {
+                LocalTime[] range = openRanges.get(idx);
                 LocalTime rangeStart = range[0];
                 LocalTime rangeEnd   = range[1];
+
+                boolean isFirstRange = (idx == 0);
+                boolean isLastRange  = (idx == openRanges.size() - 1);
+                if (isFirstRange && windowStart != null && windowStart.isBefore(rangeStart)) rangeStart = windowStart;
+                if (isLastRange  && windowEnd   != null && windowEnd.isAfter(rangeEnd))      rangeEnd   = windowEnd;
 
                 if (i == 0 && rangeEnd.isBefore(afterTime)) continue;
                 if (i == 0 && rangeStart.isBefore(afterTime)) rangeStart = afterTime;
