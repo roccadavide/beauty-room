@@ -1125,7 +1125,9 @@
   background: transparent;
   color: var(--card-gold, #b8976a);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
   line-height: 1.4;
 }
 
@@ -1153,6 +1155,14 @@
 .nad-next-slot-hint--muted {
   color: #b4a090;
   font-style: italic;
+}
+
+/* V2: heads-up that the found slot falls outside the day's working hours.
+   Deep amber ochre — warm/in-palette, distinct from the red --error (this is a
+   warning, not an error). */
+.nad-next-slot-hint--outside {
+  color: #b9740c;
+  font-weight: 600;
 }
 
 /* ── Phase 6d: inline custom-service form ──────────────────────────────────
