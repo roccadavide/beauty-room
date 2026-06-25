@@ -26,10 +26,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -90,13 +93,16 @@ public class AdminBookingController {
     @GetMapping("/next-available")
     public ResponseEntity<?> nextAvailable(
             @RequestParam int durationMin,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime after
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime after,
+            @RequestParam(required = false) Set<DayOfWeek> daysOfWeek,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime windowStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime windowEnd
     ) {
         if (durationMin < 15 || durationMin > 480) {
             return ResponseEntity.badRequest().body("durationMin must be between 15 and 480.");
         }
         LocalDateTime searchAfter = (after != null) ? after : LocalDateTime.now();
-        NextAvailableSlotDTO result = bookingService.findNextAvailableSlot(durationMin, searchAfter);
+        NextAvailableSlotDTO result = bookingService.findNextAvailableSlot(durationMin, searchAfter, daysOfWeek, windowStart, windowEnd);
         if (result == null) {
             return ResponseEntity.ok(Map.of("found", false));
         }
