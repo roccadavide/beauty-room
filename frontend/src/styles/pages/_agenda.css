@@ -358,7 +358,6 @@ body.modal-open {
   position: relative;
   display: grid;
   grid-template-columns: 56px 1fr;
-  gap: 10px;
   max-width: 100%;
   overflow: visible;
 }
@@ -367,6 +366,14 @@ body.modal-open {
   transform: translateY(-50%);
   font-size: 0.72rem;
   color: rgba(35, 26, 20, 0.45);
+}
+.ag-hour--hour {
+  font-weight: 700;
+}
+.ag-hour--half {
+  font-size: 0.58rem;
+  font-weight: 400;
+  opacity: 0.5;
 }
 .ag-timeline__col {
   position: relative;
@@ -381,6 +388,15 @@ body.modal-open {
   right: 0;
   height: 1px;
   background: rgba(111, 74, 47, 0.1);
+}
+.ag-gridline--hour {
+  background: rgba(111, 74, 47, 0.22);
+}
+.ag-gridline--half {
+  background: rgba(111, 74, 47, 0.11);
+}
+.ag-gridline--quarter {
+  background: rgba(111, 74, 47, 0.05);
 }
 .ag-tl-block {
   position: absolute;
@@ -400,6 +416,7 @@ body.modal-open {
   background: var(--ag-booking);
   border: 1px solid rgba(111, 74, 47, 0.22);
   overflow: hidden;
+  min-height: 22px;
 }
 
 /* Clickable booking block */
@@ -436,17 +453,34 @@ body.modal-open {
   overflow: hidden;
   white-space: nowrap;
 }
-.ag-tl-booking__label--tiny {
-  display: flex;
+.ag-tl-booking__label--row {
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  height: 100%;
-  font-size: 9px;
+  gap: 6px;
+}
+.ag-tl-booking__time {
+  flex: 0 0 auto;
+  font-size: 10px;
   font-weight: 700;
-  color: rgba(35, 26, 20, 0.7);
-  padding: 0 4px;
+}
+.ag-tl-meta {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 10px;
+}
+.ag-tl-meta__client {
+  font-weight: 600;
+}
+.ag-tl-meta__svc {
+  opacity: 0.72;
+}
+.ag-tl-meta__svc::before {
+  content: "\00B7";
+  opacity: 0.45;
+  margin: 0 4px;
 }
 .ag-tl-booking__service {
   font-family: "Montserrat", sans-serif;
@@ -3995,7 +4029,9 @@ button.ag-pill:hover,
   vertical-align: middle;
   flex: 0 0 auto;
 }
-.ag-verified svg { display: block; }
+.ag-verified svg {
+  display: block;
+}
 
 .ag-badge-online {
   display: inline-flex;
