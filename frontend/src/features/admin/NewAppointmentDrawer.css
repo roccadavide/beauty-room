@@ -1258,6 +1258,27 @@
   font-weight: 600;
 }
 
+/* ── V3: next-available result — readable day + a slightly more prominent time ── */
+.nad-next-slot-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.nad-next-slot-result__day {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.nad-next-slot-result__time {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
 /* ── Phase 6d: inline custom-service form ──────────────────────────────────
    Sits between the catalog list and "Servizi selezionati". A small bordered
    container in the gold-cream palette — discoverable but not heavy. */

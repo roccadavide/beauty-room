@@ -53,25 +53,19 @@ const PERSONAL_DURATION_PRESETS = [
   { value: 120, label: "2h" },
 ];
 
-// Helper: format a next-available slot as Italian locale string
+// Italian weekday + month names for readable date formatting (used by formatItalianDate).
 const _WEEKDAYS_IT = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
 const _MONTHS_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
-const formatItalianSlot = (dateStr, timeStr) => {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  return `${_WEEKDAYS_IT[dt.getDay()]} ${d} ${_MONTHS_IT[dt.getMonth()]} · ${timeStr}`;
-};
 
 // V3: parse "YYYY-MM-DD" as a LOCAL date (new Date("YYYY-MM-DD") parses as UTC and can
 // shift the day), re-serialize a local date, and format the Italian readable date
 // (reuses the _WEEKDAYS_IT / _MONTHS_IT arrays above).
-const _parseISODateLocal = (iso) => {
+const _parseISODateLocal = iso => {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);
 };
-const _toISODateLocal = (dt) =>
-  `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-const formatItalianDate = (iso) => {
+const _toISODateLocal = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+const formatItalianDate = iso => {
   const dt = _parseISODateLocal(iso);
   return `${_WEEKDAYS_IT[dt.getDay()]} ${dt.getDate()} ${_MONTHS_IT[dt.getMonth()]}`;
 };
@@ -2840,16 +2834,12 @@ function AppointmentForm({
                 resetNextSlotSearch();
               }}
             >
-              {weekSelectorOn ? "Tra N settimane ✦" : "Tra N settimane"}
+              {weekSelectorOn ? "Scegli numero settimane ✦" : "Scegli numero settimane"}
             </button>
 
             {weekSelectorOn && (
               <div className="nad-week-panel">
-                {selectedDate && (
-                  <span className="nad-week-date nad-week-date--from">
-                    Da {formatItalianDate(selectedDate)}
-                  </span>
-                )}
+                {selectedDate && <span className="nad-week-date nad-week-date--from">Da {formatItalianDate(selectedDate)}</span>}
 
                 <div className="nad-week-stepper">
                   <button
@@ -2881,11 +2871,7 @@ function AppointmentForm({
                   </button>
                 </div>
 
-                {weekTargetISO && (
-                  <span className="nad-week-date nad-week-date--target">
-                    → {formatItalianDate(weekTargetISO)}
-                  </span>
-                )}
+                {weekTargetISO && <span className="nad-week-date nad-week-date--target">→ {formatItalianDate(weekTargetISO)}</span>}
               </div>
             )}
           </div>
@@ -3004,7 +2990,10 @@ function AppointmentForm({
             <span className="nad-next-slot-hint nad-next-slot-hint--muted">Clicca più volte per altri slot disponibili</span>
           )}
           {nextSlotResult && !nextSlotResult.notFound && !nextSlotResult.error && (
-            <span className="nad-next-slot-hint">✦ {formatItalianSlot(nextSlotResult.dateStr, nextSlotResult.timeStr)}</span>
+            <div className="nad-next-slot-result">
+              <span className="nad-next-slot-result__day">✦ {formatItalianDate(nextSlotResult.dateStr)}</span>
+              <span className="nad-next-slot-result__time">{nextSlotResult.timeStr}</span>
+            </div>
           )}
           {nextSlotResult && !nextSlotResult.notFound && !nextSlotResult.error && nextSlotResult.outside && (
             <span className="nad-next-slot-hint nad-next-slot-hint--outside">⚠ Fuori orario ({nextSlotResult.boundaryLabel})</span>
