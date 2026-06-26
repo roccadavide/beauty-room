@@ -2982,10 +2982,10 @@ function AppointmentForm({
           </div>
 
           {windowInvalid && <span className="nad-next-slot-hint nad-next-slot-hint--error">L'orario finale deve essere successivo a quello iniziale.</span>}
-        </div>
 
-        {/* "Prossimo disponibile" button */}
-        <div className="nad-next-slot-row">
+          {/* "Prossimo disponibile" — full-width inside the filter block (V3). Stays
+              disabled until a treatment is selected; result hints render below in
+              the result row. */}
           <button
             type="button"
             className="nad-next-slot-btn"
@@ -2995,6 +2995,11 @@ function AppointmentForm({
           >
             {nextSlotLoading ? "Cerco…" : nextSlotResult?.dateStr ? "Successivo ✦" : "Prossimo disponibile ✦"}
           </button>
+        </div>
+
+        {/* "Prossimo disponibile" — result hints (the button now lives in the filter
+            block above, full-width). */}
+        <div className="nad-next-slot-row">
           {!nextSlotResult && totalDuration > 0 && (
             <span className="nad-next-slot-hint nad-next-slot-hint--muted">Clicca più volte per altri slot disponibili</span>
           )}

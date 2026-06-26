@@ -1207,7 +1207,9 @@
 .nad-next-slot-btn {
   /* Phase 6c: enlarged tap target — Michela uses this with a client in front
      of her. Was 0.75rem/4×12; now ~38-40px tall, still gold outline → fill on
-     hover, still inside the Editorial Beauty styling. */
+     hover, still inside the Editorial Beauty styling. V3: full-width inside the
+     filter block (it now lives there, not in .nad-next-slot-row). */
+  width: 100%;
   font-size: 0.92rem;
   font-weight: 600;
   padding: 9px 22px;
