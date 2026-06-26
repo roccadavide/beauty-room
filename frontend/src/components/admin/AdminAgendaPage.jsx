@@ -493,7 +493,9 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
 
   const timelineHeight = useMemo(() => {
     const totalMin = viewWindow.endMin - viewWindow.startMin;
-    return Math.min(900, Math.max(400, Math.round(totalMin * 1.4)));
+    // ~100px/hour (1.667 px/min). Ceiling raised so a normal ~12h day isn't clamped down to 900px.
+    // TUNE: bump the 1.667 multiplier on-device if blocks feel cramped (1.8–2.0 = taller).
+    return Math.min(1500, Math.max(400, Math.round(totalMin * 1.667)));
   }, [viewWindow]);
 
   // Mappa "HH:mm" → booking per collegare i blocchi timeline alla lista
@@ -668,15 +670,17 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     );
   };
 
-  const hourMarks = useMemo(() => {
+  const gridMarks = useMemo(() => {
     const marks = [];
-    const startHour = Math.ceil(viewWindow.startMin / 60);
-    const endHour = Math.floor(viewWindow.endMin / 60);
-    for (let h = startHour; h <= endHour; h++) {
-      marks.push({ h, pct: toPct(h * 60) });
+    const firstQuarter = Math.ceil(viewWindow.startMin / 15) * 15;
+    const lastQuarter = Math.floor(viewWindow.endMin / 15) * 15;
+    for (let m = firstQuarter; m <= lastQuarter; m += 15) {
+      const minute = m % 60;
+      const tier = minute === 0 ? "hour" : minute === 30 ? "half" : "quarter";
+      marks.push({ min: m, pct: toPct(m), tier, hour: Math.floor(m / 60) });
     }
     return marks;
-  }, [toPct, viewWindow.endMin, viewWindow.startMin]);
+  }, [viewWindow, toPct]);
 
   useEffect(() => {
     const timelineEl = timelineRef.current;
@@ -755,15 +759,15 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
         </div>
         <div ref={timelineRef} className="ag-timeline" style={{ height: timelineHeight }}>
           <div className="ag-timeline__labels">
-            {hourMarks.map(m => (
-              <div key={m.h} className="ag-hour" style={{ top: `${m.pct}%` }}>
-                {pad2(m.h)}:00
+            {gridMarks.filter(m => m.tier === "hour").map(m => (
+              <div key={`lbl-${m.min}`} className="ag-hour" style={{ top: `${m.pct}%` }}>
+                {pad2(m.hour)}:00
               </div>
             ))}
           </div>
           <div className="ag-timeline__col">
-            {hourMarks.map(m => (
-              <div key={m.h} className="ag-gridline" style={{ top: `${m.pct}%` }} />
+            {gridMarks.map(m => (
+              <div key={`grid-${m.min}`} className={`ag-gridline ag-gridline--${m.tier}`} style={{ top: `${m.pct}%` }} />
             ))}
             {data.openRanges?.map((s, i) => renderBlock(s, "open", i))}
             {data.closureRanges?.map((s, i) => renderBlock(s, "closure", i))}
