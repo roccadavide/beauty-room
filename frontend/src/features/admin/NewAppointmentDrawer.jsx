@@ -2834,7 +2834,7 @@ function AppointmentForm({
                 resetNextSlotSearch();
               }}
             >
-              {weekSelectorOn ? "Scegli numero settimane ✦" : "Scegli numero settimane"}
+              {weekSelectorOn ? "✦ Imposta numero settimane con scarto di 3 giorni" : "✦ Tra qualche settimana?"}
             </button>
 
             {weekSelectorOn && (
