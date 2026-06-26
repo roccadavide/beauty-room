@@ -552,6 +552,8 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     const bookingHeight = toPct(Math.min(effectiveEnd, viewWindow.endMin)) - top;
     const durationMin = effectiveEnd - start;
     const tier = durationMin < 20 ? "tiny" : durationMin < 40 ? "compact" : "full";
+    const startLabel = slot.start;
+    const endLabel = `${pad2(Math.floor(effectiveEnd / 60))}:${pad2(effectiveEnd % 60)}`;
     // Phase 6c color key cascade: AdminBookingCardDTO doesn't expose
     // categoryName/category today, which left every block falling through to
     // PALETTE[0] (the "wall of brown"). Cascade through the next-best
@@ -630,18 +632,21 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
             : undefined
         }
       >
-        {booking && tier === "tiny" && <div className="ag-tl-booking__label ag-tl-booking__label--tiny">{slot.start}</div>}
-        {booking && tier === "compact" && (
-          <div className="ag-tl-booking__label">
-            <div className="ag-tl-booking__customer">
-              {shortCustomerName(booking.customerName)}
-              {booking.customerVerified && <VerifiedBadge size={12} />}
-            </div>
-            <div className="ag-tl-booking__service">{serviceName}</div>
+        {booking && tier !== "full" && (
+          <div className="ag-tl-booking__label ag-tl-booking__label--row">
+            <span className="ag-tl-booking__time">{startLabel}-{endLabel}</span>
+            <span className="ag-tl-meta">
+              <span className="ag-tl-meta__client">
+                {shortCustomerName(booking.customerName)}
+                {booking.customerVerified && <VerifiedBadge size={12} />}
+              </span>
+              {serviceName ? <span className="ag-tl-meta__svc">{serviceName}</span> : null}
+            </span>
           </div>
         )}
         {booking && tier === "full" && (
           <div className="ag-tl-booking__label">
+            <span className="ag-tl-booking__time">{startLabel}-{endLabel}</span>
             <div className="ag-tl-booking__service">{serviceName}</div>
             <div className="ag-tl-booking__customer">
               {shortCustomerName(booking.customerName)}
