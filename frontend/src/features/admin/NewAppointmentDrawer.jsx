@@ -62,6 +62,20 @@ const formatItalianSlot = (dateStr, timeStr) => {
   return `${_WEEKDAYS_IT[dt.getDay()]} ${d} ${_MONTHS_IT[dt.getMonth()]} · ${timeStr}`;
 };
 
+// V3: parse "YYYY-MM-DD" as a LOCAL date (new Date("YYYY-MM-DD") parses as UTC and can
+// shift the day), re-serialize a local date, and format the Italian readable date
+// (reuses the _WEEKDAYS_IT / _MONTHS_IT arrays above).
+const _parseISODateLocal = (iso) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+const _toISODateLocal = (dt) =>
+  `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+const formatItalianDate = (iso) => {
+  const dt = _parseISODateLocal(iso);
+  return `${_WEEKDAYS_IT[dt.getDay()]} ${dt.getDate()} ${_MONTHS_IT[dt.getMonth()]}`;
+};
+
 // Promo discount label for the selector cards (mirrors PromoDetailDrawer.getDiscountLabel).
 const getPromoDiscountLabel = promo => {
   if (!promo) return null;
@@ -463,6 +477,10 @@ function AppointmentForm({
   const [windowEnd, setWindowEnd] = useState(""); // "HH:mm" or ""
   const [weeklyHours, setWeeklyHours] = useState({}); // { "MONDAY": {morningStart,…}, … } keyed by DayOfWeek enum name
   const [windowEdited, setWindowEdited] = useState(false); // true once Michela hand-edits the window → stop auto-filling the union
+  // V3: optional "tra N settimane" start-point selector. weekSelectorOn=false →
+  // search starts from "now" (V1/V2 behavior, unchanged). weekN ∈ [1,12], default 4.
+  const [weekSelectorOn, setWeekSelectorOn] = useState(false);
+  const [weekN, setWeekN] = useState(4);
 
   // ── Buffer ────────────────────────────────────────────────────────────────
   const [paddingMinutes, setPaddingMinutes] = useState(() => (isEditMode ? (editBooking.paddingMinutes ?? 0) : (initialDraft?.paddingMinutes ?? 0)));
@@ -1355,6 +1373,15 @@ function AppointmentForm({
   // the filter-aware "no slot" copy (render-only, so no TDZ/dep-array concern).
   const hasActiveFilters = allowedDows.size > 0 || windowStart !== "" || windowEnd !== "";
 
+  // V3: exact target date (opening day + N×7 days) shown live in the selector.
+  // The −3-day search buffer is applied separately inside handleFindNext.
+  const weekTargetISO = (() => {
+    if (!selectedDate) return "";
+    const dt = _parseISODateLocal(selectedDate);
+    dt.setDate(dt.getDate() + weekN * 7);
+    return _toISODateLocal(dt);
+  })();
+
   // ── "Prossimo disponibile" handler ───────────────────────────────────────
   const handleFindNext = useCallback(async () => {
     if (totalDuration <= 0) return;
@@ -1369,7 +1396,23 @@ function AppointmentForm({
         windowStart: windowStart || undefined,
         windowEnd: windowEnd || undefined,
       };
-      const result = await getNextAvailableSlot(totalDuration, lastSuggestedSlotRef.current, filters);
+      // V3 week selector: when ON (and no advance cursor yet), seed the search from
+      // (target − 3-day buffer), floored to today, at start-of-day. The 00:00:00 time
+      // is REQUIRED — on day 0 the finder floors the scan to the time component, so a
+      // midday value would skip that day's morning slots. The displayed target stays
+      // the exact N-week date; this buffer is internal.
+      let bufferedTargetISO = null;
+      if (weekSelectorOn && selectedDate) {
+        const start = _parseISODateLocal(selectedDate);
+        start.setDate(start.getDate() + weekN * 7 - 3);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (start < today) start.setTime(today.getTime());
+        bufferedTargetISO = `${_toISODateLocal(start)}T00:00:00`;
+      }
+      // Cursor ("Successivo") keeps priority so advancing never resets to the target.
+      const afterArg = lastSuggestedSlotRef.current ?? bufferedTargetISO;
+      const result = await getNextAvailableSlot(totalDuration, afterArg, filters);
       if (!result?.found || !result.slot) {
         setNextSlotResult({ notFound: true });
         return;
@@ -1412,7 +1455,7 @@ function AppointmentForm({
     } finally {
       setNextSlotLoading(false);
     }
-  }, [totalDuration, allowedDows, windowStart, windowEnd, windowInvalid, weeklyHours]);
+  }, [totalDuration, allowedDows, windowStart, windowEnd, windowInvalid, weeklyHours, selectedDate, weekSelectorOn, weekN]);
 
   // ── Derived: effective time (custom input takes priority over slot grid) ──
   const effectiveTime = customTime || selectedSlot;
@@ -2783,6 +2826,70 @@ function AppointmentForm({
 
         {/* "Prossimo disponibile" — optional day-of-week + time-window filters */}
         <div className="nad-next-slot-filters">
+          {/* V3: optional "tra N settimane" start-point selector. Default OFF → the
+              search starts from "now" (identical to V1/V2). When ON it only moves the
+              finder's start point; it never sets the appointment date, and nothing
+              searches until the "Prossimo disponibile" button is pressed. */}
+          <div className="nad-week-selector">
+            <button
+              type="button"
+              className={`nad-week-toggle${weekSelectorOn ? " is-active" : ""}`}
+              aria-pressed={weekSelectorOn}
+              onClick={() => {
+                setWeekSelectorOn(prev => !prev);
+                resetNextSlotSearch();
+              }}
+            >
+              {weekSelectorOn ? "Tra N settimane ✦" : "Tra N settimane"}
+            </button>
+
+            {weekSelectorOn && (
+              <div className="nad-week-panel">
+                {selectedDate && (
+                  <span className="nad-week-date nad-week-date--from">
+                    Da {formatItalianDate(selectedDate)}
+                  </span>
+                )}
+
+                <div className="nad-week-stepper">
+                  <button
+                    type="button"
+                    className="nad-week-step"
+                    aria-label="Una settimana in meno"
+                    disabled={weekN <= 1}
+                    onClick={() => {
+                      setWeekN(n => Math.max(1, n - 1));
+                      resetNextSlotSearch();
+                    }}
+                  >
+                    −
+                  </button>
+                  <span className="nad-week-count">
+                    <strong>{weekN}</strong> {weekN === 1 ? "settimana" : "settimane"}
+                  </span>
+                  <button
+                    type="button"
+                    className="nad-week-step"
+                    aria-label="Una settimana in più"
+                    disabled={weekN >= 12}
+                    onClick={() => {
+                      setWeekN(n => Math.min(12, n + 1));
+                      resetNextSlotSearch();
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+
+                {weekTargetISO && (
+                  <span className="nad-week-date nad-week-date--target">
+                    → {formatItalianDate(weekTargetISO)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
           <span className="nad-next-slot-filters__label">Filtra disponibilità (opzionale)</span>
 
           <div className="nad-dow-pills">
