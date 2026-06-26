@@ -144,16 +144,12 @@ function isCustomSettled(booking) {
 function isAppointmentFullySettled(booking) {
   if (!booking) return false;
   if (booking.paidOnline) return true;
-  const pkgs = booking.linkedPackages?.length
-    ? booking.linkedPackages
-    : booking.linkedPackage ? [booking.linkedPackage] : [];
+  const pkgs = booking.linkedPackages?.length ? booking.linkedPackages : booking.linkedPackage ? [booking.linkedPackage] : [];
   const svcs = Array.isArray(booking.services) ? booking.services : [];
   const hasCustom = !!(booking.isCustomService && booking.customServiceName);
   // Need at least one priced line to be meaningful; otherwise leave it unmarked.
   if (pkgs.length === 0 && svcs.length === 0 && !hasCustom) return false;
-  return svcs.every(s => s.paid === true)
-    && pkgs.every(p => p.paid === true)
-    && (!hasCustom || booking.customServicePaid === true);
+  return svcs.every(s => s.paid === true) && pkgs.every(p => p.paid === true) && (!hasCustom || booking.customServicePaid === true);
 }
 
 // ── EstimatoModal helpers ────────────────────────────────────────────────────
@@ -163,11 +159,7 @@ function buildBreakdownItems(booking, priceMap) {
 
   // Phase 6: linkedPackages[] is the source of truth; legacy singular linkedPackage
   // is wrapped into a one-element list for pre-5a bookings.
-  const pkgs = booking.linkedPackages?.length
-    ? booking.linkedPackages
-    : booking.linkedPackage
-      ? [booking.linkedPackage]
-      : [];
+  const pkgs = booking.linkedPackages?.length ? booking.linkedPackages : booking.linkedPackage ? [booking.linkedPackage] : [];
   const isLegacySingle = !booking.linkedPackages?.length && !!booking.linkedPackage;
 
   // a. Package contribution — one row per linked package
@@ -189,8 +181,13 @@ function buildBreakdownItems(booking, priceMap) {
     // refKind/refId/locked: drive the CompletionDrawer settle payload (packageSessionPaid
     // keyed by ClientPackageAssignment id). paidUpfront packages are not editable.
     items.push({
-      label, price, kind: "package", paid: isLineSettled(pkg, booking),
-      refKind: "package", refId: pkg.packageAssignmentId, locked: pkg.paidLocked === true,
+      label,
+      price,
+      kind: "package",
+      paid: isLineSettled(pkg, booking),
+      refKind: "package",
+      refId: pkg.packageAssignmentId,
+      locked: pkg.paidLocked === true,
       paymentMode: pkg.paymentMode,
     });
   });
@@ -211,8 +208,12 @@ function buildBreakdownItems(booking, priceMap) {
       }
       // refId = catalog service_id (servicePaid map key in the settle payload).
       items.push({
-        label, price, kind: "extra", paid: isLineSettled(s, booking),
-        refKind: "service", refId: s.id,
+        label,
+        price,
+        kind: "extra",
+        paid: isLineSettled(s, booking),
+        refKind: "service",
+        refId: s.id,
       });
     });
   }
@@ -277,7 +278,8 @@ function buildBreakdownItems(booking, priceMap) {
       // No per-line flag exists for the legacy single-service shape: fall back to
       // booking-level paidOnline / packageCredit only.
       paid: booking.paidOnline || isBookingPackageCreditBacked(booking),
-      refKind: "legacy", refId: booking.serviceId,
+      refKind: "legacy",
+      refId: booking.serviceId,
     });
   }
 
@@ -294,9 +296,7 @@ function computeBookingAmountDue(booking, items) {
   const isBundle = booking.customTotalPrice != null;
   // Products (kind "sale") are always individual priced rows — never part of the
   // manual bundle price. Sum their own unpaid rows.
-  const saleDue = items
-    .filter(it => it.kind === "sale" && !it.paid)
-    .reduce((acc, it) => acc + Number(it.price ?? 0), 0);
+  const saleDue = items.filter(it => it.kind === "sale" && !it.paid).reduce((acc, it) => acc + Number(it.price ?? 0), 0);
   if (!isBundle) {
     // Non-bundle: every unpaid line (services + products) counts at its own price.
     return items.filter(it => !it.paid).reduce((acc, it) => acc + Number(it.price ?? 0), 0);
@@ -318,7 +318,6 @@ function getPaymentLabel(booking) {
   return { icon: "⏳", text: "Da pagare", css: "ag-pay--pending" };
 }
 
-
 function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallment, onPostponeInstallment, onClose }) {
   const priceMap = useMemo(() => new Map((services || []).map(s => [String(s.serviceId), Number(s.price)])), [services]);
 
@@ -337,19 +336,14 @@ function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallm
         const amountDue = computeBookingAmountDue(b, items);
         // Display "Totale" row: bundle → manual bundle price + product rows (products are
         // never folded into the manual price); otherwise = da-incassare.
-        const saleGross = items
-          .filter(it => it.kind === "sale")
-          .reduce((acc, it) => acc + Number(it.price ?? 0), 0);
+        const saleGross = items.filter(it => it.kind === "sale").reduce((acc, it) => acc + Number(it.price ?? 0), 0);
         const total = isBundle ? Number(b.customTotalPrice) + saleGross : amountDue;
         return { booking: b, pay: getPaymentLabel(b), items, total, amountDue, isBundle };
       }),
     [active, priceMap],
   );
 
-  const totals = useMemo(
-    () => ({ total: rows.reduce((acc, r) => acc + (Number.isFinite(r.amountDue) ? r.amountDue : 0), 0) }),
-    [rows],
-  );
+  const totals = useMemo(() => ({ total: rows.reduce((acc, r) => acc + (Number.isFinite(r.amountDue) ? r.amountDue : 0), 0) }), [rows]);
 
   // Installments due today are surfaced as their own section (and folded into the
   // footer total) — they live outside the per-booking rows above.
@@ -394,15 +388,16 @@ function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallm
               {rows.flatMap(({ booking: b, pay, items, total, isBundle }) =>
                 items
                   .map((it, idx) => (
-                    <tr
-                      key={`${b.bookingId}-${idx}`}
-                      className={`${idx > 0 ? "ag-estimato-row--sub" : ""}${it.paid ? " ag-estimato-row--paid" : ""}`.trim()}
-                    >
+                    <tr key={`${b.bookingId}-${idx}`} className={`${idx > 0 ? "ag-estimato-row--sub" : ""}${it.paid ? " ag-estimato-row--paid" : ""}`.trim()}>
                       <td>{idx === 0 ? fmtTime(b.startTime) : ""}</td>
                       <td>{idx === 0 ? b.customerName || "—" : ""}</td>
                       <td>
                         <span style={it.paid ? { textDecoration: "line-through", opacity: 0.55 } : undefined}>{it.label}</span>
-                        {it.paid && <span className="ag-pill ag-pill--paid" style={{ marginLeft: 8 }}>✓ Pagato</span>}
+                        {it.paid && (
+                          <span className="ag-pill ag-pill--paid" style={{ marginLeft: 8 }}>
+                            ✓ Pagato
+                          </span>
+                        )}
                       </td>
                       <td
                         className={`ag-estimato-price${it.price == null ? " ag-estimato-price--null" : ""}`}
@@ -424,9 +419,7 @@ function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallm
                           )
                         ) : (
                           // V64 M2b: per-row payment status (was only on idx === 0).
-                          <span className={`ag-pill ${it.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}>
-                            {it.paid ? "✓ Pagato" : "⏳ Da pagare"}
-                          </span>
+                          <span className={`ag-pill ${it.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}>{it.paid ? "✓ Pagato" : "⏳ Da pagare"}</span>
                         )}
                       </td>
                     </tr>
@@ -533,9 +526,7 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
           {showLabel && (
             <div className="ag-tl-closure__label">
               <span className="ag-tl-closure__icon">🔒</span>
-              <span className="ag-tl-closure__text">
-                {slot.reason ? `Chiuso · ${slot.reason}` : "Chiuso"}
-              </span>
+              <span className="ag-tl-closure__text">{slot.reason ? `Chiuso · ${slot.reason}` : "Chiuso"}</span>
             </div>
           )}
         </div>
@@ -576,15 +567,9 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
     // Phase 6: timeline blocks are small — surface only the FIRST package's name,
     // its own "S.x/y" badge, and a +N suffix that counts (extra services + extra
     // packages beyond the first). Details live in the appointment list / drawer.
-    const pkgList = booking?.linkedPackages?.length
-      ? booking.linkedPackages
-      : booking?.linkedPackage
-        ? [booking.linkedPackage]
-        : [];
+    const pkgList = booking?.linkedPackages?.length ? booking.linkedPackages : booking?.linkedPackage ? [booking.linkedPackage] : [];
     const firstPkg = pkgList[0] ?? null;
-    const pkgName = firstPkg
-      ? firstPkg.packageName || firstPkg.serviceTitle || firstPkg.serviceName || "—"
-      : null;
+    const pkgName = firstPkg ? firstPkg.packageName || firstPkg.serviceTitle || firstPkg.serviceName || "—" : null;
     const extraSvcs = Array.isArray(booking?.services) && booking.services.length > 0 ? booking.services : [];
     const sessionNum = firstPkg?.sessionNumber ?? booking?.currentSession;
     const totalSess = firstPkg?.totalSessions ?? booking?.totalSessions;
@@ -634,7 +619,9 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
       >
         {booking && tier !== "full" && (
           <div className="ag-tl-booking__label ag-tl-booking__label--row">
-            <span className="ag-tl-booking__time">{startLabel}-{endLabel}</span>
+            <span className="ag-tl-booking__time">
+              {startLabel}-{endLabel}
+            </span>
             <span className="ag-tl-meta">
               <span className="ag-tl-meta__client">
                 {shortCustomerName(booking.customerName)}
@@ -646,7 +633,9 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
         )}
         {booking && tier === "full" && (
           <div className="ag-tl-booking__label">
-            <span className="ag-tl-booking__time">{startLabel}-{endLabel}</span>
+            <span className="ag-tl-booking__time">
+              {startLabel}-{endLabel}
+            </span>
             <div className="ag-tl-booking__service">{serviceName}</div>
             <div className="ag-tl-booking__customer">
               {shortCustomerName(booking.customerName)}
@@ -656,18 +645,12 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
                   ⚠
                 </span>
               )}
-              {!booking.createdByAdmin && (
-                booking.paidOnline
-                  ? (booking.status !== "REFUNDED" && <PaidOnlineBadge />)
-                  : <OnlineBadge />
-              )}
+              {!booking.createdByAdmin && (booking.paidOnline ? booking.status !== "REFUNDED" && <PaidOnlineBadge /> : <OnlineBadge />)}
               {/* Part C: credit-backed online-package sessions 2…N are admin-created
                   (so the block above skips them) but were prepaid online — mark them too
                   so they're not mistaken for an in-store-sold package. Purely additive:
                   bookings without a packageCreditId are unaffected. */}
-              {booking.createdByAdmin && isBookingPackageCreditBacked(booking) && booking.status !== "REFUNDED" && (
-                <PaidOnlineBadge />
-              )}
+              {booking.createdByAdmin && isBookingPackageCreditBacked(booking) && booking.status !== "REFUNDED" && <PaidOnlineBadge />}
             </div>
           </div>
         )}
@@ -764,11 +747,13 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
         </div>
         <div ref={timelineRef} className="ag-timeline" style={{ height: timelineHeight }}>
           <div className="ag-timeline__labels">
-            {gridMarks.filter(m => m.tier === "hour").map(m => (
-              <div key={`lbl-${m.min}`} className="ag-hour" style={{ top: `${m.pct}%` }}>
-                {pad2(m.hour)}:00
-              </div>
-            ))}
+            {gridMarks
+              .filter(m => m.tier === "hour" || m.tier === "half")
+              .map(m => (
+                <div key={`lbl-${m.min}`} className={`ag-hour ag-hour--${m.tier}`} style={{ top: `${m.pct}%` }}>
+                  {pad2(m.hour)}:{pad2(m.min % 60)}
+                </div>
+              ))}
           </div>
           <div className="ag-timeline__col">
             {gridMarks.map(m => (
@@ -898,8 +883,8 @@ export default function AdminAgendaPage() {
   // agendaPkgKey(bookingId, "arretrati"). The list is lazy-loaded on open via the GET. ──
   const [arretratiData, setArretratiData] = useState({}); // bookingId -> { loading, error, items }
   const [arretratoSettling, setArretratoSettling] = useState(null); // row key in-flight (double-click guard)
-  const [arretratoError, setArretratoError] = useState(null);       // row key whose settle failed
-  const [confirmArretrato, setConfirmArretrato] = useState(null);   // { card, a } awaiting confirm
+  const [arretratoError, setArretratoError] = useState(null); // row key whose settle failed
+  const [confirmArretrato, setConfirmArretrato] = useState(null); // { card, a } awaiting confirm
 
   const arretratoRowKey = a => `${a.bookingId}-${a.kind}-${a.refId ?? "x"}`;
 
@@ -920,26 +905,26 @@ export default function AdminAgendaPage() {
   // On success: re-fetch the dropdown; if the customer has NO more arretrati, drop the
   // badge on EVERY card of the same customer (matched by normalized phone). On error:
   // keep the row ("Riprova"), badge unchanged.
-  const settleArretrato = useCallback(async (card, a) => {
-    const rowKey = arretratoRowKey(a);
-    if (arretratoSettling) return; // a settle is already in flight — ignore (double-click guard)
-    setArretratoError(null);
-    setArretratoSettling(rowKey);
-    try {
-      await settleBookingLines(a.bookingId, buildArretratoSettlePayload(a));
-      const items = await loadArretrati(card.bookingId);
-      if (items && items.length === 0) {
-        setBookings(prev => prev.map(bk =>
-          digitsOnly(bk.customerPhone) === digitsOnly(card.customerPhone)
-            ? { ...bk, hasOutstanding: false }
-            : bk));
+  const settleArretrato = useCallback(
+    async (card, a) => {
+      const rowKey = arretratoRowKey(a);
+      if (arretratoSettling) return; // a settle is already in flight — ignore (double-click guard)
+      setArretratoError(null);
+      setArretratoSettling(rowKey);
+      try {
+        await settleBookingLines(a.bookingId, buildArretratoSettlePayload(a));
+        const items = await loadArretrati(card.bookingId);
+        if (items && items.length === 0) {
+          setBookings(prev => prev.map(bk => (digitsOnly(bk.customerPhone) === digitsOnly(card.customerPhone) ? { ...bk, hasOutstanding: false } : bk)));
+        }
+      } catch {
+        setArretratoError(rowKey); // network/settle error → keep the row, surface "Riprova"
+      } finally {
+        setArretratoSettling(null);
       }
-    } catch {
-      setArretratoError(rowKey); // network/settle error → keep the row, surface "Riprova"
-    } finally {
-      setArretratoSettling(null);
-    }
-  }, [arretratoSettling, loadArretrati]);
+    },
+    [arretratoSettling, loadArretrati],
+  );
 
   const [viewMode, setViewMode] = useState("day");
   const [weekRefreshKey, setWeekRefreshKey] = useState(0);
@@ -1017,9 +1002,9 @@ export default function AdminAgendaPage() {
   const closuresVisibleRange = useMemo(() => {
     const base = fromISODateLocal(dateISO);
     const stripStart = addDays(base, -3);
-    const stripEnd   = addDays(base, 3);
+    const stripEnd = addDays(base, 3);
     // Monday of the week containing base
-    const weekStart  = (() => {
+    const weekStart = (() => {
       const d = new Date(base);
       const day = d.getDay();
       const diff = day === 0 ? -6 : 1 - day;
@@ -1225,7 +1210,10 @@ export default function AdminAgendaPage() {
     // Installments due on the viewed day add to the estimate; their presence alone
     // makes revenue "known" even on a day with no priced appointments.
     return {
-      count, bookedMin, openMin, occ,
+      count,
+      bookedMin,
+      openMin,
+      occ,
       incassoStimato: incassoStimato + dueTotal,
       revenueKnown: revenueKnown || hasDue,
     };
@@ -1300,10 +1288,10 @@ export default function AdminAgendaPage() {
       return;
     }
     const items = buildBreakdownItems(b, priceMap);
-    if (b.paidOnline) return settleAndComplete(b);                              // 1
+    if (b.paidOnline) return settleAndComplete(b); // 1
     if (b.customTotalPrice != null) return setCompletionDrawer({ booking: b, items }); // 3 (bundle prima di "tutte pagate")
-    if (items.every(it => it.paid)) return settleAndComplete(b);                // 2
-    setCompletionDrawer({ booking: b, items });                                        // 4
+    if (items.every(it => it.paid)) return settleAndComplete(b); // 2
+    setCompletionDrawer({ booking: b, items }); // 4
   };
 
   const handleDrawerConfirm = async payload => {
@@ -1488,9 +1476,7 @@ export default function AdminAgendaPage() {
     setErr("");
     try {
       const res = await patchBookingReminder(b.bookingId, sent);
-      setBookings(prev =>
-        prev.map(bk => (bk.bookingId === b.bookingId ? { ...bk, reminderSentAt: res.reminderSentAt } : bk)),
-      );
+      setBookings(prev => prev.map(bk => (bk.bookingId === b.bookingId ? { ...bk, reminderSentAt: res.reminderSentAt } : bk)));
       setReminderPending(prev => {
         const next = new Set(prev);
         next.delete(b.bookingId);
@@ -1614,7 +1600,11 @@ export default function AdminAgendaPage() {
                     >
                       <span className="ag-daychip__dow">{dow}</span>
                       <span className="ag-daychip__dd">{d.getDate()}</span>
-                      {isClosed && <span className="ag-daychip__lock" aria-hidden="true">🔒</span>}
+                      {isClosed && (
+                        <span className="ag-daychip__lock" aria-hidden="true">
+                          🔒
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1727,10 +1717,7 @@ export default function AdminAgendaPage() {
                   </div>
                 </div>
                 <div className="d-flex gap-2">
-                  <Button
-                    className="ag-btn ag-btn--ghost"
-                    onClick={() => setClosuresDrawerOpen(true)}
-                  >
+                  <Button className="ag-btn ag-btn--ghost" onClick={() => setClosuresDrawerOpen(true)}>
                     🔒 Chiusure
                   </Button>
                   <Button
@@ -1765,7 +1752,11 @@ export default function AdminAgendaPage() {
                       >
                         <span className="ag-daychip__dow">{dow}</span>
                         <span className="ag-daychip__dd">{d.getDate()}</span>
-                        {isClosed && <span className="ag-daychip__lock" aria-hidden="true">🔒</span>}
+                        {isClosed && (
+                          <span className="ag-daychip__lock" aria-hidden="true">
+                            🔒
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -2038,7 +2029,10 @@ export default function AdminAgendaPage() {
                         if (willOpen) loadArretrati(b.bookingId); // lazy-load on open
                       };
                       const onArretratiKeyDown = e => {
-                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onArretratiToggle(e); }
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onArretratiToggle(e);
+                        }
                       };
                       return (
                         <div
@@ -2081,11 +2075,7 @@ export default function AdminAgendaPage() {
                                   // typography only. Same divider between everything.
                                   // linkedPackages[] is the source of truth; legacy singular
                                   // linkedPackage wraps into a one-element list for pre-5a bookings.
-                                  const itemPkgs = b.linkedPackages?.length
-                                    ? b.linkedPackages
-                                    : b.linkedPackage
-                                      ? [b.linkedPackage]
-                                      : [];
+                                  const itemPkgs = b.linkedPackages?.length ? b.linkedPackages : b.linkedPackage ? [b.linkedPackage] : [];
                                   const services = Array.isArray(b.services) && b.services.length > 0 ? b.services : [];
                                   // Phase 6e Bug 2: a custom service is a first-class entry in the
                                   // unified list. Previously the linkedPackages branch returned
@@ -2104,9 +2094,7 @@ export default function AdminAgendaPage() {
                                     // sometimes carry the package's own service as a "duplicate"
                                     // entry in booking.services).
                                     const pkgLabelsNorm = new Set(
-                                      itemPkgs
-                                        .map(pkg => (pkg.packageName || pkg.serviceTitle || pkg.serviceName || "").trim().toLowerCase())
-                                        .filter(Boolean),
+                                      itemPkgs.map(pkg => (pkg.packageName || pkg.serviceTitle || pkg.serviceName || "").trim().toLowerCase()).filter(Boolean),
                                     );
                                     const extras = services
                                       .map(s => {
@@ -2126,9 +2114,7 @@ export default function AdminAgendaPage() {
                                           // to booking-level fields for the first link only.
                                           const sessionNum = pkg.sessionNumber ?? (pkgIdx === 0 ? b.currentSession : null);
                                           const totalSess = pkg.totalSessions ?? (pkgIdx === 0 ? b.totalSessions : null);
-                                          const pkgItems = Array.isArray(pkg.items)
-                                            ? [...pkg.items].sort((x, y) => x.position - y.position)
-                                            : [];
+                                          const pkgItems = Array.isArray(pkg.items) ? [...pkg.items].sort((x, y) => x.position - y.position) : [];
                                           const hasMultipleItems = pkgItems.length >= 2;
                                           const expansionKey = agendaPkgKey(b.bookingId, pkg.packageAssignmentId);
                                           const isExpanded = expandedAgendaPkgs.has(expansionKey);
@@ -2147,78 +2133,88 @@ export default function AdminAgendaPage() {
                                           };
                                           return (
                                             <Fragment key={pkg.packageAssignmentId ?? `pkg-${pkgIdx}`}>
-                                            <div className="ag-svc-entries__row">
-                                              <span className="ag-svc-entries__pkg-icon" aria-hidden="true">📦</span>
-                                              <span className="ag-svc-entries__name">{pkgLabel}</span>
-                                              {sessionNum && totalSess && (
-                                                <span className="ag-pkg-session-badge">
-                                                  Seduta {sessionNum}/{totalSess}
+                                              <div className="ag-svc-entries__row">
+                                                <span className="ag-svc-entries__pkg-icon" aria-hidden="true">
+                                                  📦
                                                 </span>
-                                              )}
-                                              {/* Phase 6a fix: the badge marks THIS booking as the
+                                                <span className="ag-svc-entries__name">{pkgLabel}</span>
+                                                {sessionNum && totalSess && (
+                                                  <span className="ag-pkg-session-badge">
+                                                    Seduta {sessionNum}/{totalSess}
+                                                  </span>
+                                                )}
+                                                {/* Phase 6a fix: the badge marks THIS booking as the
                                                   last session, not the package's live state. */}
-                                              {sessionNum && totalSess && sessionNum === totalSess && (
-                                                <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
-                                                  ⚠ Ultima
-                                                </span>
-                                              )}
-                                              {/* V62 Fix 2: per-session paid pill, always shown.
+                                                {sessionNum && totalSess && sessionNum === totalSess && (
+                                                  <span className="ag-session-pill ag-session-pill--last" style={{ marginLeft: 4 }}>
+                                                    ⚠ Ultima
+                                                  </span>
+                                                )}
+                                                {/* V62 Fix 2: per-session paid pill, always shown.
                                                   pkg.paid already folds in paidUpfront on the
                                                   backend. INSTALLMENTS plans show a neutral
                                                   "Piano rate" pill instead (per-session price €0). */}
-                                              {pkg.paymentMode === "INSTALLMENTS" ? (
-                                                <InstallmentPlanPill
-                                                  summary={summaryByPackage.get(String(pkg.packageAssignmentId))}
-                                                  onClick={() => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName })}
+                                                {pkg.paymentMode === "INSTALLMENTS" ? (
+                                                  <InstallmentPlanPill
+                                                    summary={summaryByPackage.get(String(pkg.packageAssignmentId))}
+                                                    onClick={() => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName })}
+                                                  />
+                                                ) : (
+                                                  <span
+                                                    className={`ag-pill ${pkg.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
+                                                    title={
+                                                      pkg.paidUpfront ? "Pacchetto pagato in anticipo" : pkg.paid ? "Sessione pagata" : "Sessione da pagare"
+                                                    }
+                                                  >
+                                                    {pkg.paid ? "✓ Pagato" : "⏳ Da pagare"}
+                                                  </span>
+                                                )}
+                                                {hasMultipleItems && (
+                                                  <button
+                                                    type="button"
+                                                    className="pkgi-toggle"
+                                                    aria-expanded={isExpanded}
+                                                    onClick={onChevronClick}
+                                                    onKeyDown={onChevronKeyDown}
+                                                  >
+                                                    <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
+                                                    {pkgItems.length} trattamenti
+                                                  </button>
+                                                )}
+                                                {hasMultipleItems && isExpanded && (
+                                                  <ul className="pkgi-list">
+                                                    {pkgItems.map(it => (
+                                                      <li
+                                                        key={`${b.bookingId}-${pkg.packageAssignmentId ?? pkgIdx}-${it.position}`}
+                                                        className="pkgi-list__item"
+                                                      >
+                                                        {formatPackageItemLabel(it)}
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                )}
+                                              </div>
+                                              {pkg.paymentMode === "INSTALLMENTS" && (
+                                                <InstallmentDueAction
+                                                  dueRows={dueByPackage.get(String(pkg.packageAssignmentId))}
+                                                  settling={installmentSettling}
+                                                  onSettle={row =>
+                                                    requestSettleInstallment({
+                                                      assignmentId: pkg.packageAssignmentId,
+                                                      installmentId: row.installmentId,
+                                                      clientName: b.customerName,
+                                                      amount: row.amount,
+                                                    })
+                                                  }
+                                                  onPostpone={row =>
+                                                    setRateEditorFor({
+                                                      assignmentId: pkg.packageAssignmentId,
+                                                      packageName: pkg.packageName,
+                                                      editInstallmentId: row.installmentId,
+                                                    })
+                                                  }
                                                 />
-                                              ) : (
-                                                <span
-                                                  className={`ag-pill ${pkg.paid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
-                                                  title={pkg.paidUpfront ? "Pacchetto pagato in anticipo" : (pkg.paid ? "Sessione pagata" : "Sessione da pagare")}
-                                                >
-                                                  {pkg.paid ? "✓ Pagato" : "⏳ Da pagare"}
-                                                </span>
                                               )}
-                                              {hasMultipleItems && (
-                                                <button
-                                                  type="button"
-                                                  className="pkgi-toggle"
-                                                  aria-expanded={isExpanded}
-                                                  onClick={onChevronClick}
-                                                  onKeyDown={onChevronKeyDown}
-                                                >
-                                                  <span className={`pkgi-toggle__chevron${isExpanded ? " is-expanded" : ""}`}>▸</span>
-                                                  {pkgItems.length} trattamenti
-                                                </button>
-                                              )}
-                                              {hasMultipleItems && isExpanded && (
-                                                <ul className="pkgi-list">
-                                                  {pkgItems.map(it => (
-                                                    <li
-                                                      key={`${b.bookingId}-${pkg.packageAssignmentId ?? pkgIdx}-${it.position}`}
-                                                      className="pkgi-list__item"
-                                                    >
-                                                      {formatPackageItemLabel(it)}
-                                                    </li>
-                                                  ))}
-                                                </ul>
-                                              )}
-                                            </div>
-                                            {pkg.paymentMode === "INSTALLMENTS" && (
-                                              <InstallmentDueAction
-                                                dueRows={dueByPackage.get(String(pkg.packageAssignmentId))}
-                                                settling={installmentSettling}
-                                                onSettle={row =>
-                                                  requestSettleInstallment({
-                                                    assignmentId: pkg.packageAssignmentId,
-                                                    installmentId: row.installmentId,
-                                                    clientName: b.customerName,
-                                                    amount: row.amount,
-                                                  })
-                                                }
-                                                onPostpone={row => setRateEditorFor({ assignmentId: pkg.packageAssignmentId, packageName: pkg.packageName, editInstallmentId: row.installmentId })}
-                                              />
-                                            )}
                                             </Fragment>
                                           );
                                         })}
@@ -2250,7 +2246,9 @@ export default function AdminAgendaPage() {
                                           };
                                           return (
                                             <div className="ag-svc-entries__row" key={promoKeyId}>
-                                              <span className="ag-svc-entries__promo-icon" aria-hidden="true">🏷️</span>
+                                              <span className="ag-svc-entries__promo-icon" aria-hidden="true">
+                                                🏷️
+                                              </span>
                                               <span className="ag-svc-entries__name">{promoTitle}</span>
                                               <span
                                                 className={`ag-pill ${promoPaid ? "ag-pill--paid" : "ag-pill--unpaid"}`}
@@ -2312,7 +2310,9 @@ export default function AdminAgendaPage() {
                                           const salePaid = sale.paid === true;
                                           return (
                                             <div className="ag-svc-entries__row" key={`sale-${sale.saleId ?? saleIdx}`}>
-                                              <span className="ag-svc-entries__promo-icon" aria-hidden="true">🛍️</span>
+                                              <span className="ag-svc-entries__promo-icon" aria-hidden="true">
+                                                🛍️
+                                              </span>
                                               <span className="ag-svc-entries__name">
                                                 {sale.productName || "Prodotto"}
                                                 {saleQty > 1 ? ` ×${saleQty}` : ""}
@@ -2327,8 +2327,7 @@ export default function AdminAgendaPage() {
                                     );
                                   }
                                   if (b.serviceTitle) {
-                                    const principalPaid =
-                                      b.paidOnline || b.paidInStore || isBookingPackageCreditBacked(b);
+                                    const principalPaid = b.paidOnline || b.paidInStore || isBookingPackageCreditBacked(b);
                                     return (
                                       <div className="ag-svc-entries">
                                         <div className="ag-svc-entries__row">
@@ -2359,9 +2358,7 @@ export default function AdminAgendaPage() {
                                 {/* Problem 6: dedupe package notes — same assignment can be
                                     linked twice through legacy linkedPackage + linkedPackages[]. */}
                                 {(() => {
-                                  const allPkgs = b.linkedPackages?.length
-                                    ? b.linkedPackages
-                                    : b.linkedPackage ? [b.linkedPackage] : [];
+                                  const allPkgs = b.linkedPackages?.length ? b.linkedPackages : b.linkedPackage ? [b.linkedPackage] : [];
                                   const seen = new Set();
                                   const noteRows = [];
                                   allPkgs.forEach(p => {
@@ -2418,24 +2415,16 @@ export default function AdminAgendaPage() {
 
                             <div className="ag-item__timecol">
                               <div className="ag-item__pills">
-                                {!b.createdByAdmin && (
-                                  b.paidOnline
-                                    ? (b.status !== "REFUNDED" && <PaidOnlineBadge />)
-                                    : <OnlineBadge />
-                                )}
+                                {!b.createdByAdmin && (b.paidOnline ? b.status !== "REFUNDED" && <PaidOnlineBadge /> : <OnlineBadge />)}
                                 {/* Part C: credit-backed online-package sessions 2…N are
                                     admin-created but prepaid online — mark them too. Purely
                                     additive: non-package bookings (no packageCreditId) unaffected. */}
-                                {b.createdByAdmin && isBookingPackageCreditBacked(b) && b.status !== "REFUNDED" && (
-                                  <PaidOnlineBadge />
-                                )}
+                                {b.createdByAdmin && isBookingPackageCreditBacked(b) && b.status !== "REFUNDED" && <PaidOnlineBadge />}
                                 <StatusPill status={b.status} />
                                 {/* V62 Fix 2: top-right "Pagato" pill removed in favour of
                                     always-visible per-line pills below. Refund keeps its
                                     own dedicated state because it's not a line concept. */}
-                                {b.paidOnline && b.status === "REFUNDED" && (
-                                  <span className="ag-pill ag-pill--cancelled">✓ Rimborsato</span>
-                                )}
+                                {b.paidOnline && b.status === "REFUNDED" && <span className="ag-pill ag-pill--cancelled">✓ Rimborsato</span>}
                               </div>
                               <div className="ag-item__timeMain">
                                 {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
@@ -2556,10 +2545,7 @@ export default function AdminAgendaPage() {
                                     Invia promemoria
                                   </button>
                                   {laser && (
-                                    <span
-                                      className="ag-reminder-tag"
-                                      title="Verrà usato il messaggio con le istruzioni per il laser"
-                                    >
+                                    <span className="ag-reminder-tag" title="Verrà usato il messaggio con le istruzioni per il laser">
                                       {"✨ versione laser"}
                                     </span>
                                   )}
@@ -2604,11 +2590,7 @@ export default function AdminAgendaPage() {
                             )}
                             {b.status === "CONFIRMED" && (
                               <>
-                                <Button
-                                  className="ag-btn ag-btn--ok"
-                                  size="sm"
-                                  onClick={() => handleCompleteClick(b)}
-                                >
+                                <Button className="ag-btn ag-btn--ok" size="sm" onClick={() => handleCompleteClick(b)}>
                                   Completa
                                 </Button>
                                 <Button
@@ -2621,10 +2603,7 @@ export default function AdminAgendaPage() {
                               </>
                             )}
                             {b.status === "COMPLETED" && appointmentIsToday(b.startTime) && (
-                              <Button
-                                className="ag-btn ag-btn-undo"
-                                onClick={() => undoCompletion(b)}
-                              >
+                              <Button className="ag-btn ag-btn-undo" onClick={() => undoCompletion(b)}>
                                 ↩ Annulla completamento
                               </Button>
                             )}
@@ -2647,7 +2626,14 @@ export default function AdminAgendaPage() {
                               absolute timeline). Lazy-loaded on open; rows reuse settle from Fase 1. */}
                           {arretratiOpen && (
                             <div
-                              style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(140,109,63,0.18)", display: "flex", flexDirection: "column", gap: 6 }}
+                              style={{
+                                marginTop: 8,
+                                paddingTop: 8,
+                                borderTop: "1px solid rgba(140,109,63,0.18)",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                              }}
                             >
                               {arretratiState?.loading && <span className="ag-muted">Caricamento arretrati…</span>}
                               {arretratiState?.error && <span className="ag-pill ag-pill--unpaid">{arretratiState.error}</span>}
@@ -2666,9 +2652,7 @@ export default function AdminAgendaPage() {
                                         {new Date(a.occurredAt).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
                                       </div>
                                     </div>
-                                    <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
-                                      {formatEuro(a.price)}
-                                    </span>
+                                    <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{formatEuro(a.price)}</span>
                                     <button
                                       type="button"
                                       className="ag-pill ag-pill--toggle"
@@ -2851,7 +2835,9 @@ export default function AdminAgendaPage() {
             )}
             {/* Package-backed, NOT completed: deleting restores the session to the credit (no refund). */}
             {confirmModal.type === "delete" && confirmModal.booking?.packageCreditId && confirmModal.booking?.status !== "COMPLETED" && (
-              <div className="ag-confirm-warning">ℹ️ La seduta tornerà disponibile nel pacchetto e potrà essere riprenotata. Nessun rimborso: il pacchetto è già pagato.</div>
+              <div className="ag-confirm-warning">
+                ℹ️ La seduta tornerà disponibile nel pacchetto e potrà essere riprenotata. Nessun rimborso: il pacchetto è già pagato.
+              </div>
             )}
             {confirmModal.type === "delete" &&
               confirmModal.booking?.status === "COMPLETED" &&
@@ -3003,7 +2989,9 @@ export default function AdminAgendaPage() {
           dueList={dueList}
           settling={installmentSettling}
           onSettleInstallment={requestSettleInstallment}
-          onPostponeInstallment={row => setRateEditorFor({ assignmentId: row.packageAssignmentId, packageName: row.packageName, editInstallmentId: row.installmentId })}
+          onPostponeInstallment={row =>
+            setRateEditorFor({ assignmentId: row.packageAssignmentId, packageName: row.packageName, editInstallmentId: row.installmentId })
+          }
           onClose={() => setShowEstimatoModal(false)}
         />
       )}

@@ -358,7 +358,6 @@ body.modal-open {
   position: relative;
   display: grid;
   grid-template-columns: 56px 1fr;
-  gap: 10px;
   max-width: 100%;
   overflow: visible;
 }
@@ -367,6 +366,14 @@ body.modal-open {
   transform: translateY(-50%);
   font-size: 0.72rem;
   color: rgba(35, 26, 20, 0.45);
+}
+.ag-hour--hour {
+  font-weight: 700;
+}
+.ag-hour--half {
+  font-size: 0.58rem;
+  font-weight: 400;
+  opacity: 0.5;
 }
 .ag-timeline__col {
   position: relative;
@@ -382,9 +389,15 @@ body.modal-open {
   height: 1px;
   background: rgba(111, 74, 47, 0.1);
 }
-.ag-gridline--hour    { background: rgba(111, 74, 47, 0.22); }
-.ag-gridline--half    { background: rgba(111, 74, 47, 0.11); }
-.ag-gridline--quarter { background: rgba(111, 74, 47, 0.05); }
+.ag-gridline--hour {
+  background: rgba(111, 74, 47, 0.22);
+}
+.ag-gridline--half {
+  background: rgba(111, 74, 47, 0.11);
+}
+.ag-gridline--quarter {
+  background: rgba(111, 74, 47, 0.05);
+}
 .ag-tl-block {
   position: absolute;
   left: 10px;
@@ -4016,7 +4029,9 @@ button.ag-pill:hover,
   vertical-align: middle;
   flex: 0 0 auto;
 }
-.ag-verified svg { display: block; }
+.ag-verified svg {
+  display: block;
+}
 
 .ag-badge-online {
   display: inline-flex;
