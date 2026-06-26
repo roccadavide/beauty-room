@@ -1059,6 +1059,143 @@
   padding: 2px 0;
 }
 
+/* ── "Prossimo disponibile" filtri (B-filters) ───────────────────────────── */
+.nad-next-slot-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(184, 151, 106, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.6);
+}
+
+.nad-next-slot-filters__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.nad-dow-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nad-daypart-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nad-window-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+/* Keep the two TimePickers from stretching full-width on desktop; let them wrap
+   to two rows on narrow viewports (Michela on iPad/M3) without overflowing. */
+.nad-window-row > * {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+/* ── V3: "tra N settimane" start-point selector ─────────────────────────── */
+.nad-week-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nad-week-toggle {
+  align-self: flex-start;
+  background: #f5ede0;
+  border: 1px solid #e0d5c8;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #5a4030;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.nad-week-toggle.is-active {
+  background: var(--card-gold, #b8976a);
+  border-color: var(--card-gold, #b8976a);
+  color: #fff;
+}
+
+.nad-week-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(184, 151, 106, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.6);
+}
+
+.nad-week-date {
+  font-size: 0.8rem;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.nad-week-date--target {
+  font-weight: 600;
+}
+
+.nad-week-stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nad-week-step {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--card-gold, #b8976a);
+  background: transparent;
+  color: var(--card-gold, #b8976a);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.nad-week-step:hover:not(:disabled) {
+  background: var(--card-gold, #b8976a);
+  color: #fff;
+}
+
+.nad-week-step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.nad-week-count {
+  min-width: 96px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #5a4030;
+}
+
+.nad-week-count strong {
+  font-size: 1.05rem;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
 /* ── "Prossimo disponibile" button (B1) ─────────────────────────────────── */
 .nad-next-slot-row {
   display: flex;
@@ -1070,7 +1207,9 @@
 .nad-next-slot-btn {
   /* Phase 6c: enlarged tap target — Michela uses this with a client in front
      of her. Was 0.75rem/4×12; now ~38-40px tall, still gold outline → fill on
-     hover, still inside the Editorial Beauty styling. */
+     hover, still inside the Editorial Beauty styling. V3: full-width inside the
+     filter block (it now lives there, not in .nad-next-slot-row). */
+  width: 100%;
   font-size: 0.92rem;
   font-weight: 600;
   padding: 9px 22px;
@@ -1079,7 +1218,9 @@
   background: transparent;
   color: var(--card-gold, #b8976a);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
   line-height: 1.4;
 }
 
@@ -1107,6 +1248,35 @@
 .nad-next-slot-hint--muted {
   color: #b4a090;
   font-style: italic;
+}
+
+/* V2: heads-up that the found slot falls outside the day's working hours.
+   Deep amber ochre — warm/in-palette, distinct from the red --error (this is a
+   warning, not an error). */
+.nad-next-slot-hint--outside {
+  color: #b9740c;
+  font-weight: 600;
+}
+
+/* ── V3: next-available result — readable day + a slightly more prominent time ── */
+.nad-next-slot-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.nad-next-slot-result__day {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.nad-next-slot-result__time {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--card-gold-deep, #8c6d3f);
 }
 
 /* ── Phase 6d: inline custom-service form ──────────────────────────────────

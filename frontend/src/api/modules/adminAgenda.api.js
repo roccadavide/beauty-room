@@ -129,9 +129,19 @@ export const refundBooking = async id => {
   }
 };
 
-export const getNextAvailableSlot = async (durationMin, afterISO) => {
+export const getNextAvailableSlot = async (durationMin, afterISO, filters = null) => {
   const params = { durationMin };
   if (afterISO) params.after = afterISO;
+
+  if (filters) {
+    const { daysOfWeek, windowStart, windowEnd } = filters;
+    if (Array.isArray(daysOfWeek) && daysOfWeek.length > 0) {
+      params.daysOfWeek = daysOfWeek.join(",");
+    }
+    if (windowStart) params.windowStart = windowStart;
+    if (windowEnd) params.windowEnd = windowEnd;
+  }
+
   try {
     const { data } = await http.get(AGENDA_ENDPOINTS.NEXT_AVAILABLE, { params });
     return data;

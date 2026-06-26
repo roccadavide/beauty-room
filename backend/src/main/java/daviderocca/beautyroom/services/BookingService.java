@@ -1351,12 +1351,24 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public NextAvailableSlotDTO findNextAvailableSlot(int durationMin, LocalDateTime after) {
+        return findNextAvailableSlot(durationMin, after, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public NextAvailableSlotDTO findNextAvailableSlot(
+            int durationMin,
+            LocalDateTime after,
+            Set<DayOfWeek> allowedDays,
+            LocalTime windowStart,
+            LocalTime windowEnd
+    ) {
         LocalDate startDate = after.toLocalDate();
         LocalTime afterTime = after.toLocalTime();
 
         for (int i = 0; i < maxAdvanceDays; i++) {
             LocalDate day = startDate.plusDays(i);
             DayOfWeek dow = day.getDayOfWeek();
+            if (allowedDays != null && !allowedDays.isEmpty() && !allowedDays.contains(dow)) continue;
 
             WorkingHours wh = workingHoursRepository.findByDayOfWeek(dow).orElse(null);
             if (wh == null || wh.isClosed()) continue;
@@ -1380,12 +1392,20 @@ public class BookingService {
                     .map(c -> new LocalTime[]{c.getStartTime(), c.getEndTime()})
                     .toList();
 
-            for (LocalTime[] range : openRanges) {
+            for (int idx = 0; idx < openRanges.size(); idx++) {
+                LocalTime[] range = openRanges.get(idx);
                 LocalTime rangeStart = range[0];
                 LocalTime rangeEnd   = range[1];
 
+                boolean isFirstRange = (idx == 0);
+                boolean isLastRange  = (idx == openRanges.size() - 1);
+                if (isFirstRange && windowStart != null && windowStart.isBefore(rangeStart)) rangeStart = windowStart;
+                if (isLastRange  && windowEnd   != null && windowEnd.isAfter(rangeEnd))      rangeEnd   = windowEnd;
+
                 if (i == 0 && rangeEnd.isBefore(afterTime)) continue;
                 if (i == 0 && rangeStart.isBefore(afterTime)) rangeStart = afterTime;
+                if (windowStart != null && rangeStart.isBefore(windowStart)) rangeStart = windowStart;
+                if (windowEnd != null && rangeEnd.isAfter(windowEnd)) rangeEnd = windowEnd;
                 if (!rangeStart.isBefore(rangeEnd)) continue;
 
                 List<LocalTime[]> booked = new ArrayList<>();
