@@ -2500,6 +2500,15 @@ public class BookingService {
             }
         }
 
+        // V81 — revenue report (cash-basis): stamp the in-store collection date ONCE,
+        // when lines are first settled, so the report can date this booking's collected
+        // euros. Additive only — never cleared, never overwritten; pre-V81 rows fall back
+        // to completedAt. Online bookings keep paidAt as their collection date. Does not
+        // alter any existing settle branch, flag, or return value.
+        if (found.getSettledAt() == null) {
+            found.setSettledAt(LocalDateTime.now());
+        }
+
         bookingRepository.save(found);
 
         // alsoComplete — idempotent transition to COMPLETED.

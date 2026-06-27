@@ -90,6 +90,14 @@ public class Booking {
     @Column(name="completed_at")
     private LocalDateTime completedAt;
 
+    // V81 — revenue report (cash-basis) in-store collection date. Stamped ONCE by
+    // settleBookingLines when lines are first marked paid (additive, never cleared or
+    // overwritten). The report dates in-store collected euros here (falling back to
+    // completedAt for pre-V81 rows); online bookings use paidAt instead. NULL = not
+    // yet settled in store.
+    @Column(name="settled_at")
+    private LocalDateTime settledAt;
+
     @Column(name="review_request_sent_at")
     private LocalDateTime reviewRequestSentAt;
 
