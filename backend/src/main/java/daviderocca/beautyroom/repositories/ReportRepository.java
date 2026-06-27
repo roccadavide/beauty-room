@@ -107,6 +107,19 @@ public class ReportRepository {
           + "         ELSE 0 END "
           + ") )";
 
+    /**
+     * Display service name for an upcoming booking: the custom line name when custom,
+     * else the principal service title, else the first multi-service line title (MIN keeps
+     * it single-valued for multi-line bookings), else a generic label. H2/Postgres-safe.
+     */
+    private static final String PIPE_SVC =
+            "CASE WHEN b.is_custom_service = true THEN COALESCE(b.custom_service_name, 'Servizio personalizzato') "
+          + "ELSE COALESCE( "
+          + "  (SELECT s.title FROM services s WHERE s.service_id = b.service_id), "
+          + "  (SELECT MIN(s.title) FROM booking_services bs LEFT JOIN services s ON s.service_id = bs.service_id "
+          + "     WHERE bs.booking_id = b.booking_id), "
+          + "  'Appuntamento') END";
+
     // ---- Row carriers (clean Java types; JDBC quirks normalised in this layer) -----
 
     public record RevenueRow(LocalDateTime collectedAt, BigDecimal amount, boolean online,
@@ -120,7 +133,13 @@ public class ReportRepository {
 
     public record ClientSeedRow(String clientId, String clientPhone, String clientName, LocalDateTime firstAt) {}
 
-    public record PipelineStat(BigDecimal total, long count) {}
+    /** One future, uncollected booking in the pipeline (valued at its expected amount). */
+    public record PipelineRow(LocalDateTime startTime, BigDecimal amount,
+                              String clientName, String serviceName) {}
+
+    /** One unpaid line owed by a client (identity + amount + the booking's date). */
+    public record ArretratoRow(String clientId, String clientName, String clientPhone,
+                               BigDecimal amount, LocalDateTime occurredAt) {}
 
     /** Online-package rows already valued, plus the count that could not be valued. */
     public record OnlinePackages(List<RevenueRow> rows, long flaggedSkipped) {}
@@ -367,52 +386,71 @@ public class ReportRepository {
     // PREVISTO (pipeline + arretrati) and scalar counts
     // ===============================================================================
 
-    /** Future CONFIRMED, uncollected, non-prepaid bookings valued at their expected amount. */
-    public PipelineStat pipeline(LocalDateTime now) {
+    /**
+     * Future CONFIRMED, uncollected, non-prepaid bookings, one raw row each (start time,
+     * expected amount, client, display service name). The service buckets these by week,
+     * picks the soonest few and totals them — same raw-rows-in-Java approach as the
+     * incassato legs.
+     */
+    public List<PipelineRow> pipelineRows(LocalDateTime now) {
         String sql =
-                "SELECT COALESCE(SUM(amt), 0) AS total, COUNT(*) AS cnt FROM ( "
-              + "  SELECT " + PIPE_AMT + " AS amt FROM bookings b "
-              + "  WHERE b.booking_status = 'CONFIRMED' AND b.start_time >= :now AND b.paid_at IS NULL "
-              + "    AND " + EXCL
-              + "    AND " + PIPE_AMT + " > 0 "
-              + ") t";
-        Object[] r = (Object[]) em.createNativeQuery(sql).setParameter("now", now).getSingleResult();
-        return new PipelineStat(big(r[0]), lng(r[1]));
+                "SELECT b.start_time, " + PIPE_AMT + " AS amt, b.customer_name, " + PIPE_SVC + " AS svc "
+              + "FROM bookings b "
+              + "WHERE b.booking_status = 'CONFIRMED' AND b.start_time >= :now AND b.paid_at IS NULL "
+              + "  AND " + EXCL
+              + "  AND " + PIPE_AMT + " > 0";
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery(sql).setParameter("now", now).getResultList();
+        List<PipelineRow> out = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            out.add(new PipelineRow(ldt(r[0]), big(r[1]), str(r[2]), str(r[3])));
+        }
+        return out;
     }
 
     /**
-     * Total outstanding owed (arretrati) across ALL clients — the same 7-branch unpaid
-     * union as {@code BookingRepository.findArretratiForCustomer}, summed (per-customer
-     * phone predicates and the ::text/::uuid label casts dropped; only the price column
-     * survives, so it runs on H2 too).
+     * Outstanding owed (arretrati) across ALL clients as raw rows — the same 7-branch
+     * unpaid union as {@code BookingRepository.findArretratiForCustomer} (per-customer
+     * phone predicates and the ::text/::uuid label casts dropped, so it runs on H2 too),
+     * but each branch also carries the booking's client identity and start time. The
+     * service sums every row to {@code arretratiTotal} and groups them per debtor (oldest
+     * start time = "since"); rows with a non-positive price are dropped.
      */
-    public BigDecimal arretratiTotal() {
+    public List<ArretratoRow> arretratiRows() {
         String sql =
-                "SELECT COALESCE(SUM(price), 0) FROM ( "
-              + "  SELECT COALESCE(bs.price_override, so.price, s.price) AS price "
+                "SELECT price, customer_id, customer_name, customer_phone, occurred_at FROM ( "
+              + "  SELECT COALESCE(bs.price_override, so.price, s.price) AS price, "
+              + "         b.customer_id, b.customer_name, b.customer_phone, b.start_time AS occurred_at "
               + "  FROM booking_services bs JOIN bookings b ON b.booking_id = bs.booking_id "
               + "  LEFT JOIN services s ON s.service_id = bs.service_id "
               + "  LEFT JOIN service_options so ON so.option_id = bs.option_id "
               + "  WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.custom_total_price IS NULL AND bs.paid = false "
               + "  UNION ALL "
-              + "  SELECT b.custom_service_price FROM bookings b "
+              + "  SELECT b.custom_service_price AS price, "
+              + "         b.customer_id, b.customer_name, b.customer_phone, b.start_time AS occurred_at "
+              + "  FROM bookings b "
               + "  WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL AND b.custom_total_price IS NULL "
               + "    AND b.is_custom_service = true AND b.custom_service_paid = false "
               + "  UNION ALL "
-              + "  SELECT CASE WHEN cpa.total_sessions > 0 THEN cpa.price_paid / cpa.total_sessions ELSE cpa.price_paid END "
+              + "  SELECT CASE WHEN cpa.total_sessions > 0 THEN cpa.price_paid / cpa.total_sessions ELSE cpa.price_paid END AS price, "
+              + "         b.customer_id, b.customer_name, b.customer_phone, b.start_time AS occurred_at "
               + "  FROM booking_package_link bpl JOIN bookings b ON b.booking_id = bpl.booking_id "
               + "  JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id "
               + "  WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL AND b.custom_total_price IS NULL "
               + "    AND bpl.paid = false AND cpa.paid_upfront = false "
               + "  UNION ALL "
-              + "  SELECT COALESCE(so.price, s.price) FROM bookings b "
+              + "  SELECT COALESCE(so.price, s.price) AS price, "
+              + "         b.customer_id, b.customer_name, b.customer_phone, b.start_time AS occurred_at "
+              + "  FROM bookings b "
               + "  LEFT JOIN services s ON s.service_id = b.service_id "
               + "  LEFT JOIN service_options so ON so.option_id = b.service_option_id "
               + "  WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL AND b.custom_total_price IS NULL "
               + "    AND b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false "
               + "    AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id) "
               + "  UNION ALL "
-              + "  SELECT b.custom_total_price FROM bookings b "
+              + "  SELECT b.custom_total_price AS price, "
+              + "         b.customer_id, b.customer_name, b.customer_phone, b.start_time AS occurred_at "
+              + "  FROM bookings b "
               + "  WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL AND b.custom_total_price IS NOT NULL "
               + "    AND ( EXISTS (SELECT 1 FROM booking_services bs WHERE bs.booking_id = b.booking_id AND bs.paid = false) "
               + "       OR EXISTS (SELECT 1 FROM booking_package_link bpl JOIN client_package_assignments cpa ON cpa.id = bpl.client_package_assignment_id "
@@ -421,15 +459,25 @@ public class ReportRepository {
               + "       OR (b.service_id IS NOT NULL AND b.is_custom_service = false AND b.paid_in_store = false "
               + "             AND NOT EXISTS (SELECT 1 FROM booking_services bs2 WHERE bs2.booking_id = b.booking_id)) ) "
               + "  UNION ALL "
-              + "  SELECT sl.unit_price * sl.quantity FROM booking_sales sl JOIN bookings b ON b.booking_id = sl.booking_id "
+              + "  SELECT sl.unit_price * sl.quantity AS price, "
+              + "         b.customer_id, b.customer_name, b.customer_phone, b.start_time AS occurred_at "
+              + "  FROM booking_sales sl JOIN bookings b ON b.booking_id = sl.booking_id "
               + "  WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL "
               + "    AND sl.promotion_link_id IS NULL AND sl.paid = false "
               + "  UNION ALL "
-              + "  SELECT bpl.total_discounted_snapshot FROM booking_promotion_link bpl JOIN bookings b ON b.booking_id = bpl.booking_id "
+              + "  SELECT bpl.total_discounted_snapshot AS price, "
+              + "         b.customer_id, b.customer_name, b.customer_phone, b.start_time AS occurred_at "
+              + "  FROM booking_promotion_link bpl JOIN bookings b ON b.booking_id = bpl.booking_id "
               + "  WHERE b.booking_status = 'COMPLETED' AND b.paid_at IS NULL AND b.package_credit_id IS NULL "
               + "    AND bpl.paid = false AND bpl.promotion_id IS NOT NULL "
-              + ") t";
-        return big(em.createNativeQuery(sql).getSingleResult());
+              + ") t WHERE price IS NOT NULL AND price > 0";
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery(sql).getResultList();
+        List<ArretratoRow> out = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            out.add(new ArretratoRow(str(r[1]), str(r[2]), str(r[3]), big(r[0]), ldt(r[4])));
+        }
+        return out;
     }
 
     /** (clientId, phone, name, startTime) for every non-pending booking — newClients seed. */

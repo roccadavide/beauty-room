@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getReport } from "../../api/modules/report.api";
 import DateTimeField from "../../components/common/DateTimeField";
 import SEO from "../../components/common/SEO";
+import { buildWhatsAppUrl } from "../../utils/reminders";
 
 /* ------------------------------------------------------------------ *
  * Static config
@@ -46,6 +47,7 @@ const num = v => Number(v ?? 0);
 const eurFmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const intFmt = new Intl.NumberFormat("it-IT");
 const dateFmt = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+const dayMonthFmt = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short" });
 
 const eur = v => eurFmt.format(num(v));
 const int = v => intFmt.format(num(v));
@@ -117,6 +119,15 @@ function fmtRange(fromISO, toISO) {
 
 function monthLabel(m) {
   return `${MONTHS_SHORT[m.month - 1]} ’${String(m.year).slice(-2)}`;
+}
+
+/** Italian "day month" (e.g. "29 giu") from a yyyy-mm-dd string. */
+const dayMonth = iso => (iso ? dayMonthFmt.format(parseISO(iso)) : "—");
+
+/** Pre-filled WhatsApp dunning message in the owner's voice. */
+function waMessage(a) {
+  const name = a.clientName ? ` ${String(a.clientName).split(" ")[0]}` : "";
+  return `Ciao${name}! Ti scrivo da Beauty Room riguardo a un saldo in sospeso di ${eur(a.amount)}. Quando ti è comodo possiamo sistemarlo. Grazie!`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -209,6 +220,7 @@ function ReportPage() {
   const [channel, setChannel] = useState("all");
   const [types, setTypes] = useState(ALL_TYPES);
   const [activeMonthIdx, setActiveMonthIdx] = useState(null);
+  const [tlActive, setTlActive] = useState(null);
 
   const fetchData = useCallback(async (f, t, c) => {
     setLoading(true);
@@ -374,6 +386,20 @@ function ReportPage() {
 
   const hasAnyIncasso = num(incassato?.total) > 0;
   const flagged = num(data?.flaggedSkipped);
+
+  /* ---- previsto detail view-model ---- */
+  const prevByType = previsto?.byType;
+  const prevByTypeTotal = useMemo(() => TYPE_KEYS.reduce((s, k) => s + num(prevByType?.[k]), 0), [prevByType]);
+  const timeline = useMemo(() => previsto?.timeline ?? [], [previsto]);
+  const upcoming = previsto?.upcoming ?? [];
+  const arretrati = previsto?.arretrati ?? [];
+  const tlMax = useMemo(() => timeline.reduce((mx, w) => Math.max(mx, num(w.amount)), 0), [timeline]);
+  const tlActiveIdx = useMemo(() => {
+    if (tlActive != null && tlActive < timeline.length) return tlActive;
+    return timeline.findIndex(w => num(w.amount) > 0);
+  }, [tlActive, timeline]);
+  const shownDue = arretrati.reduce((s, a) => s + num(a.amount), 0);
+  const dueCapped = arretrati.length >= 15 && num(previsto?.arretratiTotal) - shownDue > 0.005;
 
   return (
     <div className="rp-page">
@@ -580,16 +606,140 @@ function ReportPage() {
                 <span className="rp-previsto-eyebrow">Previsto · non incassato</span>
                 <p className="rp-previsto-desc">Valore prenotato o dovuto, non ancora entrato in cassa.</p>
               </div>
-              <div className="rp-previsto-tiles">
-                <div className="rp-ptile">
-                  <span className="rp-ptile-cap">In arrivo</span>
-                  <span className="rp-ptile-val">{eur(previsto?.pipelineTotal)}</span>
-                  <span className="rp-ptile-sub">{int(previsto?.upcomingCount)} appuntamenti futuri</span>
+
+              <div className="rp-previsto-grid">
+                {/* ---- In arrivo ---- */}
+                <div className="rp-prev-col">
+                  <div className="rp-prev-headline">
+                    <span className="rp-prev-cap">In arrivo</span>
+                    <span className="rp-prev-val">{eur(previsto?.pipelineTotal)}</span>
+                    <span className="rp-prev-sub">{int(previsto?.upcomingCount)} appuntamenti futuri</span>
+                  </div>
+
+                  {prevByTypeTotal > 0 && (
+                    <div className="rp-prev-bytype">
+                      {TYPES.map(t => {
+                        const v = num(prevByType?.[t.key]);
+                        const pct = prevByTypeTotal > 0 ? (v / prevByTypeTotal) * 100 : 0;
+                        return (
+                          <div className="rp-prev-chip" key={t.key}>
+                            <span className="rp-prev-chip-head">
+                              <span className="rp-dot" style={{ background: t.color }} />
+                              <span className="rp-prev-chip-name">{t.label}</span>
+                              <span className="rp-prev-chip-val">{eur(v)}</span>
+                            </span>
+                            <span className="rp-prev-chip-track">
+                              <span className="rp-prev-chip-fill" style={{ width: `${pct}%`, background: t.color }} />
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="rp-prev-tl">
+                    <div className="rp-prev-tl-head">
+                      <span className="rp-prev-mini-cap">Prossime 8 settimane</span>
+                      {tlActiveIdx >= 0 && timeline[tlActiveIdx] && (
+                        <span className="rp-prev-tl-readout">
+                          {dayMonth(timeline[tlActiveIdx].weekStart)} · {eur(timeline[tlActiveIdx].amount)} · {int(timeline[tlActiveIdx].count)} app.
+                        </span>
+                      )}
+                    </div>
+                    {timeline.length ? (
+                      <div className="rp-prev-tl-bars">
+                        {timeline.map((w, idx) => {
+                          const h = tlMax > 0 ? (num(w.amount) / tlMax) * 100 : 0;
+                          const empty = num(w.amount) <= 0;
+                          return (
+                            <div
+                              key={w.weekStart}
+                              className={`rp-prev-tl-col${idx === tlActiveIdx ? " is-active" : ""}${empty ? " is-empty" : ""}`}
+                              onMouseEnter={() => setTlActive(idx)}
+                              onFocus={() => setTlActive(idx)}
+                              onClick={() => setTlActive(idx)}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${dayMonth(w.weekStart)}: ${eur(w.amount)}, ${int(w.count)} appuntamenti`}
+                              title={`${dayMonth(w.weekStart)} · ${eur(w.amount)} · ${int(w.count)} app.`}
+                            >
+                              <span className="rp-prev-tl-track">
+                                <span className="rp-prev-tl-fill" style={{ height: `${Math.max(h, empty ? 0 : 4)}%` }} />
+                              </span>
+                              <span className="rp-prev-tl-label">{dayMonth(w.weekStart)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rp-prev-empty">Nessun appuntamento in arrivo.</div>
+                    )}
+                  </div>
+
+                  <div className="rp-prev-upcoming">
+                    <span className="rp-prev-mini-cap">Prossimi appuntamenti</span>
+                    {upcoming.length ? (
+                      <ul className="rp-prev-up-list">
+                        {upcoming.map((u, idx) => (
+                          <li className="rp-prev-up-row" key={`${u.date}-${idx}`}>
+                            <span className="rp-prev-up-date">{dayMonth(u.date)}</span>
+                            <span className="rp-prev-up-client">{u.clientName || "—"}</span>
+                            <span className="rp-prev-up-svc">{u.serviceName || "—"}</span>
+                            <span className="rp-prev-up-amt">{eur(u.amount)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="rp-prev-empty">Nessun appuntamento in arrivo.</div>
+                    )}
+                  </div>
                 </div>
-                <div className="rp-ptile rp-ptile--due">
-                  <span className="rp-ptile-cap">Arretrati</span>
-                  <span className="rp-ptile-val">{eur(previsto?.arretratiTotal)}</span>
-                  <span className="rp-ptile-sub">da incassare</span>
+
+                {/* ---- Arretrati ---- */}
+                <div className="rp-prev-col rp-prev-col--due">
+                  <div className="rp-prev-headline">
+                    <span className="rp-prev-cap rp-prev-cap--due">Arretrati · da incassare</span>
+                    <span className="rp-prev-val rp-prev-val--due">{eur(previsto?.arretratiTotal)}</span>
+                    <span className="rp-prev-sub">
+                      {arretrati.length
+                        ? `${int(arretrati.length)} ${arretrati.length === 1 ? "cliente da contattare" : "clienti da contattare"}`
+                        : "tutto saldato"}
+                    </span>
+                  </div>
+
+                  {arretrati.length ? (
+                    <>
+                      <ul className="rp-prev-due-list">
+                        {arretrati.map((a, idx) => (
+                          <li className="rp-prev-due-row" key={`${a.phone || a.clientName}-${idx}`}>
+                            <div className="rp-prev-due-info">
+                              <span className="rp-prev-due-name">{a.clientName || "—"}</span>
+                              <span className="rp-prev-due-since">da {a.since ? dayMonth(a.since) : "—"}</span>
+                            </div>
+                            <span className="rp-prev-due-amt">{eur(a.amount)}</span>
+                            {a.phone ? (
+                              <a
+                                className="rp-prev-wa"
+                                href={buildWhatsAppUrl(a.phone, waMessage(a))}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Scrivi a ${a.clientName || "cliente"} su WhatsApp`}
+                              >
+                                WhatsApp
+                              </a>
+                            ) : (
+                              <span className="rp-prev-wa is-off" aria-hidden="true">—</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      {dueCapped && (
+                        <div className="rp-prev-due-more">Mostrati i 15 maggiori · totale {eur(previsto?.arretratiTotal)}</div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="rp-prev-empty rp-prev-empty--ok">Nessun arretrato — sei in pari.</div>
+                  )}
                 </div>
               </div>
             </section>

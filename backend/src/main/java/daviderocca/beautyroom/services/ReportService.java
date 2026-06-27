@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.services;
 
+import daviderocca.beautyroom.DTO.reportDTOs.ArretratoDebtorDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ByChannelDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ByTypeDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ComparisonDTO;
@@ -9,14 +10,17 @@ import daviderocca.beautyroom.DTO.reportDTOs.PrevistoDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ReportRangeDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ReportResponseDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.TopClientReportDTO;
+import daviderocca.beautyroom.DTO.reportDTOs.TimelineWeekDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.TopProductDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.TopServiceDTO;
+import daviderocca.beautyroom.DTO.reportDTOs.UpcomingApptDTO;
 import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.repositories.ReportRepository;
+import daviderocca.beautyroom.repositories.ReportRepository.ArretratoRow;
 import daviderocca.beautyroom.repositories.ReportRepository.ClientSeedRow;
 import daviderocca.beautyroom.repositories.ReportRepository.NameAmountRow;
 import daviderocca.beautyroom.repositories.ReportRepository.OnlinePackages;
-import daviderocca.beautyroom.repositories.ReportRepository.PipelineStat;
+import daviderocca.beautyroom.repositories.ReportRepository.PipelineRow;
 import daviderocca.beautyroom.repositories.ReportRepository.ProductLineRow;
 import daviderocca.beautyroom.repositories.ReportRepository.RevenueRow;
 import daviderocca.beautyroom.util.PhoneNormalizer;
@@ -100,10 +104,8 @@ public class ReportService {
         long newClientsCount = countNewClients(fromDT, toDT);
         long cancelledCount = reportRepository.cancelledCount(fromDT, toDT);
 
-        // --- Previsto (pipeline + arretrati) ---------------------------------------
-        PipelineStat pipeline = reportRepository.pipeline(LocalDateTime.now());
-        PrevistoDTO previsto = new PrevistoDTO(
-                sc(pipeline.total()), sc(reportRepository.arretratiTotal()), pipeline.count());
+        // --- Previsto (pipeline detail + chase-able arretrati) ---------------------
+        PrevistoDTO previsto = buildPrevisto();
 
         return new ReportResponseDTO(
                 range, incassato, previsto, comparison,
@@ -329,6 +331,110 @@ public class ReportService {
         if (np != null) return "ph:" + np;
         if (name != null && !name.isBlank()) return "nm:" + name.trim().toLowerCase();
         return null;
+    }
+
+    // ===============================================================================
+    // Previsto (pipeline detail + chase-able arretrati)
+    // ===============================================================================
+
+    private PrevistoDTO buildPrevisto() {
+        List<PipelineRow> pipe = reportRepository.pipelineRows(LocalDateTime.now());
+
+        BigDecimal pipelineTotal = BigDecimal.ZERO;
+        for (PipelineRow r : pipe) pipelineTotal = pipelineTotal.add(nz(r.amount()));
+
+        // The pipeline surface is the treatments leg: EXCL strips package/promo-backed
+        // bookings and PIPE_AMT excludes product sales, so every pipeline euro is a
+        // trattamento. The four-bucket shape is kept for FE parity; prodotti/pacchetti/
+        // promozioni are structurally 0 here (their future revenue is prepaid or lives on
+        // a different axis), NOT fabricated. sum(byType) == pipelineTotal by construction.
+        ByTypeDTO byType = new ByTypeDTO(sc(pipelineTotal), ZERO, ZERO, ZERO);
+
+        List<TimelineWeekDTO> timeline = buildTimeline(pipe, LocalDate.now());
+
+        List<UpcomingApptDTO> upcoming = pipe.stream()
+                .filter(r -> r.startTime() != null)
+                .sorted(Comparator.comparing(PipelineRow::startTime))
+                .limit(6)
+                .map(r -> new UpcomingApptDTO(
+                        r.startTime().toLocalDate(),
+                        r.clientName(),
+                        r.serviceName() == null || r.serviceName().isBlank() ? "Appuntamento" : r.serviceName(),
+                        sc(nz(r.amount()))))
+                .toList();
+
+        ArretratiResult ar = buildArretrati();
+
+        return new PrevistoDTO(sc(pipelineTotal), ar.total(), pipe.size(),
+                byType, timeline, upcoming, ar.list());
+    }
+
+    /**
+     * Buckets the pipeline into the next 8 ISO weeks (Monday start) from today. Zero weeks
+     * are emitted so a dip is visible. The pipeline can extend past 8 weeks; those bookings
+     * fall outside the window, so sum(timeline.amount) &lt;= pipelineTotal.
+     */
+    private List<TimelineWeekDTO> buildTimeline(List<PipelineRow> pipe, LocalDate today) {
+        LocalDate week0 = today.minusDays(today.getDayOfWeek().getValue() - 1L); // Monday of this week
+        BigDecimal[] amount = new BigDecimal[8];
+        long[] count = new long[8];
+        for (int i = 0; i < 8; i++) amount[i] = BigDecimal.ZERO;
+        for (PipelineRow r : pipe) {
+            if (r.startTime() == null) continue;
+            LocalDate wk = r.startTime().toLocalDate();
+            wk = wk.minusDays(wk.getDayOfWeek().getValue() - 1L);
+            long idx = ChronoUnit.WEEKS.between(week0, wk);
+            if (idx < 0 || idx >= 8) continue;
+            int i = (int) idx;
+            amount[i] = amount[i].add(nz(r.amount()));
+            count[i]++;
+        }
+        List<TimelineWeekDTO> out = new ArrayList<>(8);
+        for (int i = 0; i < 8; i++)
+            out.add(new TimelineWeekDTO(week0.plusWeeks(i), sc(amount[i]), count[i]));
+        return out;
+    }
+
+    private record ArretratiResult(BigDecimal total, List<ArretratoDebtorDTO> list) {}
+
+    /**
+     * Aggregates the global unpaid union into per-debtor rows: amount summed, {@code since}
+     * = oldest unpaid appointment, identity keyed exactly like topClients (customer_id,
+     * else E.164 phone, else name). {@code total} sums EVERY debtor; the list is the 15
+     * biggest (the FE shows a "more" line derived from total vs the listed sum).
+     */
+    private ArretratiResult buildArretrati() {
+        Map<String, BigDecimal> amount = new HashMap<>();
+        Map<String, LocalDateTime> since = new HashMap<>();
+        Map<String, String[]> display = new LinkedHashMap<>(); // key -> [name, phone]
+        BigDecimal total = BigDecimal.ZERO;
+
+        for (ArretratoRow r : reportRepository.arretratiRows()) {
+            BigDecimal amt = nz(r.amount());
+            total = total.add(amt);
+            String key = clientKey(r.clientId(), r.clientPhone(), r.clientName());
+            if (key == null) continue; // counted in total, but not chase-able without identity
+            amount.merge(key, amt, BigDecimal::add);
+            if (r.occurredAt() != null)
+                since.merge(key, r.occurredAt(), (a, b) -> a.isBefore(b) ? a : b);
+            String[] d = display.computeIfAbsent(key, k -> new String[2]);
+            if ((d[0] == null || d[0].isBlank()) && r.clientName() != null && !r.clientName().isBlank())
+                d[0] = r.clientName().trim();
+            if ((d[1] == null || d[1].isBlank()) && r.clientPhone() != null && !r.clientPhone().isBlank())
+                d[1] = r.clientPhone().trim();
+        }
+
+        List<ArretratoDebtorDTO> list = amount.entrySet().stream()
+                .map(e -> {
+                    String[] d = display.get(e.getKey());
+                    LocalDateTime s = since.get(e.getKey());
+                    return new ArretratoDebtorDTO(
+                            d[0], d[1], sc(e.getValue()), s == null ? null : s.toLocalDate());
+                })
+                .sorted(Comparator.comparing(ArretratoDebtorDTO::amount).reversed())
+                .limit(15)
+                .toList();
+        return new ArretratiResult(sc(total), list);
     }
 
     // ===============================================================================

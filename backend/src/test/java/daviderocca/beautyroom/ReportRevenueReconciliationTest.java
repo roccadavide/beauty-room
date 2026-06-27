@@ -4,6 +4,7 @@ import daviderocca.beautyroom.DTO.orderDTOs.NewOrderDTO;
 import daviderocca.beautyroom.DTO.orderDTOs.OrderResponseDTO;
 import daviderocca.beautyroom.DTO.orderItemDTOs.NewOrderItemDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.IncassatoDTO;
+import daviderocca.beautyroom.DTO.reportDTOs.PrevistoDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ReportResponseDTO;
 import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.BookingSale;
@@ -233,6 +234,68 @@ class ReportRevenueReconciliationTest {
         assertThat(report.incassato().byType().trattamenti()).isEqualByComparingTo("60.00");
         // Prior equal-length window holds no data → delta equals the whole current total.
         assertThat(report.comparison().incassatoTotalDelta()).isEqualByComparingTo(report.incassato().total());
+    }
+
+    @Test
+    @DisplayName("previsto detail: byType/timeline/upcoming and per-debtor arretrati reconcile")
+    void previstoReconciles() {
+        Category cat = categoryRepository.save(new Category("prev", "Prev"));
+        ServiceItem svcFuture = saveService(cat, "Trattamento futuro", new BigDecimal("60.00"));
+        ServiceItem svcDebt = saveService(cat, "Trattamento dovuto", new BigDecimal("80.00"));
+
+        // --- Pipeline: a future CONFIRMED, unpaid, non-package/promo booking → 60.
+        LocalDateTime future = LocalDateTime.now().plusDays(10);
+        Booking up = new Booking("Futura Cliente", "future@client.it", "+393336000001",
+                future, future.plusHours(1), null, svcFuture, null, null);
+        up.setPaymentMethod(PaymentMethod.PAY_IN_STORE);
+        up.setBookingStatus(BookingStatus.CONFIRMED);
+        bookingRepository.save(up);
+
+        // --- Arretrato: a COMPLETED, unpaid legacy-principal booking → owes 80.
+        Booking debt = newBooking("Debitrice Cliente", "debt@client.it", "+393336000002", svcDebt, null);
+        debt.setPaymentMethod(PaymentMethod.PAY_IN_STORE);
+        debt.setPaidInStore(false);
+        debt.setBookingStatus(BookingStatus.COMPLETED);
+        bookingRepository.save(debt);
+
+        ReportResponseDTO report = reportService.getReport(from, to, "none");
+        PrevistoDTO previsto = report.previsto();
+
+        // Pipeline + byType: the pipeline surface is the treatments leg, so it all lands
+        // in trattamenti and the four buckets still sum to pipelineTotal.
+        assertThat(previsto.pipelineTotal()).isEqualByComparingTo("60.00");
+        assertThat(previsto.upcomingCount()).isEqualTo(1L);
+        BigDecimal byTypeSum = previsto.byType().trattamenti()
+                .add(previsto.byType().prodotti())
+                .add(previsto.byType().pacchetti())
+                .add(previsto.byType().promozioni());
+        assertThat(byTypeSum).as("sum(byType) == pipelineTotal")
+                .isEqualByComparingTo(previsto.pipelineTotal());
+        assertThat(previsto.byType().trattamenti()).isEqualByComparingTo("60.00");
+
+        // Timeline: 8 weeks, the future booking (+10d) is within them → whole pipeline.
+        assertThat(previsto.timeline()).hasSize(8);
+        BigDecimal tlSum = previsto.timeline().stream()
+                .map(w -> w.amount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(tlSum).isEqualByComparingTo("60.00");
+
+        // Upcoming: the single future appointment, named by its principal service.
+        assertThat(previsto.upcoming()).hasSize(1);
+        assertThat(previsto.upcoming().get(0).serviceName()).isEqualTo("Trattamento futuro");
+        assertThat(previsto.upcoming().get(0).amount()).isEqualByComparingTo("60.00");
+
+        // Arretrati: the per-debtor list sums to arretratiTotal (across all debtors).
+        assertThat(previsto.arretratiTotal()).isEqualByComparingTo("80.00");
+        BigDecimal debtorsSum = previsto.arretrati().stream()
+                .map(a -> a.amount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(debtorsSum).as("sum(all debtors) == arretratiTotal")
+                .isEqualByComparingTo(previsto.arretratiTotal());
+        assertThat(previsto.arretrati()).hasSize(1);
+        assertThat(previsto.arretrati().get(0).clientName()).isEqualTo("Debitrice Cliente");
+        assertThat(previsto.arretrati().get(0).phone()).isEqualTo("+393336000002");
+        assertThat(previsto.arretrati().get(0).since()).isNotNull();
     }
 
     // ---- fixtures ----------------------------------------------------------------

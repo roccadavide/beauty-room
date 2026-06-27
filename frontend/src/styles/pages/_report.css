@@ -51,6 +51,7 @@
 
 .rp-head-titles {
   min-width: 240px;
+  padding-bottom: 20px;
 }
 
 .rp-h1 {
@@ -74,14 +75,13 @@
   border: 1px solid var(--rp-line);
   border-radius: var(--rp-radius);
   box-shadow: var(--rp-shadow);
-  overflow: hidden;
 }
 
 .rp-filters::before {
   content: "";
   position: absolute;
-  top: 0;
-  left: 0;
+  top: -20px;
+  left: 0.2%;
   width: 64px;
   height: 3px;
   background: linear-gradient(90deg, var(--rp-gold), transparent);
@@ -538,14 +538,14 @@ button.rp-kpi:hover {
 
 /* ---------- Previsto ---------- */
 .rp-previsto {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.8fr) 1.4fr;
-  gap: 18px;
-  align-items: center;
   background: repeating-linear-gradient(135deg, rgba(184, 151, 106, 0.05) 0 10px, transparent 10px 20px), #fef7ef;
   border: 1.5px dashed rgba(184, 151, 106, 0.5);
   border-radius: var(--rp-radius);
   padding: clamp(16px, 2.4vw, 26px);
+}
+
+.rp-previsto-head {
+  margin-bottom: 16px;
 }
 
 .rp-previsto-eyebrow {
@@ -565,28 +565,35 @@ button.rp-kpi:hover {
   line-height: 1.5;
 }
 
-.rp-previsto-tiles {
+.rp-previsto-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
-.rp-ptile {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid var(--rp-line);
-  border-radius: 16px;
-  padding: 14px 16px;
+.rp-prev-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--rp-line);
+  border-radius: 16px;
+  padding: clamp(14px, 1.8vw, 18px);
 }
 
-.rp-ptile--due {
-  border-color: rgba(185, 116, 12, 0.35);
-  background: rgba(185, 116, 12, 0.06);
+.rp-prev-col--due {
+  border-color: rgba(185, 116, 12, 0.32);
+  background: rgba(185, 116, 12, 0.05);
 }
 
-.rp-ptile-cap {
+.rp-prev-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rp-prev-cap {
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -594,20 +601,309 @@ button.rp-kpi:hover {
   color: var(--ag-muted);
 }
 
-.rp-ptile-val {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--rp-ink);
-  letter-spacing: -0.01em;
-}
-
-.rp-ptile--due .rp-ptile-val {
+.rp-prev-cap--due {
   color: var(--rp-due);
 }
 
-.rp-ptile-sub {
-  font-size: 0.76rem;
+.rp-prev-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--rp-ink);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-prev-val--due {
+  color: var(--rp-due);
+}
+
+.rp-prev-sub {
+  font-size: 0.78rem;
   color: var(--ag-muted);
+}
+
+/* by-type chips */
+.rp-prev-bytype {
+  display: grid;
+  gap: 8px;
+}
+
+.rp-prev-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rp-prev-chip-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+}
+
+.rp-prev-chip-name {
+  color: var(--rp-ink);
+  font-weight: 600;
+}
+
+.rp-prev-chip-val {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--rp-ink);
+}
+
+.rp-prev-chip-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--rp-track);
+  overflow: hidden;
+}
+
+.rp-prev-chip-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rp-prev-mini-cap {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--ag-muted);
+  margin-bottom: 8px;
+}
+
+/* 8-week timeline */
+.rp-prev-tl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rp-prev-tl-head .rp-prev-mini-cap {
+  margin-bottom: 0;
+}
+
+.rp-prev-tl-readout {
+  font-size: 0.72rem;
+  color: var(--rp-gold-deep);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.rp-prev-tl-bars {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 5px;
+  align-items: end;
+  height: 92px;
+}
+
+.rp-prev-tl-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rp-prev-tl-track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.rp-prev-tl-fill {
+  width: 100%;
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(180deg, var(--rp-gold), var(--rp-gold-deep));
+  transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  min-height: 2px;
+}
+
+.rp-prev-tl-col.is-empty .rp-prev-tl-fill {
+  background: var(--rp-track);
+}
+
+.rp-prev-tl-col.is-active .rp-prev-tl-fill {
+  background: linear-gradient(180deg, var(--rp-gold-deep), #6f4a2f);
+}
+
+.rp-prev-tl-label {
+  font-size: 0.58rem;
+  color: var(--ag-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rp-prev-tl-col.is-active .rp-prev-tl-label {
+  color: var(--rp-gold-deep);
+  font-weight: 700;
+}
+
+/* upcoming + arretrati lists */
+.rp-prev-up-list,
+.rp-prev-due-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rp-prev-up-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "date client amt" "date svc amt";
+  column-gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--rp-line);
+}
+
+.rp-prev-up-row:first-child {
+  border-top: 0;
+}
+
+.rp-prev-up-date {
+  grid-area: date;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--rp-gold-deep);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rp-prev-up-client {
+  grid-area: client;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--rp-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-prev-up-svc {
+  grid-area: svc;
+  font-size: 0.74rem;
+  color: var(--ag-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-prev-up-amt {
+  grid-area: amt;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--rp-ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rp-prev-due-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  column-gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-top: 1px solid rgba(185, 116, 12, 0.18);
+}
+
+.rp-prev-due-row:first-child {
+  border-top: 0;
+}
+
+.rp-prev-due-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rp-prev-due-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--rp-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-prev-due-since {
+  font-size: 0.72rem;
+  color: var(--ag-muted);
+}
+
+.rp-prev-due-amt {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--rp-due);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rp-prev-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: #25d366;
+  color: #073d23;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: filter 0.18s ease, transform 0.18s ease;
+}
+
+.rp-prev-wa:hover {
+  filter: brightness(1.05);
+}
+
+.rp-prev-wa:active {
+  transform: scale(0.96);
+}
+
+.rp-prev-wa.is-off {
+  background: var(--rp-track);
+  color: var(--ag-muted);
+  pointer-events: none;
+}
+
+.rp-prev-due-more {
+  margin-top: 8px;
+  font-size: 0.74rem;
+  color: var(--ag-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-prev-empty {
+  font-size: 0.8rem;
+  color: var(--ag-muted);
+  padding: 10px 0;
+}
+
+.rp-prev-empty--ok {
+  color: var(--rp-up);
+  font-weight: 600;
 }
 
 /* ---------- Generic card ---------- */
@@ -1143,14 +1439,17 @@ button.rp-kpi:hover {
 
   .rp-seg2,
   .rp-channel-seg,
-  .rp-top-bar-fill {
+  .rp-top-bar-fill,
+  .rp-prev-chip-fill,
+  .rp-prev-tl-fill,
+  .rp-prev-wa {
     transition: none;
   }
 }
 
 /* ---------- Responsive (iPad-first) ---------- */
 @media (max-width: 1024px) {
-  .rp-previsto {
+  .rp-previsto-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1191,8 +1490,8 @@ button.rp-kpi:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .rp-previsto-tiles {
-    grid-template-columns: 1fr;
+  .rp-prev-tl-label {
+    display: none;
   }
 
   .rp-bars {
