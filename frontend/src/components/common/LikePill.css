@@ -87,6 +87,25 @@
   padding: 3px 8px 3px 5px;
   font-size: 0.72rem;
   gap: 4px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: #e05c7a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.lp-pill--compact.lp-pill--liked {
+  background: #e05c7a;
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+}
+
+.lp-pill--compact.lp-pill--liked .lp-icon,
+.lp-pill--compact.lp-pill--liked .lp-icon--filled {
+  fill: #ffffff;
+  stroke: #ffffff;
 }
 
 .lp-pill--compact .lp-icon-wrap {
