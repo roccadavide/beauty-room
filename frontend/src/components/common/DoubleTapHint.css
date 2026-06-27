@@ -1,6 +1,6 @@
-/* Ancorato in coordinate assolute al centro della prima card */
+/* Ancorato in coordinate viewport (fixed) — portalato su document.body */
 .dth-overlay {
-  position: absolute;
+  position: fixed;
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 9999;
