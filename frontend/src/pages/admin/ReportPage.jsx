@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { getReport } from "../../api/modules/report.api";
 import DateTimeField from "../../components/common/DateTimeField";
 import SEO from "../../components/common/SEO";
@@ -40,6 +40,12 @@ const COMPARE = [
 
 const MONTHS_SHORT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
+/** Weekday labels indexed 0 = Monday … 6 = Sunday (backend weekday is 1 = Mon … 7 = Sun). */
+const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+
+/** Light-cream base for the heatmap gold ramp (track colour handles the empty end). */
+const HEAT_BASE = "#fcf6ec";
+
 /* ------------------------------------------------------------------ *
  * Formatting helpers (Italian)
  * ------------------------------------------------------------------ */
@@ -51,6 +57,23 @@ const dayMonthFmt = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "s
 
 const eur = v => eurFmt.format(num(v));
 const int = v => intFmt.format(num(v));
+const pad2 = n => String(n).padStart(2, "0");
+
+/**
+ * Editorial gold ramp for the earnings heatmap: cream → gold (--rp-gold) → gold-deep
+ * (--rp-gold-deep) over t∈[0,1]. Two color-mix segments keep the mid-tones distinct;
+ * t≤0 (empty/no-earn cell) falls back to the faint track colour.
+ */
+function heatColor(t) {
+  if (!(t > 0)) return "var(--rp-track)";
+  const c = Math.min(1, t);
+  if (c < 0.5) {
+    const p = Math.round((c / 0.5) * 100);
+    return `color-mix(in srgb, var(--rp-gold) ${p}%, ${HEAT_BASE})`;
+  }
+  const p = Math.round(((c - 0.5) / 0.5) * 100);
+  return `color-mix(in srgb, var(--rp-gold-deep) ${p}%, var(--rp-gold))`;
+}
 
 /** Split a formatted euro string into the integer head ("1.234") and the decimal+symbol tail (",56 €"). */
 function splitEur(v) {
@@ -221,6 +244,8 @@ function ReportPage() {
   const [types, setTypes] = useState(ALL_TYPES);
   const [activeMonthIdx, setActiveMonthIdx] = useState(null);
   const [tlActive, setTlActive] = useState(null);
+  const [inArrivoOpen, setInArrivoOpen] = useState(false); // "In arrivo" detail collapsed by default
+  const [heatActive, setHeatActive] = useState(null); // active heatmap cell key (weekday*100 + hour)
 
   const fetchData = useCallback(async (f, t, c) => {
     setLoading(true);
@@ -229,6 +254,7 @@ function ReportPage() {
       const payload = await getReport(f, t, c);
       setData(payload);
       setActiveMonthIdx(null);
+      setHeatActive(null);
     } catch (e) {
       setError(e?.message || "Errore nel caricamento del report.");
     } finally {
@@ -390,6 +416,9 @@ function ReportPage() {
   /* ---- previsto detail view-model ---- */
   const prevByType = previsto?.byType;
   const prevByTypeTotal = useMemo(() => TYPE_KEYS.reduce((s, k) => s + num(prevByType?.[k]), 0), [prevByType]);
+  // Chips only earn their space with a real split: show them only when ≥2 of the four
+  // types carry value (today the pipeline is single-bucket, so they stay hidden).
+  const showPrevChips = useMemo(() => TYPE_KEYS.reduce((n, k) => n + (num(prevByType?.[k]) > 0 ? 1 : 0), 0) >= 2, [prevByType]);
   const timeline = useMemo(() => previsto?.timeline ?? [], [previsto]);
   const upcoming = previsto?.upcoming ?? [];
   const arretrati = previsto?.arretrati ?? [];
@@ -400,6 +429,39 @@ function ReportPage() {
   }, [tlActive, timeline]);
   const shownDue = arretrati.reduce((s, a) => s + num(a.amount), 0);
   const dueCapped = arretrati.length >= 15 && num(previsto?.arretratiTotal) - shownDue > 0.005;
+
+  /* ---- timing heatmap view-model ---- */
+  const heatmap = useMemo(() => data?.timing?.heatmap ?? [], [data]);
+  const heat = useMemo(() => {
+    const cells = new Map(); // weekday*100 + hour -> { amount, count }
+    const dayTot = [0, 0, 0, 0, 0, 0, 0]; // index 0 = Mon … 6 = Sun
+    let minH = 23,
+      maxH = 0,
+      maxCell = 0;
+    heatmap.forEach(c => {
+      const wd = Number(c.weekday);
+      const hr = Number(c.hour);
+      if (!(wd >= 1 && wd <= 7) || !(hr >= 0 && hr <= 23)) return;
+      const amount = num(c.amount);
+      cells.set(wd * 100 + hr, { amount, count: num(c.count) });
+      dayTot[wd - 1] += amount;
+      if (hr < minH) minH = hr;
+      if (hr > maxH) maxH = hr;
+      if (amount > maxCell) maxCell = amount;
+    });
+    const has = cells.size > 0 && maxH >= minH;
+    // Columns clamp to the real hour range — no sea of empty hours.
+    const hours = has ? Array.from({ length: maxH - minH + 1 }, (_, i) => minH + i) : [];
+    const maxDay = dayTot.reduce((m, v) => Math.max(m, v), 0);
+    return { cells, dayTot, hours, maxCell, maxDay, has };
+  }, [heatmap]);
+
+  const heatReadout = useMemo(() => {
+    if (heatActive == null) return null;
+    const cell = heat.cells.get(heatActive);
+    if (!cell) return null;
+    return { day: WEEKDAYS[Math.floor(heatActive / 100) - 1], hour: heatActive % 100, ...cell };
+  }, [heatActive, heat]);
 
   return (
     <div className="rp-page">
@@ -417,6 +479,7 @@ function ReportPage() {
 
         {/* ---------- Unified filters card ---------- */}
         <section className="rp-filters" aria-label="Filtri report">
+          <span className="rp-filtri-eyebrow">Filtri</span>
           {/* Periodo — presets + custom range live together (same axis) */}
           <div className="rp-filter-group rp-filter-group--period">
             <span className="rp-lens-cap">Periodo</span>
@@ -499,7 +562,7 @@ function ReportPage() {
 
         {/* ---------- Content ---------- */}
         {data && incassato && (
-          <main className="rp-content">
+          <main className="rp-content" style={{ padding: 10 }}>
             {flagged > 0 && (
               <p className="rp-flag">
                 ⚠ {int(flagged)} {flagged === 1 ? "voce non valorizzata" : "voci non valorizzate"} — verifica i dati.
@@ -608,90 +671,103 @@ function ReportPage() {
               </div>
 
               <div className="rp-previsto-grid">
-                {/* ---- In arrivo ---- */}
+                {/* ---- In arrivo (compact summary; detail behind a toggle) ---- */}
                 <div className="rp-prev-col">
                   <div className="rp-prev-headline">
                     <span className="rp-prev-cap">In arrivo</span>
                     <span className="rp-prev-val">{eur(previsto?.pipelineTotal)}</span>
                     <span className="rp-prev-sub">{int(previsto?.upcomingCount)} appuntamenti futuri</span>
+                    <button
+                      type="button"
+                      className="rp-prev-toggle"
+                      aria-expanded={inArrivoOpen}
+                      aria-controls="rp-inarrivo-detail"
+                      onClick={() => setInArrivoOpen(o => !o)}
+                    >
+                      {inArrivoOpen ? "Nascondi dettagli ▴" : "Guarda dettagli ▾"}
+                    </button>
                   </div>
 
-                  {prevByTypeTotal > 0 && (
-                    <div className="rp-prev-bytype">
-                      {TYPES.map(t => {
-                        const v = num(prevByType?.[t.key]);
-                        const pct = prevByTypeTotal > 0 ? (v / prevByTypeTotal) * 100 : 0;
-                        return (
-                          <div className="rp-prev-chip" key={t.key}>
-                            <span className="rp-prev-chip-head">
-                              <span className="rp-dot" style={{ background: t.color }} />
-                              <span className="rp-prev-chip-name">{t.label}</span>
-                              <span className="rp-prev-chip-val">{eur(v)}</span>
-                            </span>
-                            <span className="rp-prev-chip-track">
-                              <span className="rp-prev-chip-fill" style={{ width: `${pct}%`, background: t.color }} />
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="rp-prev-tl">
-                    <div className="rp-prev-tl-head">
-                      <span className="rp-prev-mini-cap">Prossime 8 settimane</span>
-                      {tlActiveIdx >= 0 && timeline[tlActiveIdx] && (
-                        <span className="rp-prev-tl-readout">
-                          {dayMonth(timeline[tlActiveIdx].weekStart)} · {eur(timeline[tlActiveIdx].amount)} · {int(timeline[tlActiveIdx].count)} app.
-                        </span>
+                  <div className={`rp-prev-detail${inArrivoOpen ? " is-open" : ""}`} id="rp-inarrivo-detail">
+                    <div className="rp-prev-detail-inner" inert={!inArrivoOpen}>
+                      {showPrevChips && (
+                        <div className="rp-prev-bytype">
+                          {TYPES.map(t => {
+                            const v = num(prevByType?.[t.key]);
+                            const pct = prevByTypeTotal > 0 ? (v / prevByTypeTotal) * 100 : 0;
+                            return (
+                              <div className="rp-prev-chip" key={t.key}>
+                                <span className="rp-prev-chip-head">
+                                  <span className="rp-dot" style={{ background: t.color }} />
+                                  <span className="rp-prev-chip-name">{t.label}</span>
+                                  <span className="rp-prev-chip-val">{eur(v)}</span>
+                                </span>
+                                <span className="rp-prev-chip-track">
+                                  <span className="rp-prev-chip-fill" style={{ width: `${pct}%`, background: t.color }} />
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
-                    </div>
-                    {timeline.length ? (
-                      <div className="rp-prev-tl-bars">
-                        {timeline.map((w, idx) => {
-                          const h = tlMax > 0 ? (num(w.amount) / tlMax) * 100 : 0;
-                          const empty = num(w.amount) <= 0;
-                          return (
-                            <div
-                              key={w.weekStart}
-                              className={`rp-prev-tl-col${idx === tlActiveIdx ? " is-active" : ""}${empty ? " is-empty" : ""}`}
-                              onMouseEnter={() => setTlActive(idx)}
-                              onFocus={() => setTlActive(idx)}
-                              onClick={() => setTlActive(idx)}
-                              role="button"
-                              tabIndex={0}
-                              aria-label={`${dayMonth(w.weekStart)}: ${eur(w.amount)}, ${int(w.count)} appuntamenti`}
-                              title={`${dayMonth(w.weekStart)} · ${eur(w.amount)} · ${int(w.count)} app.`}
-                            >
-                              <span className="rp-prev-tl-track">
-                                <span className="rp-prev-tl-fill" style={{ height: `${Math.max(h, empty ? 0 : 4)}%` }} />
-                              </span>
-                              <span className="rp-prev-tl-label">{dayMonth(w.weekStart)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="rp-prev-empty">Nessun appuntamento in arrivo.</div>
-                    )}
-                  </div>
 
-                  <div className="rp-prev-upcoming">
-                    <span className="rp-prev-mini-cap">Prossimi appuntamenti</span>
-                    {upcoming.length ? (
-                      <ul className="rp-prev-up-list">
-                        {upcoming.map((u, idx) => (
-                          <li className="rp-prev-up-row" key={`${u.date}-${idx}`}>
-                            <span className="rp-prev-up-date">{dayMonth(u.date)}</span>
-                            <span className="rp-prev-up-client">{u.clientName || "—"}</span>
-                            <span className="rp-prev-up-svc">{u.serviceName || "—"}</span>
-                            <span className="rp-prev-up-amt">{eur(u.amount)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="rp-prev-empty">Nessun appuntamento in arrivo.</div>
-                    )}
+                      <div className="rp-prev-tl">
+                        <div className="rp-prev-tl-head">
+                          <span className="rp-prev-mini-cap">Prossime 8 settimane</span>
+                          {tlActiveIdx >= 0 && timeline[tlActiveIdx] && (
+                            <span className="rp-prev-tl-readout">
+                              {dayMonth(timeline[tlActiveIdx].weekStart)} · {eur(timeline[tlActiveIdx].amount)} · {int(timeline[tlActiveIdx].count)} app.
+                            </span>
+                          )}
+                        </div>
+                        {timeline.length ? (
+                          <div className="rp-prev-tl-bars">
+                            {timeline.map((w, idx) => {
+                              const h = tlMax > 0 ? (num(w.amount) / tlMax) * 100 : 0;
+                              const empty = num(w.amount) <= 0;
+                              return (
+                                <div
+                                  key={w.weekStart}
+                                  className={`rp-prev-tl-col${idx === tlActiveIdx ? " is-active" : ""}${empty ? " is-empty" : ""}`}
+                                  onMouseEnter={() => setTlActive(idx)}
+                                  onFocus={() => setTlActive(idx)}
+                                  onClick={() => setTlActive(idx)}
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-label={`${dayMonth(w.weekStart)}: ${eur(w.amount)}, ${int(w.count)} appuntamenti`}
+                                  title={`${dayMonth(w.weekStart)} · ${eur(w.amount)} · ${int(w.count)} app.`}
+                                >
+                                  <span className="rp-prev-tl-track">
+                                    <span className="rp-prev-tl-fill" style={{ height: `${Math.max(h, empty ? 0 : 4)}%` }} />
+                                  </span>
+                                  <span className="rp-prev-tl-label">{dayMonth(w.weekStart)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rp-prev-empty">Nessun appuntamento in arrivo.</div>
+                        )}
+                      </div>
+
+                      <div className="rp-prev-upcoming">
+                        <span className="rp-prev-mini-cap">Prossimi appuntamenti</span>
+                        {upcoming.length ? (
+                          <ul className="rp-prev-up-list">
+                            {upcoming.map((u, idx) => (
+                              <li className="rp-prev-up-row" key={`${u.date}-${idx}`}>
+                                <span className="rp-prev-up-date">{dayMonth(u.date)}</span>
+                                <span className="rp-prev-up-client">{u.clientName || "—"}</span>
+                                <span className="rp-prev-up-svc">{u.serviceName || "—"}</span>
+                                <span className="rp-prev-up-amt">{eur(u.amount)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="rp-prev-empty">Nessun appuntamento in arrivo.</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -728,14 +804,14 @@ function ReportPage() {
                                 WhatsApp
                               </a>
                             ) : (
-                              <span className="rp-prev-wa is-off" aria-hidden="true">—</span>
+                              <span className="rp-prev-wa is-off" aria-hidden="true">
+                                —
+                              </span>
                             )}
                           </li>
                         ))}
                       </ul>
-                      {dueCapped && (
-                        <div className="rp-prev-due-more">Mostrati i 15 maggiori · totale {eur(previsto?.arretratiTotal)}</div>
-                      )}
+                      {dueCapped && <div className="rp-prev-due-more">Mostrati i 15 maggiori · totale {eur(previsto?.arretratiTotal)}</div>}
                     </>
                   ) : (
                     <div className="rp-prev-empty rp-prev-empty--ok">Nessun arretrato — sei in pari.</div>
@@ -911,6 +987,90 @@ function ReportPage() {
                   </div>
                 </div>
               </div>
+            </section>
+
+            {/* Quando incassi di più — weekday x hour earnings heatmap (trattamenti leg) */}
+            <section className="rp-card rp-heat-card">
+              <div className="rp-card-head">
+                <div>
+                  <span className="rp-card-eyebrow">Mappa settimanale</span>
+                  <h2 className="rp-card-title">Quando incassi di più</h2>
+                  <span className="rp-card-sub">Incasso trattamenti per giorno e ora.</span>
+                </div>
+                {heatReadout && (
+                  <div className="rp-heat-readout">
+                    <span className="rp-heat-readout-when">
+                      {heatReadout.day} {pad2(heatReadout.hour)}:00
+                    </span>
+                    <span className="rp-heat-readout-amt">{eur(heatReadout.amount)}</span>
+                    <span className="rp-heat-readout-cnt">
+                      {int(heatReadout.count)} {heatReadout.count === 1 ? "appuntamento" : "appuntamenti"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {heat.has ? (
+                <>
+                  <div className="rp-heat-scroll" data-lenis-prevent>
+                    <div className="rp-heat-grid" style={{ gridTemplateColumns: `var(--rp-heat-daycol) repeat(${heat.hours.length}, minmax(34px, 1fr))` }}>
+                      <span className="rp-heat-corner" aria-hidden="true" />
+                      {heat.hours.map(h => (
+                        <span className="rp-heat-hhead" key={`h-${h}`}>
+                          {h}
+                        </span>
+                      ))}
+                      {WEEKDAYS.map((label, di) => {
+                        const wd = di + 1;
+                        return (
+                          <Fragment key={`row-${wd}`}>
+                            <span className="rp-heat-dhead">{label}</span>
+                            {heat.hours.map(h => {
+                              const key = wd * 100 + h;
+                              const cell = heat.cells.get(key);
+                              if (!cell) {
+                                return <span className="rp-heat-cell is-empty" key={key} aria-hidden="true" />;
+                              }
+                              const t = heat.maxCell > 0 ? cell.amount / heat.maxCell : 0;
+                              return (
+                                <button
+                                  type="button"
+                                  key={key}
+                                  className={`rp-heat-cell${key === heatActive ? " is-active" : ""}`}
+                                  style={{ background: heatColor(t) }}
+                                  onMouseEnter={() => setHeatActive(key)}
+                                  onFocus={() => setHeatActive(key)}
+                                  onClick={() => setHeatActive(key)}
+                                  aria-label={`${label} ${pad2(h)}:00 · ${eur(cell.amount)} · ${int(cell.count)} appuntamenti`}
+                                  title={`${label} ${pad2(h)}:00 · ${eur(cell.amount)}`}
+                                />
+                              );
+                            })}
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rp-heat-days">
+                    {WEEKDAYS.map((label, di) => {
+                      const v = heat.dayTot[di];
+                      const w = heat.maxDay > 0 ? (v / heat.maxDay) * 100 : 0;
+                      return (
+                        <div className={`rp-heat-day${v > 0 ? "" : " is-empty"}`} key={`d-${di}`}>
+                          <span className="rp-heat-day-label">{label}</span>
+                          <span className="rp-heat-day-track">
+                            <span className="rp-heat-day-fill" style={{ width: `${w}%` }} />
+                          </span>
+                          <span className="rp-heat-day-val">{eur(v)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="rp-heat-empty">Dati insufficienti per la mappa.</div>
+              )}
             </section>
 
             {/* Top tables */}

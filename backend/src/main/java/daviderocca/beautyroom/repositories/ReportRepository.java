@@ -125,6 +125,9 @@ public class ReportRepository {
     public record RevenueRow(LocalDateTime collectedAt, BigDecimal amount, boolean online,
                              String clientId, String clientName, String clientPhone) {}
 
+    /** One collected (or refunded) treatment, carrying its appointment start time for weekday/hour bucketing. */
+    public record HeatmapRow(LocalDateTime startTime, BigDecimal amount, boolean refund) {}
+
     public record ProductLineRow(LocalDateTime collectedAt, BigDecimal amount, boolean online,
                                  String productName, long quantity,
                                  String clientId, String clientName, String clientPhone) {}
@@ -186,6 +189,39 @@ public class ReportRepository {
                 .setParameter("to", to)
                 .getResultList();
         return mapRevenueRows(rows);
+    }
+
+    /**
+     * The SAME treatment rows that feed {@code byType.trattamenti}, but carrying each
+     * booking's {@code start_time} (for weekday/hour bucketing) instead of its collection
+     * date. Membership still keys on the collection axis (positive: {@code COLL} in range;
+     * refund: {@code canceled_at} in range) so summing these rows reproduces the trattamenti
+     * leg exactly. A {@code 0/1} integer flag marks refunds (portable across H2/Postgres).
+     */
+    public List<HeatmapRow> treatmentHeatmapRows(LocalDateTime from, LocalDateTime to) {
+        String sql =
+                "SELECT b.start_time, " + TREAT_AMT + " AS amount, 0 AS is_refund "
+              + "FROM bookings b "
+              + "WHERE " + EXCL
+              + " AND " + COLL + " >= :from AND " + COLL + " < :to "
+              + " AND " + TREAT_AMT + " > 0 "
+              + "UNION ALL "
+              + "SELECT b.start_time, " + TREAT_AMT + " AS amount, 1 AS is_refund "
+              + "FROM bookings b "
+              + "WHERE b.booking_status = 'REFUNDED' AND b.canceled_at IS NOT NULL "
+              + " AND b.canceled_at >= :from AND b.canceled_at < :to "
+              + " AND " + EXCL
+              + " AND " + TREAT_AMT + " > 0";
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery(sql)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList();
+        List<HeatmapRow> out = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            out.add(new HeatmapRow(ldt(r[0]), big(r[1]), lng(r[2]) == 1L));
+        }
+        return out;
     }
 
     /** Per-service-line revenue (multi-service lines + legacy principal) for topServices. */

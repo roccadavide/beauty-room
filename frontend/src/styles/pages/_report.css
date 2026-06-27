@@ -101,6 +101,16 @@
   padding-top: 10px; /* visually center the label against the first chip row */
 }
 
+.rp-filtri-eyebrow {
+  display: block;
+  font-size: 0.83rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--rp-gold-deep);
+  margin-bottom: 6px;
+}
+
 .rp-filter-controls {
   display: flex;
   flex-wrap: wrap;
@@ -870,7 +880,9 @@ button.rp-kpi:hover {
   font-weight: 800;
   text-decoration: none;
   white-space: nowrap;
-  transition: filter 0.18s ease, transform 0.18s ease;
+  transition:
+    filter 0.18s ease,
+    transform 0.18s ease;
 }
 
 .rp-prev-wa:hover {
@@ -904,6 +916,51 @@ button.rp-kpi:hover {
 .rp-prev-empty--ok {
   color: var(--rp-up);
   font-weight: 600;
+}
+
+/* In arrivo: compact-by-default, detail behind a toggle */
+.rp-prev-toggle {
+  align-self: flex-start;
+  margin-top: 10px;
+  appearance: none;
+  border: 1px solid var(--rp-line);
+  background: #fff;
+  color: var(--rp-gold-deep);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 34px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.rp-prev-toggle:hover {
+  background: rgba(184, 151, 106, 0.1);
+  border-color: rgba(184, 151, 106, 0.45);
+}
+
+/* Smooth height reveal via the 0fr→1fr grid-rows technique (no JS measuring) */
+.rp-prev-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rp-prev-detail.is-open {
+  grid-template-rows: 1fr;
+}
+
+.rp-prev-detail-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  min-height: 0;
 }
 
 /* ---------- Generic card ---------- */
@@ -1432,6 +1489,162 @@ button.rp-kpi:hover {
   height: 220px;
 }
 
+/* ---------- Earnings heatmap (quando incassi di più) ---------- */
+.rp-heat-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
+}
+
+.rp-heat-readout-when {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--rp-gold-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-heat-readout-amt {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--rp-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-heat-readout-cnt {
+  font-size: 0.72rem;
+  color: var(--ag-muted);
+}
+
+/* horizontal scroll lives on the grid only (lenis released) so a wide hour range
+   stays legible on iPad portrait without scrolling the page */
+.rp-heat-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.rp-heat-grid {
+  --rp-heat-daycol: 44px;
+  display: grid;
+  gap: 4px;
+  width: max-content;
+  min-width: 100%;
+}
+
+.rp-heat-hhead {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ag-muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  align-self: end;
+  padding-bottom: 2px;
+}
+
+.rp-heat-dhead {
+  display: flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--rp-gold-deep);
+  white-space: nowrap;
+}
+
+.rp-heat-cell {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  height: 30px;
+  border-radius: 5px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(111, 74, 47, 0.06);
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.rp-heat-cell.is-empty {
+  background: var(--rp-track);
+  cursor: default;
+  box-shadow: inset 0 0 0 1px rgba(111, 74, 47, 0.04);
+}
+
+.rp-heat-cell:hover,
+.rp-heat-cell:focus-visible {
+  outline: none;
+  transform: scale(1.09);
+  box-shadow: 0 0 0 2px var(--rp-gold-deep);
+  position: relative;
+  z-index: 1;
+}
+
+.rp-heat-cell.is-active {
+  box-shadow: 0 0 0 2px var(--rp-gold-deep);
+  position: relative;
+  z-index: 1;
+}
+
+/* weekday totals strip — "which day is strongest" at a glance */
+.rp-heat-days {
+  display: grid;
+  gap: 7px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rp-line);
+}
+
+.rp-heat-day {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.rp-heat-day-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--rp-gold-deep);
+}
+
+.rp-heat-day.is-empty .rp-heat-day-label {
+  color: var(--ag-muted);
+  font-weight: 600;
+}
+
+.rp-heat-day-track {
+  height: 9px;
+  border-radius: 999px;
+  background: var(--rp-track);
+  overflow: hidden;
+}
+
+.rp-heat-day-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--rp-gold), var(--rp-gold-deep));
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rp-heat-day-val {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--rp-ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rp-heat-empty {
+  font-size: 0.84rem;
+  color: var(--ag-muted);
+  padding: 24px 0;
+  text-align: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rp-skel::after {
     animation: none;
@@ -1442,8 +1655,16 @@ button.rp-kpi:hover {
   .rp-top-bar-fill,
   .rp-prev-chip-fill,
   .rp-prev-tl-fill,
-  .rp-prev-wa {
+  .rp-prev-wa,
+  .rp-prev-detail,
+  .rp-heat-cell,
+  .rp-heat-day-fill {
     transition: none;
+  }
+
+  .rp-heat-cell:hover,
+  .rp-heat-cell:focus-visible {
+    transform: none;
   }
 }
 

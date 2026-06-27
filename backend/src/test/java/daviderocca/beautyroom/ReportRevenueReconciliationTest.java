@@ -188,6 +188,16 @@ class ReportRevenueReconciliationTest {
         assertThat(inc.total()).isEqualByComparingTo("410.00");
         assertThat(inc.appointmentsCount()).as("only the 2 collected treatment bookings (B, D)").isEqualTo(2L);
 
+        // Heatmap (timing): the collected-treatments leg bucketed by appointment weekday/hour
+        // — the SAME rows that feed byType.trattamenti, with the refund (D) netted in its own
+        // cell. So the map sums back to the trattamenti leg exactly.
+        assertThat(report.timing().heatmap()).as("B and D produce at least one cell").isNotEmpty();
+        BigDecimal heatmapSum = report.timing().heatmap().stream()
+                .map(c -> c.amount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(heatmapSum).as("sum(heatmap.amount) == byType.trattamenti")
+                .isEqualByComparingTo(inc.byType().trattamenti());
+
         // Mutual exclusivity: every euro in exactly one leg ------------------------
         BigDecimal legsSum = inc.byType().trattamenti()
                 .add(inc.byType().prodotti())

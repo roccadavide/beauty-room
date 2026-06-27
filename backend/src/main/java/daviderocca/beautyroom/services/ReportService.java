@@ -4,6 +4,7 @@ import daviderocca.beautyroom.DTO.reportDTOs.ArretratoDebtorDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ByChannelDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ByTypeDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ComparisonDTO;
+import daviderocca.beautyroom.DTO.reportDTOs.HeatmapCellDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.IncassatoDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.MonthlyRevenueDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.PrevistoDTO;
@@ -11,6 +12,7 @@ import daviderocca.beautyroom.DTO.reportDTOs.ReportRangeDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.ReportResponseDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.TopClientReportDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.TimelineWeekDTO;
+import daviderocca.beautyroom.DTO.reportDTOs.TimingDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.TopProductDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.TopServiceDTO;
 import daviderocca.beautyroom.DTO.reportDTOs.UpcomingApptDTO;
@@ -18,6 +20,7 @@ import daviderocca.beautyroom.exceptions.BadRequestException;
 import daviderocca.beautyroom.repositories.ReportRepository;
 import daviderocca.beautyroom.repositories.ReportRepository.ArretratoRow;
 import daviderocca.beautyroom.repositories.ReportRepository.ClientSeedRow;
+import daviderocca.beautyroom.repositories.ReportRepository.HeatmapRow;
 import daviderocca.beautyroom.repositories.ReportRepository.NameAmountRow;
 import daviderocca.beautyroom.repositories.ReportRepository.OnlinePackages;
 import daviderocca.beautyroom.repositories.ReportRepository.PipelineRow;
@@ -107,10 +110,14 @@ public class ReportService {
         // --- Previsto (pipeline detail + chase-able arretrati) ---------------------
         PrevistoDTO previsto = buildPrevisto();
 
+        // --- Timing (weekday x hour earnings map over the trattamenti leg) ---------
+        TimingDTO timing = buildTiming(from, to);
+
         return new ReportResponseDTO(
                 range, incassato, previsto, comparison,
                 topServices, topProducts, topClients,
-                newClientsCount, cancelledCount, legs.flaggedSkipped());
+                newClientsCount, cancelledCount, legs.flaggedSkipped(),
+                timing);
     }
 
     // ===============================================================================
@@ -435,6 +442,49 @@ public class ReportService {
                 .limit(15)
                 .toList();
         return new ArretratiResult(sc(total), list);
+    }
+
+    // ===============================================================================
+    // Timing (weekday x hour earnings map)
+    // ===============================================================================
+
+    /**
+     * Buckets the collected-treatments leg by appointment weekday (1=Mon..7=Sun) and hour
+     * (0-23). The rows are exactly those that feed {@code byType.trattamenti}: positive
+     * treatments plus REFUNDED bookings as negatives. A refund shares its original
+     * booking's start time, so when its collection fell in the same range it nets within
+     * the same cell and {@code sum(cells.amount) == byType.trattamenti}. Only cells with at
+     * least one collected appointment are emitted (the FE rebuilds the grid). The lone edge
+     * where a refund's original collection fell in a PRIOR range — so it has no collected
+     * appointment here — leaves that refund out of the map (it still nets in the accounting
+     * total); negligible and intentional, the map is an operational view, not a ledger.
+     */
+    private TimingDTO buildTiming(LocalDate from, LocalDate to) {
+        LocalDateTime fromDT = from.atStartOfDay();
+        LocalDateTime toDT = to.plusDays(1).atStartOfDay();
+
+        Map<Integer, BigDecimal> amount = new HashMap<>(); // key = weekday*100 + hour
+        Map<Integer, long[]> count = new HashMap<>();
+        for (HeatmapRow r : reportRepository.treatmentHeatmapRows(fromDT, toDT)) {
+            if (r.startTime() == null) continue;
+            int key = r.startTime().getDayOfWeek().getValue() * 100 + r.startTime().getHour();
+            BigDecimal amt = nz(r.amount());
+            if (r.refund()) {
+                amount.merge(key, amt.negate(), BigDecimal::add);
+            } else {
+                amount.merge(key, amt, BigDecimal::add);
+                count.computeIfAbsent(key, k -> new long[1])[0]++;
+            }
+        }
+
+        List<HeatmapCellDTO> cells = new ArrayList<>(count.size());
+        for (Map.Entry<Integer, long[]> e : count.entrySet()) {
+            int key = e.getKey();
+            cells.add(new HeatmapCellDTO(key / 100, key % 100,
+                    sc(amount.getOrDefault(key, BigDecimal.ZERO)), e.getValue()[0]));
+        }
+        cells.sort(Comparator.comparingInt(HeatmapCellDTO::weekday).thenComparingInt(HeatmapCellDTO::hour));
+        return new TimingDTO(cells);
     }
 
     // ===============================================================================
