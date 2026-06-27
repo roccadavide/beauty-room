@@ -23,6 +23,7 @@ Thumbs.db
 *.iml
 
 audit
+REVENUE_REPORT_AUDIT.md
 
 .claude/
 design-reference/
