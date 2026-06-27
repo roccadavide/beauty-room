@@ -59,8 +59,7 @@ function splitEur(v) {
 }
 
 /** ISO yyyy-mm-dd from a local Date (no UTC shift). */
-const isoLocal = d =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const isoLocal = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 function presetRange(key) {
   const today = new Date();
@@ -326,9 +325,7 @@ function ReportPage() {
     const f2 = v => num(v).toFixed(2).replace(".", ",");
     const lines = ["Mese;Trattamenti (€);Prodotti (€);Pacchetti (€);Promozioni (€);Totale (€)"];
     monthly.forEach(m => {
-      lines.push(
-        [`${MONTHS_SHORT[m.month - 1]} ${m.year}`, f2(m.trattamenti), f2(m.prodotti), f2(m.pacchetti), f2(m.promozioni), f2(m.totale)].join(";")
-      );
+      lines.push([`${MONTHS_SHORT[m.month - 1]} ${m.year}`, f2(m.trattamenti), f2(m.prodotti), f2(m.pacchetti), f2(m.promozioni), f2(m.totale)].join(";"));
     });
     lines.push("");
     lines.push("Riepilogo;Valore");
@@ -383,73 +380,75 @@ function ReportPage() {
       <SEO title="Report" noindex={true} />
 
       <div className="rp-shell">
-        {/* ---------- Header + filter bar ---------- */}
+        {/* ---------- Title block (full width, standalone) ---------- */}
         <header className="rp-head">
           <div className="rp-head-titles">
             <span className="section-eyebrow">Report</span>
             <h1 className="section-title rp-h1">Andamento incassi</h1>
             <p className="section-subtitle rp-sub">Quanto hai incassato, da cosa e da chi — in tempo reale.</p>
           </div>
+        </header>
 
-          <div className="rp-filterbar">
-            <div className="rp-daterange">
-              <DateTimeField label="Da" mode="date" value={from} onChange={setFrom} placeholder="Da" className="rp-dtf" />
-              <span className="rp-daterange-sep" aria-hidden="true">→</span>
-              <DateTimeField label="A" mode="date" value={to} onChange={setTo} placeholder="A" className="rp-dtf" />
-              <button type="button" className="rp-apply" onClick={handleManualUpdate} disabled={loading}>
-                {loading ? "…" : "Aggiorna"}
-              </button>
-            </div>
-
-            <div className="rp-presets">
-              {PRESETS.map(p => (
-                <button
-                  key={p.key}
-                  type="button"
-                  className={`rp-preset${activePreset === p.key ? " is-active" : ""}`}
-                  onClick={() => applyPreset(p.key)}
-                >
-                  {p.label}
+        {/* ---------- Unified filters card ---------- */}
+        <section className="rp-filters" aria-label="Filtri report">
+          {/* Periodo — presets + custom range live together (same axis) */}
+          <div className="rp-filter-group rp-filter-group--period">
+            <span className="rp-lens-cap">Periodo</span>
+            <div className="rp-filter-controls">
+              <div className="rp-presets">
+                {PRESETS.map(p => (
+                  <button key={p.key} type="button" className={`rp-preset${activePreset === p.key ? " is-active" : ""}`} onClick={() => applyPreset(p.key)}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="rp-daterange">
+                <DateTimeField label="Da" mode="date" value={from} onChange={setFrom} placeholder="Da" className="rp-dtf" />
+                <span className="rp-daterange-sep" aria-hidden="true">
+                  →
+                </span>
+                <DateTimeField label="A" mode="date" value={to} onChange={setTo} placeholder="A" className="rp-dtf" />
+                <button type="button" className="rp-apply" onClick={handleManualUpdate} disabled={loading}>
+                  {loading ? "…" : "Aggiorna"}
                 </button>
-              ))}
+              </div>
             </div>
+          </div>
 
-            <div className="rp-compare">
-              <span className="rp-compare-label">Confronta</span>
+          <div className="rp-filter-divider" aria-hidden="true" />
+
+          {/* Confronto */}
+          <div className="rp-filter-group">
+            <span className="rp-lens-cap">Confronto</span>
+            <div className="rp-filter-controls">
               {COMPARE.map(c => (
-                <button
-                  key={c.key}
-                  type="button"
-                  className={`rp-seg${compareMode === c.key ? " is-active" : ""}`}
-                  onClick={() => changeCompare(c.key)}
-                >
+                <button key={c.key} type="button" className={`rp-seg${compareMode === c.key ? " is-active" : ""}`} onClick={() => changeCompare(c.key)}>
                   {c.label}
                 </button>
               ))}
             </div>
           </div>
-        </header>
 
-        {error && <div className="rp-error">{error}</div>}
+          <div className="rp-filter-divider" aria-hidden="true" />
 
-        {/* ---------- View lenses ---------- */}
-        {data && (
-          <div className="rp-lens">
-            <div className="rp-lens-group">
-              <span className="rp-lens-cap">Canale</span>
+          {/* Canale */}
+          <div className="rp-filter-group">
+            <span className="rp-lens-cap">Canale</span>
+            <div className="rp-filter-controls">
               {CHANNELS.map(c => (
-                <button
-                  key={c.key}
-                  type="button"
-                  className={`rp-pill${channel === c.key ? " is-active" : ""}`}
-                  onClick={() => selectChannel(c.key)}
-                >
+                <button key={c.key} type="button" className={`rp-pill${channel === c.key ? " is-active" : ""}`} onClick={() => selectChannel(c.key)}>
                   {c.label}
                 </button>
               ))}
             </div>
-            <div className="rp-lens-group">
-              <span className="rp-lens-cap">Tipo</span>
+          </div>
+
+          <div className="rp-filter-divider" aria-hidden="true" />
+
+          {/* Tipo — locked while a channel is selected */}
+          <div className="rp-filter-group">
+            <span className="rp-lens-cap">Tipo</span>
+            <div className="rp-filter-controls">
               {TYPES.map(t => (
                 <button
                   key={t.key}
@@ -465,7 +464,9 @@ function ReportPage() {
               {channelActive && <span className="rp-lens-hint">Filtro per tipo non disponibile per canale</span>}
             </div>
           </div>
-        )}
+        </section>
+
+        {error && <div className="rp-error">{error}</div>}
 
         {/* ---------- Loading skeletons ---------- */}
         {loading && !data && <Skeletons />}
@@ -474,7 +475,9 @@ function ReportPage() {
         {data && incassato && (
           <main className="rp-content">
             {flagged > 0 && (
-              <p className="rp-flag">⚠ {int(flagged)} {flagged === 1 ? "voce non valorizzata" : "voci non valorizzate"} — verifica i dati.</p>
+              <p className="rp-flag">
+                ⚠ {int(flagged)} {flagged === 1 ? "voce non valorizzata" : "voci non valorizzate"} — verifica i dati.
+              </p>
             )}
 
             {/* Hero */}
@@ -635,13 +638,7 @@ function ReportPage() {
                                   const v = num(m[k]);
                                   if (v <= 0) return null;
                                   const t = TYPES.find(x => x.key === k);
-                                  return (
-                                    <div
-                                      key={k}
-                                      className="rp-seg2"
-                                      style={{ height: `${(v / maxMonth) * 100}%`, background: t.color }}
-                                    />
-                                  );
+                                  return <div key={k} className="rp-seg2" style={{ height: `${(v / maxMonth) * 100}%`, background: t.color }} />;
                                 })
                               )}
                             </div>
@@ -651,10 +648,7 @@ function ReportPage() {
                     </div>
                     <div className="rp-labels">
                       {monthly.map(m => (
-                        <span
-                          key={`${m.year}-${m.month}`}
-                          className={`rp-col-label${monthly[effectiveMonthIdx] === m ? " is-active" : ""}`}
-                        >
+                        <span key={`${m.year}-${m.month}`} className={`rp-col-label${monthly[effectiveMonthIdx] === m ? " is-active" : ""}`}>
                           {MONTHS_SHORT[m.month - 1]}
                         </span>
                       ))}
@@ -688,10 +682,7 @@ function ReportPage() {
 
               <div className="rp-legend">
                 {TYPES.map(t => (
-                  <span
-                    key={t.key}
-                    className={`rp-legend-item${!channelActive && !types[t.key] ? " is-dim" : ""}`}
-                  >
+                  <span key={t.key} className={`rp-legend-item${!channelActive && !types[t.key] ? " is-dim" : ""}`}>
                     <span className="rp-dot" style={{ background: t.color }} />
                     {t.label}
                   </span>

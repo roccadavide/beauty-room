@@ -63,7 +63,7 @@ public class ReportService {
 
     public ReportResponseDTO getReport(LocalDate from, LocalDate to, String compareRaw) {
         if (from == null || to == null) throw new BadRequestException("Range obbligatorio.");
-        if (!from.isBefore(to)) throw new BadRequestException("'from' deve essere prima di 'to'.");
+        if (from.isAfter(to)) throw new BadRequestException("'from' non può essere dopo 'to'.");
         if (ChronoUnit.MONTHS.between(from, to) > 24)
             throw new BadRequestException("Range massimo 24 mesi.");
 
