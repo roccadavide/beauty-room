@@ -24,9 +24,10 @@ public class ReportController {
     @GetMapping
     public ResponseEntity<ReportResponseDTO> getReport(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false, defaultValue = "prevPeriod") String compare
     ) {
-        return ResponseEntity.ok(reportService.getReport(from, to));
+        return ResponseEntity.ok(reportService.getReport(from, to, compare));
     }
 }
 
