@@ -42,6 +42,10 @@ import InstallmentEditor from "./installments/InstallmentEditor";
 // pkgi-* classes for the collapsible package items toggle
 import "./PackageForm.css";
 
+// Agenda compact↔desktop breakpoint — single source of truth for the JS matchMedia.
+// ≤1023.98px → compact (portrait iPad); above → desktop agenda (landscape iPad).
+const COMPACT_QUERY = "(max-width: 1023.98px)";
+
 // Digits-only phone (mirror of the backend digitsOnly / SQL regexp_replace) — used to
 // clear the agenda arretrati badge across all cards of the same customer after settling.
 const digitsOnly = s => (s ? String(s).replace(/[^0-9]/g, "") : "");
@@ -821,13 +825,13 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
 export default function AdminAgendaPage() {
   const [date, setDate] = useState(() => new Date());
 
-  // ── Compact layout (≤1279px): single-column tablet/laptop mode ───────────
-  const [isCompact, setIsCompact] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 1279.98px)").matches);
+  // ── Compact layout (≤1023px): single-column tablet/laptop mode ───────────
+  const [isCompact, setIsCompact] = useState(() => typeof window !== "undefined" && window.matchMedia(COMPACT_QUERY).matches);
   const [compactTab, setCompactTab] = useState("appointments"); // 'appointments' | 'timeline' | 'week'
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 1279.98px)");
+    const mq = window.matchMedia(COMPACT_QUERY);
     const sync = () => setIsCompact(mq.matches);
     sync();
     mq.addEventListener("change", sync);
@@ -1576,7 +1580,7 @@ export default function AdminAgendaPage() {
     <Container fluid className={`ag-page py-3${isCompact ? " ag-page--has-compact" : ""}`}>
       <SEO title="Agenda" noindex={true} />
 
-      {/* ── Compact sticky header (≤1279px only — hidden on desktop by CSS) ── */}
+      {/* ── Compact sticky header (≤1023px only — hidden on desktop by CSS) ── */}
       {isCompact && (
         <div className="ag-compact-header">
           <div className="ag-compact-header__row ag-compact-header__row--days">

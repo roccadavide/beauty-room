@@ -3437,7 +3437,7 @@ button.ag-pill:hover,
 }
 
 /* ============================================================
-   COMPACT LAYOUT — Tablet/laptop ≤1279px
+   COMPACT LAYOUT — Tablet/laptop ≤1023px
    These rules activate when JSX adds `.ag-page--has-compact`
    to the root .ag-page element (done in Step 2).
    Without that class, all rules below are inert.
@@ -3683,7 +3683,7 @@ button.ag-pill:hover,
 
 /* ── Width-scoped overrides ────────────────────────────────── */
 
-@media (max-width: 1279.98px) {
+@media (max-width: 1023.98px) {
   /* Hide the left Bootstrap column entirely */
   .ag-page--has-compact > .row > [class*="col-lg-4"] {
     display: none !important;
@@ -3719,7 +3719,7 @@ button.ag-pill:hover,
 }
 
 /* Defensive: on desktop, hide the compact-only nodes even if rendered */
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
   .ag-compact-header,
   .ag-fab-container {
     display: none !important;
