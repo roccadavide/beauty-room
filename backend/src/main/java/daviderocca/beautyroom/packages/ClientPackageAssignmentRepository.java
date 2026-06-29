@@ -19,4 +19,21 @@ public interface ClientPackageAssignmentRepository extends JpaRepository<ClientP
 
     @Query("SELECT a FROM ClientPackageAssignment a WHERE LOWER(TRIM(a.clientName)) = LOWER(TRIM(:name)) ORDER BY a.createdAt DESC")
     List<ClientPackageAssignment> findByClientNameIgnoreCase(@Param("name") String name);
+
+    /** Customer insights headline: count of in-store packages in the given status (ACTIVE). */
+    long countByStatus(ClientPackageStatus status);
+
+    /**
+     * Customer insights: in-store package counts per client_name (free-text), excluding CANCELLED.
+     * The name string is the only key these rows carry — the insights service resolves it best-effort
+     * to a Customer so it can merge with the online (FK-keyed) counts. Row = [clientName (String),
+     * count (Long)].
+     */
+    @Query("""
+            SELECT a.clientName, COUNT(a)
+            FROM ClientPackageAssignment a
+            WHERE a.status <> daviderocca.beautyroom.enums.ClientPackageStatus.CANCELLED
+            GROUP BY a.clientName
+            """)
+    List<Object[]> packageCountByClientName();
 }

@@ -176,6 +176,15 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         """, nativeQuery = true)
     List<Booking> findByCustomerPhoneNormalizedOrderByStartTimeDesc(@Param("phone") String phone);
 
+    /**
+     * All bookings whose customer FK equals :customerId — the reliable, INDEXED key
+     * (idx_booking_customer_id, V11). The rich customer-history endpoint unions this with the
+     * normalized-phone match above (to also catch legacy / FK-null rows, e.g. those from
+     * updateMultiServiceBooking which never calls setCustomer), de-duplicates by id, then
+     * partitions upcoming vs past in Java. No ordering — the service sorts each partition.
+     */
+    List<Booking> findByCustomer_CustomerId(UUID customerId);
+
     // ===== Lock singolo booking per update di stato =====
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Booking b WHERE b.bookingId = :id")
@@ -472,4 +481,39 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         ORDER BY occurred_at DESC
         """, nativeQuery = true)
     List<Object[]> findArretratiForCustomer(@Param("phone") String phone);
+
+    // ===== Customer insights (overview dashboard) — aggregate, FK-keyed, no per-customer N+1 =====
+
+    /**
+     * Per-customer COMPLETED-booking stats, GROUPED on the indexed customer FK. ONE scan feeds
+     * BOTH the "top by completed appointments" ranking AND the win-back last-visit. Only FK-bearing
+     * rows participate (inner join) — legacy COMPLETED bookings with a null customer_id are out of
+     * scope here (their identity can't be resolved cheaply).
+     * Row = [customerId (UUID), fullName (String), phone (String), completedCount (Long),
+     *        lastCompletedAt (LocalDateTime)].
+     */
+    @Query("""
+        SELECT c.customerId, c.fullName, c.phone, COUNT(b), MAX(b.startTime)
+        FROM Booking b
+        JOIN b.customer c
+        WHERE b.bookingStatus = daviderocca.beautyroom.enums.BookingStatus.COMPLETED
+        GROUP BY c.customerId, c.fullName, c.phone
+        """)
+    List<Object[]> completedStatsByCustomer();
+
+    /**
+     * customer_ids that currently hold an ACTIVE FUTURE booking (start &ge; :startOfToday AND status
+     * in PENDING_PAYMENT / CONFIRMED). Used to EXCLUDE still-active clients from the win-back list.
+     * (BookingStatus has no plain PENDING — the active-future set is exactly these two states.)
+     */
+    @Query("""
+        SELECT DISTINCT c.customerId
+        FROM Booking b
+        JOIN b.customer c
+        WHERE b.startTime >= :startOfToday
+          AND b.bookingStatus IN (
+              daviderocca.beautyroom.enums.BookingStatus.PENDING_PAYMENT,
+              daviderocca.beautyroom.enums.BookingStatus.CONFIRMED)
+        """)
+    List<UUID> customerIdsWithActiveFutureBooking(@Param("startOfToday") LocalDateTime startOfToday);
 }

@@ -105,4 +105,20 @@ public interface PackageCreditRepository extends JpaRepository<PackageCredit, UU
 
     // ---- KPI: conta per status ----
     long countByStatus(PackageCreditStatus status);
+
+    /**
+     * Customer insights: online package counts per owning customer (FK), excluding REFUNDED /
+     * CANCELLED credits. Null-customer credits (admin-assigned / un-backfilled) are skipped — they
+     * carry no identity to attribute. Row = [customerId (UUID), count (Long)].
+     */
+    @Query("""
+            SELECT pc.customer.customerId, COUNT(pc)
+            FROM PackageCredit pc
+            WHERE pc.customer IS NOT NULL
+              AND pc.status NOT IN (
+                  daviderocca.beautyroom.enums.PackageCreditStatus.REFUNDED,
+                  daviderocca.beautyroom.enums.PackageCreditStatus.CANCELLED)
+            GROUP BY pc.customer.customerId
+            """)
+    List<Object[]> onlinePackageCountByCustomer();
 }

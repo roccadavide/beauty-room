@@ -23,6 +23,7 @@ import daviderocca.beautyroom.DTO.bookingDTOs.PromoSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.PromoLineSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.ServiceSummaryDTO;
 import daviderocca.beautyroom.DTO.bookingDTOs.SaleSummaryDTO;
+import daviderocca.beautyroom.DTO.customerDTOs.CustomerBookingsDTO;
 import daviderocca.beautyroom.entities.ServiceItem;
 import daviderocca.beautyroom.enums.BookingStatus;
 import daviderocca.beautyroom.enums.ClientPackagePaymentMode;
@@ -46,6 +47,7 @@ import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.exceptions.UnauthorizedException;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ClosureRepository;
+import daviderocca.beautyroom.repositories.CustomerRepository;
 import daviderocca.beautyroom.repositories.ServiceOptionRepository;
 import daviderocca.beautyroom.repositories.WorkingHoursRepository;
 // 08.2: promotions <-> agenda wiring
@@ -81,6 +83,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -100,6 +103,9 @@ public class BookingService {
     private final ServiceOptionRepository serviceOptionRepository;
     private final PackageCreditService packageCreditService;
     private final CustomerService customerService;
+    // Customer-history endpoint: resolve the customer (phone for the phone-leg, 404 if missing).
+    // A repository, not BookingService→CustomerService→BookingService — no dependency cycle.
+    private final CustomerRepository customerRepository;
     private final WorkingHoursRepository workingHoursRepository;
     private final ClosureRepository closureRepository;
     private final ClosureService closureService;
@@ -3149,6 +3155,78 @@ public class BookingService {
      */
     public AdminBookingCardDTO assembleBookingCard(Booking b) {
         return toAdminCard(b);
+    }
+
+    // Active-future states for the customer-history "upcoming" partition. BookingStatus has NO
+    // plain PENDING — this set is exactly PENDING_PAYMENT + CONFIRMED. Anything else (COMPLETED /
+    // CANCELLED / NO_SHOW / REFUNDED) is "past" regardless of date.
+    private static final Set<BookingStatus> ACTIVE_FUTURE_STATUSES =
+            EnumSet.of(BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED);
+
+    /**
+     * Rich per-customer booking history: every row is a full {@link AdminBookingCardDTO} (same
+     * assembler the agenda uses), so a row can be handed straight to the agenda edit drawer with no
+     * extra fetch. Matching = customer FK {@code OR} normalized-phone (the FK is reliable/indexed;
+     * the phone leg recovers legacy / FK-null rows). De-dupes by booking id, then partitions:
+     * <ul>
+     *   <li>{@code upcoming} — start &ge; today (Europe/Rome) AND status in PENDING_PAYMENT/CONFIRMED,
+     *       soonest first, ALL of them (a customer has very few future appts).</li>
+     *   <li>{@code past} — everything else, newest first, sliced by {@code pastOffset}/{@code pastLimit}.</li>
+     * </ul>
+     * {@code pastTotal} is the unpaginated "past" count (for "load more").
+     *
+     * <p>MUST stay {@code @Transactional(readOnly = true)}: OSIV is off and {@code assembleBookingCard}
+     * lazy-loads services/packages/sales/promotions per booking. That assembler is N+1 per row, so we
+     * assemble ALL upcoming (naturally small) but ONLY the requested past PAGE — rows beyond the page
+     * are never assembled.
+     */
+    @Transactional(readOnly = true)
+    public CustomerBookingsDTO getCustomerBookingCards(UUID customerId, int pastLimit, int pastOffset) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException(customerId));
+
+        // Union FK-matched + normalized-phone-matched, de-duplicated by id. putIfAbsent keeps the
+        // FK-loaded instance when a booking matches both legs.
+        Map<UUID, Booking> byId = new LinkedHashMap<>();
+        for (Booking b : bookingRepository.findByCustomer_CustomerId(customerId)) {
+            byId.put(b.getBookingId(), b);
+        }
+        String phone = customer.getPhone();
+        if (phone != null && !digitsOnly(phone).isEmpty()) {
+            for (Booking b : bookingRepository.findByCustomerPhoneNormalizedOrderByStartTimeDesc(phone)) {
+                byId.putIfAbsent(b.getBookingId(), b);
+            }
+        }
+
+        LocalDateTime startOfToday = LocalDate.now(AvailabilityService.BUSINESS_ZONE).atStartOfDay();
+
+        List<Booking> upcoming = new ArrayList<>();
+        List<Booking> past = new ArrayList<>();
+        for (Booking b : byId.values()) {
+            boolean isUpcoming = b.getStartTime() != null
+                    && !b.getStartTime().isBefore(startOfToday)
+                    && ACTIVE_FUTURE_STATUSES.contains(b.getBookingStatus());
+            (isUpcoming ? upcoming : past).add(b);
+        }
+        Comparator<Booking> byStart = Comparator.comparing(
+                Booking::getStartTime, Comparator.nullsLast(Comparator.naturalOrder()));
+        upcoming.sort(byStart);              // soonest first
+        past.sort(byStart.reversed());       // newest first
+
+        long pastTotal = past.size();
+        int safeOffset = Math.max(0, pastOffset);
+        int safeLimit  = Math.max(0, pastLimit);
+
+        List<AdminBookingCardDTO> upcomingCards = upcoming.stream()
+                .map(this::assembleBookingCard)
+                .toList();
+        List<AdminBookingCardDTO> pastCards = past.stream()
+                .skip(safeOffset)
+                .limit(safeLimit)
+                .map(this::assembleBookingCard)
+                .toList();
+
+        return new CustomerBookingsDTO(upcomingCards, pastCards, pastTotal);
     }
 
     /**

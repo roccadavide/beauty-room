@@ -1,13 +1,17 @@
 package daviderocca.beautyroom.controllers;
 
 import daviderocca.beautyroom.DTO.customerDTOs.CreateCustomerDTO;
+import daviderocca.beautyroom.DTO.customerDTOs.CustomerBookingsDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerDetailDTO;
+import daviderocca.beautyroom.DTO.customerDTOs.CustomerInsightsDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.CustomerSummaryDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerDTO;
 import daviderocca.beautyroom.DTO.customerDTOs.UpdateCustomerNotesDTO;
 import daviderocca.beautyroom.DTO.packageDTOs.UnifiedActivePackageDTO;
 import daviderocca.beautyroom.entities.PackageCredit;
 import daviderocca.beautyroom.packages.ClientPackageService;
+import daviderocca.beautyroom.services.BookingService;
+import daviderocca.beautyroom.services.CustomerInsightsService;
 import daviderocca.beautyroom.services.CustomerService;
 import daviderocca.beautyroom.services.PackageCreditService;
 import jakarta.validation.Valid;
@@ -29,6 +33,10 @@ public class CustomerController {
     private final CustomerService customerService;
     private final ClientPackageService clientPackageService;
     private final PackageCreditService packageCreditService;
+    // Rich booking history is assembled by BookingService (it owns assembleBookingCard); injecting
+    // it here — not into CustomerService — avoids the BookingService↔CustomerService cycle.
+    private final BookingService bookingService;
+    private final CustomerInsightsService customerInsightsService;
 
     @GetMapping("/search")
     public ResponseEntity<List<CustomerSummaryDTO>> search(
@@ -54,6 +62,32 @@ public class CustomerController {
     @GetMapping("/{id}/summary")
     public ResponseEntity<CustomerDetailDTO> summary(@PathVariable UUID id) {
         return ResponseEntity.ok(customerService.getSummary(id));
+    }
+
+    /**
+     * GET /admin/customers/{id}/bookings?pastLimit=20&pastOffset=0
+     * Rich per-customer booking history. Each row is a full AdminBookingCardDTO (same assembler the
+     * agenda uses), split into {@code upcoming} (active future, soonest first, all) and {@code past}
+     * (everything else, newest first, paginated) plus {@code pastTotal} for "load more". Matching is
+     * customer FK OR normalized phone, so legacy / FK-null rows are still found.
+     */
+    @GetMapping("/{id}/bookings")
+    public ResponseEntity<CustomerBookingsDTO> customerBookings(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "20") int pastLimit,
+            @RequestParam(defaultValue = "0") int pastOffset
+    ) {
+        return ResponseEntity.ok(bookingService.getCustomerBookingCards(id, pastLimit, pastOffset));
+    }
+
+    /**
+     * GET /admin/customers/insights
+     * Customers-workspace overview dashboard: headline counts, top clients by completed
+     * appointments / packages / all-time spend, and a win-back list. Pure read, aggregate only.
+     */
+    @GetMapping("/insights")
+    public ResponseEntity<CustomerInsightsDTO> insights() {
+        return ResponseEntity.ok(customerInsightsService.getInsights());
     }
 
     @PatchMapping("/{id}/notes")
