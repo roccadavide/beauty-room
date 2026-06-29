@@ -1,0 +1,217 @@
+/* ===========================
+   CLIENTS OVERVIEW (Panoramica)
+   Prefix: cov-  ·  Editorial Beauty (cream/gold, serif titles, NO Bootstrap Card)
+   Rendered inside .cli-page (NOT .ag-page), so the .ag-page .card reset never bites.
+   =========================== */
+
+.cov-loading,
+.cov-empty {
+  color: var(--ag-muted);
+  font-size: 0.9rem;
+}
+
+.cov-loading {
+  padding: 28px 4px;
+}
+
+.cov-error {
+  background: rgba(210, 70, 70, 0.08);
+  border: 1px solid rgba(210, 70, 70, 0.25);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: #c0392b;
+}
+
+/* ── Headline stat tiles ── */
+.cov-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+@media (min-width: 768px) {
+  .cov-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.cov-stat {
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  border: 1px solid var(--ag-border);
+  border-radius: 16px;
+  box-shadow: var(--ag-shadow);
+  padding: 14px 16px;
+}
+
+.cov-stat__value {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ag-text);
+}
+
+.cov-stat--accent .cov-stat__value {
+  color: #8c6d3f;
+}
+
+.cov-stat__label {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ag-muted);
+}
+
+/* ── Ranking blocks ── */
+.cov-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .cov-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cov-block {
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  border: 1px solid var(--ag-border);
+  border-radius: 18px;
+  box-shadow: var(--ag-shadow);
+  padding: 16px 16px 12px;
+}
+
+.cov-block__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ag-text);
+}
+
+.cov-block__title::before {
+  content: "✦";
+  color: #b8976a;
+  font-size: 0.9em;
+}
+
+.cov-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cov-rank__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.cov-rank__row--wa {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.cov-rank__row.is-click {
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.cov-rank__row.is-click:hover {
+  background: rgba(184, 151, 106, 0.12);
+}
+
+.cov-rank__row.is-click:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: -2px;
+}
+
+.cov-rank__row.is-static {
+  opacity: 0.62;
+}
+
+.cov-rank__pos {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f0e3cf;
+  color: #8c6d3f;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+/* Crown the leader. */
+.cov-rank__row:first-child .cov-rank__pos {
+  background: linear-gradient(180deg, #e7c87f, #c69b50);
+  color: #fff;
+}
+
+.cov-rank__id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cov-rank__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ag-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cov-rank__phone {
+  font-size: 0.74rem;
+  color: var(--ag-muted);
+}
+
+.cov-rank__val {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #6f4a2f;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cov-rank__val small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--ag-muted);
+}
+
+.cov-wa {
+  flex: none;
+  border: 1px solid rgba(37, 211, 102, 0.5);
+  background: rgba(37, 211, 102, 0.12);
+  color: #128c3e;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.cov-wa:hover {
+  background: rgba(37, 211, 102, 0.2);
+}

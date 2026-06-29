@@ -24,6 +24,7 @@ import CompletionDrawer from "./CompletionDrawer";
 import { pushLenisLock, popLenisLock } from "../../hooks/useLenis";
 import NewAppointmentDrawer from "../../features/admin/NewAppointmentDrawer";
 import ClosuresDrawer from "../../features/admin/ClosuresDrawer";
+import WorkspaceSwitch from "../../features/admin/WorkspaceSwitch";
 import ConfirmDialog from "../common/ConfirmDialog";
 import WeeklyCalendar from "./WeeklyCalendar";
 import { VerifiedBadge, OnlineBadge, PaidOnlineBadge } from "./AgendaBadges";
@@ -1668,6 +1669,8 @@ export default function AdminAgendaPage() {
             )}
           </div>
 
+          <WorkspaceSwitch />
+
           <div className="ag-compact-tabs" role="tablist">
             <button
               type="button"
@@ -1705,6 +1708,7 @@ export default function AdminAgendaPage() {
         <Col lg={4}>
           <Card className="ag-card">
             <Card.Body className="ag-card__body">
+              <WorkspaceSwitch />
               <div className="d-flex align-items-center justify-content-between">
                 <div className="d-flex align-items-center gap-2">
                   <div>

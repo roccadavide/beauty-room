@@ -41,7 +41,7 @@ const CartPage = lazy(() => import("./features/cart/CartPage"));
 const OrderConfirmation = lazy(() => import("./features/orders/OrderConfirmation"));
 const MyOrders = lazy(() => import("./features/orders/MyOrders"));
 const AllOrders = lazy(() => import("./features/orders/AllOrders"));
-const AdminAgendaPage = lazy(() => import("./components/admin/AdminAgendaPage"));
+const AdminWorkspace = lazy(() => import("./features/admin/AdminWorkspace"));
 const AdminAgendaSettingsPage = lazy(() => import("./components/admin/AdminAgendaSettingsPage"));
 const ImpostazioniPage = lazy(() => import("./components/admin/ImpostazioniPage"));
 const ClientiPage = lazy(() => import("./pages/admin/ClientiPage"));
@@ -366,7 +366,7 @@ function App() {
                 path="/profilo/admin/agenda"
                 element={
                   <PrivateRoute roles={["ADMIN"]}>
-                    <AdminAgendaPage />
+                    <AdminWorkspace />
                   </PrivateRoute>
                 }
               />

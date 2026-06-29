@@ -36,6 +36,24 @@ export const getCustomerSummary = async customerId => {
   return data;
 };
 
+/**
+ * GET /admin/customers/insights
+ * Customers-workspace overview: headline counts + top-client rankings + win-back.
+ *
+ * @returns {Promise<{
+ *   totalCustomers: number, trustedCustomersCount: number, activePackagesCount: number,
+ *   outstandingTotal: number,
+ *   topByCompletedAppointments: Array<{customerId: string|null, name: string, phone: string, count: number}>,
+ *   topByPackages: Array<{customerId: string|null, name: string, phone: string, count: number}>,
+ *   topBySpend: Array<{customerId: string|null, name: string, phone: string, revenue: number, visits: number}>,
+ *   winBack: Array<{customerId: string, name: string, phone: string, lastVisit: string, daysSince: number}>
+ * }>}
+ */
+export const fetchCustomerInsights = async () => {
+  const { data } = await http.get(CUSTOMER_ENDPOINTS.INSIGHTS);
+  return data;
+};
+
 export const updateCustomerNotes = async (customerId, notes) => {
   await http.patch(CUSTOMER_ENDPOINTS.NOTES(customerId), { notes });
 };
