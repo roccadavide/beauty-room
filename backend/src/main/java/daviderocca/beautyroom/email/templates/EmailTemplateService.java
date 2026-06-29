@@ -56,7 +56,7 @@ public class EmailTemplateService {
     @Value("${app.brand.facebookUrl:https://www.facebook.com/rossimichela.pmu}")
     private String facebookUrl;
 
-    @Value("${app.google.review.url:https://g.page/r/PLACEHOLDER/review}")
+    @Value("${app.google.review.url:https://search.google.com/local/writereview?placeid=ChIJ_S4WL6WthkcRzg-ZemTqvc4}")
     private String googleReviewUrl;
 
     private static final String SERIF = "'Cormorant Garamond','Petrona',Georgia,'Times New Roman',serif";
