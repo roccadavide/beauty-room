@@ -126,8 +126,8 @@ body.modal-open {
 .ag-toolbar-nav {
   display: flex;
   align-items: center;
+  flex-direction: row;
   gap: 8px;
-  flex-wrap: nowrap;
   overflow: visible;
 }
 
@@ -161,10 +161,6 @@ body.modal-open {
    At these widths the left Col lg=4 is ~315–451px, too narrow for
    buttons (≈288px) + gap + date-field (≈190px) on a single row. */
 @media (min-width: 992px) and (max-width: 1399px) {
-  .ag-toolbar-nav {
-    flex-wrap: wrap;
-  }
-
   .ag-toolbar-nav__btns {
     flex-wrap: wrap;
   }
@@ -3723,6 +3719,44 @@ button.ag-pill:hover,
   .ag-compact-header,
   .ag-fab-container {
     display: none !important;
+  }
+}
+
+/* ============================================================
+   TABLET LANDSCAPE (1024–1279.98px) — desktop layout, rebalanced
+   In this band isCompact is FALSE (compact only kicks in ≤1023.98px),
+   so the two-column desktop agenda renders. On an iPad in landscape
+   (~1180px CSS) the default Bootstrap 33/67 split leaves the LEFT
+   column (agenda KPIs + day timeline) too narrow: the timeline is
+   cramped and the header's "Chiusure / + Nuovo" buttons overflow the
+   column and collide with the appointments panel on the right.
+   Fix = widen the left column and let its header wrap onto two rows.
+   The 1279.98px ceiling = "just below the 1280px desktop": ≥1280px is
+   NOT matched here and stays exactly as-is. (This 1279.98 is the
+   tablet-band ceiling, unrelated to the old compact seam which now
+   lives at 1023.98 in COMPACT_QUERY.)
+   ============================================================ */
+@media (min-width: 1024px) and (max-width: 1379.98px) {
+  /* Day-view split: give the timeline column more width.
+     Week view's right column is col-lg-12 (not matched), so it keeps
+     its full width and is unaffected. Mirrors the flex-basis + max-width
+     override pattern already used by the compact rules above. */
+  .ag-page > .row > [class*="col-lg-4"] {
+    flex: 0 0 45%;
+    max-width: 45%;
+  }
+  .ag-page > .row > [class*="col-lg-8"] {
+    flex: 0 0 55%;
+    max-width: 55%;
+  }
+
+  /* Agenda card header (title + view toggle | Chiusure + Nuovo):
+     wrap to a second row instead of overflowing the now-narrower
+     column. Also matches the timeline card header (title + date),
+     which never overflows so it never actually wraps — harmless. */
+  .ag-page > .row > [class*="col-lg-4"] .ag-card__body > .d-flex.justify-content-between {
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
 }
 
