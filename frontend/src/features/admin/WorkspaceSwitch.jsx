@@ -9,8 +9,8 @@ const SEGMENTS = [
 
 /**
  * Primary workspace navigation: a gold segmented control that switches the whole
- * page between Agenda and Clienti. Rendered inside each view's own header so it is
- * always reachable. Reads {view, setView} from WorkspaceContext.
+ * page between Agenda and Clienti. Rendered once in the persistent AdminWorkspace
+ * top-bar so it is always reachable. Reads {view, setView} from WorkspaceContext.
  *
  * The sliding indicator uses transform: translateX — that is LOCAL to the pill and
  * does not affect any position:fixed element (the page-swap fade wrapper, by

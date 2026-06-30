@@ -16,8 +16,12 @@
 }
 
 @keyframes aw-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -29,6 +33,38 @@
 /* Suspense fallback while a view chunk loads — reserve height to avoid a jump. */
 .aw-loading {
   min-height: 60dvh;
+}
+
+/* ── Workspace top-bar ──────────────────────────────────────────
+   Slim IN-FLOW bar holding the SINGLE, persistent WorkspaceSwitch (lifted out of
+   the two views) so the control no longer relocates on swap. NON-sticky: it sits at
+   the top of the admin content and scrolls away with the page. Its background is set
+   per active view (data-view) to match that view's page background, so it reads as
+   part of the page, not a separate floating bar — both view roots (.ag-page /
+   .cli-page) open on the same --ag-bg gradient top, so the seam below blends.
+   Keep the opacity-only invariant: do NOT add transform / filter / will-change /
+   contain / backdrop-filter / perspective here (same hard rule as .aw-fade). */
+:root {
+  --aw-topbar-h: 48px;
+}
+
+.aw-topbar {
+  box-sizing: border-box;
+  min-height: var(--aw-topbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+/* Match the active view's page background (both currently resolve to the --ag-bg
+   gradient top; kept per-view so they can diverge without re-plumbing). */
+.aw-topbar[data-view="agenda"] {
+  background: var(--ag-bg, #fbf8f3);
+}
+
+.aw-topbar[data-view="clienti"] {
+  background: var(--ag-bg, #fbf8f3);
 }
 
 /* ── WorkspaceSwitch — primary gold segmented control ───────────
@@ -44,7 +80,9 @@
   border-radius: 999px;
   background: linear-gradient(180deg, #fffaf2, #f3e7d4);
   border: 1px solid rgba(139, 109, 63, 0.3);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.7), 0 6px 18px rgba(140, 109, 63, 0.18);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.7),
+    0 6px 18px rgba(140, 109, 63, 0.18);
   user-select: none;
 }
 
@@ -58,7 +96,9 @@
   width: calc(50% - 4px);
   border-radius: 999px;
   background: linear-gradient(180deg, #c4a373, #8c6d3f);
-  box-shadow: 0 4px 12px rgba(140, 109, 63, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow:
+    0 4px 12px rgba(140, 109, 63, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
   transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
   z-index: 0;
 }
@@ -108,18 +148,7 @@
   line-height: 1;
 }
 
-/* ── Contextual placement of the switch in each header ──────────
-   The component is inserted bare; spacing is scoped here so each mount sits right
-   without wrapping divs. */
-.ag-card__body > .wsw {
-  margin: 0 0 14px;
-}
-
-.ag-compact-header > .wsw {
-  margin: 4px auto 10px;
-}
-
-/* Clients hub header: title left, switch right. */
+/* Clients hub header: title left. */
 .cli-header__top {
   display: flex;
   align-items: center;

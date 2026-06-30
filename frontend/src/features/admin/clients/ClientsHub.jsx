@@ -6,7 +6,6 @@ import { fetchServices } from "../../../api/modules/services.api";
 import SEO from "../../../components/common/SEO";
 import { buildArretratoSettlePayload } from "../../../components/admin/settlePayload";
 import NewAppointmentDrawer from "../NewAppointmentDrawer";
-import WorkspaceSwitch from "../WorkspaceSwitch";
 import ClientSearch from "./ClientSearch";
 import ClientDetailPanel from "./ClientDetailPanel";
 import PackagesGlobal from "./PackagesGlobal";
@@ -180,7 +179,6 @@ export default function ClientsHub({ customerId }) {
               <h1 className="cli-title">Gestione</h1>
               <p className="cli-subtitle">Clienti, pacchetti attivi e storico prenotazioni</p>
             </div>
-            <WorkspaceSwitch />
           </div>
         </header>
 

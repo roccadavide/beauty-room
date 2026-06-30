@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { WorkspaceContext } from "./WorkspaceContext";
+import WorkspaceSwitch from "./WorkspaceSwitch";
 
 // Lazy-split the two heavy views (mirrors how App.jsx splits admin pages). Only
 // the active one is ever mounted, so the inactive view's effects — the agenda's
@@ -41,6 +42,15 @@ export default function AdminWorkspace() {
 
   return (
     <WorkspaceContext.Provider value={ctx}>
+      {/* Persistent workspace switch — lifted out of both views so it no longer
+          relocates on swap. It is a DOM SIBLING of .aw-fade (never a parent): the
+          bar must not become a transformed/filtered ancestor of the views' inline
+          position:fixed elements (it stays a plain in-flow block — see .aw-topbar).
+          data-view drives a per-view background so the bar blends into the active
+          page instead of reading as a separate floating bar. */}
+      <div className="aw-topbar" data-view={view}>
+        <WorkspaceSwitch />
+      </div>
       <Suspense fallback={<div className="aw-loading" />}>
         {/* key={view} re-triggers the opacity fade on every switch. */}
         <div key={view} className="aw-fade">
