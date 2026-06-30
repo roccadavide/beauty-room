@@ -15,11 +15,11 @@ export default function AccountsPanel() {
   const [noShowLoading, setNoShowLoading] = useState(null); // userId in progress
   const [noShowConfirm, setNoShowConfirm] = useState(null); // userId awaiting confirm
 
-  // Guard kept verbatim from the original: the ↻ reload calls loadUsers() while
-  // `users.length > 0`, so it returns early — reload only CLEARS the list (it
-  // does not re-fetch). On a fresh mount `users` is empty, so this load runs.
+  // Real fetch — NO length guard, so the ↻ reload button actually re-fetches
+  // (the old guard returned early whenever `users.length > 0`, leaving reload to
+  // only CLEAR the list). The mount-once `didLoadRef` guard below keeps the
+  // load-on-mount behavior to a single fetch.
   const loadUsers = useCallback(async () => {
-    if (users.length > 0) return;
     setUsersLoading(true);
     setUsersError("");
     try {
@@ -30,7 +30,7 @@ export default function AccountsPanel() {
     } finally {
       setUsersLoading(false);
     }
-  }, [users.length]);
+  }, []);
 
   const handleToggleVerified = useCallback(async (userId, currentVerified) => {
     const newVal = !currentVerified;

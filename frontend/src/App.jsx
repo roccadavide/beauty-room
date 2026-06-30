@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { useDispatch } from "react-redux";
 
@@ -44,7 +44,6 @@ const AllOrders = lazy(() => import("./features/orders/AllOrders"));
 const AdminWorkspace = lazy(() => import("./features/admin/AdminWorkspace"));
 const AdminAgendaSettingsPage = lazy(() => import("./components/admin/AdminAgendaSettingsPage"));
 const ImpostazioniPage = lazy(() => import("./components/admin/ImpostazioniPage"));
-const ClientiPage = lazy(() => import("./pages/admin/ClientiPage"));
 const ReportPage = lazy(() => import("./pages/admin/ReportPage"));
 const PostItBoard = lazy(() => import("./pages/admin/PostItBoard"));
 const NotifichePage = lazy(() => import("./pages/admin/NotifichePage"));
@@ -61,6 +60,20 @@ const RESTORE_KEYS = {
   "/trattamenti": "scroll_restore_service-page",
   "/prodotti": "scroll_restore_products-page",
 };
+
+// Legacy /admin/clienti → unified workspace clients view. Preserves the
+// OUTSTANDING_PAYMENT deep-link's ?customerId=. ClientiPage was deleted (Phase 4);
+// its content now lives in the workspace's ClientsHub.
+function ClientiRedirect() {
+  const [params] = useSearchParams();
+  const customerId = params.get("customerId");
+  return (
+    <Navigate
+      to={`/profilo/admin/agenda?view=clienti${customerId ? `&customerId=${customerId}` : ""}`}
+      replace
+    />
+  );
+}
 
 function App() {
   const location = useLocation();
@@ -384,7 +397,7 @@ function App() {
                 path="/admin/clienti"
                 element={
                   <PrivateRoute roles={["ADMIN"]}>
-                    <ClientiPage />
+                    <ClientiRedirect />
                   </PrivateRoute>
                 }
               />

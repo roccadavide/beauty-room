@@ -166,6 +166,7 @@ export const CUSTOMER_ENDPOINTS = {
   SEARCH: "/admin/customers/search",
   INSIGHTS: "/admin/customers/insights",
   SUMMARY: id => `/admin/customers/${id}/summary`,
+  BOOKINGS: id => `/admin/customers/${id}/bookings`,
   NOTES: id => `/admin/customers/${id}/notes`,
   BASE: id => `/admin/customers/${id}`,
   ACTIVE_PACKAGES: id => `/admin/customers/${id}/active-packages`,

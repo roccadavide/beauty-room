@@ -14,12 +14,11 @@ export default function PackagesGlobal({ onKpisChange }) {
   const [pkgFilter, setPkgFilter]   = useState("ALL");
   const [pkgSearch, setPkgSearch]   = useState("");
 
-  // Guard kept verbatim from the original: the ↻ reload calls loadPackages()
-  // while `packages.length > 0`, so it returns early — reload only CLEARS the
-  // list (it does not re-fetch). On a fresh mount `packages` is empty, so this
-  // load runs. Dropping the guard would change the reload button's behavior.
+  // Real fetch — NO length guard, so the ↻ reload button actually re-fetches
+  // (the old guard returned early whenever `packages.length > 0`, leaving reload
+  // to only CLEAR the list). The mount-once `didLoadRef` guard below keeps the
+  // load-on-mount behavior to a single fetch.
   const loadPackages = useCallback(async () => {
-    if (packages.length > 0) return;
     setPkgLoading(true);
     setPkgError("");
     try {
@@ -32,7 +31,7 @@ export default function PackagesGlobal({ onKpisChange }) {
     } finally {
       setPkgLoading(false);
     }
-  }, [packages.length, onKpisChange]);
+  }, [onKpisChange]);
 
   // One-time load on mount (replaces the parent's lazy loader). The ref guard
   // keeps it to a single fetch even under StrictMode double-invoke.

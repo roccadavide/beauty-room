@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Spinner } from "react-bootstrap";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
-import { getActivePackages } from "../../../api/modules/customer.api";
+import { getActivePackages, fetchCustomerBookings } from "../../../api/modules/customer.api";
 import { cancelPackageAssignment } from "../../../api/modules/adminAgenda.api";
 import { formatEuro } from "../../../utils/formatEuro";
 import EditPackageModal from "./EditPackageModal";
-import StatusPill from "./StatusPill";
+import CustomerBookingRow from "./CustomerBookingRow";
 import { earliestBookingDate, formatDateTimeIT, openWhatsApp } from "./clientsHelpers";
 
-export default function ClientDetailPanel({ customer, loading, error, onNotesChange, onSettle }) {
+export default function ClientDetailPanel({ customer, loading, error, onNotesChange, onSettle, onEditBooking, onNewAppointment, bookingsRefreshKey }) {
   const [notes, setNotes] = useState(customer?.notes || "");
   const [originalNotes, setOriginalNotes] = useState(customer?.notes || "");
   const [saving, setSaving] = useState(false);
@@ -22,6 +22,13 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
   const [editPkg, setEditPkg] = useState(null);
   const [deletePkgId, setDeletePkgId] = useState(null);
 
+  // ── Rich, agenda-shaped booking history (replaces the thin customer.bookings) ──
+  // upcoming = clickable → edit; past = read-only with growing "Carica altri".
+  const [richBookings, setRichBookings] = useState({ upcoming: [], past: [], pastTotal: 0 });
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsError, setBookingsError] = useState("");
+  const [pastLimit, setPastLimit] = useState(20);
+
   // ── Arretrati per-row settle ──
   const [settlingKey, setSettlingKey] = useState(null); // row in flight → blocks double-click
   const [flashKey, setFlashKey]       = useState(null); // optimistic "Saldato ✓" before refetch
@@ -34,6 +41,7 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
     setFlashKey(null);
     setErrorKey(null);
     setConfirmArretrato(null);
+    setPastLimit(20); // reset the "Carica altri" window for the new customer
   }, [customer?.customerId]);
 
   const arretratoKey = a => `${a.bookingId}-${a.kind}-${a.refId ?? "x"}`;
@@ -71,6 +79,21 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
       .catch(e => setPkgError(e.message || "Errore caricamento pacchetti in sede."))
       .finally(() => setInStorePkgsLoading(false));
   }, [customer?.customerId]);
+
+  // Rich booking history. Re-fetches when the customer changes, after a save
+  // (bookingsRefreshKey bumped by the hub), or when "Carica altri" grows pastLimit.
+  useEffect(() => {
+    const id = customer?.customerId;
+    if (!id) { setRichBookings({ upcoming: [], past: [], pastTotal: 0 }); return; }
+    let cancelled = false;
+    setBookingsLoading(true);
+    setBookingsError("");
+    fetchCustomerBookings(id, pastLimit)
+      .then(data => { if (!cancelled) setRichBookings(data); })
+      .catch(e => { if (!cancelled) setBookingsError(e.message || "Errore caricamento storico."); })
+      .finally(() => { if (!cancelled) setBookingsLoading(false); });
+    return () => { cancelled = true; };
+  }, [customer?.customerId, bookingsRefreshKey, pastLimit]);
 
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
 
@@ -112,6 +135,12 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
   const firstBookingDate = earliestBookingDate(customer.bookings);
   const firstYear = firstBookingDate?.getFullYear();
   const firstWhen = firstBookingDate ? firstBookingDate.toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" }) : null;
+
+  // Best-effort trust flag: trust is authoritative on the linked User and is
+  // toggled in the Account tab. We surface it here per-booking (customerVerified
+  // is derived from user.isVerified/linkedUser.isVerified on each card) — true if
+  // ANY of this customer's bookings carry a verified account.
+  const isTrusted = [...richBookings.upcoming, ...richBookings.past].some(c => c.customerVerified === true);
 
   const notesChanged = notes !== (originalNotes || "");
 
@@ -159,6 +188,7 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
           <div className="cli-customer-meta">
             {firstWhen && <span>Prima prenotazione: {firstWhen}</span>}
             {firstYear && <span className="cli-badge-year">Cliente dal {firstYear}</span>}
+            {isTrusted && <span className="cli-verified-badge">✦ Cliente di fiducia</span>}
           </div>
         </div>
 
@@ -373,28 +403,62 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
         confirmVariant="primary"
       />
 
+      {/* Prossimi appuntamenti — rich rows, clickable → open the drawer in edit.
+          Each row is a full AdminBookingCardDTO, so the click hands it straight to
+          NewAppointmentDrawer's edit flow (no hydration round-trip). */}
       <div className="cli-card">
-        <div className="cli-section-title">Storico prenotazioni</div>
+        <div className="cli-section-title cbr-section-header">
+          <span>Prossimi appuntamenti</span>
+          <button type="button" className="cli-btn cli-btn--sm" onClick={onNewAppointment}>
+            ➕ Nuovo appuntamento
+          </button>
+        </div>
+        {bookingsError && <div className="cli-error">{bookingsError}</div>}
         <div className="cli-history-wrapper">
-          {customer.bookings?.length ? (
+          {bookingsLoading && richBookings.upcoming.length === 0 ? (
+            <div className="cli-loading" style={{ padding: "8px 0" }}>
+              <Spinner animation="border" size="sm" />
+            </div>
+          ) : richBookings.upcoming.length ? (
             <div className="cli-history-list">
-              {customer.bookings.map(b => (
-                <div key={b.bookingId} className="cli-history-item">
-                  <div className="cli-history-main">
-                    <div className="cli-history-title">
-                      {b.serviceTitle || "Servizio"}
-                      {b.optionName && ` · ${b.optionName}`}
-                    </div>
-                    <div className="cli-history-meta">{formatDateTimeIT(b.startTime)}</div>
-                  </div>
-                  <div className="cli-history-status">
-                    <StatusPill status={b.bookingStatus} />
-                  </div>
-                </div>
+              {richBookings.upcoming.map(c => (
+                <CustomerBookingRow key={c.bookingId} card={c} clickable onClick={onEditBooking} />
               ))}
             </div>
           ) : (
-            <div className="cli-empty-history">Nessun appuntamento trovato.</div>
+            <div className="cli-empty-history">Nessun appuntamento in programma.</div>
+          )}
+        </div>
+      </div>
+
+      {/* Storico — read-only rich rows, most-recent first, with "Carica altri". */}
+      <div className="cli-card">
+        <div className="cli-section-title">Storico</div>
+        <div className="cli-history-wrapper">
+          {richBookings.past.length ? (
+            <>
+              <div className="cli-history-list">
+                {richBookings.past.map(c => (
+                  <CustomerBookingRow key={c.bookingId} card={c} />
+                ))}
+              </div>
+              {richBookings.past.length < richBookings.pastTotal && (
+                <div className="cbr-loadmore">
+                  <button
+                    type="button"
+                    className="cli-btn cli-btn--sm cli-btn--ghost"
+                    disabled={bookingsLoading}
+                    onClick={() => setPastLimit(n => n + 20)}
+                  >
+                    {bookingsLoading ? "Caricamento…" : "Carica altri"}
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="cli-empty-history">
+              {bookingsLoading ? "Caricamento…" : "Nessuna prenotazione passata."}
+            </div>
           )}
         </div>
       </div>
