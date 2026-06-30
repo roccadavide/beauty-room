@@ -469,7 +469,6 @@ function EstimatoModal({ bookings, services, dueList, settling, onSettleInstallm
 function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selectedBookingId, onBookingClick, onPersonalApptClick }) {
   const timelineRef = useRef(null);
   const nowLineRef = useRef(null);
-  const hasAutoScrolledRef = useRef(false);
 
   const viewWindow = useMemo(() => {
     // Phase 6c: the timeline must ALWAYS span at least 08:00-20:00 so the
@@ -684,7 +683,6 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
 
     if (!isToday) {
       lineEl.style.opacity = "0";
-      hasAutoScrolledRef.current = false;
       return;
     }
 
@@ -703,15 +701,6 @@ function TimelineDay({ dateISO, data, bookings = [], personalAppts = [], selecte
 
       lineEl.style.opacity = "1";
       lineEl.style.transform = `translateY(${y}px)`;
-
-      if (!hasAutoScrolledRef.current) {
-        hasAutoScrolledRef.current = true;
-        const lineRect = lineEl.getBoundingClientRect();
-        const lineCenter = lineRect.top + lineRect.height / 2;
-        const viewportCenter = window.innerHeight / 2;
-        const delta = lineCenter - viewportCenter;
-        if (Math.abs(delta) > 16) window.scrollBy({ top: delta, behavior: "smooth" });
-      }
     };
 
     let frameId;

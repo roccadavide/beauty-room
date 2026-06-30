@@ -1,0 +1,496 @@
+/* ClientDetailPanel — premium operations console.
+   One cohesive .cdp- card with zones (hero · KPI strip · two-column body) +
+   a vertical history timeline. Warm --ag-* palette + gold-hairline dividers,
+   NOT a stack of floating boxes. Reuses .cli-* / .cbr- / StatusPill vocabulary
+   for the leaf bits (WhatsApp, buttons, package bars, status pills).
+
+   CONTAINING-BLOCK SAFETY: the only positioned trick here is `position: sticky`
+   on the hero (desktop), which establishes NO containing block — so it never
+   captures EditPackageModal's inline position:fixed .ep-backdrop. Do NOT add
+   transform / filter / will-change / contain / backdrop-filter / perspective to
+   the root, the hero, or any ancestor of the modal mount. */
+
+.cdp-root {
+  /* The clients tab wraps this panel in .cli-layout (a 2-col grid at >=992px).
+     Span every column so the cohesive card is always full width and owns its
+     own internal layout. */
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  color: var(--ag-text);
+}
+
+/* ── ZONE A — Hero ─────────────────────────────────────────────── */
+.cdp-hero {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border-radius: var(--ag-radius, 18px);
+  border: 1px solid var(--ag-border);
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  box-shadow: var(--ag-shadow);
+}
+
+.cdp-hero__main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+/* Reuse the agenda avatar idiom exactly (Petrona, gold gradient). */
+.cdp-avatar {
+  flex-shrink: 0;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: "Petrona", serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--ag-mocha);
+  background: linear-gradient(135deg, rgba(184, 151, 106, 0.18), rgba(140, 109, 63, 0.28));
+  border: 1px solid rgba(184, 151, 106, 0.35);
+}
+
+.cdp-hero__id {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cdp-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.2px;
+  color: var(--ag-text);
+  word-break: break-word;
+}
+
+/* Status / trust / year chips */
+.cdp-badges {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.cdp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* State chip — three mutually exclusive tones. */
+.cdp-chip--nuovo {
+  background: rgba(76, 175, 120, 0.14);
+  border-color: rgba(76, 175, 120, 0.4);
+  color: #2f8f5b;
+}
+
+.cdp-chip--attivo {
+  background: rgba(139, 94, 60, 0.1);
+  border-color: rgba(139, 94, 60, 0.3);
+  color: var(--ag-mocha);
+}
+
+.cdp-chip--da-risentire {
+  background: rgba(217, 142, 47, 0.14);
+  border-color: rgba(217, 142, 47, 0.42);
+  color: #b9740c;
+}
+
+/* Trust badge (best-effort). */
+.cdp-chip--trust {
+  background: linear-gradient(180deg, rgba(231, 200, 127, 0.3), rgba(198, 155, 80, 0.22));
+  border-color: rgba(184, 151, 106, 0.5);
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.cdp-chip--year {
+  background: rgba(231, 214, 195, 0.5);
+  border-color: rgba(139, 94, 60, 0.25);
+  color: var(--ag-text);
+}
+
+/* Contacts — tap-to-copy phone/email + WhatsApp */
+.cdp-contacts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cdp-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--ag-border);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ag-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.cdp-contact:hover {
+  border-color: rgba(139, 94, 60, 0.4);
+  background: #fff;
+}
+
+.cdp-contact--empty {
+  cursor: default;
+  color: var(--ag-muted);
+  font-weight: 500;
+}
+
+.cdp-contact__icon {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+}
+
+.cdp-contact__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cdp-contact__copied {
+  flex-shrink: 0;
+  color: #2f8f5b;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.cdp-contact__copied:empty {
+  display: none;
+}
+
+.cdp-firstseen {
+  font-size: 0.78rem;
+  color: var(--ag-muted);
+}
+
+/* Hero primary actions */
+.cdp-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cdp-cta {
+  /* gold primary — slightly larger than the default .cli-btn */
+  padding: 9px 16px;
+  font-size: 0.86rem;
+  box-shadow: 0 6px 16px rgba(140, 109, 63, 0.22);
+}
+
+.cdp-action-wa {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #25d366;
+  color: #fff;
+  font-size: 1.05rem;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(37, 211, 102, 0.3);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.cdp-action-wa:hover {
+  transform: scale(1.06);
+  box-shadow: 0 4px 16px rgba(37, 211, 102, 0.45);
+}
+
+/* ── ZONE B — KPI strip (inline tiles, not cards) ──────────────── */
+.cdp-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--ag-border);
+  background: rgba(139, 94, 60, 0.12); /* shows through the 1px gaps as hairlines */
+}
+
+.cdp-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.cdp-kpi__value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--ag-text);
+}
+
+.cdp-kpi__value--date {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.cdp-kpi__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ag-muted);
+}
+
+.cdp-kpi--ok .cdp-kpi__value {
+  color: #2f8f5b;
+}
+
+.cdp-kpi--bad .cdp-kpi__value {
+  color: #c0392b;
+}
+
+/* ── ZONE C — Body: main (timeline) + side ─────────────────────── */
+.cdp-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.cdp-main,
+.cdp-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Generic side zone (note / pacchetti / arretrati) */
+.cdp-zone {
+  border-radius: var(--ag-radius, 18px);
+  border: 1px solid var(--ag-border);
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  box-shadow: var(--ag-shadow);
+  padding: 16px 16px 14px;
+}
+
+.cdp-zone--alert {
+  border-color: rgba(217, 142, 47, 0.45);
+  background: linear-gradient(180deg, #fffaf1, #fdf2e2);
+}
+
+.cdp-zone__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.cdp-zone__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ag-text);
+}
+
+.cdp-zone__meta {
+  font-size: 0.74rem;
+  color: var(--ag-muted);
+}
+
+/* Package sub-groups (online / in sede) inside the side zone */
+.cdp-pkg-group + .cdp-pkg-group {
+  margin-top: 12px;
+}
+
+.cdp-pkg-group__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ag-muted);
+  margin-bottom: 6px;
+}
+
+/* ── Timeline (main column) ────────────────────────────────────── */
+.cdp-tl-section {
+  border-radius: var(--ag-radius, 18px);
+  border: 1px solid var(--ag-border);
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  box-shadow: var(--ag-shadow);
+  padding: 16px 18px 18px;
+}
+
+.cdp-tl-section__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.cdp-tl-section__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ag-text);
+}
+
+.cdp-tl-section__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(139, 94, 60, 0.12);
+  border: 1px solid rgba(139, 94, 60, 0.22);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--ag-mocha);
+}
+
+.cdp-tl-section--upcoming .cdp-tl-section__count {
+  background: linear-gradient(180deg, rgba(231, 200, 127, 0.35), rgba(198, 155, 80, 0.25));
+  border-color: rgba(184, 151, 106, 0.5);
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+/* The rail lives on each group so it runs continuously through its nodes; the
+   month label sits to the right of it. */
+.cdp-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cdp-tl-group {
+  position: relative;
+}
+
+.cdp-tl-group__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ag-muted);
+  padding-left: 28px;
+  margin-bottom: 8px;
+}
+
+/* The rail: a vertical hairline running through this group's nodes. */
+.cdp-tl-group::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 4px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(184, 151, 106, 0.5), rgba(184, 151, 106, 0.12));
+}
+
+.cdp-timeline--gold .cdp-tl-group::before {
+  background: linear-gradient(180deg, var(--card-gold, #b8976a), rgba(184, 151, 106, 0.3));
+}
+
+.cdp-tl-node {
+  position: relative;
+  padding-left: 28px;
+}
+
+.cdp-tl-node + .cdp-tl-node {
+  margin-top: 8px;
+}
+
+.cdp-tl-node__dot {
+  position: absolute;
+  left: 3px;
+  top: 13px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: var(--ag-bg, #fbf8f3);
+  border: 2px solid rgba(184, 151, 106, 0.55);
+  z-index: 1;
+}
+
+.cdp-tl-node--upcoming .cdp-tl-node__dot {
+  background: linear-gradient(180deg, #e7c87f, #c69b50);
+  border-color: var(--card-gold-deep, #8c6d3f);
+  box-shadow: 0 0 0 4px rgba(198, 155, 80, 0.16);
+}
+
+/* Upcoming rows carry a warmer gold border than the muted storico rows. */
+.cdp-tl-node--upcoming .cbr-row {
+  border-color: rgba(184, 151, 106, 0.4);
+}
+
+.cdp-empty {
+  font-size: 0.85rem;
+  color: var(--ag-muted);
+  padding: 6px 4px 2px 28px;
+}
+
+/* ── Desktop / landscape: sticky hero + two-column body ────────── */
+@media (min-width: 992px) {
+  .cdp-hero {
+    position: sticky;
+    top: var(--nav-current);
+    flex-wrap: nowrap;
+  }
+
+  .cdp-body {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 575px) {
+  .cdp-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cdp-hero__actions {
+    flex: 1 1 100%;
+  }
+
+  .cdp-cta {
+    flex: 1 1 auto;
+  }
+}

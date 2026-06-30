@@ -6,7 +6,41 @@ import { cancelPackageAssignment } from "../../../api/modules/adminAgenda.api";
 import { formatEuro } from "../../../utils/formatEuro";
 import EditPackageModal from "./EditPackageModal";
 import CustomerBookingRow from "./CustomerBookingRow";
-import { earliestBookingDate, formatDateTimeIT, openWhatsApp } from "./clientsHelpers";
+import {
+  earliestBookingDate,
+  formatDateTimeIT,
+  formatDateShortIT,
+  openWhatsApp,
+  groupByMonthYear,
+  deriveCustomerStatus,
+} from "./clientsHelpers";
+import "./ClientDetailPanel.css";
+
+const STATUS_CHIP_LABEL = { nuovo: "Nuovo", attivo: "Attivo", "da-risentire": "Da risentire" };
+
+// Package progress bar — width % + tone class. Same thresholds as before:
+// remaining<=1 critical, pct<=50 warn, else good. Pure/presentation.
+function pkgBar(remaining, total) {
+  const ratio = total > 0 ? remaining / total : 0;
+  const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  let cls = "cli-pkg-bar-fill--good";
+  if (remaining <= 1) cls = "cli-pkg-bar-fill--critical";
+  else if (pct <= 50) cls = "cli-pkg-bar-fill--warn";
+  return { pct, cls };
+}
+
+// Initials from a full name (first two words) for the hero avatar.
+function initialsFromName(name) {
+  return (
+    (name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(w => w[0].toUpperCase())
+      .join("") || "?"
+  );
+}
 
 export default function ClientDetailPanel({ customer, loading, error, onNotesChange, onSettle, onEditBooking, onNewAppointment, bookingsRefreshKey }) {
   const [notes, setNotes] = useState(customer?.notes || "");
@@ -15,6 +49,10 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
   const [saveError, setSaveError] = useState("");
   const [savedOk, setSavedOk] = useState(false);
   const saveTimerRef = useRef(null);
+
+  // Tap-to-copy phone/email — transient "copiato ✓" ('phone' | 'email' | null).
+  const [copied, setCopied] = useState(null);
+  const copyTimerRef = useRef(null);
 
   const [inStorePkgs, setInStorePkgs] = useState([]);
   const [inStorePkgsLoading, setInStorePkgsLoading] = useState(false);
@@ -95,7 +133,21 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
     return () => { cancelled = true; };
   }, [customer?.customerId, bookingsRefreshKey, pastLimit]);
 
-  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+  useEffect(() => () => {
+    clearTimeout(saveTimerRef.current);
+    clearTimeout(copyTimerRef.current);
+  }, []);
+
+  const copyToClipboard = (text, which) => {
+    if (!text || !navigator.clipboard?.writeText) return;
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        setCopied(which);
+        clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(null), 1500);
+      })
+      .catch(() => { /* clipboard blocked — silently no-op */ });
+  };
 
   const handleDeletePkg = useCallback(async () => {
     if (!deletePkgId) return;
@@ -144,6 +196,28 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
 
   const notesChanged = notes !== (originalNotes || "");
 
+  // Derived, presentation-only signals from the already-fetched rich history.
+  const initials = initialsFromName(customer.fullName);
+  // past is newest-first → first COMPLETED is the most recent visit.
+  const lastVisitIso = richBookings.past.find(c => (c.bookingStatus ?? c.status) === "COMPLETED")?.startTime || null;
+  const nextIso = richBookings.upcoming[0]?.startTime || null;
+  const hasUpcoming = richBookings.upcoming.length > 0;
+  // Show the state chip only once the rich history is available (avoid a wrong
+  // chip mid-load); stays stable across "Carica altri" since past keeps its data.
+  const richReady = !bookingsLoading || richBookings.upcoming.length > 0 || richBookings.past.length > 0;
+  const statusKey = richReady
+    ? deriveCustomerStatus({
+        firstBookingDate,
+        lastVisitDate: lastVisitIso ? new Date(lastVisitIso) : null,
+        hasUpcoming,
+      })
+    : null;
+
+  const upcomingGroups = groupByMonthYear(richBookings.upcoming);
+  const pastGroups = groupByMonthYear(richBookings.past);
+  const onlinePkgs = inStorePkgs.filter(p => p.source === "ONLINE");
+  const adminPkgs = inStorePkgs.filter(p => p.source === "ADMIN");
+
   const handleSaveNotes = async () => {
     setSaveError("");
     setSaving(true);
@@ -161,230 +235,319 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
   };
 
   return (
-    <>
-      {/* Header + KPI */}
-      <div className="cli-card">
-        {error && <div className="cli-error">{error}</div>}
+    <div className="cdp-root">
+      {error && <div className="cli-error">{error}</div>}
 
-        <div className="cli-customer-header">
-          <div className="cli-customer-name">{customer.fullName || "—"}</div>
-          <div className="cli-customer-sub">
-              <span className="cli-phone-row">
-        <span>{customer.phone || "Telefono non indicato"}</span>
-        {customer.phone && (
-          <button
-            className="cli-wa-btn"
-            onClick={() => openWhatsApp(customer.phone)}
-            title="Apri su WhatsApp"
-            type="button"
-          >
-            <span>💬</span>
-            <span>Contatta su WhatsApp</span>
+      {/* ── ZONE A — Hero (identity + primary actions; sticky on desktop) ── */}
+      <header className="cdp-hero">
+        <div className="cdp-hero__main">
+          <div className="cdp-avatar" aria-hidden="true">{initials}</div>
+          <div className="cdp-hero__id">
+            <h2 className="cdp-name">{customer.fullName || "—"}</h2>
+
+            <div className="cdp-badges">
+              {statusKey && <span className={`cdp-chip cdp-chip--${statusKey}`}>{STATUS_CHIP_LABEL[statusKey]}</span>}
+              {isTrusted && <span className="cdp-chip cdp-chip--trust">✦ Cliente di fiducia</span>}
+              {firstYear && <span className="cdp-chip cdp-chip--year">Cliente dal {firstYear}</span>}
+            </div>
+
+            <div className="cdp-contacts">
+              {customer.phone ? (
+                <button type="button" className="cdp-contact" title="Tocca per copiare" onClick={() => copyToClipboard(customer.phone, "phone")}>
+                  <span className="cdp-contact__icon">📱</span>
+                  <span className="cdp-contact__text">{customer.phone}</span>
+                  <span className="cdp-contact__copied">{copied === "phone" ? "copiato ✓" : ""}</span>
+                </button>
+              ) : (
+                <span className="cdp-contact cdp-contact--empty">📱 Telefono non indicato</span>
+              )}
+              {customer.phone && (
+                <button type="button" className="cli-wa-btn" onClick={() => openWhatsApp(customer.phone)} title="Apri su WhatsApp">
+                  <span>💬</span>
+                  <span>WhatsApp</span>
+                </button>
+              )}
+              {customer.email && (
+                <button type="button" className="cdp-contact" title="Tocca per copiare" onClick={() => copyToClipboard(customer.email, "email")}>
+                  <span className="cdp-contact__icon">✉</span>
+                  <span className="cdp-contact__text">{customer.email}</span>
+                  <span className="cdp-contact__copied">{copied === "email" ? "copiato ✓" : ""}</span>
+                </button>
+              )}
+            </div>
+
+            {firstWhen && <div className="cdp-firstseen">Prima prenotazione · {firstWhen}</div>}
+          </div>
+        </div>
+
+        <div className="cdp-hero__actions">
+          <button type="button" className="cli-btn cdp-cta" onClick={onNewAppointment}>
+            ➕ Nuovo appuntamento
           </button>
-        )}
-              </span>
-            {customer.email && <span>{customer.email}</span>}
-          </div>
-          <div className="cli-customer-meta">
-            {firstWhen && <span>Prima prenotazione: {firstWhen}</span>}
-            {firstYear && <span className="cli-badge-year">Cliente dal {firstYear}</span>}
-            {isTrusted && <span className="cli-verified-badge">✦ Cliente di fiducia</span>}
-          </div>
+          {customer.phone && (
+            <button type="button" className="cdp-action-wa" onClick={() => openWhatsApp(customer.phone)} title="Apri su WhatsApp" aria-label="Apri su WhatsApp">
+              💬
+            </button>
+          )}
         </div>
+      </header>
 
-        <div className="cli-kpi-row">
-          <div className="cli-kpi">
-            <div className="cli-kpi-label">Totale appuntamenti</div>
-            <div className="cli-kpi-value">{customer.totalBookings}</div>
-          </div>
-          <div className="cli-kpi cli-kpi--ok">
-            <div className="cli-kpi-label">Completati ✓</div>
-            <div className="cli-kpi-value">{customer.completedBookings}</div>
-          </div>
-          <div className="cli-kpi cli-kpi--bad">
-            <div className="cli-kpi-label">Cancellati / No-show ❌</div>
-            <div className="cli-kpi-value">{customer.cancelledBookings}</div>
-          </div>
+      {/* ── ZONE B — KPI strip ── */}
+      <div className="cdp-kpis">
+        <div className="cdp-kpi">
+          <span className="cdp-kpi__value">{customer.totalBookings}</span>
+          <span className="cdp-kpi__label">Totale</span>
         </div>
-
-        {pkgError && <div className="cli-error">{pkgError}</div>}
-
-        {/* Pacchetti del cliente — online (Stripe, FK-bridged) e in sede (admin), distinti per
-            origine. Entrambi arrivano dallo stesso endpoint /active-packages; il campo `source`
-            li separa. Gli online sono read-only: dietro non c'è un ClientPackageAssignment, quindi
-            le azioni modifica/cancella (che colpiscono endpoint assignment) non si applicano. */}
-        {inStorePkgsLoading && (
-          <div className="cli-packages-block">
-            <div className="cli-loading" style={{ padding: "8px 0" }}>
-              <Spinner animation="border" size="sm" />
-            </div>
-          </div>
-        )}
-
-        {!inStorePkgsLoading && inStorePkgs.some(p => p.source === "ONLINE") && (
-          <div className="cli-packages-block">
-            <div className="cli-section-title">Pacchetti online</div>
-            <div className="cli-packages">
-              {inStorePkgs.filter(p => p.source === "ONLINE").map(p => {
-                const total = p.totalSessions || 0;
-                const remaining = p.sessionsRemaining || 0;
-                const ratio = total > 0 ? remaining / total : 0;
-                const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-                let barCls = "cli-pkg-bar-fill--good";
-                if (remaining <= 1) barCls = "cli-pkg-bar-fill--critical";
-                else if (pct <= 50) barCls = "cli-pkg-bar-fill--warn";
-                const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
-                return (
-                  <div key={p.id} className="cli-pkg-card">
-                    <div className="cli-pkg-name">{p.displayName || p.serviceTitle || "Pacchetto"}</div>
-                    <div className="cli-pkg-bar">
-                      <div className={`cli-pkg-bar-fill ${barCls}`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="cli-pkg-meta">
-                      <span>{remaining} / {total} sedute rimanenti</span>
-                      {expiry && <span>Scade il {expiry}</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {!inStorePkgsLoading && inStorePkgs.some(p => p.source === "ADMIN") && (
-          <div className="cli-packages-block">
-            <div className="cli-section-title">Pacchetti in sede</div>
-            <div className="cli-packages">
-              {inStorePkgs.filter(p => p.source === "ADMIN").map(p => {
-                const total = p.totalSessions || 0;
-                const remaining = p.sessionsRemaining || 0;
-                const ratio = total > 0 ? remaining / total : 0;
-                const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-                let barCls = "cli-pkg-bar-fill--good";
-                if (remaining <= 1) barCls = "cli-pkg-bar-fill--critical";
-                else if (pct <= 50) barCls = "cli-pkg-bar-fill--warn";
-                return (
-                  <div key={p.id} className="cli-pkg-card cli-pkg-card--instore">
-                    <div className="cli-pkg-card-header">
-                      <div className="cli-pkg-name">{p.displayName || p.serviceOptionName || "Pacchetto"}</div>
-                      <div className="cli-pkg-actions">
-                        <button
-                          className="cli-icon-btn"
-                          title="Modifica"
-                          onClick={() => setEditPkg(p)}
-                          type="button"
-                        >
-                          ✏
-                        </button>
-                        <button
-                          className="cli-icon-btn cli-icon-btn--danger"
-                          title="Cancella pacchetto"
-                          onClick={() => setDeletePkgId(p.id)}
-                          type="button"
-                        >
-                          🗑
-                        </button>
-                      </div>
-                    </div>
-                    <div className="cli-pkg-bar">
-                      <div className={`cli-pkg-bar-fill ${barCls}`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="cli-pkg-meta">
-                      <span>{remaining} / {total} sedute rimanenti</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {editPkg && (
-          <EditPackageModal pkg={editPkg} onClose={() => setEditPkg(null)} onSave={handlePkgSaved} />
-        )}
-
-        <ConfirmDialog
-          show={!!deletePkgId}
-          onHide={() => setDeletePkgId(null)}
-          onConfirm={handleDeletePkg}
-          title="Cancella pacchetto"
-          message="Sei sicura di voler cancellare questo pacchetto in sede? Le sedute già usate rimarranno nello storico prenotazioni."
-          confirmLabel="Cancella"
-          confirmVariant="danger"
-        />
+        <div className="cdp-kpi cdp-kpi--ok">
+          <span className="cdp-kpi__value">{customer.completedBookings}</span>
+          <span className="cdp-kpi__label">Completati</span>
+        </div>
+        <div className="cdp-kpi cdp-kpi--bad">
+          <span className="cdp-kpi__value">{customer.cancelledBookings}</span>
+          <span className="cdp-kpi__label">Cancellati</span>
+        </div>
+        <div className="cdp-kpi">
+          <span className="cdp-kpi__value cdp-kpi__value--date">{lastVisitIso ? formatDateShortIT(lastVisitIso) : "—"}</span>
+          <span className="cdp-kpi__label">Ultima visita</span>
+        </div>
+        <div className="cdp-kpi">
+          <span className="cdp-kpi__value cdp-kpi__value--date">{nextIso ? formatDateShortIT(nextIso) : "—"}</span>
+          <span className="cdp-kpi__label">Prossimo</span>
+        </div>
       </div>
 
-      {/* Note + storico */}
-      <div className="cli-card">
-        <div className="cli-notes-header">
-          <div className="cli-notes-label">Note cliente</div>
-          <div className="cli-notes-meta">{notes.length}/2000 caratteri</div>
-        </div>
+      {/* ── ZONE C — Body: main timeline + side ── */}
+      <div className="cdp-body">
+        {/* MAIN — Prossimi + Storico as a vertical timeline */}
+        <main className="cdp-main">
+          {/* Prossimi appuntamenti — clickable → open the drawer in edit. Each row
+              is a full AdminBookingCardDTO, handed straight to the edit flow. */}
+          <section className="cdp-tl-section cdp-tl-section--upcoming">
+            <div className="cdp-tl-section__head">
+              <h3 className="cdp-tl-section__title">Prossimi appuntamenti</h3>
+              {richBookings.upcoming.length > 0 && <span className="cdp-tl-section__count">{richBookings.upcoming.length}</span>}
+            </div>
+            {bookingsError && <div className="cli-error">{bookingsError}</div>}
+            {bookingsLoading && richBookings.upcoming.length === 0 ? (
+              <div className="cli-loading" style={{ padding: "8px 0" }}>
+                <Spinner animation="border" size="sm" />
+              </div>
+            ) : richBookings.upcoming.length ? (
+              <div className="cdp-timeline cdp-timeline--gold">
+                {upcomingGroups.map(g => (
+                  <div className="cdp-tl-group" key={`u-${g.label}`}>
+                    <div className="cdp-tl-group__label">{g.label}</div>
+                    {g.items.map(c => (
+                      <div className="cdp-tl-node cdp-tl-node--upcoming" key={c.bookingId}>
+                        <span className="cdp-tl-node__dot" aria-hidden="true" />
+                        <CustomerBookingRow card={c} clickable onClick={onEditBooking} />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="cdp-empty">Nessun appuntamento in programma.</div>
+            )}
+          </section>
 
-        <textarea className="cli-notes-textarea" maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} />
+          {/* Storico — read-only rich rows, most-recent first, with "Carica altri". */}
+          <section className="cdp-tl-section cdp-tl-section--past">
+            <div className="cdp-tl-section__head">
+              <h3 className="cdp-tl-section__title">Storico</h3>
+              {richBookings.pastTotal > 0 && <span className="cdp-tl-section__count">{richBookings.pastTotal}</span>}
+            </div>
+            {richBookings.past.length ? (
+              <>
+                <div className="cdp-timeline">
+                  {pastGroups.map(g => (
+                    <div className="cdp-tl-group" key={`p-${g.label}`}>
+                      <div className="cdp-tl-group__label">{g.label}</div>
+                      {g.items.map(c => (
+                        <div className="cdp-tl-node cdp-tl-node--past" key={c.bookingId}>
+                          <span className="cdp-tl-node__dot" aria-hidden="true" />
+                          <CustomerBookingRow card={c} />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                {richBookings.past.length < richBookings.pastTotal && (
+                  <div className="cbr-loadmore">
+                    <button
+                      type="button"
+                      className="cli-btn cli-btn--sm cli-btn--ghost"
+                      disabled={bookingsLoading}
+                      onClick={() => setPastLimit(n => n + 20)}
+                    >
+                      {bookingsLoading ? "Caricamento…" : "Carica altri"}
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="cdp-empty">{bookingsLoading ? "Caricamento…" : "Nessuna prenotazione passata."}</div>
+            )}
+          </section>
+        </main>
 
-        <div className="cli-notes-actions">
-          <button className="cli-btn" disabled={!notesChanged || saving} onClick={handleSaveNotes}>
-            {saving ? "Salvataggio…" : "Salva note"}
-          </button>
-          {savedOk && <span className="cli-save-ok">✓ Salvato</span>}
-        </div>
-        {saveError && <div className="cli-notes-error">{saveError}</div>}
+        {/* SIDE — note, pacchetti, arretrati */}
+        <aside className="cdp-side">
+          {/* Note cliente */}
+          <section className="cdp-zone">
+            <div className="cdp-zone__head">
+              <h3 className="cdp-zone__title">Note cliente</h3>
+              <span className="cdp-zone__meta">{notes.length}/2000</span>
+            </div>
+            <textarea className="cli-notes-textarea" maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} />
+            <div className="cli-notes-actions">
+              <button className="cli-btn cli-btn--sm" disabled={!notesChanged || saving} onClick={handleSaveNotes}>
+                {saving ? "Salvataggio…" : "Salva note"}
+              </button>
+              {savedOk && <span className="cli-save-ok">✓ Salvato</span>}
+            </div>
+            {saveError && <div className="cli-notes-error">{saveError}</div>}
+          </section>
+
+          {/* Pacchetti — online (Stripe, FK-bridged, read-only) e in sede (admin,
+              ✏/🗑). Stesso endpoint /active-packages; `source` li separa. */}
+          {pkgError && <div className="cli-error">{pkgError}</div>}
+          {(inStorePkgsLoading || onlinePkgs.length > 0 || adminPkgs.length > 0) && (
+            <section className="cdp-zone">
+              <div className="cdp-zone__head">
+                <h3 className="cdp-zone__title">Pacchetti</h3>
+              </div>
+
+              {inStorePkgsLoading && (
+                <div className="cli-loading" style={{ padding: "8px 0" }}>
+                  <Spinner animation="border" size="sm" />
+                </div>
+              )}
+
+              {!inStorePkgsLoading && onlinePkgs.length > 0 && (
+                <div className="cdp-pkg-group">
+                  <div className="cdp-pkg-group__label">Online</div>
+                  <div className="cli-packages">
+                    {onlinePkgs.map(p => {
+                      const total = p.totalSessions || 0;
+                      const remaining = p.sessionsRemaining || 0;
+                      const { pct, cls } = pkgBar(remaining, total);
+                      const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
+                      return (
+                        <div key={p.id} className="cli-pkg-card">
+                          <div className="cli-pkg-name">{p.displayName || p.serviceTitle || "Pacchetto"}</div>
+                          <div className="cli-pkg-bar">
+                            <div className={`cli-pkg-bar-fill ${cls}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="cli-pkg-meta">
+                            <span>{remaining} / {total} sedute rimanenti</span>
+                            {expiry && <span>Scade il {expiry}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {!inStorePkgsLoading && adminPkgs.length > 0 && (
+                <div className="cdp-pkg-group">
+                  <div className="cdp-pkg-group__label">In sede</div>
+                  <div className="cli-packages">
+                    {adminPkgs.map(p => {
+                      const total = p.totalSessions || 0;
+                      const remaining = p.sessionsRemaining || 0;
+                      const { pct, cls } = pkgBar(remaining, total);
+                      return (
+                        <div key={p.id} className="cli-pkg-card cli-pkg-card--instore">
+                          <div className="cli-pkg-card-header">
+                            <div className="cli-pkg-name">{p.displayName || p.serviceOptionName || "Pacchetto"}</div>
+                            <div className="cli-pkg-actions">
+                              <button className="cli-icon-btn" title="Modifica" onClick={() => setEditPkg(p)} type="button">✏</button>
+                              <button className="cli-icon-btn cli-icon-btn--danger" title="Cancella pacchetto" onClick={() => setDeletePkgId(p.id)} type="button">🗑</button>
+                            </div>
+                          </div>
+                          <div className="cli-pkg-bar">
+                            <div className={`cli-pkg-bar-fill ${cls}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="cli-pkg-meta">
+                            <span>{remaining} / {total} sedute rimanenti</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Arretrati / Da saldare — only when present. Backend-derived
+              (customer.arretrati): no FE recompute/total. Per-row settle. */}
+          {customer.arretrati?.length > 0 && (
+            <section className="cdp-zone cdp-zone--alert">
+              <div className="cdp-zone__head">
+                <h3 className="cdp-zone__title">Arretrati · Da saldare</h3>
+              </div>
+              <div className="cli-history-list">
+                {customer.arretrati.map((a, idx) => {
+                  const key = arretratoKey(a);
+                  const flashed = flashKey === key;
+                  const errored = errorKey === key;
+                  const busy = settlingKey === key;
+                  return (
+                    <div key={`${key}-${idx}`}>
+                      <div className="cli-history-item">
+                        <div className="cli-history-main">
+                          <div className="cli-history-title">{a.label}</div>
+                          <div className="cli-history-meta">{formatDateTimeIT(a.occurredAt)}</div>
+                        </div>
+                        <div className="cli-history-status" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {flashed ? (
+                            <span className="cli-save-ok">Saldato ✓</span>
+                          ) : (
+                            <>
+                              <span>{formatEuro(a.price)}</span>
+                              <button
+                                type="button"
+                                className="cli-btn cli-btn--sm"
+                                disabled={settlingKey !== null}
+                                onClick={() => setConfirmArretrato(a)}
+                              >
+                                {busy ? "…" : errored ? "Riprova" : "Salda"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {errored && (
+                        <div className="cli-notes-error">Errore nel salvataggio. La riga resta da saldare.</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </aside>
       </div>
 
-      {/* Arretrati / Da saldare — righe non saldate su appuntamenti COMPLETED passati.
-          Dato 100% da backend (customer.arretrati): nessun ricalcolo/totale lato FE.
-          Render solo se presenti (niente riquadro vuoto). */}
-      {customer.arretrati?.length > 0 && (
-        <div className="cli-card">
-          <div className="cli-section-title">Arretrati / Da saldare</div>
-          <div className="cli-history-wrapper">
-            <div className="cli-history-list">
-              {customer.arretrati.map((a, idx) => {
-                const key = arretratoKey(a);
-                const flashed = flashKey === key;
-                const errored = errorKey === key;
-                const busy = settlingKey === key;
-                return (
-                  <div key={`${key}-${idx}`}>
-                    <div className="cli-history-item">
-                      <div className="cli-history-main">
-                        <div className="cli-history-title">{a.label}</div>
-                        <div className="cli-history-meta">{formatDateTimeIT(a.occurredAt)}</div>
-                      </div>
-                      {/* price + action inline — reuses cli-* classes; the small flex
-                          gap is an inline style matching the admin components' idiom. */}
-                      <div className="cli-history-status" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {flashed ? (
-                          <span className="cli-save-ok">Saldato ✓</span>
-                        ) : (
-                          <>
-                            <span>{formatEuro(a.price)}</span>
-                            <button
-                              type="button"
-                              className="cli-btn cli-btn--sm"
-                              disabled={settlingKey !== null}
-                              onClick={() => setConfirmArretrato(a)}
-                            >
-                              {busy ? "…" : errored ? "Riprova" : "Salda"}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {errored && (
-                      <div className="cli-notes-error">Errore nel salvataggio. La riga resta da saldare.</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+      {/* ── Modals — mounting unchanged (EditPackageModal = inline position:fixed
+          .ep-backdrop; ConfirmDialogs = portaled to document.body) ── */}
+      {editPkg && (
+        <EditPackageModal pkg={editPkg} onClose={() => setEditPkg(null)} onSave={handlePkgSaved} />
       )}
 
-      {/* Confirm before settling — guards against saldare the wrong arretrato.
-          Reuses ConfirmDialog (portal, cd-* classes) — no new CSS. */}
+      <ConfirmDialog
+        show={!!deletePkgId}
+        onHide={() => setDeletePkgId(null)}
+        onConfirm={handleDeletePkg}
+        title="Cancella pacchetto"
+        message="Sei sicura di voler cancellare questo pacchetto in sede? Le sedute già usate rimarranno nello storico prenotazioni."
+        confirmLabel="Cancella"
+        confirmVariant="danger"
+      />
+
       <ConfirmDialog
         show={!!confirmArretrato}
         onHide={() => setConfirmArretrato(null)}
@@ -402,66 +565,6 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
         confirmLabel="Salda"
         confirmVariant="primary"
       />
-
-      {/* Prossimi appuntamenti — rich rows, clickable → open the drawer in edit.
-          Each row is a full AdminBookingCardDTO, so the click hands it straight to
-          NewAppointmentDrawer's edit flow (no hydration round-trip). */}
-      <div className="cli-card">
-        <div className="cli-section-title cbr-section-header">
-          <span>Prossimi appuntamenti</span>
-          <button type="button" className="cli-btn cli-btn--sm" onClick={onNewAppointment}>
-            ➕ Nuovo appuntamento
-          </button>
-        </div>
-        {bookingsError && <div className="cli-error">{bookingsError}</div>}
-        <div className="cli-history-wrapper">
-          {bookingsLoading && richBookings.upcoming.length === 0 ? (
-            <div className="cli-loading" style={{ padding: "8px 0" }}>
-              <Spinner animation="border" size="sm" />
-            </div>
-          ) : richBookings.upcoming.length ? (
-            <div className="cli-history-list">
-              {richBookings.upcoming.map(c => (
-                <CustomerBookingRow key={c.bookingId} card={c} clickable onClick={onEditBooking} />
-              ))}
-            </div>
-          ) : (
-            <div className="cli-empty-history">Nessun appuntamento in programma.</div>
-          )}
-        </div>
-      </div>
-
-      {/* Storico — read-only rich rows, most-recent first, with "Carica altri". */}
-      <div className="cli-card">
-        <div className="cli-section-title">Storico</div>
-        <div className="cli-history-wrapper">
-          {richBookings.past.length ? (
-            <>
-              <div className="cli-history-list">
-                {richBookings.past.map(c => (
-                  <CustomerBookingRow key={c.bookingId} card={c} />
-                ))}
-              </div>
-              {richBookings.past.length < richBookings.pastTotal && (
-                <div className="cbr-loadmore">
-                  <button
-                    type="button"
-                    className="cli-btn cli-btn--sm cli-btn--ghost"
-                    disabled={bookingsLoading}
-                    onClick={() => setPastLimit(n => n + 20)}
-                  >
-                    {bookingsLoading ? "Caricamento…" : "Carica altri"}
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="cli-empty-history">
-              {bookingsLoading ? "Caricamento…" : "Nessuna prenotazione passata."}
-            </div>
-          )}
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
