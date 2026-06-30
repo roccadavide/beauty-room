@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Spinner } from "react-bootstrap";
 import { fetchCustomerInsights } from "../../../api/modules/customer.api";
+import { fetchActivePackages } from "../../../api/modules/packages.api";
 import { formatEuro } from "../../../utils/formatEuro";
-import { openWhatsApp } from "./clientsHelpers";
+import { openWhatsApp, daysUntilExpiry, expiryTag } from "./clientsHelpers";
 
 // LocalDate ("2026-02-15") → "15 feb 2026". The "T00:00:00" suffix forces a
 // LOCAL parse so the date never shifts a day across the UTC boundary.
@@ -58,14 +59,15 @@ function RankingBlock({ title, rows, renderValue, onSelectCustomer, withWhatsApp
                 {withWhatsApp && r.phone && (
                   <button
                     type="button"
-                    className="cov-wa"
+                    className="cli-wa-btn"
                     title="Scrivi su WhatsApp"
                     onClick={e => {
                       e.stopPropagation();
                       openWhatsApp(r.phone);
                     }}
                   >
-                    WhatsApp
+                    <span>💬</span>
+                    <span>WhatsApp</span>
                   </button>
                 )}
               </li>
@@ -81,6 +83,10 @@ export default function ClientsOverview({ onSelectCustomer }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Expiring packages: null = loading, [] = none-in-range / fetch failed (quiet),
+  // [...] = rows. Re-homed from the removed Pacchetti tab — same /admin/packages,
+  // narrowed client-side to online packages expiring within 30 days.
+  const [expiring, setExpiring] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +107,28 @@ export default function ClientsOverview({ onSelectCustomer }) {
     };
   }, []);
 
+  // Second, independent fetch — never blocks the insights view. A failure or an
+  // empty range collapses to a quiet empty state ([]), not an error banner.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await fetchActivePackages();
+        if (cancelled) return;
+        const rows = (Array.isArray(list) ? list : [])
+          .map(p => ({ ...p, _days: daysUntilExpiry(p.expiryDate) }))
+          .filter(p => p._days !== null && p._days >= 0 && p._days <= 30)
+          .sort((a, b) => a._days - b._days);
+        setExpiring(rows);
+      } catch {
+        if (!cancelled) setExpiring([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="cov-loading">
@@ -112,10 +140,10 @@ export default function ClientsOverview({ onSelectCustomer }) {
   if (!data) return null;
 
   const stats = [
-    { label: "Clienti totali", value: data.totalCustomers ?? 0 },
-    { label: "Clienti fidate", value: data.trustedCustomersCount ?? 0 },
-    { label: "Pacchetti attivi", value: data.activePackagesCount ?? 0 },
-    { label: "Da incassare", value: formatEuro(data.outstandingTotal ?? 0), accent: true },
+    { label: "Clienti totali", value: data.totalCustomers ?? 0, icon: "👥" },
+    { label: "Clienti fidate", value: data.trustedCustomersCount ?? 0, icon: "✦" },
+    { label: "Pacchetti attivi", value: data.activePackagesCount ?? 0, icon: "📦" },
+    { label: "Da incassare", value: formatEuro(data.outstandingTotal ?? 0), accent: true, icon: "💰" },
   ];
 
   return (
@@ -123,11 +151,58 @@ export default function ClientsOverview({ onSelectCustomer }) {
       <div className="cov-stats">
         {stats.map(s => (
           <div key={s.label} className={`cov-stat${s.accent ? " cov-stat--accent" : ""}`}>
-            <div className="cov-stat__value">{s.value}</div>
-            <div className="cov-stat__label">{s.label}</div>
+            <span className="cov-stat__icon" aria-hidden="true">{s.icon}</span>
+            <div className="cov-stat__body">
+              <div className="cov-stat__value">{s.value}</div>
+              <div className="cov-stat__label">{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Pacchetti in scadenza — actionable block re-homed from the removed
+          Pacchetti tab. Online packages only (in-store have no expiry). */}
+      <section className="cov-exp">
+        <h3 className="cov-exp__title">Pacchetti in scadenza</h3>
+        {expiring === null ? (
+          <div className="cov-exp__skeleton" aria-hidden="true">
+            <span className="cov-exp__sk" />
+            <span className="cov-exp__sk" />
+            <span className="cov-exp__sk" />
+          </div>
+        ) : expiring.length === 0 ? (
+          <div className="cov-empty">Nessun pacchetto in scadenza nei prossimi 30 giorni.</div>
+        ) : (
+          <ul className="cov-exp__list">
+            {expiring.map(p => {
+              const tag = expiryTag(p.expiryDate);
+              return (
+                <li key={p.packageCreditId} className="cov-exp__row">
+                  <div className="cov-exp__id">
+                    <span className="cov-exp__name">{p.customerName || p.customerEmail || "Cliente"}</span>
+                    <span className="cov-exp__pkg">
+                      {p.serviceName || "Pacchetto"}
+                      {p.serviceOptionName && <span className="cov-exp__opt"> · {p.serviceOptionName}</span>}
+                    </span>
+                  </div>
+                  {tag && <span className={tag.cls}>{tag.label}</span>}
+                  {p.customerPhone && (
+                    <button
+                      type="button"
+                      className="cli-wa-btn"
+                      title="Ricorda su WhatsApp"
+                      onClick={() => openWhatsApp(p.customerPhone)}
+                    >
+                      <span>💬</span>
+                      <span>Ricorda</span>
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <div className="cov-grid">
         <RankingBlock

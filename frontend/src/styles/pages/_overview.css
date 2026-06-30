@@ -38,11 +38,43 @@
 }
 
 .cov-stat {
+  display: flex;
+  /* Column by default so the (possibly long) value keeps the full tile width on
+     narrow 2-col phones and the 4-col iPad-portrait band; row only when wide. */
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   background: linear-gradient(180deg, #ffffff, #fbf5ec);
   border: 1px solid var(--ag-border);
   border-radius: 16px;
   box-shadow: var(--ag-shadow);
   padding: 14px 16px;
+}
+
+@media (min-width: 992px) {
+  .cov-stat {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+}
+
+/* Gold-gradient icon chip — same family as the cdp avatar. */
+.cov-stat__icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  color: var(--ag-mocha);
+  background: linear-gradient(135deg, rgba(184, 151, 106, 0.16), rgba(140, 109, 63, 0.24));
+  border: 1px solid rgba(184, 151, 106, 0.32);
+}
+
+.cov-stat__body {
+  min-width: 0;
 }
 
 .cov-stat__value {
@@ -53,8 +85,20 @@
   color: var(--ag-text);
 }
 
+/* Accent tile (Da incassare) — warm amber alert treatment, matches .cdp-zone--alert. */
+.cov-stat--accent {
+  border-color: rgba(217, 142, 47, 0.4);
+  background: linear-gradient(180deg, #fffaf1, #fdf2e2);
+}
+
 .cov-stat--accent .cov-stat__value {
-  color: #8c6d3f;
+  color: #b9740c;
+}
+
+.cov-stat--accent .cov-stat__icon {
+  color: #b9740c;
+  background: linear-gradient(135deg, rgba(217, 142, 47, 0.16), rgba(184, 116, 12, 0.2));
+  border-color: rgba(217, 142, 47, 0.4);
 }
 
 .cov-stat__label {
@@ -214,4 +258,122 @@
 
 .cov-wa:hover {
   background: rgba(37, 211, 102, 0.2);
+}
+
+/* ── Pacchetti in scadenza (actionable block) ── */
+.cov-exp {
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  border: 1px solid var(--ag-border);
+  border-radius: 18px;
+  box-shadow: var(--ag-shadow);
+  padding: 16px 16px 14px;
+  margin-bottom: 22px;
+}
+
+.cov-exp__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ag-text);
+}
+
+.cov-exp__title::before {
+  content: "⏳";
+  font-size: 0.95em;
+}
+
+.cov-exp .cov-empty {
+  padding: 6px 2px 2px;
+}
+
+.cov-exp__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cov-exp__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(139, 94, 60, 0.14);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.cov-exp__id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cov-exp__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ag-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cov-exp__pkg {
+  font-size: 0.76rem;
+  color: var(--ag-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cov-exp__opt {
+  color: var(--ag-muted);
+}
+
+/* Loading skeleton — background-position shimmer (no transform/containing block). */
+.cov-exp__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cov-exp__sk {
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(
+    90deg,
+    rgba(231, 214, 195, 0.35),
+    rgba(231, 214, 195, 0.6),
+    rgba(231, 214, 195, 0.35)
+  );
+  background-size: 200% 100%;
+  animation: cov-sk 1.2s ease-in-out infinite;
+}
+
+@keyframes cov-sk {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 575px) {
+  .cov-exp__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 8px;
+  }
+
+  .cov-exp__row .cli-wa-btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
 }

@@ -8,7 +8,7 @@ import { buildArretratoSettlePayload } from "../../../components/admin/settlePay
 import NewAppointmentDrawer from "../NewAppointmentDrawer";
 import ClientSearch from "./ClientSearch";
 import ClientDetailPanel from "./ClientDetailPanel";
-import PackagesGlobal from "./PackagesGlobal";
+import ClientsQuickPicks from "./ClientsQuickPicks";
 import AccountsPanel from "./AccountsPanel";
 import ClientsOverview from "./ClientsOverview";
 
@@ -31,12 +31,9 @@ export default function ClientsHub({ customerId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Land on Clienti (with the detail panel) when arriving via a deep-link;
-  // otherwise show the Panoramica dashboard first.
-  const [activeSubTab, setActiveSubTab] = useState(customerId ? "clienti" : "panoramica");
-  // Kept solely to drive the "Pacchetti attivi" tab badge — PackagesGlobal owns
-  // the authoritative KPI state and lifts it up here.
-  const [pkgKpis, setPkgKpis] = useState(null);
+  // Always land on Clienti (search + customer card). A ?customerId= deep-link
+  // still auto-selects via loadCustomerById below (which also sets this tab).
+  const [activeSubTab, setActiveSubTab] = useState("clienti");
 
   // ── Appointment drawer (edit an upcoming booking / new appt for this customer) ──
   // The drawer createPortals to document.body, so it works mounted here. Exactly
@@ -182,15 +179,8 @@ export default function ClientsHub({ customerId }) {
           </div>
         </header>
 
-        {/* ── Sub-tab switcher ── */}
+        {/* ── Sub-tab switcher (Clienti · Panoramica · Account) ── */}
         <div className="cli-tabs">
-          <button
-            className={`cli-tab ${activeSubTab === "panoramica" ? "is-active" : ""}`}
-            onClick={() => setActiveSubTab("panoramica")}
-            type="button"
-          >
-            📊 Panoramica
-          </button>
           <button
             className={`cli-tab ${activeSubTab === "clienti" ? "is-active" : ""}`}
             onClick={() => setActiveSubTab("clienti")}
@@ -199,12 +189,11 @@ export default function ClientsHub({ customerId }) {
             👤 Clienti
           </button>
           <button
-            className={`cli-tab ${activeSubTab === "pacchetti" ? "is-active" : ""}`}
-            onClick={() => setActiveSubTab("pacchetti")}
+            className={`cli-tab ${activeSubTab === "panoramica" ? "is-active" : ""}`}
+            onClick={() => setActiveSubTab("panoramica")}
             type="button"
           >
-            📦 Pacchetti attivi
-            {pkgKpis?.active > 0 && <span className="cli-tab-badge">{pkgKpis.active}</span>}
+            📊 Panoramica
           </button>
           <button
             className={`cli-tab ${activeSubTab === "account" ? "is-active" : ""}`}
@@ -215,11 +204,6 @@ export default function ClientsHub({ customerId }) {
           </button>
         </div>
 
-        {/* ── TAB: Panoramica ── */}
-        {activeSubTab === "panoramica" && (
-          <ClientsOverview onSelectCustomer={loadCustomerById} />
-        )}
-
         {/* ── TAB: Clienti ── */}
         {activeSubTab === "clienti" && (
           <>
@@ -229,23 +213,29 @@ export default function ClientsHub({ customerId }) {
               onSelect={handleSelect}
               hasSelection={!!selected}
             />
-            <div className="cli-layout">
-              <ClientDetailPanel
-                customer={detail}
-                loading={loading}
-                error={error}
-                onNotesChange={handleNotesChange}
-                onSettle={handleSettleArretrato}
-                onEditBooking={handleEditBooking}
-                onNewAppointment={handleNewAppointment}
-                bookingsRefreshKey={bookingsRefresh}
-              />
-            </div>
+            {!selected && !detail && !loading ? (
+              <ClientsQuickPicks onPick={loadCustomerById} />
+            ) : (
+              <div className="cli-layout">
+                <ClientDetailPanel
+                  customer={detail}
+                  loading={loading}
+                  error={error}
+                  onNotesChange={handleNotesChange}
+                  onSettle={handleSettleArretrato}
+                  onEditBooking={handleEditBooking}
+                  onNewAppointment={handleNewAppointment}
+                  bookingsRefreshKey={bookingsRefresh}
+                />
+              </div>
+            )}
           </>
         )}
 
-        {/* ── TAB: Pacchetti ── */}
-        {activeSubTab === "pacchetti" && <PackagesGlobal onKpisChange={setPkgKpis} />}
+        {/* ── TAB: Panoramica ── */}
+        {activeSubTab === "panoramica" && (
+          <ClientsOverview onSelectCustomer={loadCustomerById} />
+        )}
 
         {/* ── TAB: Account ── */}
         {activeSubTab === "account" && <AccountsPanel />}

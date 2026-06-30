@@ -3,6 +3,11 @@ import { Spinner } from "react-bootstrap";
 import { fetchAllUsers, patchUserVerified } from "../../../api/modules/users.api";
 import { markLatestNoShowForUser } from "../../../api/modules/bookings.api";
 import { normalizeItalianPhone } from "../../../utils/reminders";
+import "./AccountsPanel.css";
+
+// Initials (name + surname) for the hero avatar — mirrors the cdp/agenda idiom.
+const acctInitials = (name, surname) =>
+  `${(name || "").trim()[0] || ""}${(surname || "").trim()[0] || ""}`.toUpperCase() || "?";
 
 // Self-contained "Account" tab. Owns its own state and loads on mount.
 export default function AccountsPanel() {
@@ -76,33 +81,37 @@ export default function AccountsPanel() {
         </div>
       )}
 
-      <div className="cli-pkg-filters">
-        {["ALL", "VERIFIED", "UNVERIFIED"].map(f => (
+      <div className="acc-toolbar">
+        <div className="acc-filters">
+          {["ALL", "VERIFIED", "UNVERIFIED"].map(f => (
+            <button
+              key={f}
+              type="button"
+              className={`acc-pill ${usersFilter === f ? "is-active" : ""}`}
+              onClick={() => setUsersFilter(f)}
+            >
+              {f === "ALL" && "Tutti"}
+              {f === "VERIFIED" && "✦ Di fiducia"}
+              {f === "UNVERIFIED" && "Standard"}
+            </button>
+          ))}
+        </div>
+        <div className="acc-toolbar__right">
+          <input
+            className="acc-search"
+            placeholder="Cerca per nome o email…"
+            value={usersSearch}
+            onChange={e => setUsersSearch(e.target.value)}
+          />
           <button
-            key={f}
             type="button"
-            className={`cli-pkg-ftab ${usersFilter === f ? "is-active" : ""}`}
-            onClick={() => setUsersFilter(f)}
+            className="acc-reload"
+            onClick={() => { setUsers([]); loadUsers(); }}
+            title="Ricarica"
           >
-            {f === "ALL" && "Tutti"}
-            {f === "VERIFIED" && "✅ Clienti di fiducia"}
-            {f === "UNVERIFIED" && "Utenti standard"}
+            ↻
           </button>
-        ))}
-        <input
-          className="cli-pkg-search"
-          placeholder="Cerca per nome o email…"
-          value={usersSearch}
-          onChange={e => setUsersSearch(e.target.value)}
-        />
-        <button
-          type="button"
-          className="cli-pkg-reload"
-          onClick={() => { setUsers([]); loadUsers(); }}
-          title="Ricarica"
-        >
-          ↻
-        </button>
+        </div>
       </div>
 
       {usersLoading && (
@@ -127,75 +136,87 @@ export default function AccountsPanel() {
         });
 
         if (!filtered.length) return (
-          <div className="cli-empty-history" style={{ padding: "3rem 0", textAlign: "center" }}>
-            Nessun utente trovato.
-          </div>
+          <div className="acc-empty">Nessun utente trovato.</div>
         );
 
         return (
-          <div className="cli-pkg-global-list">
+          <div className="acc-list">
             {filtered.map(u => (
-              <div key={u.id} className={`cli-pkg-global-card ${u.isVerified ? "cli-user-card--verified" : ""}`}>
-                <div className="cli-pkg-global-left">
-                  <div className="cli-pkg-global-name">
-                    {u.name} {u.surname}
-                    {u.isVerified && <span className="cli-verified-badge">Cliente di Fiducia ✅</span>}
-                  </div>
-                  <div className="cli-pkg-global-email">{u.email}</div>
-                  {u.phone && <div className="cli-pkg-global-email">{u.phone}</div>}
-                  {u.phone && (
-                    <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.35rem", flexWrap: "wrap" }}>
-                      <a
-                        href={`https://wa.me/${normalizeItalianPhone(u.phone)}?text=${encodeURIComponent(`Ciao ${u.name}, ti scrivo da Beauty Room.`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="cli-btn cli-btn--sm cli-btn--ghost"
-                      >
-                        WhatsApp
-                      </a>
-                      <a
-                        href={`tel:${u.phone}`}
-                        className="cli-btn cli-btn--sm cli-btn--ghost"
-                      >
-                        Chiama
-                      </a>
+              <div key={u.id} className={`acc-card ${u.isVerified ? "acc-card--verified" : ""}`}>
+                <div className="acc-card__main">
+                  <div className="acc-avatar" aria-hidden="true">{acctInitials(u.name, u.surname)}</div>
+                  <div className="acc-id">
+                    <div className="acc-name-row">
+                      <span className="acc-name">{u.name} {u.surname}</span>
+                      {u.isVerified && <span className="acc-chip acc-chip--trust">✦ Cliente di fiducia</span>}
                     </div>
-                  )}
+                    <div className="acc-contacts">
+                      {u.email && (
+                        <span className="acc-contact">
+                          <span className="acc-contact__icon">✉</span>
+                          <span className="acc-contact__text">{u.email}</span>
+                        </span>
+                      )}
+                      {u.phone && (
+                        <span className="acc-contact">
+                          <span className="acc-contact__icon">📱</span>
+                          <span className="acc-contact__text">{u.phone}</span>
+                        </span>
+                      )}
+                    </div>
+                    {u.phone && (
+                      <div className="acc-actions">
+                        <a
+                          href={`https://wa.me/${normalizeItalianPhone(u.phone)}?text=${encodeURIComponent(`Ciao ${u.name}, ti scrivo da Beauty Room.`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="cli-wa-btn"
+                        >
+                          <span>💬</span>
+                          <span>WhatsApp</span>
+                        </a>
+                        <a href={`tel:${u.phone}`} className="acc-btn acc-btn--ghost">
+                          📞 Chiama
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="cli-pkg-global-right" style={{ display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "flex-end" }}>
+
+                <div className="acc-card__side">
                   <button
                     type="button"
-                    className={`cli-btn cli-btn--sm ${u.isVerified ? "cli-btn--danger" : "cli-btn--trust"}`}
+                    className={`acc-btn ${u.isVerified ? "acc-btn--danger" : "acc-btn--trust"}`}
                     onClick={() => handleToggleVerified(u.id, u.isVerified)}
                   >
-                    {u.isVerified ? "Rimuovi fiducia" : "Verifica"}
+                    {u.isVerified ? "Rimuovi fiducia" : "✦ Verifica"}
                   </button>
                   {noShowConfirm === u.id ? (
-                    <>
-                      <span style={{ fontSize: "0.75rem", color: "#9c8880" }}>Sei sicura?</span>
+                    <div className="acc-confirm">
+                      <span className="acc-confirm__q">Segnare no-show?</span>
                       <button
                         type="button"
-                        className="cli-btn cli-btn--sm cli-btn--danger"
+                        className="acc-btn acc-btn--xs acc-btn--danger"
                         onClick={() => handleMarkNoShow(u.id)}
                         disabled={noShowLoading === u.id}
                       >
-                        {noShowLoading === u.id ? "…" : "Sì, no-show"}
+                        {noShowLoading === u.id ? "…" : "Sì"}
                       </button>
                       <button
                         type="button"
-                        className="cli-btn cli-btn--sm cli-btn--ghost"
+                        className="acc-btn acc-btn--xs acc-btn--ghost"
                         onClick={() => setNoShowConfirm(null)}
                       >
                         Annulla
                       </button>
-                    </>
+                    </div>
                   ) : (
                     <button
                       type="button"
-                      className="cli-btn cli-btn--sm cli-btn--ghost"
+                      className="acc-noshow"
                       onClick={() => setNoShowConfirm(u.id)}
                     >
-                      No-Show
+                      Segna no-show
                     </button>
                   )}
                 </div>
