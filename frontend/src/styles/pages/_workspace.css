@@ -38,10 +38,10 @@
 /* ── Workspace top-bar ──────────────────────────────────────────
    Slim IN-FLOW bar holding the SINGLE, persistent WorkspaceSwitch (lifted out of
    the two views) so the control no longer relocates on swap. NON-sticky: it sits at
-   the top of the admin content and scrolls away with the page. Its background is set
-   per active view (data-view) to match that view's page background, so it reads as
-   part of the page, not a separate floating bar — both view roots (.ag-page /
-   .cli-page) open on the same --ag-bg gradient top, so the seam below blends.
+   the top of the admin content and scrolls away with the page. Its background is a
+   per-view vertical gradient (navbar white at the top → that view's page background at
+   the bottom), so the page reads as emerging from the navbar — both view roots
+   (.ag-page / .cli-page) open on the same --ag-bg gradient top, so the seam below blends.
    Keep the opacity-only invariant: do NOT add transform / filter / will-change /
    contain / backdrop-filter / perspective here (same hard rule as .aw-fade). */
 :root {
@@ -57,14 +57,16 @@
   padding: 0 16px;
 }
 
-/* Match the active view's page background (both currently resolve to the --ag-bg
-   gradient top; kept per-view so they can diverge without re-plumbing). */
+/* Vertical gradient: navbar colour (white) at the top → the active view's page
+   background at the bottom, so the bar blends the navbar into the page with no hard
+   strip. Both views' roots resolve to the same --ag-bg gradient top, so the bar's
+   bottom meets the content seamlessly; kept per-view so they can diverge later. */
 .aw-topbar[data-view="agenda"] {
-  background: var(--ag-bg, #fbf8f3);
+  background: linear-gradient(to bottom, #ffffff, var(--ag-bg, #fbf8f3));
 }
 
 .aw-topbar[data-view="clienti"] {
-  background: var(--ag-bg, #fbf8f3);
+  background: linear-gradient(to bottom, #ffffff, var(--ag-bg, #fbf8f3));
 }
 
 /* ── WorkspaceSwitch — primary gold segmented control ───────────

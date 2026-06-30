@@ -4,11 +4,10 @@
    NOT a stack of floating boxes. Reuses .cli-* / .cbr- / StatusPill vocabulary
    for the leaf bits (WhatsApp, buttons, package bars, status pills).
 
-   CONTAINING-BLOCK SAFETY: the only positioned trick here is `position: sticky`
-   on the hero (desktop), which establishes NO containing block — so it never
-   captures EditPackageModal's inline position:fixed .ep-backdrop. Do NOT add
-   transform / filter / will-change / contain / backdrop-filter / perspective to
-   the root, the hero, or any ancestor of the modal mount. */
+   CONTAINING-BLOCK SAFETY: the hero is a plain in-flow block (no sticky / transform),
+   so it never establishes a containing block that captures EditPackageModal's inline
+   position:fixed .ep-backdrop. Do NOT add transform / filter / will-change / contain /
+   backdrop-filter / perspective to the root, the hero, or any ancestor of the modal mount. */
 
 .cdp-root {
   /* The clients tab wraps this panel in .cli-layout (a 2-col grid at >=992px).
@@ -24,8 +23,6 @@
 
 /* ── ZONE A — Hero ─────────────────────────────────────────────── */
 .cdp-hero {
-  position: relative;
-  z-index: 2;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -468,11 +465,9 @@
   padding: 6px 4px 2px 28px;
 }
 
-/* ── Desktop / landscape: sticky hero + two-column body ────────── */
+/* ── Desktop / landscape: two-column body ──────────────────────── */
 @media (min-width: 992px) {
   .cdp-hero {
-    position: sticky;
-    top: var(--nav-current);
     flex-wrap: nowrap;
   }
 

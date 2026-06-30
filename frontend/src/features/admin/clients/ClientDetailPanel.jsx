@@ -6,14 +6,7 @@ import { cancelPackageAssignment } from "../../../api/modules/adminAgenda.api";
 import { formatEuro } from "../../../utils/formatEuro";
 import EditPackageModal from "./EditPackageModal";
 import CustomerBookingRow from "./CustomerBookingRow";
-import {
-  earliestBookingDate,
-  formatDateTimeIT,
-  formatDateShortIT,
-  openWhatsApp,
-  groupByMonthYear,
-  deriveCustomerStatus,
-} from "./clientsHelpers";
+import { earliestBookingDate, formatDateTimeIT, formatDateShortIT, openWhatsApp, groupByMonthYear, deriveCustomerStatus } from "./clientsHelpers";
 import "./ClientDetailPanel.css";
 
 const STATUS_CHIP_LABEL = { nuovo: "Nuovo", attivo: "Attivo", "da-risentire": "Da risentire" };
@@ -69,8 +62,8 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
 
   // ── Arretrati per-row settle ──
   const [settlingKey, setSettlingKey] = useState(null); // row in flight → blocks double-click
-  const [flashKey, setFlashKey]       = useState(null); // optimistic "Saldato ✓" before refetch
-  const [errorKey, setErrorKey]       = useState(null); // last row whose settle failed
+  const [flashKey, setFlashKey] = useState(null); // optimistic "Saldato ✓" before refetch
+  const [errorKey, setErrorKey] = useState(null); // last row whose settle failed
   const [confirmArretrato, setConfirmArretrato] = useState(null); // row awaiting confirm
 
   // The panel is reused (not remounted) across customers → clear per-row state on switch.
@@ -95,7 +88,7 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
       setFlashKey(null); // row already gone after reload
     } catch {
       setFlashKey(null); // network/settle error → revert the optimistic flash…
-      setErrorKey(key);  // …keep the row "da saldare" and surface the error
+      setErrorKey(key); // …keep the row "da saldare" and surface the error
     } finally {
       setSettlingKey(null);
     }
@@ -109,7 +102,10 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
   }, [customer]);
 
   useEffect(() => {
-    if (!customer?.customerId) { setInStorePkgs([]); return; }
+    if (!customer?.customerId) {
+      setInStorePkgs([]);
+      return;
+    }
     setInStorePkgsLoading(true);
     setPkgError("");
     getActivePackages(customer.customerId)
@@ -122,31 +118,48 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
   // (bookingsRefreshKey bumped by the hub), or when "Carica altri" grows pastLimit.
   useEffect(() => {
     const id = customer?.customerId;
-    if (!id) { setRichBookings({ upcoming: [], past: [], pastTotal: 0 }); return; }
+    if (!id) {
+      setRichBookings({ upcoming: [], past: [], pastTotal: 0 });
+      return;
+    }
     let cancelled = false;
     setBookingsLoading(true);
     setBookingsError("");
     fetchCustomerBookings(id, pastLimit)
-      .then(data => { if (!cancelled) setRichBookings(data); })
-      .catch(e => { if (!cancelled) setBookingsError(e.message || "Errore caricamento storico."); })
-      .finally(() => { if (!cancelled) setBookingsLoading(false); });
-    return () => { cancelled = true; };
+      .then(data => {
+        if (!cancelled) setRichBookings(data);
+      })
+      .catch(e => {
+        if (!cancelled) setBookingsError(e.message || "Errore caricamento storico.");
+      })
+      .finally(() => {
+        if (!cancelled) setBookingsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [customer?.customerId, bookingsRefreshKey, pastLimit]);
 
-  useEffect(() => () => {
-    clearTimeout(saveTimerRef.current);
-    clearTimeout(copyTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      clearTimeout(saveTimerRef.current);
+      clearTimeout(copyTimerRef.current);
+    },
+    [],
+  );
 
   const copyToClipboard = (text, which) => {
     if (!text || !navigator.clipboard?.writeText) return;
-    navigator.clipboard.writeText(text)
+    navigator.clipboard
+      .writeText(text)
       .then(() => {
         setCopied(which);
         clearTimeout(copyTimerRef.current);
         copyTimerRef.current = setTimeout(() => setCopied(null), 1500);
       })
-      .catch(() => { /* clipboard blocked — silently no-op */ });
+      .catch(() => {
+        /* clipboard blocked — silently no-op */
+      });
   };
 
   const handleDeletePkg = useCallback(async () => {
@@ -162,7 +175,7 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
   }, [deletePkgId]);
 
   const handlePkgSaved = useCallback(updated => {
-    setInStorePkgs(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setInStorePkgs(prev => prev.map(p => (p.id === updated.id ? updated : p)));
     setEditPkg(null);
   }, []);
 
@@ -241,7 +254,9 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
       {/* ── ZONE A — Hero (identity + primary actions; sticky on desktop) ── */}
       <header className="cdp-hero">
         <div className="cdp-hero__main">
-          <div className="cdp-avatar" aria-hidden="true">{initials}</div>
+          <div className="cdp-avatar" aria-hidden="true">
+            {initials}
+          </div>
           <div className="cdp-hero__id">
             <h2 className="cdp-name">{customer.fullName || "—"}</h2>
 
@@ -374,12 +389,7 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
                 </div>
                 {richBookings.past.length < richBookings.pastTotal && (
                   <div className="cbr-loadmore">
-                    <button
-                      type="button"
-                      className="cli-btn cli-btn--sm cli-btn--ghost"
-                      disabled={bookingsLoading}
-                      onClick={() => setPastLimit(n => n + 20)}
-                    >
+                    <button type="button" className="cli-btn cli-btn--sm cli-btn--ghost" disabled={bookingsLoading} onClick={() => setPastLimit(n => n + 20)}>
                       {bookingsLoading ? "Caricamento…" : "Carica altri"}
                     </button>
                   </div>
@@ -432,7 +442,9 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
                       const total = p.totalSessions || 0;
                       const remaining = p.sessionsRemaining || 0;
                       const { pct, cls } = pkgBar(remaining, total);
-                      const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
+                      const expiry = p.expiryDate
+                        ? new Date(p.expiryDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })
+                        : null;
                       return (
                         <div key={p.id} className="cli-pkg-card">
                           <div className="cli-pkg-name">{p.displayName || p.serviceTitle || "Pacchetto"}</div>
@@ -440,7 +452,9 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
                             <div className={`cli-pkg-bar-fill ${cls}`} style={{ width: `${pct}%` }} />
                           </div>
                           <div className="cli-pkg-meta">
-                            <span>{remaining} / {total} sedute rimanenti</span>
+                            <span>
+                              {remaining} / {total} sedute rimanenti
+                            </span>
                             {expiry && <span>Scade il {expiry}</span>}
                           </div>
                         </div>
@@ -463,15 +477,23 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
                           <div className="cli-pkg-card-header">
                             <div className="cli-pkg-name">{p.displayName || p.serviceOptionName || "Pacchetto"}</div>
                             <div className="cli-pkg-actions">
-                              <button className="cli-icon-btn" title="Modifica" onClick={() => setEditPkg(p)} type="button">✏</button>
-                              <button className="cli-icon-btn cli-icon-btn--danger" title="Cancella pacchetto" onClick={() => setDeletePkgId(p.id)} type="button">🗑</button>
+                              <button
+                                className="cli-icon-btn cli-icon-btn--danger"
+                                title="Cancella pacchetto"
+                                onClick={() => setDeletePkgId(p.id)}
+                                type="button"
+                              >
+                                🗑
+                              </button>
                             </div>
                           </div>
                           <div className="cli-pkg-bar">
                             <div className={`cli-pkg-bar-fill ${cls}`} style={{ width: `${pct}%` }} />
                           </div>
                           <div className="cli-pkg-meta">
-                            <span>{remaining} / {total} sedute rimanenti</span>
+                            <span>
+                              {remaining} / {total} sedute rimanenti
+                            </span>
                           </div>
                         </div>
                       );
@@ -508,21 +530,14 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
                           ) : (
                             <>
                               <span>{formatEuro(a.price)}</span>
-                              <button
-                                type="button"
-                                className="cli-btn cli-btn--sm"
-                                disabled={settlingKey !== null}
-                                onClick={() => setConfirmArretrato(a)}
-                              >
+                              <button type="button" className="cli-btn cli-btn--sm" disabled={settlingKey !== null} onClick={() => setConfirmArretrato(a)}>
                                 {busy ? "…" : errored ? "Riprova" : "Salda"}
                               </button>
                             </>
                           )}
                         </div>
                       </div>
-                      {errored && (
-                        <div className="cli-notes-error">Errore nel salvataggio. La riga resta da saldare.</div>
-                      )}
+                      {errored && <div className="cli-notes-error">Errore nel salvataggio. La riga resta da saldare.</div>}
                     </div>
                   );
                 })}
@@ -534,9 +549,7 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
 
       {/* ── Modals — mounting unchanged (EditPackageModal = inline position:fixed
           .ep-backdrop; ConfirmDialogs = portaled to document.body) ── */}
-      {editPkg && (
-        <EditPackageModal pkg={editPkg} onClose={() => setEditPkg(null)} onSave={handlePkgSaved} />
-      )}
+      {editPkg && <EditPackageModal pkg={editPkg} onClose={() => setEditPkg(null)} onSave={handlePkgSaved} />}
 
       <ConfirmDialog
         show={!!deletePkgId}
