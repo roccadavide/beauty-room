@@ -25,7 +25,7 @@ const TYPE_CONFIG = {
   ORDER_CANCELLED: { icon: "📦", label: "Ordine cancellato", color: "#c0392b", link: "/profilo/admin/prodotti" },
   CLOSURE_REMINDER: { icon: "🔒", label: "Chiusura programmata", color: "#946a3a", link: "/profilo/admin/agenda" },
   BOOKING_CLOSURE_CONFLICT: { icon: "⚠️", label: "Prenotazione in conflitto", color: "#c0392b", link: "/profilo/admin/agenda" },
-  OUTSTANDING_PAYMENT: { icon: "💰", label: "Pagamento in sospeso", color: "#b8860b", link: "/admin/clienti" },
+  OUTSTANDING_PAYMENT: { icon: "💰", label: "Pagamento in sospeso", color: "#b8860b", link: "/profilo/admin/agenda?view=clienti" },
 };
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ function NotifCard({ notif, onRead, onDelete }) {
     // customer's card; fall back to the static link when entityId is missing.
     const target =
       notif.type === "OUTSTANDING_PAYMENT" && notif.entityId
-        ? `/admin/clienti?customerId=${notif.entityId}`
+        ? `/profilo/admin/agenda?view=clienti&customerId=${notif.entityId}`
         : cfg.link;
     navigate(target);
   };

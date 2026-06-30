@@ -1,0 +1,154 @@
+/* ClientsQuickPicks — empty-state shortcuts for the Clienti tab. Premium-console
+   coherent with ClientDetailPanel (.cdp-): warm --ag- palette, gold-gradient
+   Petrona avatar, --font-display title, 14–18px radii, soft warm shadows.
+   No fixed element is a descendant here (the detail panel + EditPackageModal are
+   unmounted while this shows), so card :hover transform is safe. */
+
+.cqp {
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  border: 1px solid var(--ag-border);
+  border-radius: 18px;
+  box-shadow: var(--ag-shadow);
+  padding: 18px 18px 16px;
+}
+
+.cqp__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.cqp__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ag-text);
+}
+
+.cqp__hint {
+  font-size: 0.78rem;
+  color: var(--ag-muted);
+}
+
+.cqp__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 600px) {
+  .cqp__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cqp-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(139, 94, 60, 0.16);
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.cqp-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ag-shadow);
+  border-color: rgba(139, 94, 60, 0.4);
+}
+
+.cqp-card:focus-visible {
+  outline: 2px solid #b8976a;
+  outline-offset: 2px;
+}
+
+.cqp-avatar {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: "Petrona", serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ag-mocha);
+  background: linear-gradient(135deg, rgba(184, 151, 106, 0.18), rgba(140, 109, 63, 0.28));
+  border: 1px solid rgba(184, 151, 106, 0.35);
+}
+
+.cqp-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cqp-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ag-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cqp-reason {
+  font-size: 0.76rem;
+  color: var(--ag-muted);
+}
+
+.cqp-prompt {
+  text-align: center;
+  padding: 36px 18px;
+  font-size: 0.9rem;
+  color: var(--ag-muted);
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  border: 1px solid var(--ag-border);
+  border-radius: 18px;
+  box-shadow: var(--ag-shadow);
+}
+
+/* Loading skeleton — background-position shimmer (no transform/containing block). */
+.cqp--loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.cqp-sk {
+  height: 62px;
+  border-radius: 14px;
+  background: linear-gradient(
+    90deg,
+    rgba(231, 214, 195, 0.35),
+    rgba(231, 214, 195, 0.6),
+    rgba(231, 214, 195, 0.35)
+  );
+  background-size: 200% 100%;
+  animation: cqp-sk 1.2s ease-in-out infinite;
+}
+
+@keyframes cqp-sk {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

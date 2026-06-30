@@ -36,6 +36,44 @@ export const getCustomerSummary = async customerId => {
   return data;
 };
 
+/**
+ * GET /admin/customers/{id}/bookings?pastLimit={pastLimit}
+ * Rich, agenda-shaped booking history split into upcoming (future, full set) and
+ * past (most-recent `pastLimit`). Each entry is a full AdminBookingCardDTO, so an
+ * upcoming row can be handed straight to NewAppointmentDrawer's edit flow.
+ * "Load more" re-fetches with a larger pastLimit and replaces (fine at salon volume).
+ *
+ * @param {string} customerId - UUID string
+ * @param {number} [pastLimit=20]
+ * @returns {Promise<{upcoming: any[], past: any[], pastTotal: number}>}
+ */
+export const fetchCustomerBookings = async (customerId, pastLimit = 20) => {
+  const { data } = await http.get(CUSTOMER_ENDPOINTS.BOOKINGS(customerId), { params: { pastLimit } });
+  return {
+    upcoming: Array.isArray(data?.upcoming) ? data.upcoming : [],
+    past: Array.isArray(data?.past) ? data.past : [],
+    pastTotal: data?.pastTotal ?? 0,
+  };
+};
+
+/**
+ * GET /admin/customers/insights
+ * Customers-workspace overview: headline counts + top-client rankings + win-back.
+ *
+ * @returns {Promise<{
+ *   totalCustomers: number, trustedCustomersCount: number, activePackagesCount: number,
+ *   outstandingTotal: number,
+ *   topByCompletedAppointments: Array<{customerId: string|null, name: string, phone: string, count: number}>,
+ *   topByPackages: Array<{customerId: string|null, name: string, phone: string, count: number}>,
+ *   topBySpend: Array<{customerId: string|null, name: string, phone: string, revenue: number, visits: number}>,
+ *   winBack: Array<{customerId: string, name: string, phone: string, lastVisit: string, daysSince: number}>
+ * }>}
+ */
+export const fetchCustomerInsights = async () => {
+  const { data } = await http.get(CUSTOMER_ENDPOINTS.INSIGHTS);
+  return data;
+};
+
 export const updateCustomerNotes = async (customerId, notes) => {
   await http.patch(CUSTOMER_ENDPOINTS.NOTES(customerId), { notes });
 };

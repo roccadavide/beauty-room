@@ -19,4 +19,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE LOWER(TRIM(CONCAT(u.name, ' ', u.surname))) = :fullName")
     List<User> findAllByFullNameIgnoreCase(@Param("fullName") String fullName);
 
+    /**
+     * Customer insights headline: count of verified ("trusted") accounts. Trust lives on User,
+     * not Customer, and there is no Customer↔User key — this is an APPROXIMATE headline by design
+     * (audit Section E).
+     */
+    @Query("SELECT COUNT(u) FROM User u WHERE u.isVerified = true")
+    long countVerified();
+
 }

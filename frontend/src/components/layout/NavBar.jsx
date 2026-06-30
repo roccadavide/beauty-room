@@ -271,7 +271,7 @@ export default function NavBar() {
                       <NavDropdown.Item as={Link} to={"/admin/report"}>
                         Report
                       </NavDropdown.Item>
-                      <NavDropdown.Item as={Link} to={"/admin/clienti"}>
+                      <NavDropdown.Item as={Link} to={"/profilo/admin/agenda?view=clienti"}>
                         Clienti
                       </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
@@ -411,7 +411,7 @@ export default function NavBar() {
                       <Link to="/admin/report" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         Report
                       </Link>
-                      <Link to="/admin/clienti" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                      <Link to="/profilo/admin/agenda?view=clienti" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         Clienti
                       </Link>
                       <Link to="/admin/impostazioni" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>

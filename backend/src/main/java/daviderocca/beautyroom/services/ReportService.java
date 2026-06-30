@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Two-ledger admin report (cash-basis). The repository extracts raw valued rows per
@@ -296,13 +297,28 @@ public class ReportService {
             accrue(revenue, display, r.clientId(), r.clientName(), r.clientPhone(), nz(r.amount()));
 
         return revenue.entrySet().stream()
-                .map(e -> new TopClientReportDTO(
-                        display.get(e.getKey())[0], display.get(e.getKey())[1],
-                        sc(e.getValue()),
-                        visits.getOrDefault(e.getKey(), new long[1])[0]))
+                .map(e -> {
+                    String key = e.getKey();
+                    // Surface the customer_id when (and only when) this bucket was id-keyed —
+                    // clientKey encodes it as the "id:" prefix. Phone-/name-keyed rows stay null.
+                    UUID customerId = key.startsWith("id:") ? parseUuid(key.substring(3)) : null;
+                    String[] d = display.get(key);
+                    return new TopClientReportDTO(
+                            customerId, d[0], d[1],
+                            sc(e.getValue()),
+                            visits.getOrDefault(key, new long[1])[0]);
+                })
                 .sorted(Comparator.comparing(TopClientReportDTO::revenue).reversed())
                 .limit(TOP_N)
                 .toList();
+    }
+
+    private static UUID parseUuid(String s) {
+        try {
+            return UUID.fromString(s);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     /** Accrue amount onto a client's identity bucket; returns the key (null = anonymous). */
@@ -442,6 +458,33 @@ public class ReportService {
                 .limit(15)
                 .toList();
         return new ArretratiResult(sc(total), list);
+    }
+
+    // ===============================================================================
+    // Cross-service reuse (customer insights) — additive; does NOT change getReport output
+    // ===============================================================================
+
+    /** Lower bound for "all-time" reuse windows — predates any record in the system. */
+    private static final LocalDate ALL_TIME_FROM = LocalDate.of(2000, 1, 1);
+
+    /**
+     * All-time top clients by collected revenue: the SAME layered-key aggregation the dated
+     * report runs ({@link #buildTopClients}), over an unbounded collection window. Reused by the
+     * customer-insights overview; leaves the dated {@code /admin/report} output untouched. Each
+     * row carries customer_id when id-keyed (clickable) — see {@link TopClientReportDTO}.
+     */
+    public List<TopClientReportDTO> getTopClientsAllTime(int limit) {
+        List<TopClientReportDTO> all = buildTopClients(fetchLegs(ALL_TIME_FROM, LocalDate.now()));
+        return all.size() > limit ? all.subList(0, limit) : all;
+    }
+
+    /**
+     * Global outstanding (arretrati) total across every unpaid leg — the exact figure the
+     * {@code /admin/report} previsto block already computes via {@link #buildArretrati}. Exposed
+     * so the insights headline reuses it instead of re-implementing the unpaid union.
+     */
+    public BigDecimal getOutstandingTotal() {
+        return buildArretrati().total();
     }
 
     // ===============================================================================

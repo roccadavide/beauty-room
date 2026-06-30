@@ -61,6 +61,8 @@
 @import "./pages/_closures.css";
 @import "./pages/_confirmation.css";
 @import "./pages/_clienti.css";
+@import "./pages/_workspace.css";
+@import "./pages/_overview.css";
 @import "./pages/_report.css";
 @import "./pages/_impostazioni.css";
 @import "./pages/_booking-modal.css";

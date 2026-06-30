@@ -1,0 +1,160 @@
+/* ===========================
+   ADMIN WORKSPACE — shell fade + WorkspaceSwitch
+   Prefixes: aw- (shell)  ·  wsw- (switch)
+   =========================== */
+
+/* ── Page-swap fade (OPACITY ONLY) ──────────────────────────────
+   HARD RULE: this wrapper must animate opacity and nothing else. Do NOT add
+   transform / filter / perspective / backdrop-filter / contain /
+   will-change: transform|filter — any of those creates a containing block that
+   captures the agenda's and clients' INLINE position:fixed elements (FAB,
+   snackbar, confirm-overlay, ep-backdrop, verify-toast) and drifts them to the
+   page bottom (the documented PageTransition trap). opacity does NOT create a
+   containing block, so all fixed elements stay anchored to the viewport. */
+.aw-fade {
+  animation: aw-fade-in 250ms ease-out;
+}
+
+@keyframes aw-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aw-fade {
+    animation: none;
+  }
+}
+
+/* Suspense fallback while a view chunk loads — reserve height to avoid a jump. */
+.aw-loading {
+  min-height: 60dvh;
+}
+
+/* ── Workspace top-bar ──────────────────────────────────────────
+   Slim IN-FLOW bar holding the SINGLE, persistent WorkspaceSwitch (lifted out of
+   the two views) so the control no longer relocates on swap. NON-sticky: it sits at
+   the top of the admin content and scrolls away with the page. Its background is a
+   per-view vertical gradient (navbar white at the top → that view's page background at
+   the bottom), so the page reads as emerging from the navbar — both view roots
+   (.ag-page / .cli-page) open on the same --ag-bg gradient top, so the seam below blends.
+   Keep the opacity-only invariant: do NOT add transform / filter / will-change /
+   contain / backdrop-filter / perspective here (same hard rule as .aw-fade). */
+:root {
+  --aw-topbar-h: 48px;
+}
+
+.aw-topbar {
+  box-sizing: border-box;
+  min-height: var(--aw-topbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+/* Vertical gradient: navbar colour (white) at the top → the active view's page
+   background at the bottom, so the bar blends the navbar into the page with no hard
+   strip. Both views' roots resolve to the same --ag-bg gradient top, so the bar's
+   bottom meets the content seamlessly; kept per-view so they can diverge later. */
+.aw-topbar[data-view="agenda"] {
+  background: linear-gradient(to bottom, #ffffff, var(--ag-bg, #fbf8f3));
+}
+
+.aw-topbar[data-view="clienti"] {
+  background: linear-gradient(to bottom, #ffffff, var(--ag-bg, #fbf8f3));
+}
+
+/* ── WorkspaceSwitch — primary gold segmented control ───────────
+   Reads as the PRIMARY axis (which workspace), deliberately bolder/larger than
+   the agenda's secondary .ag-view-toggle (Giorno/Settimana) and .ag-compact-tabs. */
+.wsw {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fffaf2, #f3e7d4);
+  border: 1px solid rgba(139, 109, 63, 0.3);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.7),
+    0 6px 18px rgba(140, 109, 63, 0.18);
+  user-select: none;
+}
+
+/* Sliding gold indicator. transform: translateX is LOCAL to the pill and never
+   touches a fixed element — that's allowed (unlike the .aw-fade wrapper). */
+.wsw__pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #c4a373, #8c6d3f);
+  box-shadow:
+    0 4px 12px rgba(140, 109, 63, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wsw__pill {
+    transition: none;
+  }
+}
+
+.wsw__seg {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 96px;
+  padding: 9px 18px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: #6f4a2f;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: color 200ms ease;
+}
+
+.wsw__seg:not(.is-active):hover {
+  color: #3e2723;
+}
+
+.wsw__seg.is-active {
+  color: #fff;
+}
+
+.wsw__mark {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.wsw__label {
+  line-height: 1;
+}
+
+/* Clients hub header: title left. */
+.cli-header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}

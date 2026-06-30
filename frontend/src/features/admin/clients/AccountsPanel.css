@@ -1,0 +1,375 @@
+/* AccountsPanel — premium account console (the authoritative place to manage trust).
+   Matches ClientDetailPanel (.cdp-) idioms: warm --ag-* palette, gold-gradient
+   Petrona avatar, --font-display names, the #25d366 WhatsApp pill (.cli-wa-btn),
+   18px radii, soft warm shadows.
+
+   CONTAINING-BLOCK SAFETY: the inline position:fixed verify-toast (.cli-verify-toast)
+   is a sibling of these elements (a direct child of .cli-pkg-panel), NOT a
+   descendant — so it has no transformed ancestor here. Do NOT add transform /
+   filter / will-change / contain / backdrop-filter to .cli-pkg-panel. Card and
+   reload-button :hover transforms are safe (they are siblings of the toast, never
+   ancestors of it). */
+
+/* ── Toolbar: filter pills + search + reload ──────────────────── */
+.acc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.acc-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.acc-pill {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--ag-border);
+  border-radius: 999px;
+  padding: 6px 15px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ag-mocha);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.acc-pill:hover {
+  border-color: rgba(139, 94, 60, 0.4);
+}
+
+.acc-pill.is-active {
+  background: linear-gradient(180deg, rgba(139, 94, 60, 0.95), rgba(111, 74, 47, 0.95));
+  border-color: transparent;
+  color: #fff;
+}
+
+.acc-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 240px;
+  justify-content: flex-end;
+}
+
+.acc-search {
+  flex: 1 1 200px;
+  min-width: 170px;
+  max-width: 300px;
+  border: 1px solid var(--ag-border);
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ag-text);
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.acc-search:focus {
+  border-color: rgba(139, 94, 60, 0.5);
+  box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.12);
+}
+
+.acc-reload {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--ag-border);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ag-mocha);
+  font-size: 1.05rem;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.acc-reload:hover {
+  border-color: rgba(139, 94, 60, 0.5);
+  color: var(--ag-text);
+  transform: rotate(90deg);
+}
+
+.acc-empty {
+  text-align: center;
+  padding: 48px 0;
+  font-size: 0.9rem;
+  color: var(--ag-muted);
+}
+
+/* ── Account cards ────────────────────────────────────────────── */
+.acc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acc-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: var(--ag-radius, 18px);
+  border: 1px solid var(--ag-border);
+  background: linear-gradient(180deg, #ffffff, #fbf5ec);
+  box-shadow: var(--ag-shadow);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.acc-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ag-shadow-hover);
+}
+
+/* Verified accounts carry a warmer gold frame + accent. */
+.acc-card--verified {
+  border-color: rgba(184, 151, 106, 0.5);
+  background: linear-gradient(180deg, #fffdf7, #fbf3e6);
+}
+
+.acc-card__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+/* Reuse the agenda/cdp avatar idiom exactly (Petrona, gold gradient). */
+.acc-avatar {
+  flex-shrink: 0;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: "Petrona", serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--ag-mocha);
+  background: linear-gradient(135deg, rgba(184, 151, 106, 0.18), rgba(140, 109, 63, 0.28));
+  border: 1px solid rgba(184, 151, 106, 0.35);
+}
+
+.acc-id {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.acc-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.acc-name {
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--ag-text);
+  word-break: break-word;
+}
+
+.acc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.acc-chip--trust {
+  background: linear-gradient(180deg, rgba(231, 200, 127, 0.3), rgba(198, 155, 80, 0.22));
+  border-color: rgba(184, 151, 106, 0.5);
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.acc-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.acc-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--ag-muted);
+}
+
+.acc-contact__icon {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+}
+
+.acc-contact__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acc-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+/* Right column — trust toggle + discreet no-show */
+.acc-card__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.acc-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.acc-confirm__q {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ag-muted);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.acc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    filter 0.12s ease;
+}
+
+.acc-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.acc-btn--xs {
+  padding: 5px 11px;
+  font-size: 0.76rem;
+  border-radius: 9px;
+}
+
+.acc-btn--trust {
+  background: linear-gradient(180deg, rgba(231, 200, 127, 0.32), rgba(198, 155, 80, 0.24));
+  border-color: rgba(184, 151, 106, 0.5);
+  color: var(--card-gold-deep, #8c6d3f);
+}
+
+.acc-btn--trust:hover {
+  filter: brightness(0.97);
+  border-color: rgba(184, 151, 106, 0.7);
+}
+
+.acc-btn--danger {
+  background: rgba(192, 57, 43, 0.1);
+  border-color: rgba(192, 57, 43, 0.25);
+  color: #c0392b;
+}
+
+.acc-btn--danger:hover {
+  background: rgba(192, 57, 43, 0.18);
+}
+
+.acc-btn--ghost {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--ag-border);
+  color: var(--ag-text);
+}
+
+.acc-btn--ghost:hover {
+  background: #fff;
+  border-color: rgba(139, 94, 60, 0.4);
+}
+
+/* Discreet no-show trigger — quiet until needed. */
+.acc-noshow {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ag-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.acc-noshow:hover {
+  color: #c0392b;
+  text-decoration: underline;
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 575px) {
+  .acc-toolbar__right {
+    justify-content: flex-start;
+  }
+
+  .acc-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .acc-card__side {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
