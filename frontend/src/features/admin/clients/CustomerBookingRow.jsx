@@ -1,4 +1,3 @@
-import StatusPill from "./StatusPill";
 import { formatDateTimeIT } from "./clientsHelpers";
 import "./CustomerBookingRow.css";
 
@@ -16,11 +15,7 @@ function buildEntries(card) {
   const entries = [];
 
   // Packages (📦) — new plural list, falling back to the deprecated singular.
-  const pkgs = card.linkedPackages?.length
-    ? card.linkedPackages
-    : card.linkedPackage
-      ? [card.linkedPackage]
-      : [];
+  const pkgs = card.linkedPackages?.length ? card.linkedPackages : card.linkedPackage ? [card.linkedPackage] : [];
   pkgs.forEach((p, i) => {
     const name = p.packageName || p.serviceTitle || p.serviceName || "Pacchetto";
     // Prefer the package link's own session numbers; for the first package on a
@@ -51,11 +46,7 @@ function buildEntries(card) {
 
   // Fallback — nothing above produced a line (e.g. a bare single-service legacy row).
   if (entries.length === 0) {
-    const t = card.serviceTitle
-      ? card.optionName
-        ? `${card.serviceTitle} · ${card.optionName}`
-        : card.serviceTitle
-      : "—";
+    const t = card.serviceTitle ? (card.optionName ? `${card.serviceTitle} · ${card.optionName}` : card.serviceTitle) : "—";
     entries.push({ text: t });
   }
 
@@ -77,16 +68,13 @@ export default function CustomerBookingRow({ card, clickable = false, onClick })
     }
   };
 
-  const clickProps = clickable
-    ? { role: "button", tabIndex: 0, onClick: activate, onKeyDown: handleKeyDown }
-    : {};
+  const clickProps = clickable ? { role: "button", tabIndex: 0, onClick: activate, onKeyDown: handleKeyDown } : {};
 
   return (
     <div className={`cli-history-item cbr-row${clickable ? " cbr-row--clickable" : ""}`} {...clickProps}>
       <div className="cli-history-main cbr-main">
         <div className="cbr-top">
           <span className="cli-history-meta">{formatDateTimeIT(card.startTime)}</span>
-          <StatusPill status={status} />
         </div>
         <ul className="cbr-entries">
           {entries.map((e, i) => (
@@ -98,7 +86,7 @@ export default function CustomerBookingRow({ card, clickable = false, onClick })
           ))}
         </ul>
       </div>
-      {clickable && <span className="cbr-hint">tocca per modificare ✏</span>}
+      {clickable && <span className="cbr-hint">Modifica ✏</span>}
     </div>
   );
 }

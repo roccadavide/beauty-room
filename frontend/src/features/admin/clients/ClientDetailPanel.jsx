@@ -334,7 +334,7 @@ export default function ClientDetailPanel({ customer, loading, error, onNotesCha
       {/* ── ZONE C — Body: main timeline + side ── */}
       <div className="cdp-body">
         {/* MAIN — Prossimi + Storico as a vertical timeline */}
-        <main className="cdp-main">
+        <main className="cdp-main" style={{ padding: "0" }}>
           {/* Prossimi appuntamenti — clickable → open the drawer in edit. Each row
               is a full AdminBookingCardDTO, handed straight to the edit flow. */}
           <section className="cdp-tl-section cdp-tl-section--upcoming">
