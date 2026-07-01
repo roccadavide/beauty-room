@@ -271,9 +271,6 @@ export default function NavBar() {
                       <NavDropdown.Item as={Link} to={"/admin/report"}>
                         Report
                       </NavDropdown.Item>
-                      <NavDropdown.Item as={Link} to={"/profilo/admin/agenda?view=clienti"}>
-                        Clienti
-                      </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
                         Impostazioni
                       </NavDropdown.Item>
@@ -281,7 +278,7 @@ export default function NavBar() {
                         Notifiche
                         {unreadNotifs > 0 && <span className="nav-postit-badge">{unreadNotifs}</span>}
                       </NavDropdown.Item>
-                      <NavDropdown.Item as={Link} to="/admin/post-it">
+                      <NavDropdown.Item as={Link} to="/profilo/admin/agenda?view=postit">
                         Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}
                       </NavDropdown.Item>
                     </>
@@ -421,7 +418,7 @@ export default function NavBar() {
                         Notifiche
                         {unreadNotifs > 0 && <span className="nav-postit-badge">{unreadNotifs}</span>}
                       </Link>
-                      <Link to="/admin/post-it" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                      <Link to="/profilo/admin/agenda?view=postit" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}
                       </Link>
                     </>

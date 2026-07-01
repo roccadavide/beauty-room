@@ -45,7 +45,6 @@ const AdminWorkspace = lazy(() => import("./features/admin/AdminWorkspace"));
 const AdminAgendaSettingsPage = lazy(() => import("./components/admin/AdminAgendaSettingsPage"));
 const ImpostazioniPage = lazy(() => import("./components/admin/ImpostazioniPage"));
 const ReportPage = lazy(() => import("./pages/admin/ReportPage"));
-const PostItBoard = lazy(() => import("./pages/admin/PostItBoard"));
 const NotifichePage = lazy(() => import("./pages/admin/NotifichePage"));
 const BookingConfirmation = lazy(() => import("./features/bookings/BookingConfirmation"));
 const WaitlistPage = lazy(() => import("./features/bookings/WaitlistPage"));
@@ -418,13 +417,13 @@ function App() {
                 }
               />
 
+              {/* Legacy /admin/post-it → unified workspace post-it view (3rd tab).
+                  Board content now lives in AdminWorkspace's PostItPanel. */}
               <Route
                 path="/admin/post-it"
                 element={
                   <PrivateRoute roles={["ADMIN"]}>
-                    <PageTransition routeKey={location.pathname}>
-                      <PostItBoard />
-                    </PageTransition>
+                    <Navigate to="/profilo/admin/agenda?view=postit" replace />
                   </PrivateRoute>
                 }
               />

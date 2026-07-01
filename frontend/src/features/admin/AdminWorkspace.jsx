@@ -1,14 +1,16 @@
-import { lazy, Suspense, useCallback, useMemo } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { WorkspaceContext } from "./WorkspaceContext";
 import WorkspaceSwitch from "./WorkspaceSwitch";
+import { fetchExpiringCount } from "../../api/modules/postits.api";
 
-// Lazy-split the two heavy views (mirrors how App.jsx splits admin pages). Only
-// the active one is ever mounted, so the inactive view's effects — the agenda's
+// Lazy-split the heavy views (mirrors how App.jsx splits admin pages). Only the
+// active one is ever mounted, so the inactive view's effects — the agenda's
 // now-line interval, the clients' fetches — never run, and their fixed-position
 // elements never coexist.
 const AdminAgendaPage = lazy(() => import("../../components/admin/AdminAgendaPage"));
 const ClientsHub = lazy(() => import("./clients/ClientsHub"));
+const PostItPanel = lazy(() => import("./postit/PostItPanel"));
 
 /**
  * Thin shell hosting the admin workspace at /profilo/admin/agenda. Holds the
@@ -23,7 +25,8 @@ const ClientsHub = lazy(() => import("./clients/ClientsHub"));
  */
 export default function AdminWorkspace() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const view = searchParams.get("view") === "clienti" ? "clienti" : "agenda";
+  const viewParam = searchParams.get("view");
+  const view = viewParam === "clienti" ? "clienti" : viewParam === "postit" ? "postit" : "agenda";
   const customerId = searchParams.get("customerId");
 
   const setView = useCallback(
@@ -31,12 +34,20 @@ export default function AdminWorkspace() {
       const sp = new URLSearchParams(searchParams);
       // "agenda" is the default → keep the URL clean (no ?view=). Preserve any
       // customerId deep-link param across the switch.
-      if (next === "clienti") sp.set("view", "clienti");
+      if (next === "clienti" || next === "postit") sp.set("view", next);
       else sp.delete("view");
       setSearchParams(sp);
     },
     [searchParams, setSearchParams]
   );
+
+  // Overdue post-it badge on the switch: single lightweight count (same source as
+  // the NavBar badge). Refetched after any in-panel mutation via onMutate.
+  const [postitCount, setPostitCount] = useState(0);
+  const refreshPostitCount = useCallback(() => {
+    fetchExpiringCount().then(setPostitCount).catch(() => {});
+  }, []);
+  useEffect(() => { refreshPostitCount(); }, [refreshPostitCount]);
 
   const ctx = useMemo(() => ({ view, setView }), [view, setView]);
 
@@ -49,12 +60,18 @@ export default function AdminWorkspace() {
           data-view drives a per-view background so the bar blends into the active
           page instead of reading as a separate floating bar. */}
       <div className="aw-topbar" data-view={view}>
-        <WorkspaceSwitch />
+        <WorkspaceSwitch postitBadge={postitCount} />
       </div>
       <Suspense fallback={<div className="aw-loading" />}>
         {/* key={view} re-triggers the opacity fade on every switch. */}
         <div key={view} className="aw-fade">
-          {view === "agenda" ? <AdminAgendaPage /> : <ClientsHub customerId={customerId} />}
+          {view === "agenda" ? (
+            <AdminAgendaPage />
+          ) : view === "clienti" ? (
+            <ClientsHub customerId={customerId} />
+          ) : (
+            <PostItPanel onMutate={refreshPostitCount} />
+          )}
         </div>
       </Suspense>
     </WorkspaceContext.Provider>
