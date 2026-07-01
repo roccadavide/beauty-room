@@ -241,6 +241,27 @@ public class AvailabilityService {
      */
     @Transactional(readOnly = true)
     public Optional<PublicNextSlotDTO> findNextAvailableCombinedSlot(int durationMinutes, LocalDate fromDate, String fromTime) {
+        return findNextAvailableCombinedSlot(durationMinutes, fromDate, fromTime, null, null, null);
+    }
+
+    /**
+     * Overload col finder cliente + filtri opzionali (SOLO restringenti):
+     *  - allowedDays: se non vuoto, salta i giorni della settimana non selezionati;
+     *  - windowStart/windowEnd: finestra half-open [windowStart, windowEnd) applicata
+     *    all'ORARIO DI INIZIO dello slot. Sul giorno fromDate è in AND col floor
+     *    fromTime esistente (lower bound effettivo = il maggiore tra i due).
+     *
+     * Invariante: i filtri possono solo RIMUOVERE slot già prodotti da
+     * getCombinedAvailabilities — non allargano mai un range né inventano slot fuori
+     * orario. Con allowedDays null/vuoto E finestra assente il risultato è identico
+     * all'overload a 3 argomenti (garanzia di non-regressione).
+     * Guard: se windowStart e windowEnd sono entrambi non-null e windowStart >= windowEnd
+     * la finestra viene ignorata (non lancia).
+     */
+    @Transactional(readOnly = true)
+    public Optional<PublicNextSlotDTO> findNextAvailableCombinedSlot(
+            int durationMinutes, LocalDate fromDate, String fromTime,
+            Set<DayOfWeek> allowedDays, LocalTime windowStart, LocalTime windowEnd) {
         LocalDate start = (fromDate != null && !fromDate.isBefore(LocalDate.now(BUSINESS_ZONE)))
                 ? fromDate
                 : LocalDate.now(BUSINESS_ZONE);
@@ -252,8 +273,17 @@ public class AvailabilityService {
         }
         final LocalTime afterTimeFinal = afterTime;
 
+        // Guard finestra: se invertita/degenere la ignoro del tutto (entrambi i bound a null).
+        final boolean windowValid = !(windowStart != null && windowEnd != null && !windowStart.isBefore(windowEnd));
+        final LocalTime wStart = windowValid ? windowStart : null;
+        final LocalTime wEnd = windowValid ? windowEnd : null;
+
         for (int i = 0; i < maxAdvanceDays; i++) {
             LocalDate day = start.plusDays(i);
+            // Filtro giorno-della-settimana (solo restringente): salta i giorni non ammessi.
+            if (allowedDays != null && !allowedDays.isEmpty() && !allowedDays.contains(day.getDayOfWeek())) {
+                continue;
+            }
             // Il filtro orario si applica solo al primo giorno
             final boolean applyTimeFilter = (i == 0 && afterTimeFinal != null);
             try {
@@ -262,6 +292,13 @@ public class AvailabilityService {
                         .filter(AvailabilitySlotDTO::available)
                         .filter(s -> !applyTimeFilter ||
                                 LocalTime.parse(s.start(), HHMM).isAfter(afterTimeFinal))
+                        .filter(s -> {
+                            // Finestra half-open [wStart, wEnd) sull'orario di inizio slot.
+                            LocalTime st = LocalTime.parse(s.start(), HHMM);
+                            if (wStart != null && st.isBefore(wStart)) return false;
+                            if (wEnd != null && !st.isBefore(wEnd)) return false;
+                            return true;
+                        })
                         .findFirst();
                 if (first.isPresent()) {
                     return Optional.of(new PublicNextSlotDTO(day, first.get().start(), first.get().end()));

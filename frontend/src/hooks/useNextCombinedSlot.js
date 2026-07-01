@@ -8,7 +8,15 @@ const toLocalISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2
 // Sibling di useNextSlot per il flusso carrello/multi-servizio: cerca il prossimo
 // slot dimensionato sulla DURATA COMBINATA (somma dei servizi) anziché su un singolo
 // serviceId. Stessa shape di ritorno di useNextSlot — NextSlotBanner è generico.
-export function useNextCombinedSlot(durationMinutes) {
+//
+// filters = { daysOfWeek?: string[], windowStart?: string|null, windowEnd?: string|null }
+// (default {}). Sono SOLO restringenti e vengono aggiunti all'URL solo se presenti:
+// con filters vuoti la richiesta è identica a prima (garanzia di non-regressione).
+export function useNextCombinedSlot(durationMinutes, filters = {}) {
+  const { daysOfWeek, windowStart, windowEnd } = filters;
+  // CSV di nomi enum (MONDAY,TUESDAY) — primitivo stabile per le deps di findNext.
+  const daysKey = Array.isArray(daysOfWeek) ? daysOfWeek.join(",") : "";
+
   const [nextSlot, setNextSlot] = useState(null);   // { date, startTime, endTime }
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -23,6 +31,9 @@ export function useNextCombinedSlot(durationMinutes) {
       const from = searchFromDate ?? toLocalISODate(new Date());
       let url = `${API_BASE}/api/public/slots/next-combined?durationMinutes=${durationMinutes}&fromDate=${from}`;
       if (searchFromTime) url += `&fromTime=${searchFromTime}`;
+      if (daysKey) url += `&daysOfWeek=${daysKey}`;
+      if (windowStart) url += `&windowStart=${windowStart}`;
+      if (windowEnd) url += `&windowEnd=${windowEnd}`;
       const res = await fetch(url);
       if (res.status === 404) {
         setNextSlot(null);
@@ -39,7 +50,7 @@ export function useNextCombinedSlot(durationMinutes) {
     } finally {
       setLoading(false);
     }
-  }, [durationMinutes]);
+  }, [durationMinutes, daysKey, windowStart, windowEnd]);
 
   const findNextAgain = useCallback(() => {
     if (fromDate) findNext(fromDate, fromTime);
