@@ -1,5 +1,6 @@
 package daviderocca.beautyroom.controllers;
 
+import daviderocca.beautyroom.DTO.availabilityDTOs.PublicDayStatusResponseDTO;
 import daviderocca.beautyroom.DTO.availabilityDTOs.PublicNextSlotDTO;
 import daviderocca.beautyroom.DTO.closureDTOs.ClosureResponseDTO;
 import daviderocca.beautyroom.DTO.closureDTOs.PublicClosureDTO;
@@ -137,5 +138,33 @@ public class PublicController {
         return result
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ==========================================================================
+    // ENDPOINT PUBBLICO STATO GIORNI (giorni "Pieno" in un intervallo)
+    // GET /api/public/availability/day-status?fromDate={yyyy-MM-dd}&toDate={yyyy-MM-dd}&durationMinutes={int}
+    // ==========================================================================
+
+    /**
+     * Restituisce i giorni APERTI ma completamente prenotati ("Pieno") nell'intervallo
+     * [fromDate, toDate] per la durata richiesta. Il frontend lo chiama per il mese
+     * visibile per marcare quei giorni "Pieno" (e attivare la waitlist). Usa la durata
+     * del singolo servizio in "Prenota ora" e la durata totale del carrello nel flusso
+     * multi-servizio: stesso endpoint, {@code durationMinutes} diverso.
+     *
+     * I giorni chiusi NON compaiono (li gestisce /api/public/closures). Intervallo
+     * clampato alla finestra prenotabile; span massimo ~62 giorni (oltre → 400).
+     */
+    @GetMapping("/availability/day-status")
+    public ResponseEntity<PublicDayStatusResponseDTO> getDayStatus(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam int durationMinutes
+    ) {
+        log.info("PUBLIC | day-status | fromDate={} toDate={} durationMinutes={}", fromDate, toDate, durationMinutes);
+
+        List<LocalDate> fullDates = availabilityService.getFullDays(fromDate, toDate, durationMinutes);
+
+        return ResponseEntity.ok(new PublicDayStatusResponseDTO(fullDates));
     }
 }
