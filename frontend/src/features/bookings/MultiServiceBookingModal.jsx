@@ -10,6 +10,7 @@ import SlotFinderCard from "../../components/common/SlotFinderCard";
 import { daypartToWindow } from "../../components/common/SlotFilters";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import { useClosedDays } from "../../hooks/useClosedDays";
+import { useFullDays } from "../../hooks/useFullDays";
 import { useNextCombinedSlot } from "../../hooks/useNextCombinedSlot";
 import "./MultiServiceBookingModal.css";
 
@@ -38,6 +39,9 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
   const [emptySlotDates, setEmptySlotDates] = useState([]);
 
   const totalDuration = services.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
+  // Giorni al completo per la durata totale del carrello: marcati "Pieno" ma NON selezionabili
+  // (nel carrello non c'è lista d'attesa).
+  const { fullDates } = useFullDays(totalDuration);
   const servicesTotal = services.reduce((sum, s) => sum + (s.price || 0), 0);
   const productsTotal = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
   const totalPrice = servicesTotal + productsTotal;
@@ -315,6 +319,8 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
                 minDate={new Date()}
                 maxDate={maxBookingDate}
                 disabledDates={disabledDates}
+                fullDates={fullDates}
+                fullDaysSelectable={false}
                 placeholder="Scegli un giorno"
               />
             </div>

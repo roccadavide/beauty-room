@@ -91,6 +91,8 @@ export default function DateTimeField({
   maxDate = null,
   disabledDates = [],
   busyDates = [],
+  fullDates = [],
+  fullDaysSelectable = true,
   placeholder = "Seleziona data…",
   disabled = false,
   error = null,
@@ -109,6 +111,7 @@ export default function DateTimeField({
   const minDateStr = useMemo(() => makeMinDateStr(minDate), [minDate]);
   const maxDateStr = useMemo(() => makeMaxDateStr(maxDate), [maxDate]);
   const disabledSet = useMemo(() => new Set((disabledDates || []).map(d => String(d).slice(0, 10))), [disabledDates]);
+  const fullSet = useMemo(() => new Set((fullDates || []).map(d => String(d).slice(0, 10))), [fullDates]);
   const busyMap = useMemo(() => {
     const m = new Map();
     (busyDates || []).forEach(b => {
@@ -317,6 +320,7 @@ export default function DateTimeField({
   const handleDayClick = day => {
     if (!day || isPast(day) || isDisabledDay(day) || isAfterMax(day)) return;
     const iso = toISODateLocal(new Date(viewYear, viewMonth, day));
+    if (fullSet.has(iso) && !fullDaysSelectable) return; // giorno pieno non selezionabile (carrello, niente waitlist)
     applyDate(iso);
   };
 
@@ -396,14 +400,28 @@ export default function DateTimeField({
               if (d && isAfterMax(d)) classes.push("dtf-day--past");
               if (d && isDisabledDay(d)) classes.push("dtf-day--blocked");
               const iso = d ? toISODateLocal(new Date(viewYear, viewMonth, d)) : null;
+              // Giorno "pieno": aperto e prenotabile (non passato/oltre-max/chiuso) ma tutto occupato.
+              const isFullDay = !!d && !!iso && fullSet.has(iso) && !isPast(d) && !isAfterMax(d) && !isDisabledDay(d);
+              const isFullLocked = isFullDay && !fullDaysSelectable;
+              if (isFullDay) classes.push("dtf-day--full");
+              if (isFullLocked) classes.push("dtf-day--full-locked");
               const busy = iso ? busyMap.get(iso) : null;
               return (
                 <div
                   key={i}
                   className={classes.join(" ")}
                   role={d ? "button" : undefined}
-                  tabIndex={d && !isPast(d) && !isDisabledDay(d) && !isAfterMax(d) ? 0 : undefined}
-                  title={d && isDisabledDay(d) ? "Chiuso" : undefined}
+                  tabIndex={d && !isPast(d) && !isDisabledDay(d) && !isAfterMax(d) && !isFullLocked ? 0 : undefined}
+                  aria-disabled={isFullLocked ? true : undefined}
+                  title={
+                    d && isDisabledDay(d)
+                      ? "Chiuso"
+                      : isFullDay
+                        ? fullDaysSelectable
+                          ? "Giorno pieno — seleziona per la lista d'attesa"
+                          : "Giorno pieno"
+                        : undefined
+                  }
                   onClick={() => handleDayClick(d)}
                   onKeyDown={e => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -416,6 +434,7 @@ export default function DateTimeField({
                     <>
                       <span className="dtf-day-num">{d}</span>
                       {isDisabledDay(d) && <span className="dtf-day-closed-label">Chiuso</span>}
+                      {isFullDay && <span className="dtf-day-full-label">Pieno</span>}
                       {busy != null && busy > 0 && <span className="dtf-busy-badge">{busy > 99 ? "99+" : busy}</span>}
                     </>
                   )}
