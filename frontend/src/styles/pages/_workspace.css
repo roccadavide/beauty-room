@@ -69,13 +69,19 @@
   background: linear-gradient(to bottom, #ffffff, var(--ag-bg, #fbf8f3));
 }
 
+/* Post-it view opens on its own cream board (#fffdf8, see .pib-panel), so the bar
+   fades navbar-white → that cream for the same seamless seam. */
+.aw-topbar[data-view="postit"] {
+  background: linear-gradient(to bottom, #ffffff, #fffdf8);
+}
+
 /* ── WorkspaceSwitch — primary gold segmented control ───────────
    Reads as the PRIMARY axis (which workspace), deliberately bolder/larger than
    the agenda's secondary .ag-view-toggle (Giorno/Settimana) and .ag-compact-tabs. */
 .wsw {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   width: max-content;
   max-width: 100%;
   padding: 4px;
@@ -89,13 +95,17 @@
 }
 
 /* Sliding gold indicator. transform: translateX is LOCAL to the pill and never
-   touches a fixed element — that's allowed (unlike the .aw-fade wrapper). */
+   touches a fixed element — that's allowed (unlike the .aw-fade wrapper).
+   Width = one column of the 4px-padded track: (100% - 2×4px) / N segments. The
+   inline translateX(index·100%) steps by exactly this width, so the pill lands dead
+   centre on every segment with no cumulative drift. Keep width in lockstep with the
+   SEGMENTS count (currently 3). */
 .wsw__pill {
   position: absolute;
   top: 4px;
   bottom: 4px;
   left: 4px;
-  width: calc(50% - 4px);
+  width: calc((100% - 8px) / 3);
   border-radius: 999px;
   background: linear-gradient(180deg, #c4a373, #8c6d3f);
   box-shadow:
@@ -147,6 +157,25 @@
 }
 
 .wsw__label {
+  line-height: 1;
+}
+
+/* Overdue/expiring count on the Post-it segment. Same red pill language as the
+   NavBar's .nav-postit-badge (kept separate so restyling one never touches the
+   other). Sits above the sliding pill (.wsw__seg is z-index:1). */
+.wsw__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #c0392b;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
   line-height: 1;
 }
 

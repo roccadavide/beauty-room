@@ -1,10 +1,11 @@
 import { useWorkspace } from "./WorkspaceContext";
 
-// Two workspaces: the agenda and the clients hub. The order here defines the
-// segment order (and the sliding pill's translateX index).
+// Three workspaces: the agenda, the clients hub and the post-it board. The order
+// here defines the segment order (and the sliding pill's translateX index).
 const SEGMENTS = [
   { key: "agenda", label: "Agenda" },
   { key: "clienti", label: "Clienti" },
+  { key: "postit", label: "Post-it" },
 ];
 
 /**
@@ -16,7 +17,7 @@ const SEGMENTS = [
  * does not affect any position:fixed element (the page-swap fade wrapper, by
  * contrast, must stay opacity-only). prefers-reduced-motion disables the slide.
  */
-export default function WorkspaceSwitch() {
+export default function WorkspaceSwitch({ postitBadge = 0 }) {
   const { view, setView } = useWorkspace();
   const activeIndex = Math.max(0, SEGMENTS.findIndex(s => s.key === view));
 
@@ -51,6 +52,11 @@ export default function WorkspaceSwitch() {
               <span className="wsw__mark" aria-hidden="true">✦</span>
             )}
             <span className="wsw__label">{s.label}</span>
+            {s.key === "postit" && postitBadge > 0 && (
+              <span className="wsw__badge" aria-label={`${postitBadge} in scadenza o scadute`}>
+                {postitBadge}
+              </span>
+            )}
           </button>
         );
       })}

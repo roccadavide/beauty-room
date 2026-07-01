@@ -22,7 +22,11 @@ public class PostItService {
     }
 
     public long countExpiring() {
-        return repo.findByDueDateLessThanEqualAndDoneFalse(LocalDate.now()).size();
+        // Overdue is derived (never stored): due_date <= today AND not done. Anchor
+        // "today" to the salon's business zone (AvailabilityService.BUSINESS_ZONE),
+        // not the server's default TZ, so the badge matches the day Michela sees.
+        return repo.findByDueDateLessThanEqualAndDoneFalse(
+            LocalDate.now(AvailabilityService.BUSINESS_ZONE)).size();
     }
 
     @Transactional
