@@ -12,6 +12,7 @@ import { daypartToWindow } from "../../components/common/SlotFilters";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import WaitlistModal, { WaitlistContent } from "../../components/common/WaitlistModal";
 import { useClosedDays } from "../../hooks/useClosedDays";
+import { useFullDays } from "../../hooks/useFullDays";
 import { useNextCombinedSlot } from "../../hooks/useNextCombinedSlot";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -67,6 +68,9 @@ export const BookingFlow = ({
   // Fix 13: size the slot grid + next-slot to the SELECTED OPTION's duration (mirrors the cart),
   // not the base service duration. Declared here so the next-slot hook below can key on it.
   const effectiveDuration = initialOption?.durationMin ?? service?.durationMin;
+  // Giorni al completo per la durata effettiva: marcati "Pieno" ma ancora selezionabili
+  // (in Step 2 gli slot occupati portano alla lista d'attesa).
+  const { fullDates } = useFullDays(effectiveDuration);
   // A package (sessions > 1) is paid in full up front but books only session 1 online; the
   // remaining (already-included) sessions are scheduled in-studio with Michela. So in the slot
   // step a full slot is "Occupato" (non-bookable, no waitlist) and a first-session notice shows.
@@ -397,6 +401,12 @@ export const BookingFlow = ({
                   <div className="bm-or-divider">
                     <span>oppure scegli un'altra data dal calendario</span>
                   </div>
+                  {fullDates.length > 0 && (
+                    <div className="bm-waitlist-hint">
+                      <span className="bm-waitlist-hint__tag">Pieno</span>
+                      <span className="bm-waitlist-hint__text">Giorno pieno? Selezionalo per metterti in lista d'attesa.</span>
+                    </div>
+                  )}
                   <div className="bm-slotfinder-calendar">
                     <DateTimeField
                       variant="inline"
@@ -412,6 +422,7 @@ export const BookingFlow = ({
                       minDate={new Date()}
                       maxDate={maxBookingDate}
                       disabledDates={disabledDates}
+                      fullDates={fullDates}
                       placeholder="Scegli un giorno"
                     />
                   </div>

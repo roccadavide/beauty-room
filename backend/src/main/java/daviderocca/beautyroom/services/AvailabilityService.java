@@ -50,6 +50,14 @@ public class AvailabilityService {
      */
     private static final int SLOT_STEP_MINUTES = 10;
 
+    /**
+     * Massimo span (in giorni) accettato da {@link #getFullDays} in una singola
+     * richiesta. Il calendario cliente carica ~un mese per volta, quindi un range
+     * più ampio è un uso errato del contratto: si rifiuta con 400 anziché clampare
+     * in silenzio (una risposta parziale sarebbe indistinguibile da una completa).
+     */
+    private static final int MAX_DAY_STATUS_SPAN_DAYS = 62;
+
     @Value("${app.booking.max-advance-days:150}")
     private int maxAdvanceDays;
 
@@ -179,6 +187,66 @@ public class AvailabilityService {
                 generateAllSlots(openRanges, durationMinutes, SLOT_STEP_MINUTES, blockedIntervals, date);
 
         return new AvailabilityResponseDTO(null, date, SLOT_STEP_MINUTES, slots);
+    }
+
+    // ==========================================================================
+    // 1c) CLIENT — fully-booked ("Pieno") open days in a date range
+    // ==========================================================================
+
+    /**
+     * Restituisce, per l'intervallo [fromDate, toDate], SOLO i giorni APERTI ma
+     * completamente prenotati per la durata richiesta ("Pieno"). Read-only: riusa
+     * per-giorno {@link #getCombinedAvailabilities(LocalDate, int)}, così l'esito
+     * combacia SEMPRE con ciò che l'utente vede aprendo quel giorno (nessuna
+     * ri-implementazione della matematica degli slot).
+     *
+     * Classificazione per giorno (dallo slot-list di getCombinedAvailabilities):
+     *  - lista VUOTA                 → giorno chiuso o senza slot di quella durata → SKIP
+     *                                  (non è "Pieno"; le chiusure le gestisce il frontend a parte);
+     *  - lista NON vuota, ogni slot available=false → giorno PIENO → incluso;
+     *  - almeno uno available=true   → c'è disponibilità → SKIP.
+     *
+     * Guard di robustezza (non feature):
+     *  - durationMinutes validato PRIMA del ciclo (stesso lower-bound del path
+     *    combinato): un valore < 1 farebbe lanciare ogni chiamata per-giorno e il
+     *    try/catch lo inghiottirebbe in una lista vuota invece di un 400;
+     *  - span GREZZO cap a {@value #MAX_DAY_STATUS_SPAN_DAYS} giorni → 400 se superato;
+     *  - intervallo effettivo clampato a [oggi, oggi + maxAdvanceDays]: i giorni fuori
+     *    dalla finestra prenotabile non sono "pieni", solo non prenotabili.
+     */
+    @Transactional(readOnly = true)
+    public List<LocalDate> getFullDays(LocalDate fromDate, LocalDate toDate, int durationMinutes) {
+        if (fromDate == null || toDate == null) throw new BadRequestException("fromDate e toDate obbligatorie.");
+        // Stesso lower-bound del path combinato. DEVE stare fuori dal try/catch per-giorno,
+        // altrimenti l'errore verrebbe inghiottito e la risposta sarebbe una lista vuota.
+        if (durationMinutes < 1) throw new BadRequestException("Durata non valida.");
+        // Cap sullo span GREZZO richiesto (non su quello clampato): un range troppo ampio
+        // è un uso errato del contratto → 400, così il chiamante pagina un mese per volta.
+        if (toDate.isAfter(fromDate.plusDays(MAX_DAY_STATUS_SPAN_DAYS))) {
+            throw new BadRequestException(
+                    "Intervallo troppo ampio: massimo " + MAX_DAY_STATUS_SPAN_DAYS + " giorni.");
+        }
+
+        // Clamp alla finestra prenotabile [oggi, oggi + maxAdvanceDays].
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        LocalDate maxDate = today.plusDays(maxAdvanceDays);
+        LocalDate from = fromDate.isBefore(today) ? today : fromDate;
+        LocalDate to   = toDate.isAfter(maxDate) ? maxDate : toDate;
+        if (from.isAfter(to)) return List.of();
+
+        List<LocalDate> fullDays = new ArrayList<>();
+        for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
+            try {
+                List<AvailabilitySlotDTO> slots = getCombinedAvailabilities(day, durationMinutes).slots();
+                // Vuota → chiuso/senza slot → skip. Non vuota e tutti occupati → PIENO.
+                if (!slots.isEmpty() && slots.stream().noneMatch(AvailabilitySlotDTO::available)) {
+                    fullDays.add(day);
+                }
+            } catch (BadRequestException e) {
+                // giorno chiuso / orari non configurati: non è "Pieno", prosegui.
+            }
+        }
+        return fullDays; // già in ordine crescente (iterazione da 'from' a 'to')
     }
 
     // ==========================================================================
