@@ -1,0 +1,194 @@
+/* ===== SlotFinderCard — contenitore unico dello Step 1 (Editorial Beauty) ===== */
+
+.bm-slotfinder {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.15rem 1.25rem 1.2rem;
+  background: linear-gradient(158deg, #fffdf8 0%, #fef7ef 100%);
+  border: 1.5px solid rgba(184, 151, 106, 0.3);
+  border-radius: 20px;
+  box-shadow: 0 14px 34px -20px rgba(140, 109, 63, 0.5);
+  overflow: hidden;
+}
+
+/* Gold accent line — home-card signature (mirrors NextSlotBanner) */
+.bm-slotfinder::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #b8976a 0%, #8c6d3f 100%);
+}
+
+/* ── Filter zone: friendly heading + the (neutralized) SlotFilters ── */
+.bm-slotfinder__heading {
+  margin: 0 0 0.6rem;
+  font-family: "Montserrat", sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #2f2723;
+}
+
+/* SlotFilters keeps its own logic & markup untouched — here we only dissolve its
+   standalone box so it reads as part of this single card, and hide its internal
+   "Filtra la ricerca" eyebrow (the card heading already frames the pills). */
+.bm-slotfinder .bm-slot-filters {
+  gap: 0.5rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
+.bm-slotfinder .bm-slot-filters__label {
+  display: none;
+}
+
+/* "Cancella filtri" survives — pushed to the right of the (now label-less) head. */
+.bm-slotfinder .bm-slot-filters__head {
+  justify-content: flex-end;
+  min-height: 0;
+}
+
+/* ── Divider between filters and result ── */
+.bm-slotfinder__divider {
+  height: 1px;
+  margin: 0.1rem 0;
+  background: rgba(180, 148, 106, 0.22);
+}
+
+/* ── Result block: fixed min-height so loading/result/empty never jump ── */
+.bm-slotfinder__result {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 62px;
+}
+
+.bm-slotfinder__result-eyebrow {
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #8c6d3f;
+}
+
+.bm-slotfinder__result-value {
+  font-family: "Petrona", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #2f2723;
+}
+
+.bm-slotfinder__result-loading {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: #7a6555;
+}
+
+.bm-slotfinder__result-empty {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #9e8c82;
+}
+
+/* Inline note when "Cerca un altro orario" runs out of slots ahead: the last valid
+   slot stays shown & bookable, this explains there are no more with the active filters. */
+.bm-slotfinder__result-note {
+  margin: 0.15rem 0 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #9e8c82;
+}
+
+/* ── Actions: two equal-weight CTAs. Side-by-side when they fit, stacked
+   full-width on narrow phone widths (auto-fit is container-responsive so it
+   works inside the drawer/bottom-sheet, not just the viewport). ── */
+.bm-slotfinder__actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.55rem;
+}
+
+.bm-slotfinder__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.6rem 1rem;
+  border-radius: 14px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal; /* wrap before clip — labels never overflow */
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.bm-slotfinder__btn--primary {
+  border: none;
+  background: linear-gradient(135deg, #c2a373 0%, #8c6d3f 100%);
+  color: #fff;
+  box-shadow: 0 8px 20px -10px rgba(140, 109, 63, 0.7);
+}
+
+.bm-slotfinder__btn--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px -10px rgba(140, 109, 63, 0.75);
+}
+
+.bm-slotfinder__btn--primary:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
+
+.bm-slotfinder__btn--secondary {
+  border: 1.5px solid rgba(184, 151, 106, 0.5);
+  background: transparent;
+  color: #8c6d3f;
+}
+
+.bm-slotfinder__btn--secondary:hover:not(:disabled) {
+  background: rgba(184, 151, 106, 0.1);
+  border-color: rgba(184, 151, 106, 0.7);
+  color: #6b4f2a;
+}
+
+.bm-slotfinder__btn--secondary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bm-slotfinder__btn {
+    transition: none;
+  }
+  .bm-slotfinder__btn--primary:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Calendar wrapper — the "choose a specific date" path below the finder. min-width:0
+   keeps it a well-behaved grid citizen on the wide two-column route layout. */
+.bm-slotfinder-calendar {
+  min-width: 0;
+}

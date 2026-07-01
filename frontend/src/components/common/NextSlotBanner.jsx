@@ -23,8 +23,9 @@ function formatDate(isoDate) {
  *   onFind    () => void  — chiamato per avviare la ricerca
  *   onNext    () => void  — "Cerca un altro orario"
  *   onSelect  (slot) => void  — quando il cliente accetta lo slot
+ *   emptyText string  — copy opzionale per lo stato notFound (default: periodo prenotabile)
  */
-export default function NextSlotBanner({ slot, loading, notFound, onFind, onNext, onSelect }) {
+export default function NextSlotBanner({ slot, loading, notFound, onFind, onNext, onSelect, emptyText }) {
   if (loading) {
     return (
       <div className="nsb nsb--skeleton" aria-busy="true">
@@ -47,7 +48,7 @@ export default function NextSlotBanner({ slot, loading, notFound, onFind, onNext
           <span className="nsb__label">Prossimo disponibile</span>
         </div>
         <p className="nsb__empty">
-          Nessun orario libero nel periodo prenotabile. Scegli una data qui sotto.
+          {emptyText ?? "Nessun orario libero nel periodo prenotabile. Scegli una data qui sotto."}
         </p>
       </div>
     );

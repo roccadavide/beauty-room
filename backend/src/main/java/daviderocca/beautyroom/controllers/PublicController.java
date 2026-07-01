@@ -12,10 +12,13 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -120,11 +123,16 @@ public class PublicController {
     public ResponseEntity<PublicNextSlotDTO> getNextAvailableCombinedSlot(
             @RequestParam int durationMinutes,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(required = false) String fromTime
+            @RequestParam(required = false) String fromTime,
+            @RequestParam(required = false) Set<DayOfWeek> daysOfWeek,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime windowStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime windowEnd
     ) {
-        log.info("PUBLIC | next combined slot | durationMinutes={} fromDate={} fromTime={}", durationMinutes, fromDate, fromTime);
+        log.info("PUBLIC | next combined slot | durationMinutes={} fromDate={} fromTime={} daysOfWeek={} windowStart={} windowEnd={}",
+                durationMinutes, fromDate, fromTime, daysOfWeek, windowStart, windowEnd);
 
-        Optional<PublicNextSlotDTO> result = availabilityService.findNextAvailableCombinedSlot(durationMinutes, fromDate, fromTime);
+        Optional<PublicNextSlotDTO> result = availabilityService.findNextAvailableCombinedSlot(
+                durationMinutes, fromDate, fromTime, daysOfWeek, windowStart, windowEnd);
 
         return result
                 .map(ResponseEntity::ok)

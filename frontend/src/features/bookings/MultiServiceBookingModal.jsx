@@ -6,7 +6,8 @@ import { fetchCombinedAvailabilities } from "../../api/modules/availabilities.ap
 import { BOOKING_MAX_ADVANCE_DAYS, BRAND_WHATSAPP } from "../../utils/constants";
 import { DAYPARTS, groupSlotsByDaypart } from "../../utils/slotDaypart";
 import DateTimeField, { toISODateLocal } from "../../components/common/DateTimeField";
-import NextSlotBanner from "../../components/common/NextSlotBanner";
+import SlotFinderCard from "../../components/common/SlotFinderCard";
+import { daypartToWindow } from "../../components/common/SlotFilters";
 import UnifiedDrawer from "../../components/common/UnifiedDrawer";
 import { useClosedDays } from "../../hooks/useClosedDays";
 import { useNextCombinedSlot } from "../../hooks/useNextCombinedSlot";
@@ -63,8 +64,19 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
   const [consentPmu, setConsentPmu] = useState(false);
 
   // ── next slot ── (combined: sized to the full cart duration, not the first service)
-  const { nextSlot, loading: nextLoading, notFound: nextNotFound, findNext, findNextAgain } = useNextCombinedSlot(totalDuration);
+  // Filtri (solo restringenti) per il finder "prossimo disponibile": giorni + fascia oraria.
+  const [slotFilters, setSlotFilters] = useState({ dows: [], daypart: null });
+  const { windowStart, windowEnd } = daypartToWindow(slotFilters.daypart);
+
+  const { nextSlot, loading: nextLoading, notFound, findNext, findNextAgain } =
+    useNextCombinedSlot(totalDuration, { daysOfWeek: slotFilters.dows, windowStart, windowEnd });
   const pendingSlotStartRef = useRef(null);
+  // Display continuity: keep the last real slot so that stepping past the last available
+  // time ("Cerca un altro orario") keeps it shown & bookable instead of blanking out.
+  const [lastFoundSlot, setLastFoundSlot] = useState(null);
+  useEffect(() => {
+    if (nextSlot) setLastFoundSlot(nextSlot);
+  }, [nextSlot]);
 
   const maxBookingDate = useMemo(() => {
     const d = new Date();
@@ -84,11 +96,14 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
     return Array.from(new Set([...dates, ...emptySlotDates]));
   }, [closedDates, closedWeekdays, isClosed, emptySlotDates]);
 
-  // Find next slot on open
+  // Find next slot on open + a ogni cambio di durata o filtri.
   useEffect(() => {
-    if (show && totalDuration) findNext();
+    if (show && totalDuration) {
+      setLastFoundSlot(null); // un cambio filtri/durata riparte dallo slot più vicino
+      findNext();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, totalDuration]);
+  }, [show, totalDuration, slotFilters.dows, slotFilters.daypart]);
 
   // Pre-fill customer when reaching step 3
   useEffect(() => {
@@ -135,7 +150,7 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
         if (loaded.length === 0) {
           setEmptySlotDates(prev => (prev.includes(day) ? prev : [...prev, day]));
         }
-        // Auto-select a free slot pre-chosen via NextSlotBanner (never an occupied one).
+        // Auto-select a free slot pre-chosen via SlotFinderCard (never an occupied one).
         if (pendingSlotStartRef.current) {
           const auto = loaded.find(s => s.start === pendingSlotStartRef.current && s.available !== false);
           if (auto) setSlot(auto);
@@ -266,13 +281,13 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
       {step === 1 && (
         <div className="bm-step-content">
           <div className="bm-step1-grid">
-            <NextSlotBanner
-              slot={nextSlot}
+            <SlotFinderCard
+              filterValue={slotFilters}
+              onFilterChange={setSlotFilters}
+              slot={nextSlot ?? lastFoundSlot}
               loading={nextLoading}
-              notFound={nextNotFound}
-              onFind={findNext}
-              onNext={findNextAgain}
-              onSelect={bannerSlot => {
+              noMore={notFound && !!lastFoundSlot}
+              onBook={bannerSlot => {
                 const d = new Date(bannerSlot.date + "T12:00:00");
                 if (!Number.isNaN(d.getTime())) {
                   setDate(d);
@@ -280,26 +295,29 @@ export const MultiServiceBookingFlow = ({ Shell, onClose, show = true, services,
                   setStep(2);
                 }
               }}
+              onFindAnother={findNextAgain}
             />
             <div className="bm-or-divider">
-              <span>oppure scegli una data</span>
+              <span>oppure scegli un'altra data dal calendario</span>
             </div>
-            <DateTimeField
-              variant="inline"
-              mode="date"
-              value={toISODateLocal(date)}
-              onChange={iso => {
-                const d = new Date(`${iso}T12:00:00`);
-                if (!Number.isNaN(d.getTime())) {
-                  setDate(d);
-                  setSlot(null);
-                }
-              }}
-              minDate={new Date()}
-              maxDate={maxBookingDate}
-              disabledDates={disabledDates}
-              placeholder="Scegli un giorno"
-            />
+            <div className="bm-slotfinder-calendar">
+              <DateTimeField
+                variant="inline"
+                mode="date"
+                value={toISODateLocal(date)}
+                onChange={iso => {
+                  const d = new Date(`${iso}T12:00:00`);
+                  if (!Number.isNaN(d.getTime())) {
+                    setDate(d);
+                    setSlot(null);
+                  }
+                }}
+                minDate={new Date()}
+                maxDate={maxBookingDate}
+                disabledDates={disabledDates}
+                placeholder="Scegli un giorno"
+              />
+            </div>
           </div>
           <div className="bm-nav">
             <span />

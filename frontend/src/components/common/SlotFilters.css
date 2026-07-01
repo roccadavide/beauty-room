@@ -1,0 +1,149 @@
+/* ===== SlotFilters — filtri "prossimo disponibile" (Editorial Beauty) ===== */
+
+.bm-slot-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem 1rem;
+  background: linear-gradient(158deg, #fffdf8 0%, #fdf4ea 100%);
+  border: 1.5px solid rgba(184, 151, 106, 0.28);
+  border-radius: 16px;
+}
+
+.bm-slot-filters__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.bm-slot-filters__label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #b8976a;
+  font-family: "Montserrat", sans-serif;
+}
+
+.bm-slot-filters__clear {
+  padding: 0.1rem 0.2rem;
+  border: none;
+  background: transparent;
+  color: #8c6d3f;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-family: "Montserrat", sans-serif;
+  cursor: pointer;
+}
+
+.bm-slot-filters__clear:hover {
+  color: #6b4f2a;
+}
+
+/* ── Day pills — even 6-column grid (Lun-Sab, domenica chiusa).
+   Sized bigger/bolder so an over-50 client instantly reads which days are on. ── */
+.bm-dow-pills {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.4rem;
+}
+
+.bm-dow-pill {
+  min-height: 44px;
+  padding: 0.4rem 0;
+  border: 1.5px solid rgba(184, 151, 106, 0.45);
+  border-radius: 12px;
+  background: #fff;
+  color: #6d5745;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  font-family: "Montserrat", sans-serif;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.bm-dow-pill:hover {
+  background: rgba(184, 151, 106, 0.1);
+  border-color: rgba(184, 151, 106, 0.6);
+}
+
+.bm-dow-pill.is-active {
+  background: linear-gradient(135deg, #c2a373 0%, #8c6d3f 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 7px 18px -8px rgba(140, 109, 63, 0.75);
+}
+
+/* ── Daypart chips — 3 equal chips ── */
+.bm-daypart-chips {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.bm-daypart-chip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  min-height: 46px;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid rgba(184, 151, 106, 0.4);
+  border-radius: 18px;
+  background: #fff;
+  color: #7a6555;
+  font-family: "Montserrat", sans-serif;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.bm-daypart-chip__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.bm-daypart-chip__hint {
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: #a98b5f; /* soft muted gold, readable on the white chip */
+}
+
+.bm-daypart-chip:hover {
+  background: rgba(184, 151, 106, 0.1);
+  border-color: rgba(184, 151, 106, 0.6);
+}
+
+.bm-daypart-chip.is-active {
+  background: linear-gradient(135deg, #c2a373 0%, #8c6d3f 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 16px -9px rgba(140, 109, 63, 0.7);
+}
+
+/* Active chip: label inherits #fff; keep the caption legible on gold. */
+.bm-daypart-chip.is-active .bm-daypart-chip__hint {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bm-dow-pill,
+  .bm-daypart-chip {
+    transition: none;
+  }
+}
