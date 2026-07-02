@@ -12,7 +12,6 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const Login = () => {
   const nav = useNavigate();
   const location = useLocation();
-  const redirectTo = location.state?.from || "/";
   const dispatch = useDispatch();
   const [form, setForm] = useState({ email: "", password: "", rememberMe: true });
   const [errors, setErrors] = useState({});
@@ -61,10 +60,15 @@ const Login = () => {
 
       dispatch(loginSuccess({ user, accessToken: token }));
 
-      setSuccessMessage("Accesso avvenuto con successo! Reindirizzamento alla homepage...");
+      setSuccessMessage("Accesso avvenuto con successo! Reindirizzamento in corso...");
+
+      // No pre-existing role-based redirect: every role landed on redirectTo ("/").
+      // STAFF has no customer/home surface, so send them to the shared agenda.
+      // ADMIN/CUSTOMER behaviour is unchanged (I1).
+      const target = location.state?.from || (user?.role === "STAFF" ? "/profilo/admin/agenda" : "/");
 
       setTimeout(() => {
-        nav(redirectTo, { replace: true });
+        nav(target, { replace: true });
       }, 3500);
     } catch (err) {
       // FIX-16: evita leak di oggetti di errore raw nella console

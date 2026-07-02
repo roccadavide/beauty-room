@@ -45,6 +45,7 @@ const AdminWorkspace = lazy(() => import("./features/admin/AdminWorkspace"));
 const AdminAgendaSettingsPage = lazy(() => import("./components/admin/AdminAgendaSettingsPage"));
 const ImpostazioniPage = lazy(() => import("./components/admin/ImpostazioniPage"));
 const ReportPage = lazy(() => import("./pages/admin/ReportPage"));
+const TeamPage = lazy(() => import("./features/admin/team/TeamPage"));
 const NotifichePage = lazy(() => import("./pages/admin/NotifichePage"));
 const BookingConfirmation = lazy(() => import("./features/bookings/BookingConfirmation"));
 const WaitlistPage = lazy(() => import("./features/bookings/WaitlistPage"));
@@ -377,7 +378,7 @@ function App() {
               <Route
                 path="/profilo/admin/agenda"
                 element={
-                  <PrivateRoute roles={["ADMIN"]}>
+                  <PrivateRoute roles={["ADMIN", "STAFF"]}>
                     <AdminWorkspace />
                   </PrivateRoute>
                 }
@@ -395,7 +396,7 @@ function App() {
               <Route
                 path="/admin/clienti"
                 element={
-                  <PrivateRoute roles={["ADMIN"]}>
+                  <PrivateRoute roles={["ADMIN", "STAFF"]}>
                     <ClientiRedirect />
                   </PrivateRoute>
                 }
@@ -416,13 +417,23 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              <Route
+                path="/admin/team"
+                element={
+                  <PrivateRoute roles={["ADMIN"]}>
+                    <PageTransition routeKey={location.pathname}>
+                      <TeamPage />
+                    </PageTransition>
+                  </PrivateRoute>
+                }
+              />
 
               {/* Legacy /admin/post-it → unified workspace post-it view (3rd tab).
                   Board content now lives in AdminWorkspace's PostItPanel. */}
               <Route
                 path="/admin/post-it"
                 element={
-                  <PrivateRoute roles={["ADMIN"]}>
+                  <PrivateRoute roles={["ADMIN", "STAFF"]}>
                     <Navigate to="/profilo/admin/agenda?view=postit" replace />
                   </PrivateRoute>
                 }
@@ -431,7 +442,7 @@ function App() {
               <Route
                 path="/admin/notifiche"
                 element={
-                  <PrivateRoute roles={["ADMIN"]}>
+                  <PrivateRoute roles={["ADMIN", "STAFF"]}>
                     <PageTransition routeKey={location.pathname}>
                       <NotifichePage />
                     </PageTransition>

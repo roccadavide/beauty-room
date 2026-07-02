@@ -37,6 +37,11 @@ export default function NavBar() {
   const togglerRef = useRef(null);
 
   const { user, isLoading } = useSelector(s => s.auth);
+  // Multi-staff role plumbing: owner (ADMIN) sees the full admin menu; STAFF sees
+  // only the shared screens (Agenda + Notifiche). isTeam = anyone with agenda access.
+  const isOwner = user?.role === "ADMIN";
+  const isStaff = user?.role === "STAFF";
+  const isTeam = isOwner || isStaff;
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -130,14 +135,14 @@ export default function NavBar() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (!user || user.role !== "ADMIN") return;
+    if (!isOwner) return;
     fetchExpiringCount()
       .then(count => setExpiringPostIts(count))
       .catch(() => {});
-  }, [user]);
+  }, [isOwner]);
 
   useEffect(() => {
-    if (!user || user.role !== "ADMIN") return;
+    if (!isTeam) return;
     const load = () =>
       fetchUnreadNotifCount()
         .then(c => setUnreadNotifs(c))
@@ -145,7 +150,7 @@ export default function NavBar() {
     load();
     const id = setInterval(load, 30_000);
     return () => clearInterval(id);
-  }, [user]);
+  }, [isTeam]);
 
   const closeMenu = useCallback(() => setExpanded(false), []);
 
@@ -176,7 +181,7 @@ export default function NavBar() {
           </Navbar.Brand>
 
           <div className="toggler-cart-box d-lg-none ms-auto d-flex align-items-center gap-3">
-            {user?.role === "ADMIN" && (
+            {isTeam && (
               <Link to="/admin/notifiche" className="notif-bell-link" aria-label={`Notifiche${unreadNotifs > 0 ? ` — ${unreadNotifs} non lette` : ""}`}>
                 <BellFill size={20} />
                 {unreadNotifs > 0 && <span className="notif-bell-badge">{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>}
@@ -224,7 +229,7 @@ export default function NavBar() {
           </Navbar.Collapse>
 
           <div className="d-none d-lg-flex align-items-center gap-3 nav-icons-right">
-            {user?.role === "ADMIN" && (
+            {isTeam && (
               <Link to="/admin/notifiche" className="notif-bell-link" aria-label={`Notifiche${unreadNotifs > 0 ? ` — ${unreadNotifs} non lette` : ""}`}>
                 <BellFill size={21} />
                 {unreadNotifs > 0 && <span className="notif-bell-badge">{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>}
@@ -249,11 +254,11 @@ export default function NavBar() {
                   <NavDropdown.Item as={Link} to="/profilo">
                     Il mio profilo
                   </NavDropdown.Item>
-                  {user.role === "ADMIN" ? (
+                  {isOwner ? (
                     <NavDropdown.Item as={Link} to="/ordini/tutti">
                       Gestione Ordini
                     </NavDropdown.Item>
-                  ) : (
+                  ) : !isTeam ? (
                     <>
                       <NavDropdown.Item as={Link} to="/area-personale">
                         La mia area
@@ -262,26 +267,35 @@ export default function NavBar() {
                         ✦ Wishlist
                       </NavDropdown.Item>
                     </>
+                  ) : null}
+                  {isTeam && (
+                    <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
+                      Agenda
+                    </NavDropdown.Item>
                   )}
-                  {user.role === "ADMIN" && (
+                  {isOwner && (
                     <>
-                      <NavDropdown.Item as={Link} to={"/profilo/admin/agenda"}>
-                        Agenda
-                      </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/report"}>
                         Report
                       </NavDropdown.Item>
                       <NavDropdown.Item as={Link} to={"/admin/impostazioni"}>
                         Impostazioni
                       </NavDropdown.Item>
-                      <NavDropdown.Item as={Link} to="/admin/notifiche">
-                        Notifiche
-                        {unreadNotifs > 0 && <span className="nav-postit-badge">{unreadNotifs}</span>}
-                      </NavDropdown.Item>
-                      <NavDropdown.Item as={Link} to="/profilo/admin/agenda?view=postit">
-                        Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}
+                      <NavDropdown.Item as={Link} to={"/admin/team"}>
+                        Team
                       </NavDropdown.Item>
                     </>
+                  )}
+                  {isTeam && (
+                    <NavDropdown.Item as={Link} to="/admin/notifiche">
+                      Notifiche
+                      {unreadNotifs > 0 && <span className="nav-postit-badge">{unreadNotifs}</span>}
+                    </NavDropdown.Item>
+                  )}
+                  {isOwner && (
+                    <NavDropdown.Item as={Link} to="/profilo/admin/agenda?view=postit">
+                      Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}
+                    </NavDropdown.Item>
                   )}
                   <NavDropdown.Divider />
                   <NavDropdown.Item onClick={handleLogoutClick} className="text-danger">
@@ -386,11 +400,11 @@ export default function NavBar() {
                   <Link to="/profilo" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                     Il mio profilo
                   </Link>
-                  {user.role === "ADMIN" ? (
+                  {isOwner ? (
                     <Link to="/ordini/tutti" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                       Gestione Ordini
                     </Link>
-                  ) : (
+                  ) : !isTeam ? (
                     <>
                       <Link to="/area-personale" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         La mia area
@@ -399,12 +413,14 @@ export default function NavBar() {
                         ✦ Wishlist
                       </Link>
                     </>
+                  ) : null}
+                  {isTeam && (
+                    <Link to="/profilo/admin/agenda" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                      Agenda
+                    </Link>
                   )}
-                  {user.role === "ADMIN" && (
+                  {isOwner && (
                     <>
-                      <Link to="/profilo/admin/agenda" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                        Agenda
-                      </Link>
                       <Link to="/admin/report" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         Report
                       </Link>
@@ -414,14 +430,21 @@ export default function NavBar() {
                       <Link to="/admin/impostazioni" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
                         Impostazioni
                       </Link>
-                      <Link to="/admin/notifiche" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                        Notifiche
-                        {unreadNotifs > 0 && <span className="nav-postit-badge">{unreadNotifs}</span>}
-                      </Link>
-                      <Link to="/profilo/admin/agenda?view=postit" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
-                        Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}
+                      <Link to="/admin/team" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                        Team
                       </Link>
                     </>
+                  )}
+                  {isTeam && (
+                    <Link to="/admin/notifiche" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                      Notifiche
+                      {unreadNotifs > 0 && <span className="nav-postit-badge">{unreadNotifs}</span>}
+                    </Link>
+                  )}
+                  {isOwner && (
+                    <Link to="/profilo/admin/agenda?view=postit" onClick={closeMenu} tabIndex={mobileProfileExpanded ? 0 : -1}>
+                      Post-it{expiringPostIts > 0 && <span className="nav-postit-badge">{expiringPostIts}</span>}
+                    </Link>
                   )}
                   <button
                     type="button"
