@@ -12,8 +12,9 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+// Matrix row 4: installment editing is a shared daily-ops capability (O+S).
 @RequestMapping("/admin/package-assignments/{assignmentId}/installments")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','STAFF')")
 @RequiredArgsConstructor
 @Slf4j
 public class PackageInstallmentAdminController {

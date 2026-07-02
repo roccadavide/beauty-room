@@ -52,7 +52,7 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<UserResponseDTO> getCurrentUser(@AuthenticationPrincipal User currentUser) {
         log.info("Richiesta profilo per utente autenticato {}", currentUser.getEmail());
-        return ResponseEntity.ok(userService.findUserByIdAndConvert(currentUser.getUserId()));
+        return ResponseEntity.ok(userService.findMeAndConvert(currentUser.getUserId()));
     }
 
     // ---------------------------------- PUT ----------------------------------

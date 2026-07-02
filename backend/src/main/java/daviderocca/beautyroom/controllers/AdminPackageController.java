@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+// Class stays owner-only (fail closed); the daily package flows of matrix row 18
+// (assignment create + lists) are opened to STAFF method-by-method. /kpis and
+// /{id}/use are not enumerated in the matrix — they stay owner-only (flagged).
 @RestController
 @RequestMapping("/admin/packages")
 @PreAuthorize("hasRole('ADMIN')")
@@ -22,6 +25,7 @@ public class AdminPackageController {
     private final PackageCreditService packageCreditService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<List<ActivePackageDTO>> getAllActive() {
         return ResponseEntity.ok(packageCreditService.findAllActiveForAdmin());
     }
@@ -33,6 +37,7 @@ public class AdminPackageController {
 
     /** Assegna manualmente un pacchetto a un cliente. */
     @PostMapping("/assign")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<ActivePackageDTO> assignPackage(
             @Valid @RequestBody AssignPackageCreditDTO dto) {
         return ResponseEntity.ok(packageCreditService.adminAssignPackage(dto));
@@ -46,6 +51,7 @@ public class AdminPackageController {
 
     /** Visualizza tutti i pacchetti di un cliente per email. */
     @GetMapping("/by-email")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<List<ActivePackageDTO>> getByEmail(
             @RequestParam String email) {
         return ResponseEntity.ok(packageCreditService.adminFindByEmail(email));

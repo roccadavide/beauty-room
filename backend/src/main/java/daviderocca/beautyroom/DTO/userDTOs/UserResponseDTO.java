@@ -11,6 +11,10 @@ public record UserResponseDTO(
         String email,
         String phone,
         Role role,
-        boolean isVerified
+        boolean isVerified,
+        // Prompt 02 (additive): populated only by /users/me when a staff_members row
+        // links to this user; null everywhere else.
+        UUID staffId,
+        String staffName
 )
 {}

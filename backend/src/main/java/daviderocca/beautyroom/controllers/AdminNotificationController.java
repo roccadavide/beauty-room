@@ -14,7 +14,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping({"/admin/notifications", "/api/notifications"})
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','STAFF')")
 @RequiredArgsConstructor
 public class AdminNotificationController {
 

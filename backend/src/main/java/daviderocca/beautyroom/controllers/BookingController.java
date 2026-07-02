@@ -35,7 +35,7 @@ public class BookingController {
 
     // ---------------------------------- ADMIN POST (agenda manual create) ----------------------------------
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<BookingResponseDTO> createBookingFromAdmin(
             @Valid @RequestBody NewBookingDTO payload,
             @AuthenticationPrincipal User currentUser
@@ -47,7 +47,7 @@ public class BookingController {
 
     // ---------------------------------- ADMIN: firma consenso PMU ----------------------------------
     @PatchMapping("/{bookingId}/consent")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<AdminBookingCardDTO> signConsent(
             @PathVariable UUID bookingId,
             @Valid @RequestBody ConsentSignedDTO body
@@ -61,7 +61,7 @@ public class BookingController {
 
     // ---------------------------------- ADMIN: prenotazioni PMU da firmare ----------------------------------
     @GetMapping("/pmu-unsigned")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<List<AdminBookingCardDTO>> getPmuUnsigned() {
         log.info("ADMIN | pmu-unsigned bookings");
         return ResponseEntity.ok(bookingService.findPmuUnsigned());
@@ -69,7 +69,7 @@ public class BookingController {
 
     // ---------------------------------- ADMIN: no-show ----------------------------------
     @PatchMapping("/{bookingId}/no-show")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<Void> markNoShow(@PathVariable UUID bookingId) {
         log.info("ADMIN | no-show bookingId={}", bookingId);
         bookingService.markAsNoShow(bookingId);
@@ -77,7 +77,7 @@ public class BookingController {
     }
 
     @PatchMapping("/user/{userId}/no-show")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<Void> markLatestNoShowForUser(@PathVariable UUID userId) {
         log.info("ADMIN | no-show latest for user={}", userId);
         bookingService.markLatestNoShowForUser(userId);

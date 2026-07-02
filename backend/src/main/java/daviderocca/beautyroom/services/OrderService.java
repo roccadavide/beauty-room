@@ -105,8 +105,8 @@ public class OrderService {
         Order found = orderRepository.findByIdWithItems(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException(orderId));
 
-        boolean isAdmin = isAdmin(currentUser);
-        if (!isAdmin && (found.getUser() == null || !found.getUser().getUserId().equals(currentUser.getUserId()))) {
+        boolean staffOrAdmin = isStaffOrAdmin(currentUser);
+        if (!staffOrAdmin && (found.getUser() == null || !found.getUser().getUserId().equals(currentUser.getUserId()))) {
             throw new UnauthorizedException("Non puoi visualizzare un ordine che non ti appartiene.");
         }
 
@@ -238,8 +238,8 @@ public class OrderService {
     // ---------------------------- CREATE (manual admin) ----------------------------
     @Transactional
     public OrderResponseDTO createManualOrder(NewOrderDTO payload, User currentUser) {
-        if (!isAdmin(currentUser)) {
-            throw new UnauthorizedException("Solo ADMIN può creare ordini manuali.");
+        if (!isStaffOrAdmin(currentUser)) {
+            throw new UnauthorizedException("Solo lo staff può creare ordini manuali.");
         }
 
         OrderResponseDTO created = saveOrder(payload, currentUser);
@@ -325,10 +325,10 @@ public class OrderService {
 
         Order found = findOrderById(orderId);
 
-        boolean admin = isAdmin(currentUser);
+        boolean staffOrAdmin = isStaffOrAdmin(currentUser);
         boolean owner = found.getUser() != null && found.getUser().getUserId().equals(currentUser.getUserId());
 
-        if (!admin && !owner) {
+        if (!staffOrAdmin && !owner) {
             throw new UnauthorizedException("Non puoi annullare un ordine che non ti appartiene.");
         }
 
@@ -645,6 +645,12 @@ public class OrderService {
     private boolean isAdmin(User user) {
         return user != null && user.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    // Prompt 02: shared daily-ops guard — refund/delete stay behind the owner-only annotations.
+    private boolean isStaffOrAdmin(User user) {
+        return user != null && user.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_STAFF"));
     }
 
     private void releaseStock(Order order) {

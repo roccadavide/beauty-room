@@ -39,7 +39,7 @@ import java.util.UUID;
 @RequestMapping("/admin/bookings")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','STAFF')")
 public class AdminBookingController {
 
     private final BookingService bookingService;
@@ -156,7 +156,7 @@ public class AdminBookingController {
     }
 
     @PatchMapping("/{id}/padding")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<Void> updatePadding(
             @PathVariable UUID id,
             @RequestParam(required = false) Integer minutes,
@@ -188,7 +188,9 @@ public class AdminBookingController {
         return ResponseEntity.ok(bookingService.updateMultiServiceBooking(id, payload, currentUser));
     }
 
+    // Destructive (matrix row 5): owner-only override of the shared class-level rule.
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> hardDeleteBooking(
             @PathVariable UUID id,
             @AuthenticationPrincipal User currentUser
@@ -225,7 +227,9 @@ public class AdminBookingController {
 
     // FIX-1: rimborso Stripe per prenotazioni pagate online
     // Recupera payment_intent dalla sessione, crea Refund, aggiorna status a CANCELLED
+    // Money-destructive (matrix row 6): owner-only override of the shared class-level rule.
     @PostMapping("/{id}/refund")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BookingResponseDTO> refundBooking(@PathVariable UUID id) throws StripeException {
         log.info("ADMIN | refund bookingId={}", id);
         bookingService.refundBooking(id);
