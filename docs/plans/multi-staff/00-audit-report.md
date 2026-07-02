@@ -173,6 +173,8 @@ UNTOUCHED (R7): package_credits, client_package_assignments, booking_package_lin
 
 ### 2.3 API surface changes (all additive)
 
+The four duration-only availability surfaces (combined, available-slots, day-status, next-combined) additionally gain optional `serviceIds` for qualified-union in ANY mode (amendment 2026-07-02 — closes the read-side over-promise of risk 8).
+
 - **New (owner-only unless noted):** `GET/POST /admin/staff` · `PUT /admin/staff/{id}` · `PATCH /admin/staff/{id}/active` · `GET/PUT /admin/staff/{id}/services` · `GET/PUT /admin/staff/{id}/working-hours` · staff absences via `POST /closures` with `staffId` · **public** `GET /api/public/staff?serviceId=` (active staff, display name + id + color, optionally filtered by qualification).
 - **Extended (param/field additive, absent ⇒ legacy semantics):** all §1.C read surfaces gain optional `staffId` (or `staffId=ANY`); `AdminBookingCreateDTO` + `NewBookingDTO` gain `staffId`; `AdminBookingCardDTO` gains `staffId`+`staffName` (1 construction site); PA DTOs gain `staffId`; `PublicMultiServiceBookingDTO` gains `staffId`; checkout session metadata gains `staffId` (or `ANY`); `/users/me` response gains `staffId`; booking confirmation email model gains optional staff display name.
 

@@ -7,20 +7,25 @@
 Occupancy, hours and conflict-checking become **per-staff**; "no staff specified" means **ANY = union of active qualified staff**. With exactly one active staff, every output is **byte-identical to prompt 05's behavior** — proven by characterization tests written BEFORE the refactor. Backend only; all API parameters additive and optional.
 
 ## Semantics (implement exactly)
+
 - **Per-staff occupancy** = that staff's bookings (`bookings.staff_id`) + that staff's PAs (`personal_appointments.staff_id`) + global closures (`closures.staff_id IS NULL`) + that staff's closures/absences (`staff_id = X`). **Defensive rule:** a booking/PA with `staff_id IS NULL` blocks EVERY staff (should not exist post-backfill; log WARN if encountered).
 - **Per-staff hours** = `staff_working_hours` rows for that staff (replaces reads of legacy `working_hours` in the engine). Include the one-shot resync + freeze note below.
 - **ANY/union** (public no-choice, admin no-filter): a slot is available if available for ≥1 active staff **qualified for the requested service(s)** (qualification via `staff_services`; for combined/multi-duration requests with explicit services, qualified = staff assigned ALL requested services; where only a duration is known — e.g. `available-slots`, `day-status` — union over all active staff). Day is "Pieno" only if full for every qualified active staff.
+- **Qualified-union on duration-only surfaces (amendment 2026-07-02):** `getCombinedAvailabilities`, `getAvailableSlots`, `getFullDays` and `findNextAvailableCombinedSlot` gain an optional `serviceIds` parameter (additive). In ANY mode: when `serviceIds` is present, the union runs over active staff qualified for ALL of them; when absent, over all active staff (legacy fallback). Rationale: without this, "Prima disponibile" flows can show slots that only an unqualified staff can cover → paid booking → PAID_CONFLICT auto-refund at persist (00 §4 risk 8). "Pieno" follows the same rule: full for every staff in the relevant union set.
 - **Write-path conflict** = per-staff: `hasOverlapIncludingPadding`, `hasBlockingConflictExcluding` (line ≈1284) and every SERIALIZABLE create/update overlap check filter by the booking's staff. Two different staff may hold overlapping bookings.
-- **Qualification validation helper** `assertStaffQualified(staff, services)` — used by write paths (prompts 08/10 will call it; wire it into the existing create paths NOW using each booking's staff, which is Michela=all-services, so no behavior change).
-- **ANY-resolution helper** `resolveAnyStaff(services, start, end)` → free + qualified + active; tie-break least-loaded that day, then lowest `sort_order` (decision 6). Used by prompt 10; implement + test now.
+- **Qualification validation helper** `assertStaffQualified(staff, services)` — used by write paths (prompts 08/10 will call it; wire it into the existing create paths NOW using each booking's staff, which is Michela=all-services, so no behavior change). An empty service set (custom-service-only bookings have no ServiceItems; promo-only resolves services later) counts as qualified.
+- **ANY-resolution helper** `resolveAnyStaff(services, start, end)` → free + qualified + active; tie-break least-loaded that day (fewest booked minutes), then lowest `sort_order` (decision 6). Used by prompt 10; implement + test now.
 
 ## Surfaces to parameterize (report §1.C — all 9)
-`getServiceAvailabilities`, `getCombinedAvailabilities`, `getAvailableSlots`, `getFullDays`, `findNextAvailableSlotForService`, `findNextAvailableCombinedSlot` (all `AvailabilityService`); `findNextAvailableSlot` (`BookingService:1359–1465` — **preserve extend-past-hours semantics §0.2 per staff**); `getDayTimeline` (open ranges become per-staff: add optional `staffId`; without it return the union frame — with 1 staff identical); the conflict checks above. Controllers (`AvailabilityController`, `PublicController`, `AdminBookingController`) gain optional `staffId` request params passed through.
+
+`getServiceAvailabilities`, `getCombinedAvailabilities`, `getAvailableSlots`, `getFullDays`, `findNextAvailableSlotForService`, `findNextAvailableCombinedSlot` (all `AvailabilityService`); `findNextAvailableSlot` (`BookingService:1359–1465` — **preserve extend-past-hours semantics §0.2 per staff**); `getDayTimeline` (open ranges become per-staff: add optional `staffId`; without it return the union frame — with 1 staff identical); the conflict checks above. Controllers (`AvailabilityController`, `PublicController`, `AdminBookingController`) gain optional `staffId` (and, on the four duration-only surfaces, optional `serviceIds`) request params passed through.
 
 ## Out of scope
+
 Any frontend. Booking-creation DTOs (08). Stripe/webhook (10). Reports. Team API. Removing legacy `working_hours` (freeze only).
 
 ## Context budget
+
 1. `BE:services/AvailabilityService.java` (whole file — it is the subject).
 2. `BE:services/BookingService.java`: finder 1359–1465, conflict checks (grep `hasOverlapIncludingPadding`, `hasBlockingConflictExcluding`), create/update overlap regions only.
 3. `BE:repositories/BookingRepository.java` + `PersonalAppointmentRepository` + `ClosureRepository` (query inventory; add staff-filtered variants — keep the old signatures where the agenda still needs salon-wide lists).
@@ -29,12 +34,14 @@ Any frontend. Booking-creation DTOs (08). Stripe/webhook (10). Reports. Team API
 6. Existing tests for availability/finder + the prompt-05 tests.
 
 ## Preconditions — STOP rules
+
 - Prompts 01–05 merged (PA-gap fix MUST be in — the parity gate depends on it). Verify: finder already blocks on PA. If not, STOP.
 - **Characterization first:** before touching engine code, write tests capturing current outputs of all 6 availability surfaces + finder on representative fixtures (hours mon–sat, one closure, bookings with padding, one PA, extended window). These tests must pass BEFORE and AFTER the refactor. If you cannot make them pass before refactoring, STOP — the fixture understanding is wrong.
 - One-shot resync: include migration `VNN__resync_owner_staff_hours.sql` (next free number; verify against repo + prod) that re-copies legacy `working_hours` → owner's `staff_working_hours` (idempotent upsert) — closes the staleness window if Michela edited hours between prompt 01's backfill and this deploy. The 03 dual-write keeps them in sync afterwards.
 - If any surface's signature/algorithm no longer matches §1.C, STOP and report.
 
 ## Ordered steps
+
 1. Characterization tests (green on untouched code).
 2. Repo variants: staff-filtered day-bookings / PA / closures queries (indexed by `idx_bookings_staff_start`, `idx_personal_appts_staff_date`).
 3. Internal engine core: a per-staff availability function (hours ∩ ¬occupancy) + a union combinator; rewire the 6 public/admin read surfaces + finder onto it (`staffId==null` ⇒ union over active qualified staff).
@@ -44,6 +51,7 @@ Any frontend. Booking-creation DTOs (08). Stripe/webhook (10). Reports. Team API
 7. Resync migration.
 
 ## Landmines
+
 - SERIALIZABLE isolation on every existing write path must remain exactly as-is (do not touch annotations).
 - No emoji in native `@Query`. New JPQL/native queries need matching indexes (01 created them).
 - `open-in-view=false`: staff→services LAZY — qualification checks inside transactions.
@@ -51,14 +59,17 @@ Any frontend. Booking-creation DTOs (08). Stripe/webhook (10). Reports. Team API
 - Perf: never loop per-staff-per-day issuing queries — fetch the day's bookings/PAs for all staff once, group in memory (the agenda-day query already returns everything).
 
 ## Acceptance criteria
+
 - Characterization tests green (single-staff parity), multi-staff tests green.
 - `staffId` param absent ⇒ union; with 1 active staff, union ≡ that staff ≡ old behavior.
 - Legacy `working_hours` no longer read by the engine (grep proves it: engine files reference `staffWorkingHours` only); dual-write from 03 still keeps tables consistent.
 
 ## Test gate
+
 `./mvnw -q test-compile && ./mvnw -q test` green (baseline + characterization + multi-staff). `npm run build` green (untouched). Explicitly run `ReportRevenueReconciliationTest` (must be untouched-green — settlement is nearby in BookingService).
 
 ## Expected diff size
+
 The largest backend prompt: ~8 files edited, +~600 lines of tests. Total ≈ +900/−200.
 
 **MERGE CHECKPOINT: yes** (params optional; 1 active staff ⇒ identical outputs — the characterization suite is the proof).
