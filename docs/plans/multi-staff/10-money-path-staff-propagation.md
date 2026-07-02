@@ -10,7 +10,7 @@ Every Stripe entry point writes the staff choice into session metadata; the webh
 
 ## In scope (ONLY these files)
 - `BE:controllers/BookingCheckoutController.java`:
-  - **Entry A/B** (`createStripeSessionForBooking`, ≈108–221): the payload (`NewBookingDTO`, field exists since 08) flows into `createHoldBooking` — pass `staffId` so the **hold row carries the resolved staff from creation** (ANY ⇒ resolve via `resolveAnyStaff` from prompt 06 at hold time — the hold occupies that staff's calendar during payment, which is what SERIALIZABLE protects). Add metadata `staffId=<uuid>` (the resolved one) on session AND PaymentIntent, next to the existing `bookingId/serviceId/sessionsTotal` keys.
+  - **Entry A/B** (`createStripeSessionForBooking`, ≈108–221): the payload (`NewBookingDTO`, field added by 08/09) flows into `createHoldBooking` — pass `staffId` so the **hold row carries the resolved staff from creation** (ANY ⇒ resolve via `resolveAnyStaff` from prompt 06 at hold time — the hold occupies that staff's calendar during payment, which is what SERIALIZABLE protects). Add metadata `staffId=<uuid>` (the resolved one) on session AND PaymentIntent, next to the existing `bookingId/serviceId/sessionsTotal` keys.
   - **Entry C/D** (`create-session-multi` ≈228–409 + promo variant ≈417–474): request body field `staffId` (or `"ANY"`, default when absent) → metadata key `staffId` verbatim (do NOT resolve here — no hold exists; resolution happens in the webhook's SERIALIZABLE create). Metadata budget: one short key, no format change to `products`/`serviceIds`.
   - **Entry E** (product-only promo): NO staff (Order world, R9 v1) — verify you change nothing there.
 - `BE:services/BookingService.java`:
@@ -46,7 +46,7 @@ Idempotency gate (`processedEventRepo.existsById`, record-after-success, race ca
 5. Tests: webhook-level unit/service tests for the resolution matrix (concrete staff kept; ANY resolved deterministically per decision 6; stale metadata → fallback + WARN; unqualified staff id → fallback, booking still created — a paid customer must NEVER be rejected because of a staff-resolution problem; conflict-for-that-staff → existing PAID_CONFLICT tombstone+refund path fires exactly as before, assert via existing test patterns).
 
 ## Landmines
-- **A paid session must always end in a booking or the existing PAID_CONFLICT flow — never a new failure mode.** Staff resolution failures degrade to fallback, never throw.
+- **A paid session must always end in a booking or the existing PAID_CONFLICT flow — never a new failure mode.** Post-payment (webhook): staff-resolution failures degrade to fallback, never throw. Pre-payment (hold, entry A/B) is the opposite: if ANY-resolution finds no free qualified staff, reject exactly like the existing slot-conflict path — the customer has not paid yet, and falling back to a busy or unqualified staff would create a wrong hold.
 - In-flight sessions at deploy have no `staffId` metadata ⇒ absent-branch must be exercised by a test.
 - Do not reorder metadata writes; do not touch `products` parsing; no emoji anywhere near queries; positional-record rule if any DTO grows (prefer a plain parameter over widening a record here).
 - Deploy note for the guide: backend (this prompt) can deploy before OR after 09's FE — absent field and ignored field are both safe; but **both must be live before Michela activates a second staff**.
