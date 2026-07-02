@@ -66,7 +66,7 @@ All paths below are repo-relative. Backend Java root: `backend/src/main/java/dav
 | 9   | Write-path conflict checks: `hasOverlapIncludingPadding`, `hasBlockingConflictExcluding` (line 1284) + the SERIALIZABLE create/update paths                                                                                     | `BookingService`               | n/a — **salon-global today; must become per-staff** |
 
 - **Hours model:** `working_hours` — one row per `DayOfWeek` (unique), `morningStart/End`, `afternoonStart/End`, `closed` (`BE:entities/WorkingHours.java`). Admin CRUD `BE:controllers/WorkingHoursController.java` (all ADMIN).
-- **Closures:** `closures` — date range (`startDate/endDate`, legacy `date` kept in sync) + optional time window; helpers `isFullDay/isMultiDay/coversDate` (`BE:entities/Closure.java`). Admin CRUD + `/closures/preview` (`BE:controllers/ClosureController.java`).
+- **Closures:** `closures` — date range (`startDate/endDate`, legacy `date` kept in sync) + optional time window; helpers `isFullDay/isMultiDay/coversDate` (`BE:entities/Closure.java`). Admin CRUD + `/closures/preview` (`BE:controllers/ClosureController.java`). Since prompt 03 closures may carry `staff_id` (NULL = salon-wide); the engine and public closures listing treat ALL closures as salon-wide until prompt 06 makes them staff-aware.
 - **PersonalAppointment:** `personal_appointments` — `appointmentDate`, `startTime`, `durationMinutes`, title/notes (`BE:personalappointments/PersonalAppointment.java`); CRUD `/admin/personal-appointments[…/week]`; created from the drawer's "Personale" tab (`PersonalForm`, `FE:features/admin/NewAppointmentDrawer.jsx` ~3182+); rendered as `ag-tl-personal` blocks. **No staff column.**
 
 ### 1.D Agenda UI & queries

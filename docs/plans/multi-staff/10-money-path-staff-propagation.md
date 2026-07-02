@@ -32,7 +32,7 @@ Idempotency gate (`processedEventRepo.existsById`, record-after-success, race ca
 4. `BE:staff/` resolvers (01/06). 5. Existing webhook/booking tests (grep `Webhook`, `createMultiServiceBookingFromWebhook` in tests).
 
 ## Preconditions — STOP rules
-- Prompts 01–09 merged. `resolveAnyStaff` + `assertStaffQualified` + staff-scoped conflict checks exist (grep). If not, STOP.
+- Prompts 01–09 merged. `resolveAnyStaff` + `assertStaffQualified` + staff-scoped conflict checks exist (grep); `NewBookingDTO` has a `staffId` field (grep). If anything is missing, STOP.
 - The §1.B metadata tables must match the code exactly (keys `bookingId, serviceId, sessionsTotal, promotionId` on A/B; `bookingType, serviceIds, …, products` on C/D). Any mismatch ⇒ STOP.
 - The idempotency gate must match §1.B (existsById at ≈91, record ≈108, race-catch ≈110–112). Any mismatch ⇒ STOP.
 - Webhook has NO `@Transactional` of its own and no self-invocation — keep it that way; new logic lives in the service methods.
