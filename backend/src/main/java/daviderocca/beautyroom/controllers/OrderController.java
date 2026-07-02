@@ -28,7 +28,7 @@ public class OrderController {
 
     // ---------------------------------- ADMIN GET ----------------------------------
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<Page<OrderResponseDTO>> getAllOrders(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -58,7 +58,7 @@ public class OrderController {
 
     // Ricerca per email: solo admin
     @GetMapping("/email/{email}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<List<OrderResponseDTO>> getOrdersByEmail(@PathVariable String email) {
         log.info("ADMIN | orders by email {}", email);
         return ResponseEntity.ok(orderService.findOrdersByEmailAndConvert(email));
@@ -77,7 +77,7 @@ public class OrderController {
 
     // ---------------------------------- ADMIN POST (manual) ----------------------------------
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<OrderResponseDTO> createOrderManual(
             @Valid @RequestBody NewOrderDTO payload,
             @AuthenticationPrincipal User currentUser
@@ -89,7 +89,7 @@ public class OrderController {
 
     // ---------------------------------- ADMIN PATCH status ----------------------------------
     @PatchMapping("/{orderId}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<OrderResponseDTO> updateOrderStatus(
             @PathVariable UUID orderId,
             @Valid @RequestBody UpdateOrderStatusDTO payload

@@ -77,9 +77,9 @@ public class AvailabilityController {
         return ResponseEntity.ok(availabilityService.getCombinedAvailabilities(date, durationMinutes));
     }
 
-    // ADMIN - TIMELINE DAY
+    // ADMIN - TIMELINE DAY (matrix row 1: agenda read is shared with STAFF)
     @GetMapping("/admin/timeline/day")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<DayTimelineDTO> getDayTimeline(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {

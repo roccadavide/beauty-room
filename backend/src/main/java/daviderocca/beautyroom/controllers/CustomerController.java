@@ -27,7 +27,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/admin/customers")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','STAFF')")
 public class CustomerController {
 
     private final CustomerService customerService;
@@ -172,8 +172,10 @@ public class CustomerController {
     /**
      * DELETE /admin/customers/{id}
      * Deletes a customer. Returns 409 if they have active bookings or packages.
+     * Destructive and not in matrix row 12 — fail-closed: owner-only override.
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteCustomer(@PathVariable UUID id) {
         customerService.deleteCustomer(id);
         return ResponseEntity.noContent().build();

@@ -9,6 +9,8 @@ import daviderocca.beautyroom.enums.Role;
 import daviderocca.beautyroom.exceptions.*;
 import daviderocca.beautyroom.email.outbox.EmailOutboxService;
 import daviderocca.beautyroom.repositories.UserRepository;
+import daviderocca.beautyroom.staff.CurrentStaffService;
+import daviderocca.beautyroom.staff.StaffMember;
 import daviderocca.beautyroom.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder bcrypt;
     private final EmailOutboxService emailOutboxService;
+    private final CurrentStaffService currentStaffService;
 
     // ---------------------------- FIND METHODS ----------------------------
 
@@ -46,6 +49,18 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserResponseDTO findUserByIdAndConvert(UUID userId) {
         return convertToDTO(findUserById(userId));
+    }
+
+    /**
+     * /users/me variant: additionally resolves the caller's staff row (prompt 02).
+     * Kept separate from findUserByIdAndConvert so list endpoints never pay an
+     * extra staff lookup per user (no N+1).
+     */
+    @Transactional(readOnly = true)
+    public UserResponseDTO findMeAndConvert(UUID userId) {
+        User user = findUserById(userId);
+        StaffMember staff = currentStaffService.resolveFor(user).orElse(null);
+        return convertToDTO(user, staff);
     }
 
     @Transactional(readOnly = true)
@@ -200,6 +215,10 @@ public class UserService {
 
     // ---------------------------- CONVERTER ----------------------------
     private UserResponseDTO convertToDTO(User user) {
+        return convertToDTO(user, null);
+    }
+
+    private UserResponseDTO convertToDTO(User user, StaffMember staff) {
         return new UserResponseDTO(
                 user.getUserId(),
                 user.getName(),
@@ -207,7 +226,9 @@ public class UserService {
                 user.getEmail(),
                 user.getPhone(),
                 user.getRole(),
-                user.isVerified()
+                user.isVerified(),
+                staff != null ? staff.getId() : null,
+                staff != null ? staff.getDisplayName() : null
         );
     }
 }

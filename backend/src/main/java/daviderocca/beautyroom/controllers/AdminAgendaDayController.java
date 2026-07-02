@@ -30,7 +30,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/admin/agenda")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','STAFF')")
 @RequiredArgsConstructor
 @Slf4j
 public class AdminAgendaDayController {

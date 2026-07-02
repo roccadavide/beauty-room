@@ -394,7 +394,7 @@ public class BookingService {
     // ============================ MANUAL ADMIN CREATE ============================
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO createManualConfirmedBookingAsAdmin(NewBookingDTO payload, User currentUser) {
-        if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni manuali.");
+        if (!isStaffOrAdmin(currentUser)) throw new UnauthorizedException("Solo lo staff può creare prenotazioni manuali.");
 
         ServiceItem serviceItem = serviceItemService.findServiceItemById(payload.serviceId());
         serviceItemService.assertServiceActive(serviceItem);
@@ -510,7 +510,7 @@ public class BookingService {
      */
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponseDTO createMultiServiceBooking(AdminBookingCreateDTO dto, User currentUser) {
-        if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può creare prenotazioni.");
+        if (!isStaffOrAdmin(currentUser)) throw new UnauthorizedException("Solo lo staff può creare prenotazioni.");
 
         // ── Step 1: validate at least one service source ──────────────────────
         // Phase 5a: singular→list adapter for in-person package links. The deprecated
@@ -1738,8 +1738,8 @@ public class BookingService {
     public BookingResponseDTO updateBooking(UUID bookingId, NewBookingDTO payload, User currentUser) {
         Booking found = findBookingById(bookingId);
 
-        boolean admin = isAdmin(currentUser);
-        if (!admin) {
+        boolean staffOrAdmin = isStaffOrAdmin(currentUser);
+        if (!staffOrAdmin) {
             if (currentUser == null || currentUser.getUserId() == null) throw new UnauthorizedException("Utente non autenticato.");
             if (found.getUser() == null || !found.getUser().getUserId().equals(currentUser.getUserId())) {
                 throw new UnauthorizedException("Non puoi modificare una prenotazione non tua.");
@@ -1749,7 +1749,7 @@ public class BookingService {
         if (found.getBookingStatus() == BookingStatus.CANCELLED || found.getBookingStatus() == BookingStatus.COMPLETED) {
             throw new BadRequestException("Non puoi modificare una prenotazione già " + found.getBookingStatus());
         }
-        if (!admin && found.getBookingStatus() == BookingStatus.CONFIRMED) {
+        if (!staffOrAdmin && found.getBookingStatus() == BookingStatus.CONFIRMED) {
             throw new BadRequestException("Prenotazione già confermata: contatta il centro per modifiche.");
         }
 
@@ -1780,7 +1780,7 @@ public class BookingService {
         found.setServiceOption(option);
         found.setNotes(payload.notes());
 
-        if (admin) {
+        if (staffOrAdmin) {
             found.setCustomerName(safeTrim(payload.customerName(), "Nome cliente obbligatorio"));
             found.setCustomerEmail(safeTrim(payload.customerEmail(), "Email cliente obbligatoria").toLowerCase());
             found.setCustomerPhone(safeTrim(payload.customerPhone(), "Telefono cliente obbligatorio"));
@@ -1823,7 +1823,7 @@ public class BookingService {
      */
     @Transactional
     public BookingResponseDTO updateMultiServiceBooking(UUID bookingId, AdminBookingCreateDTO dto, User currentUser) {
-        if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può modificare prenotazioni.");
+        if (!isStaffOrAdmin(currentUser)) throw new UnauthorizedException("Solo lo staff può modificare prenotazioni.");
 
         Booking found = findBookingById(bookingId);
 
@@ -2303,7 +2303,7 @@ public class BookingService {
     // ============================ ADMIN: STATUS ============================
     @Transactional
     public BookingResponseDTO updateBookingStatus(UUID bookingId, BookingStatus newStatus, User currentUser) {
-        if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può aggiornare lo stato della prenotazione.");
+        if (!isStaffOrAdmin(currentUser)) throw new UnauthorizedException("Solo lo staff può aggiornare lo stato della prenotazione.");
         if (newStatus == null) throw new BadRequestException("Status non valido.");
 
         Booking found = bookingRepository.findByIdForUpdate(bookingId)
@@ -2426,7 +2426,7 @@ public class BookingService {
      */
     @Transactional
     public BookingResponseDTO settleBookingLines(UUID bookingId, SettlementRequestDTO req, User currentUser) {
-        if (!isAdmin(currentUser)) throw new UnauthorizedException("Solo un ADMIN può registrare i pagamenti.");
+        if (!isStaffOrAdmin(currentUser)) throw new UnauthorizedException("Solo lo staff può registrare i pagamenti.");
         if (req == null) throw new BadRequestException("Payload di pagamento mancante.");
 
         Booking found = bookingRepository.findByIdForUpdate(bookingId)
@@ -2997,8 +2997,8 @@ public class BookingService {
     public void cancelBooking(UUID bookingId, User currentUser, String reason) {
         Booking found = findBookingById(bookingId);
 
-        boolean admin = isAdmin(currentUser);
-        if (!admin) {
+        boolean staffOrAdmin = isStaffOrAdmin(currentUser);
+        if (!staffOrAdmin) {
             if (currentUser == null || currentUser.getUserId() == null) throw new UnauthorizedException("Utente non autenticato.");
             if (found.getUser() == null || !found.getUser().getUserId().equals(currentUser.getUserId())) {
                 throw new UnauthorizedException("Non puoi cancellare una prenotazione non tua.");
@@ -3016,7 +3016,7 @@ public class BookingService {
 
         found.setBookingStatus(BookingStatus.CANCELLED);
         found.setCanceledAt(LocalDateTime.now());
-        found.setCancelReason((reason == null || reason.trim().isEmpty()) ? (admin ? "ADMIN_CANCEL" : "USER_CANCEL") : reason.trim());
+        found.setCancelReason((reason == null || reason.trim().isEmpty()) ? (staffOrAdmin ? "ADMIN_CANCEL" : "USER_CANCEL") : reason.trim());
         found.setExpiresAt(null);
 
         // V72: cancelling releases the online prepaid session (occupancy boundary crossed).
@@ -3040,7 +3040,7 @@ public class BookingService {
             emailOutboxService.enqueueBookingCancelled(found);
         }
 
-        if (!admin) {
+        if (!staffOrAdmin) {
             try {
                 String when = found.getStartTime().format(NOTIF_FMT);
                 notificationService.create(
@@ -3755,6 +3755,12 @@ public class BookingService {
     private boolean isAdmin(User user) {
         return user != null && user.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    // Prompt 02: shared daily-ops guard — the owner-only guards (hardDeleteBooking) keep isAdmin.
+    private boolean isStaffOrAdmin(User user) {
+        return user != null && user.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_STAFF"));
     }
 
     private String safeTrim(String v, String messageIfBlank) {
