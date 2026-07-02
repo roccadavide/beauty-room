@@ -106,6 +106,39 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("blockingStatuses") List<BookingStatus> blockingStatuses
     );
 
+    // ===== Multi-staff (prompt 03): staff-scoped variant for per-staff absence previews =====
+    @Query("""
+        SELECT b
+        FROM Booking b
+        WHERE b.bookingStatus IN :blockingStatuses
+          AND b.startTime < :to
+          AND b.endTime   > :from
+          AND b.staffMember.id = :staffId
+        ORDER BY b.startTime ASC
+    """)
+    List<Booking> findBookingsByStatusesIntersectingRangeForStaff(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("blockingStatuses") List<BookingStatus> blockingStatuses,
+            @Param("staffId") UUID staffId
+    );
+
+    // ===== Multi-staff (prompt 03): deactivation guard (decision #10) =====
+    // WHERE staff_id + start_time — covered by idx_bookings_staff_start (prompt 01).
+    @Query("""
+        SELECT b
+        FROM Booking b
+        WHERE b.staffMember.id = :staffId
+          AND b.bookingStatus = :status
+          AND b.startTime >= :from
+        ORDER BY b.startTime ASC
+    """)
+    List<Booking> findByStaffAndStatusStartingFrom(
+            @Param("staffId") UUID staffId,
+            @Param("status") BookingStatus status,
+            @Param("from") LocalDateTime from
+    );
+
     // ===== Admin agenda (fetch join) - include ALL statuses =====
     @Query("""
     SELECT b

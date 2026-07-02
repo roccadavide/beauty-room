@@ -34,6 +34,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req, null, false);
     }
 
+    @ExceptionHandler(StaffDeactivationBlockedException.class)
+    public ResponseEntity<ApiError> handleStaffDeactivationBlocked(StaffDeactivationBlockedException ex, HttpServletRequest req) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), req,
+                Map.of("blockingBookings", ex.getBlockingBookings()), false);
+    }
+
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiError> handleBadRequest(BadRequestException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req, null, false);
@@ -47,6 +53,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex, HttpServletRequest req) {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req, null, false);
+    }
+
+    // Without this, the generic Exception handler would swallow it into a 500,
+    // masking the 403 declared by the class-level @ResponseStatus.
+    @ExceptionHandler(UnauthorizedOperationException.class)
+    public ResponseEntity<ApiError> handleUnauthorizedOperation(UnauthorizedOperationException ex, HttpServletRequest req) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), req, null, false);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

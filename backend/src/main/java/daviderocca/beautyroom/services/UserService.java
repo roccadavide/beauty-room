@@ -108,6 +108,34 @@ public class UserService {
         return convertToDTO(saved);
     }
 
+    /**
+     * Team API (prompt 03): login account for a new staff member. Same uniqueness
+     * validation + hashing as the register path, but role STAFF and isVerified=true
+     * (staff must be able to operate pay-in-store flows immediately), and no
+     * registration email (the owner creates the account, not the person). Joins the
+     * caller's transaction so User + staff_members row commit atomically.
+     */
+    @Transactional
+    public User createStaffUser(String name, String surname, String email, String rawPassword, String phone) {
+        String normalizedEmail = EmailNormalizer.normalize(email);
+
+        userRepository.findByEmail(normalizedEmail).ifPresent(u -> {
+            throw new DuplicateResourceException("L'email appartiene già ad un altro utente");
+        });
+
+        userRepository.findByPhone(phone).ifPresent(u -> {
+            throw new DuplicateResourceException("Il numero di telefono appartiene già ad un altro utente");
+        });
+
+        User newUser = new User(name, surname, normalizedEmail, bcrypt.encode(rawPassword), phone);
+        newUser.setRole(Role.STAFF);
+        newUser.setVerified(true);
+
+        User saved = userRepository.save(newUser);
+        log.info("Utente STAFF '{}' (email: {}) creato correttamente", saved.getName(), saved.getEmail());
+        return saved;
+    }
+
     // ---------------------------- UPDATE PROFILE ----------------------------
 
     @Transactional

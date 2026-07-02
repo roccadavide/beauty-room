@@ -20,6 +20,8 @@ Occupancy, hours and conflict-checking become **per-staff**; "no staff specified
 
 `getServiceAvailabilities`, `getCombinedAvailabilities`, `getAvailableSlots`, `getFullDays`, `findNextAvailableSlotForService`, `findNextAvailableCombinedSlot` (all `AvailabilityService`); `findNextAvailableSlot` (`BookingService:1359–1465` — **preserve extend-past-hours semantics §0.2 per staff**); `getDayTimeline` (open ranges become per-staff: add optional `staffId`; without it return the union frame — with 1 staff identical); the conflict checks above. Controllers (`AvailabilityController`, `PublicController`, `AdminBookingController`) gain optional `staffId` (and, on the four duration-only surfaces, optional `serviceIds`) request params passed through.
 
+**Public closures listing (added from the prompt 03 session note):** the engine and any public closures list endpoint (grep for the actual endpoint and its FE consumers, e.g. /api/public/closures) currently treat every closure as salon-wide, including per-staff absences that exist since prompt 03. Make this staff-aware with the same additive convention: without `staffId`, public listings return only salon-wide closures (`staff_id IS NULL`); with `staffId`, salon-wide plus that staff's absences. Inert under I1.
+
 ## Out of scope
 
 Any frontend. Booking-creation DTOs (08). Stripe/webhook (10). Reports. Team API. Removing legacy `working_hours` (freeze only).

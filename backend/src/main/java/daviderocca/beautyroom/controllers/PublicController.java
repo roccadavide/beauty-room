@@ -4,8 +4,10 @@ import daviderocca.beautyroom.DTO.availabilityDTOs.PublicDayStatusResponseDTO;
 import daviderocca.beautyroom.DTO.availabilityDTOs.PublicNextSlotDTO;
 import daviderocca.beautyroom.DTO.closureDTOs.ClosureResponseDTO;
 import daviderocca.beautyroom.DTO.closureDTOs.PublicClosureDTO;
+import daviderocca.beautyroom.DTO.staffDTOs.PublicStaffDTO;
 import daviderocca.beautyroom.services.AvailabilityService;
 import daviderocca.beautyroom.services.ClosureService;
+import daviderocca.beautyroom.services.StaffService;
 import daviderocca.beautyroom.services.WorkingHoursService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +38,7 @@ public class PublicController {
     private final ClosureService closureService;
     private final WorkingHoursService workingHoursService;
     private final AvailabilityService availabilityService;
+    private final StaffService staffService;
 
     // ==========================================================================
     // ENDPOINT PUBBLICO CHIUSURE
@@ -77,6 +80,26 @@ public class PublicController {
                 )));
 
         return ResponseEntity.ok(result);
+    }
+
+    // ==========================================================================
+    // ENDPOINT PUBBLICO STAFF ATTIVI (multi-staff prompt 03)
+    // GET /api/public/staff?serviceId={uuid}
+    // ==========================================================================
+
+    /**
+     * Restituisce i membri del team ATTIVI (id, nome visualizzato, colore, ordine),
+     * ordinati per sort_order (decisione #5). Con {@code serviceId} filtra ai soli
+     * membri qualificati per quel servizio (matrice staff_services, R4).
+     * Il frontend lo usa per lo step "Con chi vuoi prenotare?" — mostrato solo
+     * quando i membri attivi qualificati sono almeno 2 (gate I1).
+     */
+    @GetMapping("/staff")
+    public ResponseEntity<List<PublicStaffDTO>> getPublicStaff(
+            @RequestParam(required = false) UUID serviceId
+    ) {
+        log.info("PUBLIC | staff attivi | serviceId={}", serviceId);
+        return ResponseEntity.ok(staffService.findPublicActiveStaff(serviceId));
     }
 
     // ==========================================================================

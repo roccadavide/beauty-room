@@ -13,5 +13,6 @@ public record PersonalAppointmentDTO(
         LocalTime startTime,
         int durationMinutes,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        UUID staffId    // additive (multi-staff prompt 03) — whose personal time this blocks
 ) {}

@@ -104,7 +104,7 @@ class StaffDefaultAssignmentIntegrationTest {
         StaffMember staff = seedActiveStaff();
 
         PersonalAppointmentDTO dto = personalAppointmentService.create(new PersonalAppointmentRequestDTO(
-                "Palestra", null, LocalDate.now().plusDays(1), LocalTime.of(18, 0), 60));
+                "Palestra", null, LocalDate.now().plusDays(1), LocalTime.of(18, 0), 60, null), null);
 
         UUID staffId = jdbc.queryForObject(
                 "SELECT staff_id FROM personal_appointments WHERE id = ?", UUID.class, dto.id());

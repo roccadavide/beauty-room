@@ -12,4 +12,11 @@ public interface PersonalAppointmentRepository extends JpaRepository<PersonalApp
 
     List<PersonalAppointment> findByAppointmentDateBetweenOrderByAppointmentDateAscStartTimeAsc(
             LocalDate start, LocalDate end);
+
+    // Multi-staff prompt 03: optional staffId filter on the list endpoints.
+    List<PersonalAppointment> findByAppointmentDateAndStaffMember_IdOrderByStartTime(
+            LocalDate date, UUID staffId);
+
+    List<PersonalAppointment> findByAppointmentDateBetweenAndStaffMember_IdOrderByAppointmentDateAscStartTimeAsc(
+            LocalDate start, LocalDate end, UUID staffId);
 }

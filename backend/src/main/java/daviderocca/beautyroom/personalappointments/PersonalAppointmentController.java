@@ -1,11 +1,13 @@
 package daviderocca.beautyroom.personalappointments;
 
+import daviderocca.beautyroom.entities.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -25,44 +27,50 @@ public class PersonalAppointmentController {
     // POST /admin/personal-appointments — create
     @PostMapping
     public ResponseEntity<PersonalAppointmentDTO> create(
-            @Valid @RequestBody PersonalAppointmentRequestDTO req) {
+            @Valid @RequestBody PersonalAppointmentRequestDTO req,
+            @AuthenticationPrincipal User currentUser) {
         log.info("ADMIN | create personal appointment: {}", req.title());
-        PersonalAppointmentDTO created = service.create(req);
+        PersonalAppointmentDTO created = service.create(req, currentUser);
         return ResponseEntity
                 .created(URI.create("/admin/personal-appointments/" + created.id()))
                 .body(created);
     }
 
-    // GET /admin/personal-appointments?date=YYYY-MM-DD — find by day
+    // GET /admin/personal-appointments?date=YYYY-MM-DD[&staffId=] — find by day
     @GetMapping
     public ResponseEntity<List<PersonalAppointmentDTO>> findByDate(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        log.info("ADMIN | personal appointments day={}", date);
-        return ResponseEntity.ok(service.findByDate(date));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) UUID staffId) {
+        log.info("ADMIN | personal appointments day={} staffId={}", date, staffId);
+        return ResponseEntity.ok(service.findByDate(date, staffId));
     }
 
-    // GET /admin/personal-appointments/week?start=YYYY-MM-DD — find by week (start → start+6)
+    // GET /admin/personal-appointments/week?start=YYYY-MM-DD[&staffId=] — find by week (start → start+6)
     @GetMapping("/week")
     public ResponseEntity<List<PersonalAppointmentDTO>> findByWeek(
-            @RequestParam("start") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
-        log.info("ADMIN | personal appointments week start={}", weekStart);
-        return ResponseEntity.ok(service.findByWeek(weekStart));
+            @RequestParam("start") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            @RequestParam(required = false) UUID staffId) {
+        log.info("ADMIN | personal appointments week start={} staffId={}", weekStart, staffId);
+        return ResponseEntity.ok(service.findByWeek(weekStart, staffId));
     }
 
     // PUT /admin/personal-appointments/{id} — update
     @PutMapping("/{id}")
     public ResponseEntity<PersonalAppointmentDTO> update(
             @PathVariable UUID id,
-            @Valid @RequestBody PersonalAppointmentRequestDTO req) {
+            @Valid @RequestBody PersonalAppointmentRequestDTO req,
+            @AuthenticationPrincipal User currentUser) {
         log.info("ADMIN | update personal appointment id={}", id);
-        return ResponseEntity.ok(service.update(id, req));
+        return ResponseEntity.ok(service.update(id, req, currentUser));
     }
 
     // DELETE /admin/personal-appointments/{id} — delete (204 No Content)
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User currentUser) {
         log.info("ADMIN | delete personal appointment id={}", id);
-        service.delete(id);
+        service.delete(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 }
