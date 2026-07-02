@@ -126,6 +126,10 @@ public class BookingService {
     // Fix 14: the shared overlap check must also reject Michela's personal time
     // (mirrors the availability layer — personal_appointments, no padding, no lock).
     private final PersonalAppointmentRepository personalAppointmentRepository;
+    // Multi-staff prompt 01: every new Booking (and, via the booking, every
+    // BookingSale) carries a staff member from day one, so no NULL rows
+    // accumulate before the final NOT NULL hardening. Inert — nothing reads it yet.
+    private final daviderocca.beautyroom.staff.DefaultStaffResolver defaultStaffResolver;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -255,6 +259,7 @@ public class BookingService {
         User user = (currentUserOrNull != null && currentUserOrNull.getUserId() != null) ? currentUserOrNull : null;
 
         Booking booking = new Booking(name, email, phone, start, end, payload.notes(), serviceItem, option, user);
+        booking.setStaffMember(defaultStaffResolver.resolveDefault());
         booking.setCreatedByAdmin(false);
         booking.setConsentLaser(payload.consentLaser());
         booking.setConsentPmu(payload.consentPmu());
@@ -322,6 +327,7 @@ public class BookingService {
                 "Telefono cliente obbligatorio");
 
         Booking booking = new Booking(name, email, phone, start, end, payload.notes(), serviceItem, option, currentUser);
+        booking.setStaffMember(defaultStaffResolver.resolveDefault());
         booking.setCreatedByAdmin(false);
         booking.setPaymentMethod(PaymentMethod.PAY_IN_STORE);
         booking.setBookingStatus(BookingStatus.CONFIRMED);
@@ -416,6 +422,7 @@ public class BookingService {
                 option,
                 null
         );
+        booking.setStaffMember(defaultStaffResolver.resolveDefault());
         booking.setConsentLaser(payload.consentLaser());
         booking.setConsentPmu(payload.consentPmu());
         if (payload.consentLaser() || payload.consentPmu()) {
@@ -660,6 +667,7 @@ public class BookingService {
                 start, end, dto.notes(),
                 primaryService, primaryOption, null
         );
+        booking.setStaffMember(defaultStaffResolver.resolveDefault());
 
         // For the serviceEntries path, booking_services rows are inserted manually
         // (with option_id) after save — do NOT let @ManyToMany insert them here.
@@ -978,7 +986,7 @@ public class BookingService {
         }
 
         // ── Block B: reconcile standalone product sales (promotion_link_id IS NULL) ──
-        reconcileStandaloneSales(saved.getBookingId(), dto);
+        reconcileStandaloneSales(saved, dto);
 
         // ── Step 7: auto account-linking ──────────────────────────────────────
         try {
@@ -1067,6 +1075,7 @@ public class BookingService {
         }
 
         Booking booking = new Booking(name, email, phone, start, end, notes, primary, primaryOption, null);
+        booking.setStaffMember(defaultStaffResolver.resolveDefault());
         // Fix 15: suppress the @ManyToMany — it only knows (booking_id, service_id) and would write
         // option-less rows. booking_services is populated below via native INSERT carrying option_id.
         booking.setServices(new ArrayList<>());
@@ -1130,7 +1139,7 @@ public class BookingService {
         // Fix 3 (mixed cart): persist the online-paid products on the freshly-saved booking, inside
         // THIS SERIALIZABLE transaction (the bookingId now exists). Promo bookings carry no products,
         // so this is a no-op for them.
-        createOnlineProductSales(saved.getBookingId(), productSales);
+        createOnlineProductSales(saved, productSales);
 
         // 08.4: promo-only online booking — attach the frozen promo snapshot (paid online), exactly
         // like the admin path. The promo carries its services in the link snapshot, not booking_services.
@@ -1233,6 +1242,7 @@ public class BookingService {
         String phone = customerPhone != null ? customerPhone.trim() : "";
 
         Booking tombstone = new Booking(name, email, phone, start, end, null, null, null, null);
+        tombstone.setStaffMember(defaultStaffResolver.resolveDefault());
         tombstone.setServices(new ArrayList<>());
         tombstone.setDurationMinutes(totalDurationMinutes);
         tombstone.setBookingStatus(BookingStatus.CANCELLED);
@@ -2252,7 +2262,7 @@ public class BookingService {
         }
 
         // ── Block B: reconcile standalone product sales (promotion_link_id IS NULL) ──
-        reconcileStandaloneSales(bookingId, dto);
+        reconcileStandaloneSales(found, dto);
 
         // Back-compat: when the booking has exactly one link and the request resolves
         // to that same single package, honor dto.currentSession as a direct session-number
@@ -2725,6 +2735,7 @@ public class BookingService {
 
             BookingSale sale = new BookingSale();
             sale.setBookingId(booking.getBookingId());
+            sale.setStaffMember(booking.getStaffMember()); // R9: sale inherits the booking's staff
             sale.setProductId(product.getProductId());
             sale.setProductName(r.line().name());
             sale.setQuantity(1);
@@ -2790,9 +2801,13 @@ public class BookingService {
      *
      * null saleEntries() -> no-op (caller omitted products; leave existing standalone
      * sales, including quick-add ones, untouched). Empty list -> remove all standalone.
+     *
+     * Multi-staff prompt 01: takes the Booking (not just its id) so new sale rows
+     * inherit the booking's staff (R9).
      */
-    private void reconcileStandaloneSales(UUID bookingId, AdminBookingCreateDTO dto) {
+    private void reconcileStandaloneSales(Booking booking, AdminBookingCreateDTO dto) {
         if (dto.saleEntries() == null) return;
+        UUID bookingId = booking.getBookingId();
 
         // Desired set, merged by productId (defensive against duplicate lines).
         Map<UUID, SaleEntryDTO> desired = new LinkedHashMap<>();
@@ -2832,6 +2847,7 @@ public class BookingService {
 
                 BookingSale s = new BookingSale();
                 s.setBookingId(bookingId);
+                s.setStaffMember(booking.getStaffMember()); // R9: sale inherits the booking's staff
                 s.setProductId(want.productId());
                 s.setProductName(product.getName());
                 s.setQuantity(want.quantity());
@@ -2873,9 +2889,13 @@ public class BookingService {
      * it shares the caller's SERIALIZABLE transaction, so it can see the just-saved (uncommitted)
      * booking. Post-payment it NEVER rejects: a missing product or short stock is honoured (stock may
      * go negative in a race) and the admin is notified instead.
+     *
+     * Multi-staff prompt 01: takes the Booking (not just its id) so the sale rows
+     * inherit the booking's staff (R9).
      */
-    private void createOnlineProductSales(UUID bookingId, List<SaleEntryDTO> sales) {
+    private void createOnlineProductSales(Booking booking, List<SaleEntryDTO> sales) {
         if (sales == null || sales.isEmpty()) return;
+        UUID bookingId = booking.getBookingId();
         for (SaleEntryDTO entry : sales) {
             if (entry == null || entry.productId() == null) continue;
             int qty = Math.max(1, entry.quantity());
@@ -2906,6 +2926,7 @@ public class BookingService {
 
             BookingSale sale = new BookingSale();
             sale.setBookingId(bookingId);
+            sale.setStaffMember(booking.getStaffMember()); // R9: sale inherits the booking's staff
             sale.setProductId(entry.productId());
             sale.setProductName(product.getName());
             sale.setQuantity(qty);

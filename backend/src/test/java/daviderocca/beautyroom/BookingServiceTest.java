@@ -109,6 +109,11 @@ class BookingServiceTest {
     // returns an empty list, so existing tests see no phantom personal time.
     @Mock
     private PersonalAppointmentRepository personalAppointmentRepository;
+    // Multi-staff prompt 01: every Booking construction site calls the resolver. Without
+    // this mock @InjectMocks injects null and every create path NPEs; the default mock
+    // returns null from resolveDefault(), so existing tests persist staff-less bookings.
+    @Mock
+    private daviderocca.beautyroom.staff.DefaultStaffResolver defaultStaffResolver;
 
     @InjectMocks
     private BookingService bookingService;
@@ -489,6 +494,64 @@ class BookingServiceTest {
 
         verifyNoInteractions(bookingSaleRepository);
         verifyNoInteractions(productRepository);
+    }
+
+    // =========================================================================
+    // P01 (multi-staff): a new BookingSale inherits its booking's staff (R9),
+    // on both the drawer reconcile path and the webhook online-sale path.
+    // =========================================================================
+
+    @Test
+    @DisplayName("P01: reconcile create — the new standalone sale inherits the booking's staff")
+    void reconcileStandaloneSales_create_saleInheritsBookingStaff() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId  = UUID.randomUUID();
+
+        daviderocca.beautyroom.staff.StaffMember staff =
+                new daviderocca.beautyroom.staff.StaffMember("Michela", true, 0);
+        Booking booking = invocationBookingWithId(bookingId);
+        booking.setStaffMember(staff);
+
+        Product product = new Product();
+        setFieldReflectively(product, "productId", productId);
+        product.setName("Crema Viso");
+        product.setStock(10);
+
+        when(bookingSaleRepository.findByBookingIdOrderByAddedAtDesc(bookingId)).thenReturn(List.of());
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        invokeReconcile(booking, dtoWithSales(List.of(
+                new SaleEntryDTO(productId, 1, new BigDecimal("19.90"), true))));
+
+        ArgumentCaptor<BookingSale> sc = ArgumentCaptor.forClass(BookingSale.class);
+        verify(bookingSaleRepository).save(sc.capture());
+        assertThat(sc.getValue().getStaffMember()).isSameAs(staff);
+    }
+
+    @Test
+    @DisplayName("P01: createOnlineProductSales — the online sale inherits the booking's staff")
+    void createOnlineProductSales_saleInheritsBookingStaff() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId  = UUID.randomUUID();
+
+        daviderocca.beautyroom.staff.StaffMember staff =
+                new daviderocca.beautyroom.staff.StaffMember("Michela", true, 0);
+        Booking booking = invocationBookingWithId(bookingId);
+        booking.setStaffMember(staff);
+
+        Product product = new Product();
+        setFieldReflectively(product, "productId", productId);
+        product.setName("Crema Viso");
+        product.setStock(10);
+
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        invokeCreateOnlineProductSales(booking, List.of(
+                new SaleEntryDTO(productId, 1, new BigDecimal("19.90"), true)));
+
+        ArgumentCaptor<BookingSale> sc = ArgumentCaptor.forClass(BookingSale.class);
+        verify(bookingSaleRepository).save(sc.capture());
+        assertThat(sc.getValue().getStaffMember()).isSameAs(staff);
     }
 
     // =========================================================================
@@ -1054,12 +1117,18 @@ class BookingServiceTest {
     // class lives in a different package, so reflection is the only access (mirrors the
     // reflective field helpers below). InvocationTargetException is unwrapped so a helper
     // exception surfaces with its real type.
+    // Prompt 01: the method now takes the Booking (sale inherits its staff); the
+    // UUID overload keeps the pre-existing call sites unchanged.
     private void invokeReconcile(UUID bookingId, AdminBookingCreateDTO dto) {
+        invokeReconcile(invocationBookingWithId(bookingId), dto);
+    }
+
+    private void invokeReconcile(Booking booking, AdminBookingCreateDTO dto) {
         try {
             var m = BookingService.class.getDeclaredMethod(
-                    "reconcileStandaloneSales", UUID.class, AdminBookingCreateDTO.class);
+                    "reconcileStandaloneSales", Booking.class, AdminBookingCreateDTO.class);
             m.setAccessible(true);
-            m.invoke(bookingService, bookingId, dto);
+            m.invoke(bookingService, booking, dto);
         } catch (java.lang.reflect.InvocationTargetException e) {
             Throwable cause = e.getCause();
             if (cause instanceof RuntimeException re) throw re;
@@ -1071,11 +1140,15 @@ class BookingServiceTest {
 
     // Invokes the private createOnlineProductSales on the @InjectMocks instance (mirrors invokeReconcile).
     private void invokeCreateOnlineProductSales(UUID bookingId, List<SaleEntryDTO> sales) {
+        invokeCreateOnlineProductSales(invocationBookingWithId(bookingId), sales);
+    }
+
+    private void invokeCreateOnlineProductSales(Booking booking, List<SaleEntryDTO> sales) {
         try {
             var m = BookingService.class.getDeclaredMethod(
-                    "createOnlineProductSales", UUID.class, List.class);
+                    "createOnlineProductSales", Booking.class, List.class);
             m.setAccessible(true);
-            m.invoke(bookingService, bookingId, sales);
+            m.invoke(bookingService, booking, sales);
         } catch (java.lang.reflect.InvocationTargetException e) {
             Throwable cause = e.getCause();
             if (cause instanceof RuntimeException re) throw re;

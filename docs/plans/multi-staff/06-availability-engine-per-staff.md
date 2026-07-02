@@ -48,7 +48,10 @@ Any frontend. Booking-creation DTOs (08). Stripe/webhook (10). Reports. Team API
 4. Write-path conflict checks → staff-scoped; wire `assertStaffQualified` into create/update using the booking's current staff.
 5. Controllers: optional `staffId` params.
 6. Multi-staff tests: 2 active staff, overlapping bookings on different staff both allowed; finder per staff vs union; qualification filtering (staff B lacks service X ⇒ union for X = staff A only); "Pieno" only when all qualified staff full; PA of staff A doesn't block staff B; global closure blocks both; NULL-staff booking blocks both; `resolveAnyStaff` tie-breaks.
-7. Resync migration.
+
+- duration-only surface with `serviceIds=[X]` and 2 active staff where only A is qualified for X ⇒ output ≡ A's availability; same call without `serviceIds` ⇒ all-active union.
+
+7. Resync migration. This migration also creates the partial index `idx_closures_staff ON closures(staff_id) WHERE staff_id IS NOT NULL` (deferred from V83 — see prompt 01 session note; the column starts being written by prompt 03).
 
 ## Landmines
 
@@ -63,6 +66,7 @@ Any frontend. Booking-creation DTOs (08). Stripe/webhook (10). Reports. Team API
 - Characterization tests green (single-staff parity), multi-staff tests green.
 - `staffId` param absent ⇒ union; with 1 active staff, union ≡ that staff ≡ old behavior.
 - Legacy `working_hours` no longer read by the engine (grep proves it: engine files reference `staffWorkingHours` only); dual-write from 03 still keeps tables consistent.
+- With `serviceIds` present, ANY-mode output ≡ union over fully-qualified active staff.
 
 ## Test gate
 

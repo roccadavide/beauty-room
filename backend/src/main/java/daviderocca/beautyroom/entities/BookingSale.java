@@ -48,6 +48,12 @@ public class BookingSale {
     @Column(nullable = false)
     private boolean paid = false;
 
+    // V83 (multi-staff prompt 01): sale inherits its booking's staff (R9). Stays
+    // nullable by design — NULL = unattributed.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_id")
+    private daviderocca.beautyroom.staff.StaffMember staffMember;
+
     @PrePersist
     void onCreate() {
         addedAt = LocalDateTime.now();

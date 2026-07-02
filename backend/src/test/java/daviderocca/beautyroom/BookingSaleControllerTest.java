@@ -2,10 +2,13 @@ package daviderocca.beautyroom;
 
 import daviderocca.beautyroom.DTO.BookingSaleDTO;
 import daviderocca.beautyroom.controllers.BookingSaleController;
+import daviderocca.beautyroom.entities.Booking;
 import daviderocca.beautyroom.entities.BookingSale;
 import daviderocca.beautyroom.entities.Product;
+import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.BookingSaleRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
+import daviderocca.beautyroom.staff.StaffMember;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +40,8 @@ class BookingSaleControllerTest {
     private BookingSaleRepository saleRepo;
     @Mock
     private ProductRepository productRepository;
+    @Mock
+    private BookingRepository bookingRepository;
 
     @InjectMocks
     private BookingSaleController controller;
@@ -68,6 +73,42 @@ class BookingSaleControllerTest {
         assertThat(pc.getValue().getStock()).isEqualTo(7); // 10 - 3
 
         verify(saleRepo).save(any(BookingSale.class));
+    }
+
+    @Test
+    @DisplayName("R9: quick-added sale inherits the booking's staff")
+    void addSale_inheritsBookingStaff() {
+        UUID bookingId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        StaffMember staff = new StaffMember("Michela", true, 0);
+        UUID staffId = UUID.randomUUID();
+        staff.setId(staffId);
+
+        Booking booking = new Booking();
+        booking.setStaffMember(staff);
+
+        Product product = new Product();
+        product.setStock(10);
+
+        BookingSaleDTO dto = new BookingSaleDTO();
+        dto.setProductId(productId);
+        dto.setProductName("Crema Viso");
+        dto.setQuantity(1);
+        dto.setUnitPrice(new BigDecimal("19.90"));
+
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+        when(saleRepo.save(any(BookingSale.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        ResponseEntity<BookingSale> resp = controller.addSale(bookingId, dto);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        ArgumentCaptor<BookingSale> sc = ArgumentCaptor.forClass(BookingSale.class);
+        verify(saleRepo).save(sc.capture());
+        assertThat(sc.getValue().getStaffMember()).isNotNull();
+        assertThat(sc.getValue().getStaffMember().getId()).isEqualTo(staffId);
     }
 
     @Test

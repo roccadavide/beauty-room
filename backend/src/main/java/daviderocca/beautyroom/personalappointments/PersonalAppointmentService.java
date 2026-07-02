@@ -1,6 +1,7 @@
 package daviderocca.beautyroom.personalappointments;
 
 import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
+import daviderocca.beautyroom.staff.DefaultStaffResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,8 @@ import java.util.UUID;
 public class PersonalAppointmentService {
 
     private final PersonalAppointmentRepository repo;
+    // Multi-staff prompt 01: every personal appointment carries a staff member.
+    private final DefaultStaffResolver defaultStaffResolver;
 
     @Transactional
     public PersonalAppointmentDTO create(PersonalAppointmentRequestDTO req) {
@@ -64,6 +67,9 @@ public class PersonalAppointmentService {
         entity.setAppointmentDate(req.appointmentDate());
         entity.setStartTime(req.startTime());
         entity.setDurationMinutes(req.durationMinutes());
+        // Prompt 01: create gets the default staff; update keeps the row's existing
+        // staff (resolver returns the explicit value when given).
+        entity.setStaffMember(defaultStaffResolver.resolve(entity.getStaffMember()));
     }
 
     PersonalAppointmentDTO toDTO(PersonalAppointment e) {
