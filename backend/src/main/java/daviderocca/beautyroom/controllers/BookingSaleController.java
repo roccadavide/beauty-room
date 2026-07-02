@@ -2,6 +2,7 @@ package daviderocca.beautyroom.controllers;
 
 import daviderocca.beautyroom.DTO.BookingSaleDTO;
 import daviderocca.beautyroom.entities.BookingSale;
+import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.BookingSaleRepository;
 import daviderocca.beautyroom.repositories.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class BookingSaleController {
 
     private final BookingSaleRepository saleRepo;
     private final ProductRepository productRepository;
+    private final BookingRepository bookingRepository;
 
     @GetMapping("/{bookingId}/sales")
     public List<BookingSale> getSales(@PathVariable UUID bookingId) {
@@ -44,6 +46,11 @@ public class BookingSaleController {
         sale.setProductName(dto.getProductName());
         sale.setQuantity(Math.max(1, dto.getQuantity()));
         sale.setUnitPrice(dto.getUnitPrice());
+
+        // R9: quick-add sale inherits the booking's staff (same site-family as the three
+        // BookingService sale sites from prompt 01), so no NULL staff_id rows accumulate.
+        bookingRepository.findById(bookingId)
+                .ifPresent(b -> sale.setStaffMember(b.getStaffMember()));
 
         BookingSale saved = saleRepo.save(sale);
 

@@ -30,7 +30,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Setter
-@ToString(exclude = {"user", "service", "serviceOption", "packageCredit"})
+@ToString(exclude = {"user", "service", "serviceOption", "packageCredit", "staffMember"})
 public class Booking {
 
     @Id
@@ -168,6 +168,12 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     private Customer customer;
+
+    // V83 (multi-staff prompt 01): who performs this appointment. Nullable until
+    // the final hardening migration; every write path sets it via DefaultStaffResolver.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_id")
+    private daviderocca.beautyroom.staff.StaffMember staffMember;
 
     // Multi-service list — all catalog services on this booking
     @ManyToMany(fetch = FetchType.LAZY)

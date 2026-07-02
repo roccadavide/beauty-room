@@ -37,6 +37,12 @@ public class PersonalAppointment {
     @Column(name = "duration_minutes", nullable = false)
     private int durationMinutes = 60;
 
+    // V83 (multi-staff prompt 01): whose personal time this blocks. Nullable until
+    // the final hardening migration; create/update set it via DefaultStaffResolver.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_id")
+    private daviderocca.beautyroom.staff.StaffMember staffMember;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

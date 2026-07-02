@@ -21,7 +21,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @Builder
-@ToString
+@ToString(exclude = "staffMember")
 public class Closure {
 
     @Id
@@ -49,6 +49,12 @@ public class Closure {
 
     @Column(name = "reason", nullable = false, length = 150)
     private String reason;
+
+    // V83 (multi-staff prompt 01): NULL = salon-wide closure (all existing rows);
+    // non-NULL = per-staff absence (written from prompt 03 onward).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_id")
+    private daviderocca.beautyroom.staff.StaffMember staffMember;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
