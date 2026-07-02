@@ -115,8 +115,18 @@ public class AvailabilityService {
         List<Booking> blockingBookings = bookingRepository
                 .findBookingsByStatusesIntersectingRange(from, to, BLOCKING_STATUSES);
 
-        // Pre-compute effective blocked intervals (booking range + optional paddingMinutes)
-        List<TimeRange> blockedIntervals = toEffectiveBlockedIntervals(blockingBookings, date);
+        // Pre-compute effective blocked intervals (booking range + optional paddingMinutes).
+        // Personal appointments block too — identical pattern to getCombinedAvailabilities /
+        // getAvailableSlots — so a customer can never book over Michela's personal time
+        // (single-service gap fix; prompt 05, single-staff semantics).
+        List<TimeRange> blockedIntervals = new ArrayList<>(toEffectiveBlockedIntervals(blockingBookings, date));
+        personalAppointmentRepository.findByAppointmentDateOrderByStartTime(date)
+                .forEach(pa -> {
+                    LocalTime paEnd = pa.getStartTime().plusMinutes(pa.getDurationMinutes());
+                    if (pa.getStartTime().isBefore(paEnd)) {
+                        blockedIntervals.add(new TimeRange(pa.getStartTime(), paEnd));
+                    }
+                });
 
         // Generate all slots and mark each available/unavailable.
         // step == duration keeps the single-service grid byte-identical to before.

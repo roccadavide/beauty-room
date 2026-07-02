@@ -116,6 +116,35 @@ class AvailabilityServiceTest {
         assertThat(resp.slots().get(2).available()).isTrue();
     }
 
+    @Test
+    @DisplayName("Single-service: a personal appointment blocks its overlapping slot (PA gap fix)")
+    void singleService_personalAppointmentBlocks() {
+        // Prompt 05 gap fix: the single-service grid ignored personal appointments, so a client
+        // could book over Michela's personal time. A PA 10:00–11:00 must now occupy that slot
+        // exactly like the 10:00–11:00 booking does in singleService_outputUnchanged_withBooking.
+        ServiceItem svc = mock(ServiceItem.class);
+        when(svc.getDurationMin()).thenReturn(60);
+        when(serviceItemService.findServiceItemById(any())).thenReturn(svc);
+        when(workingHoursRepository.findByDayOfWeek(any())).thenReturn(Optional.of(openMorning()));
+        when(closureRepository.findOverlappingDate(any())).thenReturn(List.of());
+        when(bookingRepository.findBookingsByStatusesIntersectingRange(any(), any(), any()))
+                .thenReturn(List.of());
+        PersonalAppointment pa = mock(PersonalAppointment.class);
+        when(pa.getStartTime()).thenReturn(LocalTime.of(10, 0));
+        when(pa.getDurationMinutes()).thenReturn(60); // 10:00–11:00
+        when(personalAppointmentRepository.findByAppointmentDateOrderByStartTime(any()))
+                .thenReturn(List.of(pa));
+
+        AvailabilityResponseDTO resp = availabilityService.getServiceAvailabilities(UUID.randomUUID(), FUTURE);
+
+        // Same three hourly slots as the reference test — only the PA-overlapping one flips to occupied.
+        assertThat(resp.slots()).extracting(AvailabilitySlotDTO::start)
+                .containsExactly("09:00", "10:00", "11:00");
+        assertThat(resp.slots().get(0).available()).isTrue();   // 09:00 free
+        assertThat(resp.slots().get(1).available()).isFalse();  // 10:00 blocked by PA
+        assertThat(resp.slots().get(2).available()).isTrue();   // 11:00 free
+    }
+
     // ====================== COMBINED (multi-service cart) ======================
 
     @Test

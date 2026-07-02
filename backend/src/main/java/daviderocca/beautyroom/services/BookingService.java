@@ -1408,6 +1408,16 @@ public class BookingService {
                     .map(c -> new LocalTime[]{c.getStartTime(), c.getEndTime()})
                     .toList();
 
+            // Personal appointments occupy the salon just like bookings/closures — merge them into
+            // the same `booked` set the range loop scans. Fetched once per day-iteration (outside the
+            // range loop) so gap-scanning and extend-past-hours window semantics stay untouched: a PA
+            // inside an extended window blocks it exactly like a booking would (prompt 05 gap fix).
+            List<LocalTime[]> personalIntervals = personalAppointmentRepository
+                    .findByAppointmentDateOrderByStartTime(day).stream()
+                    .filter(pa -> pa.getStartTime() != null && pa.getDurationMinutes() > 0)
+                    .map(pa -> new LocalTime[]{pa.getStartTime(), pa.getStartTime().plusMinutes(pa.getDurationMinutes())})
+                    .toList();
+
             for (int idx = 0; idx < openRanges.size(); idx++) {
                 LocalTime[] range = openRanges.get(idx);
                 LocalTime rangeStart = range[0];
@@ -1440,6 +1450,13 @@ public class BookingService {
                     LocalTime ce = ci[1];
                     if (ce.isAfter(rangeStart) && cs.isBefore(rangeEnd))
                         booked.add(new LocalTime[]{cs, ce});
+                }
+
+                for (LocalTime[] pi : personalIntervals) {
+                    LocalTime ps = pi[0];
+                    LocalTime pe = pi[1];
+                    if (pe.isAfter(rangeStart) && ps.isBefore(rangeEnd))
+                        booked.add(new LocalTime[]{ps, pe});
                 }
 
                 booked = booked.stream()
