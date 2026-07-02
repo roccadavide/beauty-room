@@ -12,6 +12,8 @@ import daviderocca.beautyroom.exceptions.ResourceNotFoundException;
 import daviderocca.beautyroom.repositories.BookingRepository;
 import daviderocca.beautyroom.repositories.ClosureRepository;
 import daviderocca.beautyroom.scheduler.ClosureReminderScheduler;
+import daviderocca.beautyroom.staff.StaffMember;
+import daviderocca.beautyroom.staff.StaffMemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,8 @@ public class ClosureService {
     private final ClosureRepository closureRepository;
     private final BookingRepository bookingRepository;
     private final ClosureReminderScheduler closureReminderScheduler;
+    // Multi-staff prompt 03 (decision #7): closures with staffId = per-staff absences.
+    private final StaffMemberRepository staffMemberRepository;
 
     // -------------------------- FIND --------------------------
     @Transactional(readOnly = true)
@@ -68,6 +72,7 @@ public class ClosureService {
                 payload.endTime(),
                 payload.reason() != null ? payload.reason().trim() : null
         );
+        closure.setStaffMember(resolveStaffOrNull(payload.staffId()));
 
         Closure saved = closureRepository.save(closure);
         int bookingConflicts = countOverlappingBookings(saved);
@@ -97,6 +102,7 @@ public class ClosureService {
         closure.setStartTime(payload.startTime());
         closure.setEndTime(payload.endTime());
         closure.setReason(payload.reason() != null ? payload.reason().trim() : null);
+        closure.setStaffMember(resolveStaffOrNull(payload.staffId()));
 
         Closure updated = closureRepository.save(closure);
         log.info("Chiusura {} aggiornata [{} → {}]", updated.getId(), updated.getStartDate(), updated.getEndDate());
@@ -132,6 +138,8 @@ public class ClosureService {
         Closure probe = new Closure(startDate, endDate,
                 payload.startTime(), payload.endTime(),
                 payload.reason() != null ? payload.reason() : "preview");
+        // staffId present -> preview only that staff's bookings (prompt 03).
+        probe.setStaffMember(resolveStaffOrNull(payload.staffId()));
         return countOverlappingBookingsAsDTO(probe);
     }
 
@@ -218,6 +226,10 @@ public class ClosureService {
 
         // Closure-vs-closure overlap detection across the entire range.
         // Self-overlap is excluded via excludeId so editing the same row never reports itself.
+        // Staff scoping (prompt 03): two DIFFERENT staff members' absences may coexist on the
+        // same day — only closures whose scope intersects the payload's conflict (salon-wide
+        // closures, staffId NULL, intersect everything).
+        UUID payloadStaffId = payload.staffId();
         LocalDate cursor = startDate;
         while (!cursor.isAfter(endDate)) {
             List<Closure> existing = (excludeId == null)
@@ -225,6 +237,12 @@ public class ClosureService {
                     : closureRepository.findOverlappingDateExcluding(cursor, excludeId);
 
             for (Closure c : existing) {
+                UUID existingStaffId = c.getStaffMember() != null ? c.getStaffMember().getId() : null;
+                boolean scopesIntersect = payloadStaffId == null
+                        || existingStaffId == null
+                        || payloadStaffId.equals(existingStaffId);
+                if (!scopesIntersect) continue;
+
                 if (c.isFullDay() || fullDay) {
                     throw new BadRequestException(
                             "Sovrapposizione con chiusura esistente del " + cursor + " (" + c.getReason() + ").");
@@ -264,8 +282,13 @@ public class ClosureService {
             return new ClosureConflictPreviewDTO(0, List.of());
         }
 
-        List<Booking> overlapping = bookingRepository
-                .findBookingsByStatusesIntersectingRange(rangeStart, rangeEnd, BLOCKING_STATUSES);
+        // Staff absence (staffMember set) -> only that staff's bookings conflict (prompt 03);
+        // salon-wide closure keeps today's behavior (every booking conflicts).
+        List<Booking> overlapping = (c.getStaffMember() != null)
+                ? bookingRepository.findBookingsByStatusesIntersectingRangeForStaff(
+                        rangeStart, rangeEnd, BLOCKING_STATUSES, c.getStaffMember().getId())
+                : bookingRepository.findBookingsByStatusesIntersectingRange(
+                        rangeStart, rangeEnd, BLOCKING_STATUSES);
 
         List<ConflictBookingInfo> infos = overlapping.stream()
                 .map(b -> new ConflictBookingInfo(
@@ -276,6 +299,14 @@ public class ClosureService {
                 ))
                 .toList();
         return new ClosureConflictPreviewDTO(infos.size(), infos);
+    }
+
+    // ---------------------------- STAFF RESOLUTION (prompt 03) ----------------------------
+
+    private StaffMember resolveStaffOrNull(UUID staffId) {
+        if (staffId == null) return null;
+        return staffMemberRepository.findById(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Membro del team non trovato con id: " + staffId));
     }
 
     // ---------------------------- CONVERTER ----------------------------
@@ -290,7 +321,9 @@ public class ClosureService {
                 closure.getReason(),
                 closure.isFullDay(),
                 closure.isMultiDay(),
-                closure.getCreatedAt()
+                closure.getCreatedAt(),
+                // LAZY proxy: id access never initializes it (safe outside a fetch join)
+                closure.getStaffMember() != null ? closure.getStaffMember().getId() : null
         );
     }
 }

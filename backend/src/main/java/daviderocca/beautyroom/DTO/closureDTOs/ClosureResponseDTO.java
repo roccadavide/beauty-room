@@ -15,5 +15,6 @@ public record ClosureResponseDTO(
         String reason,
         boolean fullDay,
         boolean multiDay,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        UUID staffId           // null = salon-wide; non-null = staff absence (prompt 03)
 ) {}

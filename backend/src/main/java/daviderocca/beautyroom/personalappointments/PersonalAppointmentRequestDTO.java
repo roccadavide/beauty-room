@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.UUID;
 
 public record PersonalAppointmentRequestDTO(
 
@@ -25,5 +26,9 @@ public record PersonalAppointmentRequestDTO(
 
         @NotNull(message = "La durata è obbligatoria")
         @Min(value = 1, message = "La durata deve essere almeno 1 minuto")
-        Integer durationMinutes
+        Integer durationMinutes,
+
+        // nullable (multi-staff prompt 03) — absent = caller's own staff row,
+        // else the default staff. STAFF may only target themselves (matrix row 10).
+        UUID staffId
 ) {}
