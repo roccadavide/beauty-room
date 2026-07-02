@@ -21,7 +21,7 @@ All paths below are repo-relative. Backend Java root: `backend/src/main/java/dav
 
 ### 1.A Security & identity
 
-- **Roles:** `BE:enums/Role.java` → `CUSTOMER, ADMIN` only. Stored as `EnumType.STRING` on `users.role` (`BE:entities/User.java:55–56`). Authority = `"ROLE_" + role.name()` (`User.java:85`).
+- **Roles:** `BE:enums/Role.java` → `CUSTOMER, ADMIN` only. Stored as `EnumType.STRING` on `users.role` (`BE:entities/User.java:55–56`). Authority = `"ROLE_" + role.name()` (`User.java:85`). `users.role` also has a DB CHECK constraint (`users_role_check`) extended to include STAFF by V84.
 - **JWT (verified directly):** `BE:tools/JWTTools.java:23–33` — claims are `sub` (email), `id`, `jti`, `isVerified`, `iat`, `exp` (15 min). **No role claim.** Role is resolved per-request server-side: `BE:security/JWTFilter.java` loads the User by email and uses `getAuthorities()`. ⇒ **changing role semantics never invalidates live tokens**, and the FE learns the role only from `/users/me`.
 - **Refresh:** `BE:entities/RefreshToken.java` — httpOnly rotating cookie (`refresh_token`, path configurable `/auth` / dev `/api/auth`), 14d or session per `rememberMe` column (V79), 30s grace window, reuse ⇒ revoke-all (`BE:services/RefreshTokenService.java:59–114`). **No role data in the refresh chain** — RBAC changes don't touch it.
 - **Route rules:** `BE:security/SecConfig.java:81–146` (`@EnableMethodSecurity`, STATELESS). Public: `/api/public/**`, `/auth/**`, `/stripe/webhook`, guest checkout endpoints, GET catalog/availability/promotions/results, `/waitlist`. Everything else `authenticated()` + method-level `@PreAuthorize`.

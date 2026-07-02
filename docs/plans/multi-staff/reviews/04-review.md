@@ -1,0 +1,24 @@
+# Review — Prompt 04 — APPROVE WITH NOTES
+
+| severity | file:line | issue | suggested fix |
+|---|---|---|---|
+| LOW | frontend/src/App.jsx:399,445 | `/admin/clienti` and `/admin/post-it` broadened to `["ADMIN","STAFF"]` — beyond the two routes the prompt names explicitly (AdminWorkspace + Notifiche). | Keep it — both are pure redirects into the shared workspace (clienti/postit views), matrix rows 12 & 25 are O+S, and leaving them ADMIN-only would bounce a STAFF clicking a legacy link to `/unauthorized`. Just record the decision. |
+| LOW | frontend/src/api/modules/team.api.js:108-115 | `getStaffAbsences` pulls the entire `/closures` list and filters by `staffId` client-side; grows unbounded over time. | Acceptable at salon scale and mirrors the existing Impostazioni closures list; a `?staffId=` server filter is a later nicety. |
+| LOW | frontend/src/api/modules/services.api.js:15 (reused) | `fetchServices(true)` returns `data.content || data` from a module cache; if the services endpoint ever paginates, the assignment checklist would silently show only page 1. | Pre-existing helper behavior, not introduced here — noted for awareness. |
+
+## Checklist evidence
+
+- **Scope.** All touched paths in scope: `App.jsx` (route + PrivateRoute plumbing), `endpoints.js` (`STAFF_ENDPOINTS`), `NavBar.jsx`, `Login.jsx` (redirect), `main.css` (`_team.css` import), new `features/admin/team/*` (6 files), `api/modules/team.api.js`, `styles/pages/_team.css`. No backend files touched. The 11 role-check catalog files (ProductsPage/ServicePage/ResultsPage…) correctly left ADMIN-only (untouched — not in `git status`).
+- **Preconditions.** `PrivateRoute` supports a `roles` array (`PrivateRoute.jsx:23`) → STOP rule clears. Prompt 03 API reachable: `StaffController` present, endpoints match §2.3 exactly.
+- **Backend contract parity (verified DTO-by-DTO).** `getAllStaff`→`StaffMemberResponseDTO {id,displayName,color,active,sortOrder,userEmail,serviceIds}` ✓; `createStaff`→`NewStaffMemberDTO {displayName,email,password,phone,color}` (FE validators mirror backend `@Size/@Email/@Pattern`, phone regex identical) ✓; `updateStaff`→`UpdateStaffMemberDTO {displayName,color,sortOrder}` (all three always sent, `sortOrder @NotNull`) ✓; `setStaffActive`→`StaffActiveUpdateDTO {active}` ✓; services GET/PUT wrap `{serviceIds}` ✓; hours GET/PUT `List<WorkingHoursResponseDTO>` / `List<NewWorkingHoursDTO>` with `dayOfWeek` enum names + `HH:mm` times matching `DateTimeField mode="time"` and `DOW_ORDER` ✓; catalog fields `serviceId`/`title`/`active` match `StaffServicesEditor` ✓.
+- **409 blocking path.** `StaffDeactivationBlockedException` → GlobalExceptionHandler:39 builds `Map.of("blockingBookings", …)` into `ApiError.details`; httpClient:113 exposes `error.normalized.details`; `team.api.js` rethrows `.status`/`.details`; `TeamPage.jsx:63` reads `e.status===409 && e.details.blockingBookings` with `{bookingId,startTime,customerName}` matching `BlockingBookingDTO`. End-to-end consistent.
+- **I1.** No ad-hoc `>=2`/`activeCount` gating in this prompt (correct — staff-count gating is 07/08/09). ADMIN dropdown order preserved; only new "Team" entry inserted between Impostazioni and Notifiche. CUSTOMER menu unchanged (`isOwner ? … : !isTeam ? …`). STAFF sees Profilo/Agenda/Notifiche/Logout only. Login redirect: STAFF→`/profilo/admin/agenda`, ADMIN/CUSTOMER→`/` unchanged.
+- **Additive/money/transactions.** No backend, no Stripe/webhook, no DTO field changes. N/A and clean.
+- **Frontend landmines.** Overlays use react-bootstrap `Modal` (portals to `document.body`) ✓; `_team.css` uses `svh` (100svh/46svh), no `vh`/`dvh` ✓; no `localStorage`/`sessionStorage`, no `window.scrollTo` ✓; no new npm deps (`package.json` untouched) ✓; no `console.log` in the diff (the `console.error` in `Login.jsx:75` is pre-existing, outside the changed hunks) ✓.
+
+Gates:
+- `npm run build` → ✓ built in 3.09s; `TeamPage-*.js` chunk emitted (22.23 kB).
+- `npx eslint` on the changed/new files → the only error is `App.jsx:163 'splashDone' unused`, present on HEAD (pre-existing, one of the 3 known repo-wide errors) and outside this diff. New `team/*` + `team.api.js` → **clean (exit 0)**.
+- Backend: **untouched** — 0 Java files in the diff; `test-compile` unaffected from the green baseline.
+
+Rationale: The diff faithfully implements the owner-only Team page and STAFF role plumbing described in prompt 04; every FE call was traced to the prompt-03 backend and the DTO shapes, the 409 reassign path, and the working-hours/closures contracts all line up exactly. Gates are green (only a pre-existing, out-of-diff lint error remains). I1 holds — with one active staff and no STAFF login the sole change is the new owner-only page + NavBar entry. The three notes are advisory (a defensible scope broadening consistent with the §2.2 matrix, plus two pre-existing/at-scale non-issues), none blocking. Verdict: **APPROVE WITH NOTES**.

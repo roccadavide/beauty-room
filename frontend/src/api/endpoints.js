@@ -129,6 +129,15 @@ export const WORKING_HOURS_ENDPOINTS = {
   BY_DAY: day => `/working-hours/${day}`,
 };
 
+// ---- TEAM / STAFF (multi-staff prompt 03/04) ----
+export const STAFF_ENDPOINTS = {
+  BASE: "/admin/staff",
+  BY_ID: id => `/admin/staff/${id}`,
+  ACTIVE: id => `/admin/staff/${id}/active`,
+  SERVICES: id => `/admin/staff/${id}/services`,
+  WORKING_HOURS: id => `/admin/staff/${id}/working-hours`,
+};
+
 // ---- UTILS ----
 export const UTILS = {
   IMAGE_PLACEHOLDER: "/assets/placeholder.jpg",
